@@ -37,7 +37,7 @@
   --status-ok-bg: #f0fdf4;       --status-ok-text: #166534;
   --status-warn-bg: #fffbeb;     --status-warn-text: #92400e;
   --status-error-bg: #fef2f2;    --status-error-text: #991b1b;
-  --status-neutral-bg: #f1f5f9;  --status-neutral-text: #334155;
+  --status-neutral-bg: #e2e8f0;  --status-neutral-text: #334155;
 
   /* ── Typography scale (each step -1px from current) ── */
   --text-xs:   11px;
@@ -57,6 +57,9 @@
   --sp-6:  20px;
   --sp-8:  26px;
   --sp-10: 32px;
+
+  /* ── Brand ── */
+  --brand-primary: #E8541A;
 
   /* ── Legacy compat (keep old names pointing at new values) ── */
   --muted: var(--text-secondary);
