@@ -1,0 +1,66 @@
+[
+  {
+    "id": "conn_1778038927683_6wexdmvm5",
+    "name": "SF_Codex",
+    "type": "snowflake",
+    "host": "codex.snowflakecomputing.com",
+    "account": "CODEX_ANALYTICS",
+    "database": "SUPPLYCHAIN_DB",
+    "schema": "SUPPLYCHAIN",
+    "warehouse": "COMPUTE_WH",
+    "role": "DATA_ENGINEER",
+    "username": "dq_platform_user",
+    "status": "active",
+    "createdAt": "2026-01-10T08:00:00Z",
+    "lastTested": "2026-05-30T07:45:00Z"
+  },
+  {
+    "id": "conn_pg_prod",
+    "name": "Production PostgreSQL",
+    "type": "postgresql",
+    "host": "prod-db.internal.company.com",
+    "port": 5432,
+    "database": "prod_analytics",
+    "schema": "public",
+    "username": "dataguard_ro",
+    "status": "active",
+    "createdAt": "2026-01-15T10:00:00Z",
+    "lastTested": "2026-05-30T07:30:00Z"
+  },
+  {
+    "id": "conn_bq_analytics",
+    "name": "BigQuery Analytics",
+    "type": "bigquery",
+    "project": "company-analytics-prod",
+    "database": "analytics_warehouse",
+    "schema": "reporting",
+    "username": "service-account@company-analytics-prod.iam.gserviceaccount.com",
+    "status": "active",
+    "createdAt": "2026-02-01T09:00:00Z",
+    "lastTested": "2026-05-30T06:00:00Z"
+  },
+  {
+    "id": "conn_mysql_crm",
+    "name": "CRM MySQL",
+    "type": "mysql",
+    "host": "crm-db.internal.company.com",
+    "port": 3306,
+    "database": "crm_production",
+    "schema": "crm",
+    "username": "dataguard_reader",
+    "status": "inactive",
+    "createdAt": "2026-03-05T11:00:00Z",
+    "lastTested": "2026-05-28T14:00:00Z"
+  },
+  {
+    "id": "conn_mongo_events",
+    "name": "Event Store MongoDB",
+    "type": "mongodb",
+    "connectionString": "mongodb://events-cluster.internal.company.com:27017/event_store",
+    "database": "event_store",
+    "username": "dq_reader",
+    "status": "error",
+    "createdAt": "2026-04-01T13:00:00Z",
+    "lastTested": "2026-05-29T09:00:00Z"
+  }
+]
