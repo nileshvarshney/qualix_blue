@@ -400,6 +400,9 @@ export default function AlertsPage() {
             ))}
           </div>
 
+          {filteredRules.length === 0 && (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No alert rules yet</div>
+          )}
           {filteredRules.map(r => {
             const ss = SEV[r.severity]
             const isExpanded = expandedRule === r.id

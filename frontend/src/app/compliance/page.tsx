@@ -56,6 +56,12 @@ export default function CompliancePage() {
     return true
   })
 
+  const totalControls = frameworks.reduce((s, f) => s + f.controlsTotal, 0)
+  const passedControls = frameworks.reduce((s, f) => s + f.controlsPassed, 0)
+  const failedControls = frameworks.reduce((s, f) => s + f.controlsFailed, 0)
+  const compliantCount = frameworks.filter(f => f.status === 'compliant').length
+  const overallPct = totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : null
+
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
       <PageTabBar tabs={[
@@ -67,23 +73,41 @@ export default function CompliancePage() {
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Compliance & Regulations</h1>
       <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Map data quality rules to regulatory frameworks and track compliance posture</p>
 
-      {/* KPIs */}
+      {/* KPIs derived from real data */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
-        {[
-          { label: 'Overall Compliance', value: '91.2%', change: '▲ 3.1%', changeColor: '#16a34a' },
-          { label: 'Frameworks Tracked', value: '5', sub: '2 fully compliant' },
-          { label: 'Controls Passed', value: '167/179', change: '93.3%', changeColor: '#16a34a' },
-          { label: 'Open Gaps', value: '12', change: '▼ 3', changeColor: '#16a34a' },
-        ].map((kpi, i) => (
-          <div key={i} style={card}>
-            <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>{kpi.label}</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
-              <span style={{ fontSize: '32px', fontWeight: 700, color: '#1a1a1a', letterSpacing: '-1px' }}>{kpi.value}</span>
-              {kpi.change && <span style={{ fontSize: '12px', color: kpi.changeColor, fontWeight: 600 }}>{kpi.change}</span>}
-            </div>
-            {kpi.sub && <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>{kpi.sub}</div>}
+        <div style={card}>
+          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Overall Compliance</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: overallPct != null ? '#1a1a1a' : '#94a3b8', letterSpacing: '-1px' }}>
+              {overallPct != null ? `${overallPct}%` : '—'}
+            </span>
           </div>
-        ))}
+        </div>
+        <div style={card}>
+          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Frameworks Tracked</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: frameworks.length > 0 ? '#1a1a1a' : '#94a3b8', letterSpacing: '-1px' }}>
+              {frameworks.length > 0 ? frameworks.length : '—'}
+            </span>
+          </div>
+          {compliantCount > 0 && <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '4px' }}>{compliantCount} fully compliant</div>}
+        </div>
+        <div style={card}>
+          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Controls Passed</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: totalControls > 0 ? '#1a1a1a' : '#94a3b8', letterSpacing: '-1px' }}>
+              {totalControls > 0 ? `${passedControls}/${totalControls}` : '—'}
+            </span>
+          </div>
+        </div>
+        <div style={card}>
+          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Open Gaps</div>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: totalControls > 0 ? '#1a1a1a' : '#94a3b8', letterSpacing: '-1px' }}>
+              {totalControls > 0 ? failedControls : '—'}
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Frameworks Grid */}
@@ -96,7 +120,7 @@ export default function CompliancePage() {
         ) : null}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '12px' }}>
           {!loading && frameworks.map(fw => {
-            const pct = Math.round((fw.controlsPassed / fw.controlsTotal) * 100)
+            const pct = fw.controlsTotal > 0 ? Math.round((fw.controlsPassed / fw.controlsTotal) * 100) : 0
             const st = statusStyle(fw.status)
             return (
               <div key={fw.id} onClick={() => setSelectedFw(selectedFw === fw.id ? null : fw.id)} style={{
@@ -137,33 +161,37 @@ export default function CompliancePage() {
             ))}
           </div>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-          <thead>
-            <tr style={{ borderBottom: '1px solid #ebe8df' }}>
-              {['Code', 'Control', 'Framework', 'Status', 'Rules', 'Last Assessed', 'Evidence'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11.5px' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filteredControls.map(c => {
-              const st = statusStyle(c.status)
-              return (
-                <tr key={c.id} style={{ borderBottom: '1px solid #f3f1ea' }}>
-                  <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '12px', fontWeight: 600, color: '#475569' }}>{c.code}</td>
-                  <td style={{ padding: '12px', fontWeight: 500, color: '#1a1a1a' }}>{c.name}</td>
-                  <td style={{ padding: '12px', color: '#64748b' }}>{c.framework}</td>
-                  <td style={{ padding: '12px' }}>
-                    <span style={{ background: st.bg, color: st.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize' }}>{c.status}</span>
-                  </td>
-                  <td style={{ padding: '12px', color: '#475569' }}>{c.rulesMapped}</td>
-                  <td style={{ padding: '12px', color: '#94a3b8' }}>{c.lastAssessed}</td>
-                  <td style={{ padding: '12px', fontSize: '12px', color: '#64748b' }}>{c.evidence}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+        {controls.length === 0 ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No controls yet</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #ebe8df' }}>
+                {['Code', 'Control', 'Framework', 'Status', 'Rules', 'Last Assessed', 'Evidence'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11.5px' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filteredControls.map(c => {
+                const st = statusStyle(c.status)
+                return (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #f3f1ea' }}>
+                    <td style={{ padding: '12px', fontFamily: 'monospace', fontSize: '12px', fontWeight: 600, color: '#475569' }}>{c.code}</td>
+                    <td style={{ padding: '12px', fontWeight: 500, color: '#1a1a1a' }}>{c.name}</td>
+                    <td style={{ padding: '12px', color: '#64748b' }}>{c.framework}</td>
+                    <td style={{ padding: '12px' }}>
+                      <span style={{ background: st.bg, color: st.color, padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize' }}>{c.status}</span>
+                    </td>
+                    <td style={{ padding: '12px', color: '#475569' }}>{c.rulesMapped}</td>
+                    <td style={{ padding: '12px', color: '#94a3b8' }}>{c.lastAssessed}</td>
+                    <td style={{ padding: '12px', fontSize: '12px', color: '#64748b' }}>{c.evidence}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   )

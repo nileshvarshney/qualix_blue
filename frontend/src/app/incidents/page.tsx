@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 interface Incident {
@@ -8,15 +8,6 @@ interface Incident {
   createdAt: string; resolvedAt: string | null
   description: string; owner: string; ttrMinutes: number | null
 }
-
-const INCIDENTS: Incident[] = [
-  { id: 'INC-001', title: 'Null values spike in orders_fact.total_amount', asset: 'orders_fact', severity: 'critical', status: 'open', createdAt: '2026-05-22T10:15:00Z', resolvedAt: null, description: 'Null percentage jumped from 0.1% to 12.3% after ETL run at 10:00 UTC', owner: 'Data Platform', ttrMinutes: null },
-  { id: 'INC-002', title: 'SLA breach on ga.sessions_daily refresh', asset: 'sessions_daily', severity: 'high', status: 'investigating', createdAt: '2026-05-22T08:30:00Z', resolvedAt: null, description: 'Dataset has not been refreshed for 7 hours, SLA requires 6h max', owner: 'Marketing', ttrMinutes: null },
-  { id: 'INC-003', title: 'Schema drift detected in crm.users_dim', asset: 'users_dim', severity: 'medium', status: 'investigating', createdAt: '2026-05-21T16:45:00Z', resolvedAt: null, description: 'Column "loyalty_tier" was dropped without approval', owner: 'Growth', ttrMinutes: null },
-  { id: 'INC-004', title: 'Row count anomaly in inventory.items', asset: 'items_stock', severity: 'high', status: 'resolved', createdAt: '2026-05-21T09:00:00Z', resolvedAt: '2026-05-21T11:30:00Z', description: '31% drop in row count detected, traced to incomplete data load', owner: 'Supply Chain', ttrMinutes: 150 },
-  { id: 'INC-005', title: 'Referential integrity failure in finance.ledger', asset: 'ledger_gl', severity: 'critical', status: 'resolved', createdAt: '2026-05-20T14:20:00Z', resolvedAt: '2026-05-20T16:45:00Z', description: '412 orphaned records found with no matching account_id', owner: 'Finance', ttrMinutes: 145 },
-  { id: 'INC-006', title: 'Email format validation failures', asset: 'users_dim', severity: 'medium', status: 'resolved', createdAt: '2026-05-19T11:00:00Z', resolvedAt: '2026-05-19T13:20:00Z', description: '287 email addresses failing regex validation after data migration', owner: 'CRM Team', ttrMinutes: 140 },
-]
 
 function sevStyle(s: string) {
   if (s === 'critical') return { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' }
@@ -34,15 +25,42 @@ function statusStyle(s: string) {
 const card: React.CSSProperties = { background: '#fff', borderRadius: '12px', padding: '18px 20px', border: '1px solid #ebe8df' }
 
 export default function IncidentsPage() {
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
 
-  const filtered = INCIDENTS.filter(inc => filter === 'all' || inc.status === filter)
+  useEffect(() => {
+    fetch('/api/incidents')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setIncidents(items.map((inc: Record<string, unknown>, i: number) => ({
+          id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
+          title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
+          asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
+          severity: (inc.severity as Incident['severity']) ?? 'medium',
+          status: (inc.status ?? inc.incident_status ?? 'open') as Incident['status'],
+          createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
+          resolvedAt: inc.resolved_at ? String(inc.resolved_at) : (inc.resolvedAt ? String(inc.resolvedAt) : null),
+          description: String(inc.description ?? inc.message ?? ''),
+          owner: String(inc.owner ?? inc.domain_id ?? inc.assigned_to ?? ''),
+          ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : (inc.ttrMinutes != null ? Number(inc.ttrMinutes) : null),
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
 
-  const openCount = INCIDENTS.filter(i => i.status === 'open').length
-  const investigatingCount = INCIDENTS.filter(i => i.status === 'investigating').length
-  const resolvedCount = INCIDENTS.filter(i => i.status === 'resolved').length
-  const avgTTR = Math.round(INCIDENTS.filter(i => i.ttrMinutes).reduce((s, i) => s + (i.ttrMinutes ?? 0), 0) / Math.max(resolvedCount, 1))
+  const filtered = incidents.filter(inc => filter === 'all' || inc.status === filter)
+
+  const openCount = incidents.filter(i => i.status === 'open').length
+  const investigatingCount = incidents.filter(i => i.status === 'investigating').length
+  const resolvedCount = incidents.filter(i => i.status === 'resolved').length
+  const resolvedWithTTR = incidents.filter(i => i.ttrMinutes != null)
+  const avgTTR = resolvedWithTTR.length > 0
+    ? Math.round(resolvedWithTTR.reduce((s, i) => s + (i.ttrMinutes ?? 0), 0) / resolvedWithTTR.length)
+    : null
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
@@ -77,8 +95,14 @@ export default function IncidentsPage() {
         <div style={card}>
           <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Avg. Time to Resolve</div>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-            <span style={{ fontSize: '32px', fontWeight: 700, color: '#1a1a1a', letterSpacing: '-1px' }}>{avgTTR}</span>
-            <span style={{ fontSize: '14px', color: '#94a3b8' }}>min</span>
+            {avgTTR != null ? (
+              <>
+                <span style={{ fontSize: '32px', fontWeight: 700, color: '#1a1a1a', letterSpacing: '-1px' }}>{avgTTR}</span>
+                <span style={{ fontSize: '14px', color: '#94a3b8' }}>min</span>
+              </>
+            ) : (
+              <span style={{ fontSize: '32px', fontWeight: 700, color: '#94a3b8', letterSpacing: '-1px' }}>—</span>
+            )}
           </div>
         </div>
       </div>
@@ -98,7 +122,12 @@ export default function IncidentsPage() {
 
       {/* Incidents List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {filtered.map(inc => {
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No incidents yet</div>
+        ) : null}
+        {!loading && filtered.map(inc => {
           const sev = sevStyle(inc.severity)
           const stat = statusStyle(inc.status)
           const isOpen = expanded === inc.id
@@ -115,7 +144,7 @@ export default function IncidentsPage() {
                     <span style={{ fontWeight: 600, fontSize: '13.5px', color: '#1a1a1a' }}>{inc.title}</span>
                   </div>
                   <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    {inc.asset} · {inc.owner} · {new Date(inc.createdAt).toLocaleString()}
+                    {inc.asset}{inc.owner ? ` · ${inc.owner}` : ''}{inc.createdAt ? ` · ${new Date(inc.createdAt).toLocaleString()}` : ''}
                   </div>
                 </div>
                 <span style={{ background: sev.bg, color: sev.color, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600, textTransform: 'capitalize', flexShrink: 0, border: `1px solid ${sev.border}` }}>{inc.severity}</span>

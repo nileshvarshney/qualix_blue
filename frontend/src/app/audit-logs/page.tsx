@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 type FilterType = 'all' | 'failed' | 'system' | 'user'
@@ -9,93 +9,6 @@ interface AuditLog {
   ip: string; ts: string; category: string; result: 'success' | 'failed'
   detail: string; context: string; sessionId: string; duration: string
 }
-
-const logs: AuditLog[] = [
-  {
-    id: 'u1', user: 'Bhaskar R.', action: 'Connection Created', resource: 'SF_Codex (Snowflake)',
-    ip: '192.168.1.10', ts: '2026-05-05 03:17', category: 'connection', result: 'success',
-    sessionId: 'sess_8f2a1c', duration: '340ms',
-    detail: 'Created new Snowflake connection "SF_Codex" with warehouse COMPUTE_WH, database ANALYTICS, schema PUBLIC. Connection test passed — query latency 120ms.',
-    context: 'New Snowflake data warehouse onboarded for analytics platform. Connection replaces the legacy Redshift cluster. Admin accessed via web console from internal network.',
-  },
-  {
-    id: 'u2', user: 'Bhaskar R.', action: 'Connection Tested', resource: 'SF_Codex',
-    ip: '192.168.1.10', ts: '2026-05-05 03:18', category: 'connection', result: 'success',
-    sessionId: 'sess_8f2a1c', duration: '125ms',
-    detail: 'Connection test executed: SELECT 1. Returned in 120ms. Authentication via key-pair (RSA). SSL/TLS verified.',
-    context: 'Standard connection validation after creation. All credentials verified.',
-  },
-  {
-    id: 'u3', user: 'Priya M.', action: 'Rule Created', resource: 'Customer Email Format (dim_customers)',
-    ip: '10.0.0.25', ts: '2026-05-04 14:30', category: 'rule', result: 'success',
-    sessionId: 'sess_3c9d4e', duration: '210ms',
-    detail: 'Created quality rule "Customer Email Format" of type regex on dim_customers.email. Pattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$. Severity: Critical. Applied to connection SF_Codex.',
-    context: 'Rule created in response to CRM import quality issue (ISS-002). Part of the data quality remediation plan for the Marketing team.',
-  },
-  {
-    id: 'u4', user: 'Bhaskar R.', action: 'Rule Updated', resource: 'Orders NOT NULL Check',
-    ip: '192.168.1.10', ts: '2026-05-04 11:00', category: 'rule', result: 'success',
-    sessionId: 'sess_7a1b2f', duration: '180ms',
-    detail: 'Updated rule "Orders NOT NULL Check": changed severity from high → critical. Added columns net_revenue and tax_amount to the NOT NULL check (previously only order_total). Threshold unchanged.',
-    context: 'Severity escalated after Finance reported revenue dashboard impact from NULL values. Scope extended to cover all revenue-related columns.',
-  },
-  {
-    id: 'u5', user: 'Rajan S.', action: 'Schedule Paused', resource: 'Inventory Snapshot Check',
-    ip: '10.0.0.41', ts: '2026-05-04 09:15', category: 'schedule', result: 'success',
-    sessionId: 'sess_5e8c1d', duration: '95ms',
-    detail: 'Schedule "Inventory Snapshot Check" (cron: 0 */4 * * *) paused by Rajan S. Reason recorded: "Warehouse migration in progress — data will be unstable for 48h". Schedule will be resumed manually.',
-    context: 'Planned pause during the W-North warehouse zone migration. Prevents false quality alerts during the transition period.',
-  },
-  {
-    id: 'u6', user: 'System', action: 'Alert Fired', resource: 'Critical Quality Drop → fact_payments',
-    ip: 'internal', ts: '2026-05-04 18:00', category: 'alert', result: 'success',
-    sessionId: 'sys_auto', duration: '12ms',
-    detail: 'Alert "Critical Quality Drop" triggered for fact_payments. Quality score dropped from 92% to 61% in one check cycle. Alert sent to: Slack #data-alerts, email bhaskar@company.com, PagerDuty P1 incident created (INC-4421).',
-    context: 'Automated alert triggered by the quality monitoring engine. Root cause: payment processor API v3 migration introduced NULL payment_amount_usd for 1.48M rows.',
-  },
-  {
-    id: 'u7', user: 'Anil K.', action: 'Login', resource: 'Web Console',
-    ip: '10.0.0.88', ts: '2026-05-04 08:30', category: 'auth', result: 'success',
-    sessionId: 'sess_2d7f9a', duration: '580ms',
-    detail: 'Successful login via SSO (Google OAuth). Session created: sess_2d7f9a. Role: Analyst (read-only). MFA: not required (internal network). Session expires in 8h.',
-    context: 'Regular work-hours login from internal network. No anomalies detected.',
-  },
-  {
-    id: 'u8', user: 'Unknown', action: 'Login Failed', resource: 'Web Console',
-    ip: '203.0.113.42', ts: '2026-05-03 23:14', category: 'auth', result: 'failed',
-    sessionId: 'none', duration: '2,400ms',
-    detail: 'Login attempt failed — invalid credentials. IP 203.0.113.42 is not in the internal IP range. This IP has attempted login 7 times in the last 24h (brute-force pattern detected). Account temporarily locked for 15 minutes. Security team notified.',
-    context: 'SECURITY ALERT: External IP attempting authentication outside business hours. The IP block 203.0.113.0/24 is associated with a cloud VPS provider. No successful logins from this IP. Recommend adding to blocklist.',
-  },
-  {
-    id: 'u9', user: 'Bhaskar R.', action: 'Report Generated', resource: 'Weekly Quality Summary',
-    ip: '192.168.1.10', ts: '2026-05-03 09:00', category: 'report', result: 'success',
-    sessionId: 'sess_1a3c5e', duration: '4,200ms',
-    detail: 'Generated "Weekly Quality Summary" report for 2026-04-27 to 2026-05-03. Included 418 rules, 142 datasets, 7 connections. Overall score: 91.2%. PDF exported and emailed to stakeholders@company.com.',
-    context: 'Scheduled weekly reporting. Report covers all active rules across the Analytics Platform workspace.',
-  },
-  {
-    id: 'u10', user: 'Priya M.', action: 'Contract Created', resource: 'Customers → Marketing Platform',
-    ip: '10.0.0.25', ts: '2026-05-02 15:45', category: 'contract', result: 'success',
-    sessionId: 'sess_6b2e4c', duration: '310ms',
-    detail: 'Created data contract "Customers → Marketing Platform" between producer dim_customers and consumer Marketing CDP. SLA target: 95% compliance. Terms: 5 quality checks defined. Owner: Priya M.',
-    context: 'Contract established to formalise the Marketing CDP data quality requirements following the GDPR compliance review.',
-  },
-  {
-    id: 'u11', user: 'Bhaskar R.', action: 'SLA Updated', resource: 'Payment Reconciliation SLA',
-    ip: '192.168.1.10', ts: '2026-05-02 10:00', category: 'sla', result: 'success',
-    sessionId: 'sess_9c4d7f', duration: '145ms',
-    detail: 'Updated SLA "Payment Reconciliation": target tightened from < 0.1% variance to < 0.01% variance. SLA compliance target raised from 99% to 99.9%. Owner unchanged: Bhaskar R.',
-    context: 'SLA tightened after Finance escalation. The payment reconciliation accuracy requirement increased following regulatory review.',
-  },
-  {
-    id: 'u12', user: 'System', action: 'Anomaly Detected', resource: 'fact_orders volume spike',
-    ip: 'internal', ts: '2026-05-05 14:22', category: 'anomaly', result: 'success',
-    sessionId: 'sys_auto', duration: '8ms',
-    detail: 'Anomaly detector identified a 340% row count spike in fact_orders (expected ~42K rows/hour, observed 184K). Type: Volume Spike. Severity: Critical. Auto-created Issue ISS-001 and dispatched alert to #data-alerts.',
-    context: 'Caused by a duplicate-fire bug in the order confirmation webhook. The idempotency guard was bypassed during Redis cold-start after a deployment. 2,100 orders were inserted 4–5 times each.',
-  },
-]
 
 const catColor: Record<string, { bg: string; color: string }> = {
   connection: { bg: '#eff6ff', color: '#2563eb' },
@@ -115,10 +28,36 @@ const avatarColors: Record<string, string> = {
 }
 
 export default function AuditLogsPage() {
+  const [logs, setLogs] = useState<AuditLog[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter]     = useState<FilterType>('all')
   const [category, setCategory] = useState('all')
   const [search, setSearch]     = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetch('/api/audit')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setLogs(items.map((l: Record<string, unknown>, i: number) => ({
+          id: String(l.audit_id ?? l.id ?? i),
+          user: String(l.user_name ?? l.user ?? 'System'),
+          action: String(l.action ?? l.action_type ?? ''),
+          resource: String(l.resource ?? l.resource_name ?? ''),
+          ip: String(l.ip_address ?? l.ip ?? 'internal'),
+          ts: String(l.created_at ?? l.ts ?? l.timestamp ?? ''),
+          category: String(l.category ?? l.event_type ?? 'system'),
+          result: (l.result as 'success' | 'failed') ?? (l.status === 'failed' ? 'failed' : 'success'),
+          detail: String(l.detail ?? l.description ?? ''),
+          context: String(l.context ?? l.notes ?? ''),
+          sessionId: String(l.session_id ?? l.sessionId ?? ''),
+          duration: String(l.duration ?? l.duration_ms ? `${l.duration_ms}ms` : ''),
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
 
   const categories = ['all', ...Array.from(new Set(logs.map(l => l.category)))]
   const totalEvents  = logs.length
@@ -162,7 +101,7 @@ export default function AuditLogsPage() {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Audit Logs</h1>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
-            Complete record of all user and system actions — {logs.length} events in the last 7 days
+            Complete record of all user and system actions — {logs.length} events
             {failedEvents > 0 && <span style={{ color: '#dc2626', fontWeight: 600 }}> · {failedEvents} failed action{failedEvents > 1 ? 's' : ''}</span>}
           </p>
         </div>
@@ -218,7 +157,14 @@ export default function AuditLogsPage() {
 
       {/* Log list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {filtered.map(l => {
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+            {logs.length === 0 ? 'No audit logs yet' : 'No audit events match your filters'}
+          </div>
+        ) : null}
+        {!loading && filtered.map(l => {
           const cc     = catColor[l.category] || { bg: '#f8fafc', color: '#64748b' }
           const isOpen = expanded === l.id
           const isFail = l.result === 'failed'
@@ -311,17 +257,19 @@ export default function AuditLogsPage() {
                         <span>{isFail ? '🚨' : '📝'}</span>
                         <span style={{ fontSize: '11px', fontWeight: 800, color: isFail ? '#dc2626' : '#4338ca', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Event Detail</span>
                       </div>
-                      <div style={{ padding: '12px 14px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{l.detail}</div>
+                      <div style={{ padding: '12px 14px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{l.detail || '—'}</div>
                     </div>
 
                     {/* Context */}
-                    <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                      <div style={{ background: '#fafaf9', padding: '9px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '7px' }}>
-                        <span>💬</span>
-                        <span style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Context & Notes</span>
+                    {l.context && (
+                      <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                        <div style={{ background: '#fafaf9', padding: '9px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '7px' }}>
+                          <span>💬</span>
+                          <span style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Context & Notes</span>
+                        </div>
+                        <div style={{ padding: '12px 14px', fontSize: '13px', color: '#475569', lineHeight: '1.7' }}>{l.context}</div>
                       </div>
-                      <div style={{ padding: '12px 14px', fontSize: '13px', color: '#475569', lineHeight: '1.7' }}>{l.context}</div>
-                    </div>
+                    )}
 
                     <div>
                       <button onClick={() => setExpanded(null)} style={{ padding: '6px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}>
@@ -334,11 +282,6 @@ export default function AuditLogsPage() {
             </div>
           )
         })}
-        {filtered.length === 0 && (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: '#fff', borderRadius: '12px', border: '2px dashed #e2e8f0' }}>
-            No audit events match your filters
-          </div>
-        )}
       </div>
     </div>
   )
