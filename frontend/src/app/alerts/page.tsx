@@ -152,10 +152,10 @@ const alertRules: AlertRule[] = [
 ]
 
 const SEV: Record<Severity, { bg: string; color: string; border: string }> = {
-  critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
-  high:     { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-  medium:   { bg: '#fefce8', color: '#ca8a04', border: '#fde68a' },
-  info:     { bg: '#f0f9ff', color: '#0284c7', border: '#bae6fd' },
+  critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',  border: '#fca5a5' },
+  high:     { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',   border: '#fdba74' },
+  medium:   { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',   border: '#fde68a' },
+  info:     { bg: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', border: '#bae6fd' },
 }
 
 export default function AlertsPage() {
@@ -242,26 +242,26 @@ export default function AlertsPage() {
         { href: '/incidents',  label: 'Incidents' },
         { href: '/audit-logs', label: 'Audit Logs' },
       ]} />
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
+      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+        Workspace · <span style={{ color: 'var(--text-secondary)' }}>Analytics platform</span>
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Alerts</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Alerts</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0' }}>
             {unacked} unacknowledged · {activeRules} active alert rules
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           {unacked > 0 && (
             <button onClick={ackAll} style={{
-              background: '#fff', border: '1px solid #e2e8f0', padding: '8px 14px',
-              borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: '#475569', cursor: 'pointer'
+              background: 'var(--surface)', border: '1px solid var(--border)', padding: '8px 14px',
+              borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer'
             }}>✓ Ack All ({unacked})</button>
           )}
           <button style={{
-            background: '#dbeafe', border: '1px solid #93c5fd', padding: '8px 16px',
-            borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#2563eb', cursor: 'pointer'
+            background: 'var(--accent-bg)', border: '1px solid #93c5fd', padding: '8px 16px',
+            borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--accent)', cursor: 'pointer'
           }}>+ New Alert Rule</button>
         </div>
       </div>
@@ -276,8 +276,8 @@ export default function AlertsPage() {
               : handleAlertCard(s.activeFilter as AlertFilter)
             }
             style={{
-              background: s.active ? s.color : '#fff',
-              border: `1px solid ${s.active ? s.color : '#ebe8df'}`,
+              background: s.active ? s.color : 'var(--surface)',
+              border: `1px solid ${s.active ? s.color : 'var(--border)'}`,
               borderRadius: '12px', padding: '16px 20px',
               cursor: 'pointer',
               transition: 'all 0.18s',
@@ -286,7 +286,7 @@ export default function AlertsPage() {
           >
             <div style={{ fontSize: '22px', marginBottom: '6px' }}>{s.icon}</div>
             <div style={{ fontSize: '26px', fontWeight: 700, color: s.active ? '#fff' : s.color }}>{s.value}</div>
-            <div style={{ fontSize: '12px', color: s.active ? 'rgba(255,255,255,0.85)' : '#64748b', marginTop: '2px' }}>
+            <div style={{ fontSize: '12px', color: s.active ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)', marginTop: '2px' }}>
               {s.label}
             </div>
             {s.active && (
@@ -309,9 +309,9 @@ export default function AlertsPage() {
           ] as { f: AlertFilter; label: string; count: number }[]).map(p => (
             <button key={p.f} onClick={() => setAlertFilter(p.f)} style={{
               padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-              border: `1px solid ${alertFilter === p.f ? '#2563eb' : '#e2e8f0'}`,
-              background: alertFilter === p.f ? '#dbeafe' : '#fff',
-              color: alertFilter === p.f ? '#2563eb' : '#64748b',
+              border: `1px solid ${alertFilter === p.f ? 'var(--accent)' : 'var(--border)'}`,
+              background: alertFilter === p.f ? 'var(--accent-bg)' : 'var(--surface)',
+              color: alertFilter === p.f ? 'var(--accent)' : 'var(--text-secondary)',
               cursor: 'pointer',
             }}>
               {p.label} <span style={{ opacity: 0.75 }}>({p.count})</span>
@@ -321,12 +321,12 @@ export default function AlertsPage() {
       )}
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', background: '#f8fafc', padding: '4px', borderRadius: '10px', width: 'fit-content' }}>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', background: 'var(--surface-muted)', padding: '4px', borderRadius: '10px', width: 'fit-content' }}>
         {(['recent', 'rules'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '7px 18px', borderRadius: '7px', border: 'none',
-            background: tab === t ? '#fff' : 'transparent',
-            color: tab === t ? '#1a1a1a' : '#64748b',
+            background: tab === t ? 'var(--surface)' : 'transparent',
+            color: tab === t ? 'var(--foreground)' : 'var(--text-secondary)',
             fontWeight: tab === t ? 600 : 400,
             fontSize: '13px', cursor: 'pointer',
             boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
@@ -340,7 +340,7 @@ export default function AlertsPage() {
       {tab === 'recent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {filteredAlerts.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontSize: '13px' }}>
               No alerts match this filter.
             </div>
           )}
@@ -352,9 +352,9 @@ export default function AlertsPage() {
                 key={a.id}
                 onClick={() => setExpandedAlert(isExpanded ? null : a.id)}
                 style={{
-                  background: '#fff',
-                  border: `1px solid ${!a.ack ? ss.border : '#ebe8df'}`,
-                  borderLeft: `3px solid ${!a.ack ? ss.color : '#d1d5db'}`,
+                  background: 'var(--surface)',
+                  border: `1px solid ${!a.ack ? ss.border : 'var(--border)'}`,
+                  borderLeft: `3px solid ${!a.ack ? ss.color : 'var(--border)'}`,
                   borderRadius: '12px', cursor: 'pointer',
                   opacity: a.ack && !isExpanded ? 0.75 : 1,
                   transition: 'all 0.15s',
@@ -367,18 +367,18 @@ export default function AlertsPage() {
                       <span style={{ background: ss.bg, color: ss.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600 }}>
                         {a.severity}
                       </span>
-                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#1a1a1a' }}>{a.rule}</span>
+                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{a.rule}</span>
                       {a.ack && (
                         <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '1px 6px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 600 }}>
                           ✓ Acknowledged
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '13px', color: '#475569', marginBottom: '5px' }}>{a.message}</div>
-                    <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: '#94a3b8', flexWrap: 'wrap' }}>
-                      <span>Dataset: <strong style={{ color: '#475569' }}>{a.dataset}</strong></span>
-                      <span>Pipeline: <strong style={{ color: '#475569' }}>{a.pipeline}</strong></span>
-                      <span>Channel: <strong style={{ color: '#475569' }}>{a.channel}</strong></span>
+                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '5px' }}>{a.message}</div>
+                    <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                      <span>Dataset: <strong style={{ color: 'var(--text-secondary)' }}>{a.dataset}</strong></span>
+                      <span>Pipeline: <strong style={{ color: 'var(--text-secondary)' }}>{a.pipeline}</strong></span>
+                      <span>Channel: <strong style={{ color: 'var(--text-secondary)' }}>{a.channel}</strong></span>
                       <span>{a.ts}</span>
                     </div>
                   </div>
@@ -387,22 +387,22 @@ export default function AlertsPage() {
                       <button
                         onClick={(e) => ack(a.id, e)}
                         style={{
-                          padding: '5px 12px', borderRadius: '7px', border: '1px solid #e2e8f0',
-                          background: '#fff', color: '#475569', fontSize: '12px', cursor: 'pointer', fontWeight: 500
+                          padding: '5px 12px', borderRadius: '7px', border: '1px solid var(--border)',
+                          background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500
                         }}
                       >
                         Acknowledge
                       </button>
                     )}
-                    <span style={{ color: '#94a3b8', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
                   </div>
                 </div>
 
                 {/* Expanded detail */}
                 {isExpanded && (
-                  <div style={{ borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ borderTop: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
                     {/* Metadata bar */}
-                    <div style={{ display: 'flex', background: '#fafaf9', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
                       {[
                         { label: 'Dataset', value: a.dataset },
                         { label: 'Pipeline', value: a.pipeline },
@@ -412,10 +412,10 @@ export default function AlertsPage() {
                       ].map((m, i, arr) => (
                         <div key={i} style={{
                           flex: 1, padding: '10px 16px',
-                          borderRight: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none'
+                          borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none'
                         }}>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>{m.value}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '2px' }}>{m.value}</div>
                         </div>
                       ))}
                     </div>
@@ -474,9 +474,9 @@ export default function AlertsPage() {
             ] as { f: RuleFilter; label: string; count: number }[]).map(p => (
               <button key={p.f} onClick={() => setRuleFilter(p.f)} style={{
                 padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-                border: `1px solid ${ruleFilter === p.f ? '#2563eb' : '#e2e8f0'}`,
-                background: ruleFilter === p.f ? '#dbeafe' : '#fff',
-                color: ruleFilter === p.f ? '#2563eb' : '#64748b',
+                border: `1px solid ${ruleFilter === p.f ? 'var(--accent)' : 'var(--border)'}`,
+                background: ruleFilter === p.f ? 'var(--accent-bg)' : 'var(--surface)',
+                color: ruleFilter === p.f ? 'var(--accent)' : 'var(--text-secondary)',
                 cursor: 'pointer',
               }}>
                 {p.label} <span style={{ opacity: 0.75 }}>({p.count})</span>
@@ -492,9 +492,9 @@ export default function AlertsPage() {
                 key={r.id}
                 onClick={() => setExpandedRule(isExpanded ? null : r.id)}
                 style={{
-                  background: '#fff',
-                  border: '1px solid #ebe8df',
-                  borderLeft: `3px solid ${r.enabled ? ss.color : '#d1d5db'}`,
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${r.enabled ? ss.color : 'var(--border)'}`,
                   borderRadius: '12px', cursor: 'pointer',
                   opacity: !r.enabled && !isExpanded ? 0.7 : 1,
                   transition: 'all 0.15s',
@@ -504,36 +504,36 @@ export default function AlertsPage() {
                 <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <div style={{ flex: 2 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#1a1a1a' }}>{r.name}</span>
+                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{r.name}</span>
                       <span style={{ background: ss.bg, color: ss.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600 }}>
                         {r.severity}
                       </span>
                       {!r.enabled && (
-                        <span style={{ background: '#f1f5f9', color: '#94a3b8', padding: '2px 7px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 500 }}>
+                        <span style={{ background: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', padding: '2px 7px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 500 }}>
                           disabled
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>{r.condition}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{r.condition}</div>
                   </div>
-                  <div style={{ flex: 1, fontSize: '12px', color: '#64748b' }}>
-                    <div style={{ fontWeight: 500, color: '#475569' }}>{r.datasets}</div>
-                    <div style={{ color: '#94a3b8', marginTop: '2px' }}>datasets</div>
+                  <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{r.datasets}</div>
+                    <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>datasets</div>
                   </div>
-                  <div style={{ flex: 1, fontSize: '12px', color: '#64748b' }}>
-                    <div style={{ fontWeight: 500, color: '#475569' }}>{r.channel}</div>
-                    <div style={{ color: '#94a3b8', marginTop: '2px' }}>channel</div>
+                  <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{r.channel}</div>
+                    <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>channel</div>
                   </div>
                   <div style={{ textAlign: 'center', minWidth: '60px' }}>
                     <div style={{ fontSize: '18px', fontWeight: 700, color: r.triggered > 0 ? '#dc2626' : '#16a34a' }}>{r.triggered}</div>
-                    <div style={{ fontSize: '10px', color: '#94a3b8' }}>triggered</div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>triggered</div>
                   </div>
-                  <div style={{ fontSize: '11.5px', color: '#94a3b8', minWidth: '120px', textAlign: 'right' }}>{r.lastFired}</div>
+                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', minWidth: '120px', textAlign: 'right' }}>{r.lastFired}</div>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleRule(r.id) }}
                     style={{
                       width: '44px', height: '24px', borderRadius: '12px', border: 'none',
-                      background: r.enabled ? '#2563eb' : '#e2e8f0',
+                      background: r.enabled ? 'var(--accent)' : 'var(--border)',
                       cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0
                     }}
                   >
@@ -543,14 +543,14 @@ export default function AlertsPage() {
                       background: '#fff', transition: 'left 0.2s', display: 'block'
                     }} />
                   </button>
-                  <span style={{ color: '#94a3b8', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
                 </div>
 
                 {/* Expanded rule detail */}
                 {isExpanded && (
-                  <div style={{ borderTop: '1px solid #f1f5f9' }} onClick={e => e.stopPropagation()}>
+                  <div style={{ borderTop: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
                     {/* Metadata bar */}
-                    <div style={{ display: 'flex', background: '#fafaf9', borderBottom: '1px solid #f1f5f9' }}>
+                    <div style={{ display: 'flex', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
                       {[
                         { label: 'Owner', value: r.owner },
                         { label: 'Cooldown', value: r.cooldown },
@@ -560,10 +560,10 @@ export default function AlertsPage() {
                       ].map((m, i, arr) => (
                         <div key={i} style={{
                           flex: 1, padding: '10px 16px',
-                          borderRight: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none'
+                          borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none'
                         }}>
-                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155', marginTop: '2px' }}>{m.value}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
+                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '2px' }}>{m.value}</div>
                         </div>
                       ))}
                     </div>

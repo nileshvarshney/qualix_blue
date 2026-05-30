@@ -84,8 +84,8 @@ function TopBarConnectionSelector() {
     return (
       <Link href="/connections" style={{
         display: 'inline-flex', alignItems: 'center', gap: '5px',
-        background: '#fff', border: '1px solid #ebe8df', padding: '5px 12px',
-        borderRadius: '7px', fontSize: '12px', color: '#E8541A', fontWeight: 600,
+        background: 'var(--surface)', border: '1px solid var(--border)', padding: '5px 12px',
+        borderRadius: '7px', fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600,
         textDecoration: 'none',
       }}>+ Connect</Link>
     )
@@ -95,12 +95,12 @@ function TopBarConnectionSelector() {
     <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
       <div onClick={() => setOpen(!open)} style={{
         display: 'flex', alignItems: 'center', gap: '7px',
-        background: '#fff', border: '1px solid #ebe8df', padding: '5px 12px',
+        background: 'var(--surface)', border: '1px solid var(--border)', padding: '5px 12px',
         borderRadius: '7px', cursor: 'pointer', minWidth: '150px',
-        boxShadow: open ? '0 0 0 2px #dbeafe' : 'none',
+        boxShadow: open ? '0 0 0 2px var(--accent-bg)' : 'none',
       }}>
         <span style={{ fontSize: '14px' }}>{active ? (connIcons[active.type] ?? '🔗') : '🔗'}</span>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#1a1a1a', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {active?.name ?? 'Select'}
         </span>
         <span style={{
@@ -108,10 +108,10 @@ function TopBarConnectionSelector() {
           background: active?.status === 'active' ? '#16a34a' : active?.status === 'error' ? '#dc2626' : '#d97706',
           flexShrink: 0,
         }} />
-        <span style={{ fontSize: '9px', color: '#94a3b8', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+        <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
       </div>
       <button onClick={handleRefresh} disabled={refreshing} style={{
-        background: '#fff', border: '1px solid #ebe8df', width: '30px', height: '30px',
+        background: 'var(--surface)', border: '1px solid var(--border)', width: '30px', height: '30px',
         borderRadius: '7px', cursor: refreshing ? 'not-allowed' : 'pointer',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '13px', opacity: refreshing ? 0.5 : 1,
@@ -120,31 +120,31 @@ function TopBarConnectionSelector() {
       </button>
       {open && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: '#fff',
-          border: '1px solid #ebe8df', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           zIndex: 100, minWidth: '240px', overflow: 'hidden',
         }}>
           {connections.map(conn => (
             <button key={conn.id} onClick={() => { setActiveId(conn.id); setOpen(false) }} style={{
               display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',
-              background: conn.id === activeId ? '#eff6ff' : '#fff', border: 'none',
+              background: conn.id === activeId ? 'var(--accent-bg)' : 'var(--surface)', border: 'none',
               alignItems: 'center', gap: '10px', cursor: 'pointer',
               borderBottom: '1px solid #f3f1ea',
             }}>
               <span style={{ fontSize: '15px' }}>{connIcons[conn.type] ?? '🔗'}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '12.5px', fontWeight: conn.id === activeId ? 600 : 400, color: conn.id === activeId ? '#2563eb' : '#374151' }}>
+                <div style={{ fontSize: '12.5px', fontWeight: conn.id === activeId ? 600 : 400, color: conn.id === activeId ? 'var(--accent)' : 'var(--text-secondary)' }}>
                   {conn.id === activeId && '✓ '}{conn.name}
                 </div>
-                <div style={{ fontSize: '10.5px', color: '#94a3b8' }}>{conn.type} · {conn.database ?? conn.host ?? ''}</div>
+                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{conn.type} · {conn.database ?? conn.host ?? ''}</div>
               </div>
               <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: conn.status === 'active' ? '#16a34a' : conn.status === 'error' ? '#dc2626' : '#d97706' }} />
             </button>
           ))}
           <Link href="/connections" style={{
             display: 'block', padding: '9px 14px', textAlign: 'center',
-            fontSize: '12px', color: '#E8541A', fontWeight: 600,
-            textDecoration: 'none', borderTop: '1px solid #ebe8df',
+            fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600,
+            textDecoration: 'none', borderTop: '1px solid var(--border)',
           }}>⚙ Manage Connections</Link>
         </div>
       )}
@@ -300,7 +300,7 @@ export default function Sidebar() {
       {/* ── Top bar ── */}
       <header style={{
         position: 'fixed', top: 0, left: 0, right: 0, height: TOP_H,
-        background: '#ffffff',
+        background: 'var(--surface)',
         display: 'flex', alignItems: 'center',
         padding: '0 20px', gap: 14,
         zIndex: 60,
