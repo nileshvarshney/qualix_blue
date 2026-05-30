@@ -100,10 +100,10 @@ export default function GovernancePage() {
       {/* Top KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
         {[
-          { key: 'governance', label: 'Governance Score', value: '87.5', change: '▲ 2.1', changeColor: '#16a34a' },
+          { key: 'governance', label: 'Governance Score', value: '—' },
           { key: 'policies', label: 'Policies Active', value: String(policies.filter(p => p.status === 'active').length), sub: `${policies.filter(p => p.enforcement === 'enforced').length} enforced · ${policies.filter(p => p.enforcement === 'advisory').length} advisory` },
-          { key: 'classified', label: 'Assets Classified', value: '89%', change: '▲ 5%', changeColor: '#16a34a' },
-          { key: 'ownership', label: 'Ownership Coverage', value: '94%', change: '▲ 1.2%', changeColor: '#16a34a' },
+          { key: 'classified', label: 'Assets Classified', value: '—' },
+          { key: 'ownership', label: 'Ownership Coverage', value: '—' },
         ].map((kpi) => (
           <div key={kpi.key} onClick={() => setSelectedKpi(kpi.key)} style={{ ...card, cursor: 'pointer', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8541A'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(232,84,26,0.08)' }}
@@ -472,8 +472,8 @@ export default function GovernancePage() {
               {selectedKpi === 'governance' && (
                 <>
                   <div style={{ textAlign: 'center', padding: '20px', marginBottom: '20px' }}>
-                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#16a34a' }}>87.5</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Weighted average across all domains</div>
+                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#94a3b8' }}>—</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>No data yet — add connections and run rules to compute scores</div>
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Domain Contributions</div>
                   {domains.map(d => (
@@ -533,8 +533,8 @@ export default function GovernancePage() {
               {selectedKpi === 'classified' && (
                 <>
                   <div style={{ textAlign: 'center', padding: '20px', marginBottom: '20px' }}>
-                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#16a34a' }}>89%</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>of data assets have been classified</div>
+                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#94a3b8' }}>—</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>No classification data yet</div>
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Classification by Domain</div>
                   {domains.map(d => (
@@ -562,8 +562,8 @@ export default function GovernancePage() {
               {selectedKpi === 'ownership' && (
                 <>
                   <div style={{ textAlign: 'center', padding: '20px', marginBottom: '20px' }}>
-                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#16a34a' }}>94%</div>
-                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>of datasets have assigned owners</div>
+                    <div style={{ fontSize: '52px', fontWeight: 700, color: '#94a3b8' }}>—</div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>No ownership data yet</div>
                   </div>
                   <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Ownership by Domain</div>
                   {domains.map(d => (

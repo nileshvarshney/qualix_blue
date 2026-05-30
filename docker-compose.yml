@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dataguard_api
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: local
+      SF_PLATFORM_ACCOUNT: zfuftbi-keb04862
+      SF_PLATFORM_USER: nilesh
+      SF_PLATFORM_PASSWORD: NileshVarshney123
+      SF_PLATFORM_WAREHOUSE: COMPUTE_WH
+      SF_PLATFORM_ROLE: ACCOUNTADMIN
+      SNOWFLAKE_APP_DATABASE: DQ_PLATFORM_DB
+      SNOWFLAKE_APP_SCHEMA: DQ_APP
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      AUTH_REQUIRED: ${AUTH_REQUIRED:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    image: node:22-alpine
+    container_name: dataguard_frontend
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      BACKEND_URL: http://api:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - api
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: dataguard_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - ollama
+
+volumes:
+  ollama_data:

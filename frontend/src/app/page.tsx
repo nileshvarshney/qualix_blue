@@ -26,7 +26,7 @@ export default function HomePage() {
   useEffect(() => {
     fetch('/api/dashboard', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then((data: DashboardStats) => setStats(data))
+      .then((data: Partial<DashboardStats>) => setStats({ ...EMPTY, ...data }))
       .catch(err => console.error('Dashboard fetch failed:', err))
   }, [])
 
