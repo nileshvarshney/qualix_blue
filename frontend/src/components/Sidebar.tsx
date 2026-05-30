@@ -129,7 +129,7 @@ function TopBarConnectionSelector() {
               display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',
               background: conn.id === activeId ? 'var(--accent-bg)' : 'var(--surface)', border: 'none',
               alignItems: 'center', gap: '10px', cursor: 'pointer',
-              borderBottom: '1px solid #f3f1ea',
+              borderBottom: '1px solid var(--border)',
             }}>
               <span style={{ fontSize: '15px' }}>{connIcons[conn.type] ?? '🔗'}</span>
               <div style={{ flex: 1 }}>

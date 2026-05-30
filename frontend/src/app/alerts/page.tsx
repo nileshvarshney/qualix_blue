@@ -217,13 +217,13 @@ export default function AlertsPage() {
     },
     {
       label: 'Total (24h)', value: alerts.length, icon: '📊',
-      color: '#2563eb', activeFilter: 'all' as AlertFilter,
+      color: 'var(--accent)', activeFilter: 'all' as AlertFilter,
       isRuleTab: false,
       active: tab === 'recent' && alertFilter === 'all',
     },
     {
       label: 'Alert Rules', value: rules.length, icon: '⚙️',
-      color: '#475569', activeFilter: 'all' as RuleFilter,
+      color: 'var(--text-secondary)', activeFilter: 'all' as RuleFilter,
       isRuleTab: true,
       active: tab === 'rules' && ruleFilter === 'all',
     },
@@ -260,7 +260,7 @@ export default function AlertsPage() {
             }}>✓ Ack All ({unacked})</button>
           )}
           <button style={{
-            background: 'var(--accent-bg)', border: '1px solid #93c5fd', padding: '8px 16px',
+            background: 'var(--accent-bg)', border: '1px solid var(--border)', padding: '8px 16px',
             borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--accent)', cursor: 'pointer'
           }}>+ New Alert Rule</button>
         </div>
