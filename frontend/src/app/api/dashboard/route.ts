@@ -10,7 +10,15 @@ export async function GET() {
       fetch(`${BACKEND}/alerts/enriched?status=open&limit=10`, { cache: 'no-store' }),
     ])
 
-    if (!globalRes.ok) throw new Error(`/dashboard/global ${globalRes.status}`)
+    if (!globalRes.ok) {
+      console.error(`Dashboard: /dashboard/global returned ${globalRes.status}`)
+      return NextResponse.json({
+        overallScore: null, totalAssets: 0, totalRules: 0, openAlerts: 0,
+        criticalAlerts: 0, mediumAlerts: 0, passed: 0, failed: 0,
+        trend: [], dimensions: { completeness: null, accuracy: null, uniqueness: null, validity: null, timeliness: null, consistency: null },
+        failingRules: [], atRiskTables: [],
+      })
+    }
 
     const global = await globalRes.json()
     const dimensions = dimRes.ok ? await dimRes.json() : {}
