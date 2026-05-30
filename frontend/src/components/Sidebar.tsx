@@ -167,8 +167,8 @@ const sections: Section[] = [
     railIconD: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-9c2.5 3 4 6 4 9s-1.5 6-4 9c-2.5-3-4-6-4-9s1.5-6 4-9zM3 12h18',
     items: [
       { href: '/',          label: 'Overview',    iconD: 'M3 12l2-2 4 4 8-8 4 4M3 21h18' },
-      { href: '/rules',     label: 'Rules',       iconD: 'M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z', badge: '418' },
-      { href: '/issues',    label: 'Issues',      iconD: 'M12 9v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z', badge: '23' },
+      { href: '/rules',     label: 'Rules',       iconD: 'M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z' },
+      { href: '/issues',    label: 'Issues',      iconD: 'M12 9v4m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z' },
       { href: '/datasets',  label: 'Data Assets', iconD: 'M3 5c0-1.7 4-3 9-3s9 1.3 9 3v14c0 1.7-4 3-9 3s-9-1.3-9-3V5zm0 0c0 1.7 4 3 9 3s9-1.3 9-3M3 12c0 1.7 4 3 9 3s9-1.3 9-3' },
       { href: '/anomalies', label: 'Anomalies',   iconD: 'M3 17l6-6 4 4 8-8M14 7h7v7' },
       { href: '/schedules', label: 'Schedules',   iconD: 'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z' },
