@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 type ContractStatus = 'active' | 'breached' | 'warning'
@@ -24,105 +24,6 @@ interface Contract {
   trend: string
 }
 
-const contracts: Contract[] = [
-  {
-    id: 'ct1', name: 'Orders → Revenue Model',
-    producer: 'fact_orders', consumer: 'revenue_by_channel',
-    owner: 'Bhaskar R.', status: 'active', compliance: 98,
-    checks: 8, failures: 0, created: '2026-01-15',
-    connection: 'SF_Codex', sla: '99%', lastChecked: '2026-05-05 17:00', trend: '↑ +2% vs last week',
-    description: 'Orders table must have non-null revenue, valid currency, and row count > 10K daily.',
-    terms: [
-      { term: 'NOT NULL: revenue, order_id', status: 'pass', detail: '0 nulls across 4.2M rows' },
-      { term: 'Revenue > 0', status: 'pass', detail: '99.8% pass — 8,400 rows flagged as warnings (returns)' },
-      { term: 'Row count ≥ 10,000/day', status: 'pass', detail: '4,200,000 rows — well above threshold' },
-      { term: 'Freshness < 4h', status: 'pass', detail: 'Last update 42 minutes ago' },
-      { term: 'No duplicate order_ids', status: 'pass', detail: 'UNIQUE check passed on all 4.2M rows' },
-      { term: 'Currency code in ISO 4217', status: 'pass', detail: '100% of currency_code values valid' },
-      { term: 'Order status in allowed set', status: 'pass', detail: 'All values in [pending, confirmed, shipped, returned, cancelled]' },
-      { term: 'order_date not in future', status: 'pass', detail: '0 rows with future dates' },
-    ],
-  },
-  {
-    id: 'ct2', name: 'Customers → Marketing Platform',
-    producer: 'dim_customers', consumer: 'Marketing CDP',
-    owner: 'Priya M.', status: 'warning', compliance: 83,
-    checks: 12, failures: 2, created: '2026-02-01',
-    connection: 'SF_Codex', sla: '95%', lastChecked: '2026-05-05 12:00', trend: '↓ -11% vs last week',
-    description: 'Customer data exported to CDP must have valid emails, consent flags, and segment assignments.',
-    breachReason: 'Two checks are failing due to a CRM batch import on 2026-05-05 that skipped email validation and omitted the consent_flag field for 363,000 records. Compliance dropped from 94% to 83%, breaching the 95% SLA target.',
-    breachImpact: 'Marketing CDP is syncing invalid customer records, causing hard bounces in email campaigns and GDPR compliance risk for the 143K records missing consent flags.',
-    breachRecommendation: 'Quarantine the 220K invalid email records. Re-request corrected data from CRM vendor. Add mandatory validation to the import pipeline. Resolve within 24h to restore SLA compliance.',
-    terms: [
-      { term: 'Email format valid', status: 'fail', detail: '220,000 of 1.1M records (20%) have malformed emails — missing "@" or TLD. Introduced by CRM import on 2026-05-05.' },
-      { term: 'Consent flag NOT NULL', status: 'fail', detail: '143,000 records have NULL consent_flag. Batch update script did not set default values for new GDPR fields.' },
-      { term: 'Segment must be in [Enterprise, SMB, Consumer]', status: 'pass', detail: 'All 1.1M records have valid segment values' },
-      { term: 'No PII in free-text fields', status: 'pass', detail: 'PII scan passed — no SSN, CC, or passport patterns found' },
-      { term: 'Freshness < 24h', status: 'pass', detail: 'Last sync 11h ago — within SLA' },
-      { term: 'customer_id unique', status: 'pass', detail: 'No duplicate customer IDs' },
-      { term: 'Country code in ISO 3166', status: 'pass', detail: '100% valid country codes' },
-      { term: 'Segment not NULL', status: 'pass', detail: '0 null segments' },
-      { term: 'Age ≥ 0 if present', status: 'pass', detail: 'No negative ages' },
-      { term: 'Phone format valid if present', status: 'pass', detail: '98.2% of phone numbers are valid E.164 format' },
-      { term: 'Signup date ≤ today', status: 'pass', detail: 'No future signup dates' },
-      { term: 'Tier in [Gold, Silver, Bronze, None]', status: 'pass', detail: 'All tier values valid' },
-    ],
-  },
-  {
-    id: 'ct3', name: 'Payments → Finance Reports',
-    producer: 'fact_payments', consumer: 'finance_weekly_report',
-    owner: 'Bhaskar R.', status: 'breached', compliance: 61,
-    checks: 6, failures: 3, created: '2026-01-20',
-    connection: 'SF_Codex', sla: '99.9%', lastChecked: '2026-05-05 05:30', trend: '↓ -31% vs last week',
-    description: 'Payment data for finance must reconcile with bank statements within 0.01%.',
-    breachReason: 'Three critical checks are failing: (1) 1,482,000 rows have NULL payment_amount_usd after a payment processor API v3 migration returned empty strings for declined transactions. (2) The amount_usd column was removed in schema migration PR #3892, breaking reconciliation. (3) Settled-within-3-days check fails for 38% of records due to a processing delay from the migration.',
-    breachImpact: 'Finance reconciliation is completely blocked. The weekly Finance report cannot be generated. $2.1M in payment data is unaccountable. The Payments → Finance Reports SLA of 99.9% is in breach — currently at 61%. P0 incident declared.',
-    breachRecommendation: 'URGENT: (1) Deploy the hotfix for payment_amount_usd NULL handling in the ETL. (2) Restore the amount_usd column alias in fact_payments. (3) Reprocess the affected payment batch. Target: restore to >95% compliance within 4 hours.',
-    terms: [
-      { term: 'Amount reconciliation < 0.01%', status: 'fail', detail: '1,482,000 rows (39%) have NULL in payment_amount_usd — payment processor API v3 migration returned empty strings for declined transactions which were not cast correctly.' },
-      { term: 'No orphaned payment records', status: 'pass', detail: 'All payment records have matching order_ids' },
-      { term: 'currency_code in ISO 4217', status: 'pass', detail: 'All currency codes valid' },
-      { term: 'Fraud flag NOT NULL', status: 'fail', detail: '892,000 rows (23%) have NULL fraud_flag — the fraud scoring service was unavailable during the payment processor migration window and returned no scores.' },
-      { term: 'Settled within 3 business days', status: 'fail', detail: '1,444,000 rows (38%) are outside the 3-day settlement window — caused by the processing backlog from the migration outage.' },
-      { term: 'Duplicate payment_id check', status: 'pass', detail: 'No duplicate payment IDs' },
-    ],
-  },
-  {
-    id: 'ct4', name: 'Inventory → Supply Chain API',
-    producer: 'fact_inventory', consumer: 'SCM API v2',
-    owner: 'Rajan S.', status: 'active', compliance: 91,
-    checks: 5, failures: 1, created: '2026-03-10',
-    connection: 'SF_Codex', sla: '98%', lastChecked: '2026-05-05 16:00', trend: '↓ -7% vs last week',
-    description: 'Inventory snapshot must be refreshed every 6 hours with positive stock quantities.',
-    breachReason: 'One check is failing — the stock_qty >= 0 check has 94 records with NULL SKU values introduced by warehouse mobile app entries without barcode scans.',
-    breachImpact: 'Compliance is at 91%, below the 98% SLA. 94 inventory records cannot be matched to the product catalog, creating blind spots in the SCM API reorder logic.',
-    breachRecommendation: 'Manually reconcile the 94 NULL-SKU records. Add mandatory SKU scan validation to the warehouse mobile app. Resolve within 48h to restore SLA compliance.',
-    terms: [
-      { term: 'Freshness < 6h', status: 'pass', detail: 'Last snapshot 45 minutes ago' },
-      { term: 'stock_qty >= 0', status: 'pass', detail: '0 negative stock quantities' },
-      { term: 'warehouse_id NOT NULL', status: 'pass', detail: '100% of records have warehouse_id' },
-      { term: 'SKU matches product catalog', status: 'fail', detail: '94 records (0.01%) have NULL SKU — operators skipped barcode scan on warehouse mobile app. Cannot join to dim_products.' },
-      { term: 'snapshot_ts within expected window', status: 'pass', detail: 'All snapshot timestamps within the expected 6h window' },
-    ],
-  },
-  {
-    id: 'ct5', name: 'Web Sessions → Attribution',
-    producer: 'web_sessions', consumer: 'attribution_model',
-    owner: 'Priya M.', status: 'active', compliance: 96,
-    checks: 7, failures: 0, created: '2026-04-01',
-    connection: 'SF_Codex', sla: '97%', lastChecked: '2026-05-05 17:00', trend: '↑ +1% vs last week',
-    description: 'Session data piped to attribution model must have valid UTMs and user IDs.',
-    terms: [
-      { term: 'utm_source NOT NULL for paid sessions', status: 'pass', detail: '99.2% of paid sessions have utm_source — 0.8% are known direct-type sessions exempted by contract' },
-      { term: 'session_id unique', status: 'pass', detail: 'No duplicate session IDs across 9.5M sessions' },
-      { term: 'user_id hashed (SHA-256)', status: 'pass', detail: '100% of user_ids are valid SHA-256 hashes' },
-      { term: 'No sessions > 24h duration', status: 'pass', detail: '2% of sessions flagged as long — within the 5% warning threshold' },
-      { term: 'session_start ≤ session_end', status: 'pass', detail: 'No inverted session timestamps' },
-      { term: 'channel in allowed set', status: 'pass', detail: 'All channel values valid' },
-      { term: 'Freshness < 2h', status: 'pass', detail: 'Last update 38 minutes ago' },
-    ],
-  },
-]
 
 const complianceColor = (c: number) => c >= 90 ? '#16a34a' : c >= 75 ? '#ca8a04' : '#dc2626'
 const stCfg: Record<ContractStatus, { bg: string; color: string; border: string }> = {
@@ -138,8 +39,40 @@ export default function ContractsPage() {
   const [filter, setFilter]     = useState<FilterType>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [search, setSearch]     = useState('')
-  const [allContracts, setAllContracts] = useState(contracts)
+  const [allContracts, setAllContracts] = useState<Contract[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/slas')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setAllContracts(items.map((c: Record<string, unknown>, i: number) => ({
+          id: String(c.contract_id ?? c.id ?? i),
+          name: String(c.contract_name ?? c.name ?? ''),
+          producer: String(c.producer ?? c.source_dataset ?? ''),
+          consumer: String(c.consumer ?? c.target_dataset ?? ''),
+          owner: String(c.owner ?? ''),
+          status: (c.status as ContractStatus) ?? 'active',
+          compliance: Number(c.compliance ?? c.adherence ?? 100),
+          checks: Number(c.checks ?? c.check_count ?? 0),
+          failures: Number(c.failures ?? c.failure_count ?? 0),
+          created: String(c.created_at ?? c.created ?? ''),
+          connection: String(c.connection ?? ''),
+          description: String(c.description ?? ''),
+          sla: String(c.sla ?? c.sla_target ?? ''),
+          terms: Array.isArray(c.terms) ? c.terms as Contract['terms'] : [],
+          breachReason: c.breach_reason ? String(c.breach_reason) : undefined,
+          breachImpact: c.breach_impact ? String(c.breach_impact) : undefined,
+          breachRecommendation: c.breach_recommendation ? String(c.breach_recommendation) : undefined,
+          lastChecked: String(c.last_checked ?? c.lastChecked ?? 'Never'),
+          trend: String(c.trend ?? ''),
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
   const [cForm, setCForm] = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: 'SF_Codex' })
 
   const addContract = () => {
@@ -409,9 +342,12 @@ export default function ContractsPage() {
           )
         })}
 
-        {filtered.length === 0 && (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: '#fff', borderRadius: '14px', border: '2px dashed #e2e8f0' }}>
-            No contracts match your filters
+        {loading && (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+            No data contracts yet
           </div>
         )}
       </div>

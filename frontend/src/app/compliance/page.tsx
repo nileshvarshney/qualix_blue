@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 interface Framework {
@@ -14,24 +14,6 @@ interface Control {
   rulesMapped: number; lastAssessed: string; evidence: string
 }
 
-const FRAMEWORKS: Framework[] = [
-  { id: 'f1', name: 'GDPR', version: '2016/679', description: 'General Data Protection Regulation — EU data privacy and protection', controlsTotal: 42, controlsPassed: 38, controlsFailed: 4, status: 'partial' },
-  { id: 'f2', name: 'SOC 2 Type II', version: '2023', description: 'Service Organization Controls — security, availability, confidentiality', controlsTotal: 35, controlsPassed: 35, controlsFailed: 0, status: 'compliant' },
-  { id: 'f3', name: 'HIPAA', version: '2013', description: 'Health Insurance Portability and Accountability Act', controlsTotal: 28, controlsPassed: 24, controlsFailed: 4, status: 'partial' },
-  { id: 'f4', name: 'ISO 27001', version: '2022', description: 'Information security management system standard', controlsTotal: 56, controlsPassed: 52, controlsFailed: 4, status: 'partial' },
-  { id: 'f5', name: 'CCPA', version: '2020', description: 'California Consumer Privacy Act — consumer data rights', controlsTotal: 18, controlsPassed: 18, controlsFailed: 0, status: 'compliant' },
-]
-
-const CONTROLS: Control[] = [
-  { id: 'c1', code: 'GDPR-6.1', name: 'Lawful basis for processing', framework: 'GDPR', status: 'passed', rulesMapped: 5, lastAssessed: '2h ago', evidence: 'Automated via DQ rules' },
-  { id: 'c2', code: 'GDPR-17.1', name: 'Right to erasure', framework: 'GDPR', status: 'failed', rulesMapped: 3, lastAssessed: '1h ago', evidence: '2 datasets missing PII tags' },
-  { id: 'c3', code: 'SOC2-CC6.1', name: 'Access controls', framework: 'SOC 2 Type II', status: 'passed', rulesMapped: 8, lastAssessed: '30m ago', evidence: 'RBAC verified' },
-  { id: 'c4', code: 'SOC2-CC7.2', name: 'Monitoring & detection', framework: 'SOC 2 Type II', status: 'passed', rulesMapped: 12, lastAssessed: '15m ago', evidence: 'Alert pipeline active' },
-  { id: 'c5', code: 'HIPAA-164.312a', name: 'Access control (ePHI)', framework: 'HIPAA', status: 'failed', rulesMapped: 4, lastAssessed: '3h ago', evidence: 'PHI classification incomplete' },
-  { id: 'c6', code: 'ISO-A.8.2', name: 'Information classification', framework: 'ISO 27001', status: 'passed', rulesMapped: 6, lastAssessed: '45m ago', evidence: 'Classification policy enforced' },
-  { id: 'c7', code: 'CCPA-1798.100', name: 'Consumer data access', framework: 'CCPA', status: 'passed', rulesMapped: 4, lastAssessed: '2h ago', evidence: 'Data catalog linked' },
-  { id: 'c8', code: 'GDPR-25.1', name: 'Data protection by design', framework: 'GDPR', status: 'failed', rulesMapped: 7, lastAssessed: '5h ago', evidence: 'Schema review pending' },
-]
 
 function statusStyle(s: string) {
   if (s === 'compliant' || s === 'passed') return { bg: '#dcfce7', color: '#16a34a' }
@@ -44,9 +26,32 @@ const card: React.CSSProperties = { background: '#fff', borderRadius: '12px', pa
 export default function CompliancePage() {
   const [selectedFw, setSelectedFw] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'passed' | 'failed'>('all')
+  const [frameworks, setFrameworks] = useState<Framework[]>([])
+  const [controls, setControls] = useState<Control[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const filteredControls = CONTROLS.filter(c => {
-    if (selectedFw && c.framework !== FRAMEWORKS.find(f => f.id === selectedFw)?.name) return false
+  useEffect(() => {
+    fetch('/api/compliance')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setFrameworks(items.map((f: Record<string, unknown>, i: number) => ({
+          id: String(f.framework_id ?? f.id ?? i),
+          name: String(f.framework_name ?? f.name ?? ''),
+          version: String(f.version ?? ''),
+          description: String(f.description ?? ''),
+          controlsTotal: Number(f.controls_total ?? f.controlsTotal ?? 0),
+          controlsPassed: Number(f.controls_passed ?? f.controlsPassed ?? 0),
+          controlsFailed: Number(f.controls_failed ?? f.controlsFailed ?? 0),
+          status: (f.status as 'compliant' | 'partial' | 'non-compliant') ?? 'partial',
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  const filteredControls = controls.filter(c => {
+    if (selectedFw && c.framework !== frameworks.find(f => f.id === selectedFw)?.name) return false
     if (filter !== 'all' && c.status !== filter) return false
     return true
   })
@@ -84,8 +89,13 @@ export default function CompliancePage() {
       {/* Frameworks Grid */}
       <div style={{ ...card, marginBottom: '20px' }}>
         <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#1a1a1a', marginBottom: '16px' }}>Regulatory Frameworks</div>
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+        ) : frameworks.length === 0 ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No compliance frameworks yet</div>
+        ) : null}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '12px' }}>
-          {FRAMEWORKS.map(fw => {
+          {!loading && frameworks.map(fw => {
             const pct = Math.round((fw.controlsPassed / fw.controlsTotal) * 100)
             const st = statusStyle(fw.status)
             return (
@@ -115,7 +125,7 @@ export default function CompliancePage() {
       <div style={card}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#1a1a1a' }}>
-            Controls {selectedFw ? `· ${FRAMEWORKS.find(f => f.id === selectedFw)?.name}` : ''}
+            Controls {selectedFw ? `· ${frameworks.find(f => f.id === selectedFw)?.name}` : ''}
           </div>
           <div style={{ display: 'flex', gap: '4px' }}>
             {(['all', 'passed', 'failed'] as const).map(f => (

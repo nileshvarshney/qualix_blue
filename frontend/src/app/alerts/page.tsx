@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 type Severity = 'critical' | 'high' | 'medium' | 'info'
@@ -40,116 +40,6 @@ interface AlertRule {
   owner: string
 }
 
-const recentAlerts: RecentAlert[] = [
-  {
-    id: 'a1', rule: 'Critical Quality Drop', dataset: 'fact_payments',
-    severity: 'critical', channel: 'Slack + Email', ts: '2026-05-05 14:22', ack: false,
-    message: 'Quality score dropped to 61% — 5 rules failing',
-    rootCause: 'An upstream ETL job in the Stripe payment pipeline failed mid-batch on 2026-05-05 at 13:47. Partial data was written with NULL values in "amount_usd", "currency_code", and "transaction_status" columns. This caused 5 validation rules (null checks, range validation, format check) to fail simultaneously, dragging the dataset quality score from 94% to 61%.',
-    impact: 'Revenue reporting dashboards used by Finance and C-Suite are showing understated transaction totals. Approximately $2.1M in payment records cannot be reconciled. The AR team\'s daily close process is blocked. Downstream models in dbt (rpt_revenue_daily, fct_mrr) are producing incorrect output used in investor reporting.',
-    recommendation: 'Re-trigger the Stripe ETL job for the 13:00–14:30 UTC window. Validate row counts match source (expected: 18,420 rows). Run the quality check suite on fact_payments after the re-run. Temporarily pause downstream dbt models until the data is clean. Alert Finance not to use the revenue dashboard until 15:30 UTC.',
-    affectedRecords: 4821, pipeline: 'stripe_etl_v3'
-  },
-  {
-    id: 'a2', rule: 'Schema Change Detected', dataset: 'fact_payments',
-    severity: 'critical', channel: 'PagerDuty', ts: '2026-05-04 18:00', ack: false,
-    message: 'Column "amount_usd" removed — 2 downstream models affected',
-    rootCause: 'A Fivetran schema migration for the Stripe connector auto-detected a schema change in the source API. The "amount_usd" column (previously a computed field from amount × fx_rate) was removed from the connector output after Stripe deprecated this field from their v3 API. The change propagated automatically without a review gate, removing the column from the warehouse table.',
-    impact: '2 downstream dbt models (rpt_revenue_daily, fct_mrr) reference "amount_usd" directly and are now failing with "column not found" errors. BI dashboards showing revenue by currency are broken. The nightly data refresh for the Finance team will fail if not resolved before the 02:00 UTC run.',
-    recommendation: 'Add "amount_usd" back as a computed column: `amount * coalesce(fx_rate, 1.0)`. Update the Fivetran connector schema to pin the field mapping. Add a schema contract test that alerts before removing any column referenced by >1 downstream model. Set Fivetran auto-migration to "review required" mode.',
-    affectedRecords: 0, pipeline: 'fivetran_stripe_v3'
-  },
-  {
-    id: 'a3', rule: 'High Null Rate', dataset: 'dim_customers',
-    severity: 'high', channel: 'Email', ts: '2026-05-05 11:05', ack: true,
-    message: 'Email null rate jumped from 2% to 20%',
-    rootCause: 'The CRM sync job (HubSpot → Snowflake) ran with a misconfigured field mapping after a HubSpot API v2→v3 migration. The "email" field path changed from "properties.email.value" to "properties.email" in v3, causing the mapper to write NULL for all contacts updated after May 4th 00:00 UTC.',
-    impact: 'Email campaign targeting will be broken for 18,240 customers whose records were updated in the last 24 hours. Marketing automation workflows (Marketo sync, transactional emails) relying on dim_customers.email will skip these contacts. Estimated reach reduction for the next campaign: ~12%.',
-    recommendation: 'Update the HubSpot connector field mapping from "properties.email.value" to "properties.email". Re-sync affected contacts (updated_at >= 2026-05-04 00:00:00). Backfill NULL email values from the HubSpot API for the affected window. Add a null rate alerting threshold of 5% for PII fields.',
-    affectedRecords: 18240, pipeline: 'hubspot_crm_sync'
-  },
-  {
-    id: 'a4', rule: 'Freshness SLA Breach', dataset: 'dim_products',
-    severity: 'high', channel: 'Slack', ts: '2026-05-03 06:00', ack: true,
-    message: 'Table not refreshed in 36 hours — expected every 6h',
-    rootCause: 'The Airflow DAG responsible for syncing the product catalog (shopify_products_sync) has been paused since 2026-05-01 after a failed deployment. A hotfix to the product variant logic caused an import error in the DAG definition. The scheduler silently skipped 6 consecutive runs without triggering the failure alert (the alert was disabled during the maintenance window and not re-enabled).',
-    impact: 'The product catalog used by the e-commerce recommendation engine is 36 hours stale. 2,340 new products added in Shopify are not visible to the recommendation model. Pricing updates for 890 products have not propagated, causing potential incorrect prices to be shown to customers.',
-    recommendation: 'Fix the import error in shopify_products_sync DAG (line 47: incorrect relative import path). Re-enable and backfill the DAG for the missed 6 runs. Re-enable the Freshness SLA alert for dim_products. Set a process to automatically re-enable paused maintenance alerts after the maintenance window ends.',
-    affectedRecords: 3230, pipeline: 'shopify_products_sync'
-  },
-  {
-    id: 'a5', rule: 'Volume Anomaly', dataset: 'fact_orders',
-    severity: 'medium', channel: 'Slack', ts: '2026-05-05 14:22', ack: false,
-    message: 'Row count increased 340% vs 7-day baseline',
-    rootCause: 'A data backfill job was triggered manually by a Data Engineer to recover 3 months of missing order history from a legacy system migration. The backfill inserted 2.1M historical records into fact_orders in a single batch, which the volume anomaly detector flagged as a 340% spike versus the 7-day rolling average of ~620K daily rows.',
-    impact: 'This is a controlled, expected backfill — not a data quality issue. However, downstream aggregation models (fct_order_metrics, rpt_sales_by_region) will show inflated metrics for the backfill period if not handled carefully. Historical trend charts in BI dashboards will show a misleading spike on May 5th.',
-    recommendation: 'Acknowledge this alert — the volume spike is intentional. Coordinate with the BI team to add a "backfill period" annotation to trend dashboards. Run incremental dbt models with the backfill date range scoped correctly to avoid double-counting. Consider adding a "planned backfill" flag to suppress volume anomaly alerts for known operations.',
-    affectedRecords: 2100000, pipeline: 'legacy_migration_backfill'
-  },
-]
-
-const alertRules: AlertRule[] = [
-  {
-    id: 'ar1', name: 'Critical Quality Drop', condition: 'Score < 70%',
-    datasets: 'All', channel: 'Slack + Email', severity: 'critical',
-    enabled: true, triggered: 3, lastFired: '2026-05-05 14:22',
-    description: 'Fires when any dataset\'s overall quality score drops below 70%, indicating multiple rules are failing simultaneously.',
-    whenItFires: 'Triggered when: (passing rules / total rules) < 0.70 for any dataset. Evaluated every 15 minutes.',
-    businessContext: 'A quality score below 70% typically means 3+ rules are failing, indicating a systemic data pipeline issue rather than an isolated anomaly. This level of degradation directly affects business reporting reliability.',
-    remediation: 'Immediately check the failing rules for the flagged dataset. Identify the root pipeline causing failures. Pause downstream consumption until quality is restored.',
-    cooldown: '30 minutes', owner: 'Data Engineering'
-  },
-  {
-    id: 'ar2', name: 'Schema Change Detected', condition: 'Column added/removed',
-    datasets: 'fact_*, dim_*', channel: 'PagerDuty', severity: 'critical',
-    enabled: true, triggered: 1, lastFired: '2026-05-04 18:00',
-    description: 'Detects when columns are added or removed from core fact and dimension tables, which can silently break downstream models.',
-    whenItFires: 'Compares schema snapshot at each ingestion run. Fires if column count changes or any column name in the previous snapshot is missing from the current schema.',
-    businessContext: 'Schema changes on fact/dim tables break dbt models, BI dashboards, and ML feature pipelines without warning. A missing column that was referenced downstream can cause silent NULL propagation or hard failures in production jobs.',
-    remediation: 'Identify who made the schema change and why. Check if downstream models reference the changed column. Add column back as computed if removed from source. Update contracts and downstream references before re-enabling.',
-    cooldown: '0 minutes (immediate)', owner: 'Data Engineering + Data Governance'
-  },
-  {
-    id: 'ar3', name: 'Freshness SLA Breach', condition: 'Delay > 6h',
-    datasets: 'All', channel: 'Slack', severity: 'high',
-    enabled: true, triggered: 2, lastFired: '2026-05-03 06:00',
-    description: 'Alerts when any monitored dataset has not been updated within its expected refresh window (6 hours for most tables).',
-    whenItFires: 'Checks max(updated_at) against current time. Fires when the lag exceeds 6 hours. Custom thresholds can be set per dataset (e.g., 24h for weekly tables).',
-    businessContext: 'Stale data in dashboards misleads decision-makers who assume they\'re viewing current data. Freshness breaches often indicate silent pipeline failures that won\'t surface until someone notices wrong numbers.',
-    remediation: 'Check if the upstream DAG/job is running. Look for scheduler failures or paused pipelines. Re-trigger the ingestion job. If the source system is down, communicate SLA breach to data consumers.',
-    cooldown: '60 minutes', owner: 'Data Operations'
-  },
-  {
-    id: 'ar4', name: 'High Null Rate', condition: 'Null rate > 10%',
-    datasets: 'dim_customers, fact_orders', channel: 'Email', severity: 'high',
-    enabled: true, triggered: 1, lastFired: '2026-05-05 11:05',
-    description: 'Monitors null rates in key columns of customer and order tables. A spike in nulls typically indicates a connector misconfiguration or source API change.',
-    whenItFires: 'Calculates null_count / total_rows for all non-nullable columns. Fires when any column\'s null rate exceeds 10% in the latest batch.',
-    businessContext: 'High null rates in customer and order data directly break CRM workflows, marketing automation, and revenue calculations. Even a 10% null rate in email fields means tens of thousands of customers are unreachable.',
-    remediation: 'Identify which column has elevated nulls. Check recent connector/ETL changes. Re-map the field if source schema changed. Backfill nulls from the source API. Validate the fix by running the null rate check manually.',
-    cooldown: '120 minutes', owner: 'Data Engineering'
-  },
-  {
-    id: 'ar5', name: 'Volume Anomaly', condition: 'Row count ±50% baseline',
-    datasets: 'All', channel: 'Slack', severity: 'medium',
-    enabled: true, triggered: 1, lastFired: '2026-05-05 14:22',
-    description: 'Detects unusual spikes or drops in row counts compared to the 7-day rolling average. Both over- and under-delivery of data are flagged.',
-    whenItFires: 'Computes daily row count against the 7-day P50 baseline. Fires when the deviation exceeds ±50%. For tables with high natural variance, a ±100% threshold is configurable.',
-    businessContext: 'A volume spike can indicate double-loading or a runaway backfill. A volume drop can mean missing data from a failed partition or source system outage. Both are data quality risks that affect aggregate metrics.',
-    remediation: 'Determine if the volume change is expected (planned backfill, seasonality spike) or unexpected (pipeline error). For unexpected spikes: check for duplicate loads. For unexpected drops: check source system health and partition completeness.',
-    cooldown: '60 minutes', owner: 'Data Engineering'
-  },
-  {
-    id: 'ar6', name: 'Weekly Summary Report', condition: 'Every Sunday 9 AM',
-    datasets: 'All', channel: 'Email', severity: 'info',
-    enabled: false, triggered: 0, lastFired: '2026-04-28 09:00',
-    description: 'Scheduled weekly digest summarizing data quality scores, SLA adherence, open issues, and anomalies across all monitored datasets.',
-    whenItFires: 'Cron schedule: 0 9 * * 0 (every Sunday at 9:00 AM UTC). Not condition-triggered — always fires on schedule unless disabled.',
-    businessContext: 'Provides stakeholders a regular cadence of data health visibility without requiring them to log into the platform. Useful for data owners, department heads, and governance teams.',
-    remediation: 'N/A — informational report. If the report is not being received, check email delivery settings and confirm the recipient list is up to date.',
-    cooldown: 'N/A (scheduled)', owner: 'Data Governance'
-  },
-]
 
 const SEV: Record<Severity, { bg: string; color: string; border: string }> = {
   critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',  border: '#fca5a5' },
@@ -159,9 +49,35 @@ const SEV: Record<Severity, { bg: string; color: string; border: string }> = {
 }
 
 export default function AlertsPage() {
-  const [rules, setRules] = useState(alertRules)
-  const [alerts, setAlerts] = useState(recentAlerts)
+  const [rules, setRules] = useState<AlertRule[]>([])
+  const [alerts, setAlerts] = useState<RecentAlert[]>([])
+  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'recent' | 'rules'>('recent')
+
+  useEffect(() => {
+    fetch('/api/alerts')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setAlerts(items.map((a: Record<string, unknown>, i: number) => ({
+          id: String(a.alert_id ?? a.id ?? i),
+          rule: String(a.rule_name ?? a.rule ?? 'Alert'),
+          dataset: String(a.asset_name ?? a.sf_table_name ?? a.dataset ?? ''),
+          severity: (a.severity as Severity) ?? 'info',
+          message: String(a.alert_message ?? a.message ?? ''),
+          channel: String(a.channel ?? 'System'),
+          ts: String(a.created_at ?? a.ts ?? ''),
+          ack: a.alert_status === 'closed' || Boolean(a.ack),
+          rootCause: String(a.root_cause ?? ''),
+          impact: String(a.impact ?? ''),
+          recommendation: String(a.recommendation ?? ''),
+          affectedRecords: Number(a.affected_records ?? 0),
+          pipeline: String(a.pipeline ?? ''),
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
   const [alertFilter, setAlertFilter] = useState<AlertFilter>('all')
   const [ruleFilter, setRuleFilter] = useState<RuleFilter>('all')
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null)
@@ -339,11 +255,11 @@ export default function AlertsPage() {
       {/* Recent Alerts Tab */}
       {tab === 'recent' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {filteredAlerts.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontSize: '13px' }}>
-              No alerts match this filter.
-            </div>
-          )}
+          {loading ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+          ) : filteredAlerts.length === 0 ? (
+            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No alerts yet</div>
+          ) : null}
           {filteredAlerts.map(a => {
             const ss = SEV[a.severity]
             const isExpanded = expandedAlert === a.id

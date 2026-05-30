@@ -1,5 +1,5 @@
 'use client'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 /* ── Schema definitions (two schemas for comparison) ──────────── */
@@ -18,207 +18,6 @@ interface SchemaData {
   name: string; database: string; tables: TableSchema[]
 }
 
-const SCHEMA_A: SchemaData = {
-  name: 'DQ_APP', database: 'DQ_PLATFORM_DB',
-  tables: [
-    { name: 'CUSTOMERS', rowCount: 1_100_000, columns: [
-      { name: 'CUSTOMER_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'FIRST_NAME', type: 'VARCHAR(100)', nullable: false },
-      { name: 'LAST_NAME', type: 'VARCHAR(100)', nullable: false },
-      { name: 'EMAIL', type: 'VARCHAR(255)', nullable: false },
-      { name: 'PHONE', type: 'VARCHAR(20)', nullable: true },
-      { name: 'ADDRESS', type: 'VARCHAR(500)', nullable: true },
-      { name: 'CITY', type: 'VARCHAR(100)', nullable: true },
-      { name: 'STATE', type: 'VARCHAR(50)', nullable: true },
-      { name: 'ZIP_CODE', type: 'VARCHAR(10)', nullable: true },
-      { name: 'COUNTRY', type: 'VARCHAR(50)', nullable: true },
-      { name: 'CUSTOMER_SEGMENT', type: 'VARCHAR(50)', nullable: true },
-      { name: 'CREDIT_LIMIT', type: 'NUMBER(12,2)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      CREDIT_LIMIT: { sum: 5_500_000_000, avg: 5000, min: 500, max: 50000, nullCount: 12400, distinctCount: 4800 },
-      CUSTOMER_ID: { sum: undefined, avg: undefined, min: 1, max: 1100000, nullCount: 0, distinctCount: 1100000 },
-    }},
-    { name: 'SALES_ORDERS', rowCount: 4_200_000, columns: [
-      { name: 'ORDER_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'ORDER_NUMBER', type: 'VARCHAR(20)', nullable: false },
-      { name: 'CUSTOMER_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'ORDER_DATE', type: 'DATE', nullable: false },
-      { name: 'SHIPPED_DATE', type: 'DATE', nullable: true },
-      { name: 'DELIVERED_DATE', type: 'DATE', nullable: true },
-      { name: 'STATUS', type: 'VARCHAR(20)', nullable: false },
-      { name: 'SHIPPING_METHOD', type: 'VARCHAR(50)', nullable: true },
-      { name: 'WAREHOUSE_ID', type: 'NUMBER(38,0)', nullable: true, isFK: true },
-      { name: 'TOTAL_AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'DISCOUNT_AMOUNT', type: 'NUMBER(12,2)', nullable: true },
-      { name: 'TAX_AMOUNT', type: 'NUMBER(12,2)', nullable: true },
-      { name: 'NET_AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      TOTAL_AMOUNT: { sum: 840_000_000, avg: 200, min: 5.99, max: 49999.99, nullCount: 0, distinctCount: 38420 },
-      DISCOUNT_AMOUNT: { sum: 42_000_000, avg: 12.5, min: 0, max: 5000, nullCount: 840000, distinctCount: 2150 },
-      TAX_AMOUNT: { sum: 67_200_000, avg: 16, min: 0, max: 4500, nullCount: 0, distinctCount: 12800 },
-      NET_AMOUNT: { sum: 730_800_000, avg: 174, min: 1.99, max: 48500, nullCount: 0, distinctCount: 41200 },
-    }},
-    { name: 'PRODUCTS', rowCount: 15_400, columns: [
-      { name: 'PRODUCT_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'PRODUCT_NAME', type: 'VARCHAR(200)', nullable: false },
-      { name: 'SKU', type: 'VARCHAR(50)', nullable: false },
-      { name: 'CATEGORY_ID', type: 'NUMBER(38,0)', nullable: true, isFK: true },
-      { name: 'UNIT_PRICE', type: 'NUMBER(10,2)', nullable: false },
-      { name: 'UNIT_COST', type: 'NUMBER(10,2)', nullable: true },
-      { name: 'WEIGHT', type: 'NUMBER(8,2)', nullable: true },
-      { name: 'DESCRIPTION', type: 'VARCHAR(2000)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      UNIT_PRICE: { sum: 1_232_000, avg: 80, min: 0.99, max: 9999, nullCount: 0, distinctCount: 1240 },
-      UNIT_COST: { sum: 616_000, avg: 40, min: 0.25, max: 7500, nullCount: 320, distinctCount: 980 },
-      WEIGHT: { sum: 154_000, avg: 10, min: 0.01, max: 500, nullCount: 1200, distinctCount: 890 },
-    }},
-    { name: 'FINANCE_TRANSACTIONS', rowCount: 3_800_000, columns: [
-      { name: 'TRANSACTION_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'ORDER_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'TRANSACTION_TYPE', type: 'VARCHAR(20)', nullable: false },
-      { name: 'AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'CURRENCY', type: 'VARCHAR(3)', nullable: false },
-      { name: 'PAYMENT_METHOD', type: 'VARCHAR(30)', nullable: true },
-      { name: 'TRANSACTION_DATE', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'STATUS', type: 'VARCHAR(20)', nullable: false },
-      { name: 'REFERENCE_NUMBER', type: 'VARCHAR(50)', nullable: true },
-      { name: 'NOTES', type: 'VARCHAR(500)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      AMOUNT: { sum: 760_000_000, avg: 200, min: -5000, max: 49999, nullCount: 0, distinctCount: 42100 },
-    }},
-    { name: 'INVENTORY', rowCount: 820_000, columns: [
-      { name: 'INVENTORY_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'PRODUCT_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'WAREHOUSE_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'QUANTITY_ON_HAND', type: 'NUMBER(10,0)', nullable: false },
-      { name: 'REORDER_LEVEL', type: 'NUMBER(10,0)', nullable: true },
-      { name: 'LAST_RESTOCK_DATE', type: 'DATE', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      QUANTITY_ON_HAND: { sum: 24_600_000, avg: 30, min: 0, max: 10000, nullCount: 0, distinctCount: 8500 },
-      REORDER_LEVEL: { sum: 8_200_000, avg: 10, min: 1, max: 500, nullCount: 41000, distinctCount: 420 },
-    }},
-    { name: 'WAREHOUSES', rowCount: 24, columns: [
-      { name: 'WAREHOUSE_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'WAREHOUSE_NAME', type: 'VARCHAR(100)', nullable: false },
-      { name: 'LOCATION', type: 'VARCHAR(200)', nullable: true },
-      { name: 'CITY', type: 'VARCHAR(100)', nullable: true },
-      { name: 'STATE', type: 'VARCHAR(50)', nullable: true },
-      { name: 'COUNTRY', type: 'VARCHAR(50)', nullable: true },
-      { name: 'CAPACITY', type: 'NUMBER(10,0)', nullable: true },
-      { name: 'MANAGER', type: 'VARCHAR(100)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'UPDATED_AT', type: 'TIMESTAMP_NTZ', nullable: true },
-    ], stats: {
-      CAPACITY: { sum: 240000, avg: 10000, min: 2000, max: 50000, nullCount: 0, distinctCount: 18 },
-    }},
-  ]
-}
-
-const SCHEMA_B: SchemaData = {
-  name: 'DQ_STAGING', database: 'DQ_PLATFORM_DB',
-  tables: [
-    { name: 'CUSTOMERS', rowCount: 1_095_000, columns: [
-      { name: 'CUSTOMER_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'FIRST_NAME', type: 'VARCHAR(100)', nullable: false },
-      { name: 'LAST_NAME', type: 'VARCHAR(100)', nullable: false },
-      { name: 'EMAIL', type: 'VARCHAR(255)', nullable: true },
-      { name: 'PHONE', type: 'VARCHAR(20)', nullable: true },
-      { name: 'CITY', type: 'VARCHAR(100)', nullable: true },
-      { name: 'STATE', type: 'VARCHAR(50)', nullable: true },
-      { name: 'ZIP_CODE', type: 'VARCHAR(10)', nullable: true },
-      { name: 'COUNTRY', type: 'VARCHAR(50)', nullable: true },
-      { name: 'SEGMENT', type: 'VARCHAR(50)', nullable: true },
-      { name: 'CREDIT_LIMIT', type: 'NUMBER(10,2)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      CREDIT_LIMIT: { sum: 5_475_000_000, avg: 5000, min: 500, max: 50000, nullCount: 18200, distinctCount: 4750 },
-      CUSTOMER_ID: { sum: undefined, avg: undefined, min: 1, max: 1095000, nullCount: 0, distinctCount: 1095000 },
-    }},
-    { name: 'SALES_ORDERS', rowCount: 4_180_000, columns: [
-      { name: 'ORDER_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'ORDER_NUMBER', type: 'VARCHAR(20)', nullable: false },
-      { name: 'CUSTOMER_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'ORDER_DATE', type: 'DATE', nullable: false },
-      { name: 'SHIPPED_DATE', type: 'DATE', nullable: true },
-      { name: 'STATUS', type: 'VARCHAR(20)', nullable: false },
-      { name: 'SHIPPING_METHOD', type: 'VARCHAR(50)', nullable: true },
-      { name: 'WAREHOUSE_ID', type: 'NUMBER(38,0)', nullable: true, isFK: true },
-      { name: 'TOTAL_AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'DISCOUNT_AMT', type: 'NUMBER(12,2)', nullable: true },
-      { name: 'TAX_AMOUNT', type: 'NUMBER(12,2)', nullable: true },
-      { name: 'NET_AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      TOTAL_AMOUNT: { sum: 836_000_000, avg: 200, min: 5.99, max: 49999.99, nullCount: 0, distinctCount: 38100 },
-      DISCOUNT_AMT: { sum: 41_800_000, avg: 12.5, min: 0, max: 5000, nullCount: 836000, distinctCount: 2100 },
-      TAX_AMOUNT: { sum: 66_880_000, avg: 16, min: 0, max: 4500, nullCount: 0, distinctCount: 12600 },
-      NET_AMOUNT: { sum: 727_320_000, avg: 174, min: 1.99, max: 48500, nullCount: 0, distinctCount: 40800 },
-    }},
-    { name: 'PRODUCTS', rowCount: 15_200, columns: [
-      { name: 'PRODUCT_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'PRODUCT_NAME', type: 'VARCHAR(200)', nullable: false },
-      { name: 'SKU', type: 'VARCHAR(50)', nullable: false },
-      { name: 'CATEGORY_ID', type: 'NUMBER(38,0)', nullable: true, isFK: true },
-      { name: 'UNIT_PRICE', type: 'NUMBER(10,2)', nullable: false },
-      { name: 'UNIT_COST', type: 'NUMBER(10,2)', nullable: true },
-      { name: 'WEIGHT', type: 'NUMBER(8,2)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      UNIT_PRICE: { sum: 1_216_000, avg: 80, min: 0.99, max: 9999, nullCount: 0, distinctCount: 1220 },
-      UNIT_COST: { sum: 608_000, avg: 40, min: 0.25, max: 7500, nullCount: 310, distinctCount: 960 },
-      WEIGHT: { sum: 152_000, avg: 10, min: 0.01, max: 500, nullCount: 1100, distinctCount: 870 },
-    }},
-    { name: 'FINANCE_TRANSACTIONS', rowCount: 3_750_000, columns: [
-      { name: 'TRANSACTION_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'ORDER_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'TXN_TYPE', type: 'VARCHAR(20)', nullable: false },
-      { name: 'AMOUNT', type: 'NUMBER(12,2)', nullable: false },
-      { name: 'CURRENCY', type: 'VARCHAR(3)', nullable: false },
-      { name: 'PAYMENT_METHOD', type: 'VARCHAR(30)', nullable: true },
-      { name: 'TRANSACTION_DATE', type: 'TIMESTAMP_NTZ', nullable: false },
-      { name: 'STATUS', type: 'VARCHAR(20)', nullable: false },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      AMOUNT: { sum: 750_000_000, avg: 200, min: -5000, max: 49999, nullCount: 0, distinctCount: 41500 },
-    }},
-    { name: 'INVENTORY', rowCount: 815_000, columns: [
-      { name: 'INVENTORY_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'PRODUCT_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'WAREHOUSE_ID', type: 'NUMBER(38,0)', nullable: false, isFK: true },
-      { name: 'QTY_ON_HAND', type: 'NUMBER(10,0)', nullable: false },
-      { name: 'REORDER_LEVEL', type: 'NUMBER(10,0)', nullable: true },
-      { name: 'LAST_RESTOCK_DATE', type: 'DATE', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      QTY_ON_HAND: { sum: 24_450_000, avg: 30, min: 0, max: 10000, nullCount: 0, distinctCount: 8400 },
-      REORDER_LEVEL: { sum: 8_150_000, avg: 10, min: 1, max: 500, nullCount: 40750, distinctCount: 415 },
-    }},
-    { name: 'SUPPLIERS', rowCount: 340, columns: [
-      { name: 'SUPPLIER_ID', type: 'NUMBER(38,0)', nullable: false, isPK: true },
-      { name: 'SUPPLIER_NAME', type: 'VARCHAR(200)', nullable: false },
-      { name: 'CONTACT_NAME', type: 'VARCHAR(100)', nullable: true },
-      { name: 'EMAIL', type: 'VARCHAR(255)', nullable: true },
-      { name: 'PHONE', type: 'VARCHAR(20)', nullable: true },
-      { name: 'COUNTRY', type: 'VARCHAR(50)', nullable: true },
-      { name: 'RATING', type: 'NUMBER(3,1)', nullable: true },
-      { name: 'CREATED_AT', type: 'TIMESTAMP_NTZ', nullable: false },
-    ], stats: {
-      RATING: { sum: 1496, avg: 4.4, min: 1.0, max: 5.0, nullCount: 12, distinctCount: 41 },
-    }},
-  ]
-}
-
-const SCHEMAS = [SCHEMA_A, SCHEMA_B]
 
 /* ── Helpers ──────────────────────────────────────────────────── */
 
@@ -246,14 +45,70 @@ const inp = (extra?: React.CSSProperties): React.CSSProperties => ({ width: '100
 /* ── Component ────────────────────────────────────────────────── */
 
 export default function SpotCheckPage() {
+  const [schemas, setSchemas] = useState<SchemaData[]>([])
+  const [loading, setLoading] = useState(true)
   const [schemaA, setSchemaA] = useState(0)
   const [schemaB, setSchemaB] = useState(1)
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
   const [tab, setTab] = useState<'tables' | 'columns' | 'stats'>('tables')
   const [search, setSearch] = useState('')
 
-  const sA = SCHEMAS[schemaA]
-  const sB = SCHEMAS[schemaB]
+  useEffect(() => {
+    fetch('/api/snowflake/tables')
+      .then(r => r.json())
+      .then(data => {
+        const tables = Array.isArray(data) ? data : (data.tables ?? [])
+        if (tables.length === 0) { setLoading(false); return }
+        // Group by schema to build schema objects
+        const schemaMap = new Map<string, TableSchema[]>()
+        for (const t of tables) {
+          const key = `${t.database_name ?? ''}.${t.schema_name ?? ''}`
+          if (!schemaMap.has(key)) schemaMap.set(key, [])
+          schemaMap.get(key)!.push({
+            name: String(t.table_name ?? t.name ?? ''),
+            rowCount: Number(t.row_count ?? t.rowCount ?? 0),
+            columns: [],
+            stats: {},
+          })
+        }
+        const built: SchemaData[] = []
+        for (const [key, tbs] of schemaMap) {
+          const parts = key.split('.')
+          built.push({ name: parts[1] || key, database: parts[0] || '', tables: tbs })
+        }
+        setSchemas(built)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  if (loading) {
+    return (
+      <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
+        <PageTabBar tabs={[{ href: '/data-browser', label: 'Data Browser' }, { href: '/spot-check', label: 'Spot Check' }]} />
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 20px' }}>Spot Check</h1>
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+      </div>
+    )
+  }
+
+  if (schemas.length === 0) {
+    return (
+      <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
+        <PageTabBar tabs={[{ href: '/data-browser', label: 'Data Browser' }, { href: '/spot-check', label: 'Spot Check' }]} />
+        <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Explore</span></div>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Spot Check</h1>
+        <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Compare tables, columns, and summary statistics across schemas</p>
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+          Connect a data source to use schema comparison
+        </div>
+      </div>
+    )
+  }
+
+  const SCHEMAS = schemas
+  const sA = SCHEMAS[schemaA] ?? SCHEMAS[0]
+  const sB = SCHEMAS[Math.min(schemaB, SCHEMAS.length - 1)] ?? SCHEMAS[0]
 
   // Table comparison
   const allTableNames = useMemo(() => {

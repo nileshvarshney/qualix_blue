@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import PageTabBar from '@/components/ui/PageTabBar'
 
 type SLAStatus = 'healthy' | 'at-risk' | 'breached'
@@ -16,80 +16,6 @@ interface SLA {
   nextReview: string
 }
 
-const slas: SLA[] = [
-  {
-    id: 's1', name: 'Orders Freshness', dataset: 'fact_orders',
-    type: 'Freshness', target: '< 4h delay', current: '1.2h',
-    adherence: 99, status: 'healthy', owner: 'Bhaskar R.',
-    connection: 'SF_Codex', domain: 'Finance', breaches: 0,
-    trend: [99, 100, 99, 100, 100, 99, 99],
-    nextReview: '2026-06-01',
-    rootCause: 'No issues. The Orders pipeline runs on schedule — daily ETL completes within 1.2h on average, well below the 4h target. The pipeline has been stable for 30+ days.',
-    impact: 'All downstream revenue models and Finance dashboards are receiving fresh data within SLA. No business impact.',
-    recommendation: 'No action needed. Continue monitoring. Consider tightening the SLA to < 2h to improve data freshness for real-time use cases.',
-    affectedPipelines: ['revenue_by_channel', 'finance_daily_report', 'orders_summary'],
-  },
-  {
-    id: 's2', name: 'Customer Data Quality', dataset: 'dim_customers',
-    type: 'Quality Score', target: '≥ 90%', current: '81%',
-    adherence: 72, status: 'breached', owner: 'Priya M.',
-    connection: 'SF_Codex', domain: 'Marketing', breaches: 3,
-    trend: [95, 93, 90, 87, 83, 81, 81],
-    lastBreachDate: '2026-05-05', nextReview: '2026-05-10',
-    rootCause: 'A CRM batch import on 2026-05-05 loaded 363,000 records from a third-party lead-gen vendor without email validation or consent flag assignment. 220,000 records have malformed emails (missing "@" or TLD) and 143,000 have NULL consent_flag values. The import script bypassed the standard validation pipeline. Quality score has been declining for 7 days and breached the 90% SLA target on 2026-05-03.',
-    impact: 'Marketing CDP exports are degraded — 363K customers cannot be contacted via email campaigns, representing an estimated $480K/month in missed re-engagement revenue. GDPR compliance is at risk for the 143K NULL consent_flag records. The breach has been flagged by Legal. Marketing attribution is broken for these users as they cannot be matched to GA4 session data.',
-    recommendation: 'Quarantine the 363K affected records into dim_customers_review. Re-request corrected email + consent data from the vendor (SLA: 48h). Add mandatory email regex validation and consent_flag default to the CRM import pipeline. Re-validate after fix — target: restore quality score to ≥ 92% within 5 business days.',
-    affectedPipelines: ['marketing_email_list', 'ga4_attribution', 'customer_segments', 'gdpr_consent_report', 'marketing_cdp_sync'],
-  },
-  {
-    id: 's3', name: 'Payment Reconciliation', dataset: 'fact_payments',
-    type: 'Accuracy', target: '< 0.01% variance', current: '0.04%',
-    adherence: 61, status: 'breached', owner: 'Bhaskar R.',
-    connection: 'SF_Codex', domain: 'Finance', breaches: 5,
-    trend: [98, 97, 85, 75, 65, 62, 61],
-    lastBreachDate: '2026-05-04', nextReview: '2026-05-08',
-    rootCause: 'The payment processor API was upgraded to v3 on 2026-05-04. The new API returns empty strings (not 0.00) for declined transactions, which the ETL casts as NULL instead of zero. 1,482,000 rows (39%) now have NULL payment_amount_usd. Additionally, the schema migration (PR #3892) dropped the amount_usd column without updating 7 downstream reconciliation models, breaking the accuracy check entirely. Adherence has dropped 37 percentage points in 7 days — the fastest decline in this SLA\'s history.',
-    impact: 'Finance reconciliation with bank statements is completely blocked. The weekly Finance report cannot be generated. $2.1M in payment data is unaccountable. This SLA is at 61% — 38.9 points below the 99.9% target. P0 incident declared. Month-end close is at risk. The Audit team has been notified.',
-    recommendation: 'URGENT (P0): (1) Deploy hotfix for payment_amount_usd NULL handling in the ETL (branch fix/payment-v3-null). (2) Restore the amount_usd column alias in fact_payments with a virtual generated column. (3) Reprocess the affected batch for 2026-05-04 to 2026-05-05. (4) Run a full reconciliation validation before signing off. Target: restore to > 95% accuracy within 4 hours.',
-    affectedPipelines: ['finance_weekly_report', 'payment_reconciliation', 'bank_recon_v2', 'fraud_detection', 'settlements_report'],
-  },
-  {
-    id: 's4', name: 'Inventory Refresh Rate', dataset: 'fact_inventory',
-    type: 'Freshness', target: '< 6h delay', current: '5.4h',
-    adherence: 91, status: 'at-risk', owner: 'Rajan S.',
-    connection: 'SF_Codex', domain: 'Supply Chain', breaches: 1,
-    trend: [98, 97, 96, 94, 93, 92, 91],
-    lastBreachDate: '2026-05-03', nextReview: '2026-05-09',
-    rootCause: 'The inventory snapshot job has been gradually slowing over 7 days. At 5.4h it is 90% of the 6h SLA limit. Root cause: the fact_inventory table has grown 28% in the last 30 days (new warehouse zones added) but the Airflow DAG parallelism has not been updated. The job now processes 820K rows on a 4-worker cluster originally configured for 600K rows. One 2h breach occurred on 2026-05-03 when a worker node failed mid-job.',
-    impact: 'At current trajectory (declining ~1% per day), this SLA will breach in 3–5 days without intervention. The SCM API v2 consumer may receive stale inventory data, causing incorrect reorder decisions. Current risk: $0 direct impact but a breach would affect supply chain confidence.',
-    recommendation: 'Scale the Airflow worker cluster from 4 to 6 nodes to handle the increased table size. Partition the job by warehouse_zone to improve parallelism. Add a circuit-breaker alert at 4.5h (75% of SLA limit) for early warning. Review cluster sizing monthly as the table continues to grow.',
-    affectedPipelines: ['inventory_kpis', 'scm_api_v2', 'reorder_recommendations', 'supply_chain_dashboard'],
-  },
-  {
-    id: 's5', name: 'Web Sessions Completeness', dataset: 'web_sessions',
-    type: 'Completeness', target: '≥ 99% non-null', current: '99.4%',
-    adherence: 100, status: 'healthy', owner: 'Priya M.',
-    connection: 'SF_Codex', domain: 'Marketing', breaches: 0,
-    trend: [100, 100, 100, 99, 100, 100, 100],
-    nextReview: '2026-06-01',
-    rootCause: 'No issues. Web sessions completeness is at 99.4% — above the 99% target. The 0.6% non-null rate comes from bot sessions and direct-type traffic where utm fields are intentionally absent — exempt under the contract.',
-    impact: 'All attribution model inputs are complete. No business impact.',
-    recommendation: 'No action needed. The bot-session exemption should be formally documented in the SLA definition. Consider adding a separate completeness check for utm_source on paid sessions specifically.',
-    affectedPipelines: ['attribution_model', 'session_kpis', 'engagement_dashboard'],
-  },
-  {
-    id: 's6', name: 'Product Catalog Validity', dataset: 'dim_products',
-    type: 'Validity', target: '≥ 95% valid SKUs', current: '98.1%',
-    adherence: 100, status: 'healthy', owner: 'Anil K.',
-    connection: 'SF_Codex', domain: 'Catalog', breaches: 0,
-    trend: [100, 100, 100, 100, 99, 100, 100],
-    nextReview: '2026-06-15',
-    rootCause: 'No issues. 98.1% of product SKUs are valid — comfortably above the 95% target. The 1.9% invalid rate comes from seasonal products being temporarily deactivated, which is expected behavior.',
-    impact: 'Product catalog is healthy. No impact on downstream pricing engine or order valuation.',
-    recommendation: 'No action needed. Consider splitting the SLA into active SKUs and archived SKUs to get a cleaner signal, since archived SKUs inflate the "invalid" count by design.',
-    affectedPipelines: ['pricing_engine', 'order_valuation', 'product_catalog_api'],
-  },
-]
 
 const statStyle: Record<SLAStatus, { bg: string; color: string; dot: string; border: string; activeBg: string }> = {
   healthy:  { bg: '#f0fdf4', color: '#16a34a', dot: '#16a34a', border: '#bbf7d0', activeBg: '#16a34a' },
@@ -111,8 +37,40 @@ function MiniTrend({ data, color }: { data: number[]; color: string }) {
 export default function SLAsPage() {
   const [filter, setFilter]     = useState<FilterType>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [allSlas, setAllSlas] = useState(slas)
+  const [allSlas, setAllSlas] = useState<SLA[]>([])
+  const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/slas')
+      .then(r => r.json())
+      .then(data => {
+        const items = Array.isArray(data) ? data : []
+        setAllSlas(items.map((s: Record<string, unknown>, i: number) => ({
+          id: String(s.contract_id ?? s.id ?? i),
+          name: String(s.contract_name ?? s.name ?? ''),
+          dataset: String(s.dataset ?? s.asset_name ?? ''),
+          type: String(s.type ?? s.sla_type ?? 'Freshness'),
+          target: String(s.target ?? ''),
+          current: String(s.current ?? 'Pending'),
+          adherence: Number(s.adherence ?? s.compliance ?? 100),
+          status: (s.status as SLAStatus) ?? 'healthy',
+          owner: String(s.owner ?? ''),
+          connection: String(s.connection ?? ''),
+          domain: String(s.domain ?? ''),
+          breaches: Number(s.breaches ?? 0),
+          trend: Array.isArray(s.trend) ? s.trend as number[] : [100, 100, 100, 100, 100, 100, 100],
+          rootCause: String(s.root_cause ?? s.rootCause ?? ''),
+          impact: String(s.impact ?? ''),
+          recommendation: String(s.recommendation ?? ''),
+          affectedPipelines: Array.isArray(s.affected_pipelines) ? s.affected_pipelines as string[] : [],
+          lastBreachDate: s.last_breach_date ? String(s.last_breach_date) : undefined,
+          nextReview: String(s.next_review ?? s.nextReview ?? ''),
+        })))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
   const [sForm, setSForm] = useState({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: 'Finance', connection: 'SF_Codex' })
 
   const addSla = () => {
@@ -206,7 +164,12 @@ export default function SLAsPage() {
 
       {/* SLA list */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {filtered.map(s => {
+        {loading ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No SLA contracts yet</div>
+        ) : null}
+        {!loading && filtered.map(s => {
           const ss = statStyle[s.status]
           const adColor = s.adherence >= 95 ? '#16a34a' : s.adherence >= 80 ? '#ca8a04' : '#dc2626'
           const isOpen  = expanded === s.id
