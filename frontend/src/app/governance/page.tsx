@@ -492,7 +492,7 @@ export default function GovernancePage() {
                   <div style={{ marginTop: '16px', padding: '12px', background: '#fafaf9', borderRadius: '8px', border: '1px solid #ebe8df' }}>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '6px' }}>Calculation Method</div>
                     <div style={{ fontSize: '12px', color: '#475569', lineHeight: '1.6' }}>
-                      The overall governance score (87.5) is computed as the weighted average of all domain scores. Each domain is weighted by the number of tables and rules it contains. Domains with more critical data assets carry higher weight.
+                      The overall governance score is computed as the weighted average of all domain scores. Each domain is weighted by the number of tables and rules it contains. Domains with more critical data assets carry higher weight.
                     </div>
                   </div>
                 </>

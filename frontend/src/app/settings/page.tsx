@@ -12,7 +12,7 @@ const connIcons: Record<string, string> = {
 export default function SettingsPage() {
   const [tab, setTab] = useState<'profile' | 'connections' | 'security' | 'notifications' | 'api' | 'integrations' | 'workspace'>('profile')
   const [saved, setSaved] = useState(false)
-  const [profile, setProfile] = useState({ name: 'Bhaskar Reddivari', email: 'yourschinnu@gmail.com', role: 'Admin', timezone: 'Asia/Kolkata', language: 'en' })
+  const [profile, setProfile] = useState({ name: '', email: '', role: 'Admin', timezone: '', language: 'en' })
   const [notifs, setNotifs] = useState({ emailCritical: true, emailHigh: true, emailWeekly: true, slackCritical: true, slackHigh: false, slackDaily: false, pagerduty: false })
 
   // Connections state
@@ -29,11 +29,8 @@ export default function SettingsPage() {
     enforceRBAC: true, auditLogging: true, dataEncryption: true, apiRateLimit: 1000,
   })
 
-  // API Keys state
-  const [apiKeys, setApiKeys] = useState([
-    { id: 'k1', name: 'CI/CD Pipeline', key: 'dg_live_f8a2c3d4e5b6a7c8d9e0f1a23f2a', created: '2026-01-15', lastUsed: '2026-05-05', status: 'active', visible: false },
-    { id: 'k2', name: 'Grafana Dashboard', key: 'dg_live_9b8c7d6e5f4a3b2c1d0e9f8a8c1e', created: '2026-03-01', lastUsed: '2026-05-04', status: 'active', visible: false },
-  ])
+  // API Keys state (starts empty — keys are created at runtime)
+  const [apiKeys, setApiKeys] = useState<{ id: string; name: string; key: string; created: string; lastUsed: string; status: string; visible: boolean }[]>([])
   const [showKeyModal, setShowKeyModal] = useState(false)
   const [newKeyName, setNewKeyName] = useState('')
   const [newKeyScope, setNewKeyScope] = useState('read')
@@ -549,7 +546,7 @@ export default function SettingsPage() {
             <div style={card}>
               <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a', marginBottom: '20px' }}>Workspace Settings</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {[['Workspace Name', 'Analytics platform'], ['Organization', 'BhaskarsWorld Tech'], ['Default Connection', 'SF_Codex'], ['Data Retention', '90 days'], ['Timezone', 'Asia/Kolkata (IST)']].map(([label, value]) => (
+                {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '90 days'], ['Timezone', '—']].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f1ea' }}>
                     <span style={{ fontSize: '13px', color: '#475569', fontWeight: 500 }}>{label}</span>
                     <span style={{ fontSize: '13px', color: '#1a1a1a', fontWeight: 600 }}>{value}</span>

@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface DataProduct {
   id: string; name: string; description: string; domain: string; owner: string
@@ -8,15 +8,6 @@ interface DataProduct {
   sla: string; freshness: string; lastUpdated: string
   tags?: string[]
 }
-
-const INITIAL_PRODUCTS: DataProduct[] = [
-  { id: 'dp1', name: 'Customer 360', description: 'Unified customer profile combining CRM, transactions, and engagement data', domain: 'Sales', owner: 'Data Platform', status: 'certified', tier: 'gold', qualityScore: 97, consumers: 24, datasets: 8, sla: '99.9%', freshness: '15m ago', lastUpdated: '2026-05-22T10:00:00Z', tags: ['customer', 'profile', 'CRM'] },
-  { id: 'dp2', name: 'Revenue Analytics', description: 'Real-time revenue metrics, forecasting, and trend analysis', domain: 'Finance', owner: 'Finance Team', status: 'certified', tier: 'gold', qualityScore: 98, consumers: 18, datasets: 5, sla: '99.9%', freshness: '5m ago', lastUpdated: '2026-05-22T10:10:00Z', tags: ['revenue', 'forecast', 'metrics'] },
-  { id: 'dp3', name: 'Marketing Attribution', description: 'Multi-touch attribution model with channel performance metrics', domain: 'Marketing', owner: 'Growth Team', status: 'published', tier: 'silver', qualityScore: 89, consumers: 12, datasets: 6, sla: '99.5%', freshness: '1h ago', lastUpdated: '2026-05-22T09:00:00Z', tags: ['marketing', 'attribution', 'channels'] },
-  { id: 'dp4', name: 'Supply Chain Metrics', description: 'Inventory levels, lead times, and supplier performance KPIs', domain: 'Supply Chain', owner: 'Logistics', status: 'published', tier: 'silver', qualityScore: 91, consumers: 8, datasets: 7, sla: '99.5%', freshness: '30m ago', lastUpdated: '2026-05-22T09:30:00Z', tags: ['inventory', 'logistics', 'supplier'] },
-  { id: 'dp5', name: 'Product Catalog', description: 'Master product data with pricing, categories, and attributes', domain: 'Engineering', owner: 'Product Team', status: 'certified', tier: 'gold', qualityScore: 99, consumers: 32, datasets: 3, sla: '99.9%', freshness: '2m ago', lastUpdated: '2026-05-22T10:13:00Z', tags: ['product', 'catalog', 'pricing'] },
-  { id: 'dp6', name: 'User Behavior Analytics', description: 'Clickstream data with session analytics and conversion funnels', domain: 'Engineering', owner: 'Analytics', status: 'draft', tier: 'bronze', qualityScore: 76, consumers: 4, datasets: 4, sla: '99.0%', freshness: '3h ago', lastUpdated: '2026-05-22T07:00:00Z', tags: ['clickstream', 'behavior', 'funnel'] },
-]
 
 function tierStyle(t: string) {
   if (t === 'gold') return { bg: '#fef3c7', color: '#d97706', icon: '🥇', label: 'Gold' }
@@ -43,66 +34,9 @@ const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: '
 
 const DOMAINS = ['Sales', 'Finance', 'Marketing', 'Supply Chain', 'Engineering', 'Operations', 'HR']
 
-/* ── Sample datasets and lineage for detail drawer ── */
-const SAMPLE_DATASETS: Record<string, { name: string; table: string; rows: number; freshness: string; quality: number }[]> = {
-  dp1: [
-    { name: 'CRM Contacts', table: 'dim_customers', rows: 125400, freshness: '15m', quality: 98 },
-    { name: 'Transaction History', table: 'fact_transactions', rows: 2450000, freshness: '10m', quality: 96 },
-    { name: 'Engagement Events', table: 'fact_engagement', rows: 890000, freshness: '30m', quality: 95 },
-    { name: 'Support Tickets', table: 'fact_support', rows: 34500, freshness: '1h', quality: 99 },
-    { name: 'Web Sessions', table: 'fact_web_sessions', rows: 1200000, freshness: '5m', quality: 97 },
-    { name: 'Customer Segments', table: 'dim_segments', rows: 28, freshness: '24h', quality: 100 },
-    { name: 'NPS Scores', table: 'fact_nps', rows: 15600, freshness: '6h', quality: 94 },
-    { name: 'Churn Predictions', table: 'ml_churn_scores', rows: 125400, freshness: '12h', quality: 96 },
-  ],
-  dp2: [
-    { name: 'Revenue Facts', table: 'fact_revenue', rows: 980000, freshness: '5m', quality: 99 },
-    { name: 'Forecast Model', table: 'ml_revenue_forecast', rows: 365, freshness: '6h', quality: 97 },
-    { name: 'GL Entries', table: 'fact_gl_entries', rows: 4500000, freshness: '1h', quality: 98 },
-    { name: 'Cost Centers', table: 'dim_cost_centers', rows: 142, freshness: '24h', quality: 100 },
-    { name: 'Exchange Rates', table: 'dim_exchange_rates', rows: 1200, freshness: '15m', quality: 99 },
-  ],
-  dp3: [
-    { name: 'Campaign Events', table: 'fact_campaigns', rows: 560000, freshness: '30m', quality: 91 },
-    { name: 'Channel Performance', table: 'agg_channel_perf', rows: 2400, freshness: '1h', quality: 88 },
-    { name: 'Attribution Weights', table: 'ml_attribution', rows: 560000, freshness: '6h', quality: 85 },
-    { name: 'Ad Spend', table: 'fact_ad_spend', rows: 45000, freshness: '2h', quality: 92 },
-    { name: 'Conversion Funnel', table: 'agg_funnel', rows: 8400, freshness: '1h', quality: 90 },
-    { name: 'UTM Tags', table: 'dim_utm', rows: 3200, freshness: '24h', quality: 87 },
-  ],
-  dp4: [
-    { name: 'Inventory Levels', table: 'fact_inventory', rows: 34000, freshness: '15m', quality: 93 },
-    { name: 'Purchase Orders', table: 'fact_purchase_orders', rows: 12800, freshness: '30m', quality: 92 },
-    { name: 'Supplier Ratings', table: 'dim_suppliers', rows: 480, freshness: '24h', quality: 95 },
-    { name: 'Warehouse Stock', table: 'fact_warehouse_stock', rows: 68000, freshness: '10m', quality: 90 },
-    { name: 'Lead Times', table: 'agg_lead_times', rows: 2400, freshness: '6h', quality: 88 },
-    { name: 'Shipping Metrics', table: 'fact_shipments', rows: 95000, freshness: '1h', quality: 91 },
-    { name: 'Returns Data', table: 'fact_returns', rows: 8700, freshness: '2h', quality: 89 },
-  ],
-  dp5: [
-    { name: 'Product Master', table: 'dim_products', rows: 8500, freshness: '2m', quality: 100 },
-    { name: 'Pricing History', table: 'fact_pricing', rows: 340000, freshness: '5m', quality: 99 },
-    { name: 'Categories', table: 'dim_categories', rows: 245, freshness: '24h', quality: 100 },
-  ],
-  dp6: [
-    { name: 'Clickstream', table: 'fact_clicks', rows: 4500000, freshness: '2h', quality: 78 },
-    { name: 'Session Aggregates', table: 'agg_sessions', rows: 890000, freshness: '3h', quality: 80 },
-    { name: 'Conversion Events', table: 'fact_conversions', rows: 125000, freshness: '2h', quality: 74 },
-    { name: 'Page Views', table: 'fact_page_views', rows: 12000000, freshness: '4h', quality: 72 },
-  ],
-}
-
-const SAMPLE_CONSUMERS: Record<string, string[]> = {
-  dp1: ['Sales Dashboard', 'CRM Integration', 'Customer Support Portal', 'Marketing Automation', 'Churn Prediction ML', 'Executive KPIs'],
-  dp2: ['CFO Dashboard', 'Board Reports', 'Investor Relations', 'Budget Planning', 'Tax Compliance'],
-  dp3: ['Marketing Dashboard', 'Campaign Manager', 'ROI Calculator', 'Growth Team Reports'],
-  dp4: ['Operations Dashboard', 'Procurement System', 'Warehouse Management', 'Vendor Portal'],
-  dp5: ['E-commerce Platform', 'Mobile App', 'Search Engine', 'Recommendation ML', 'Pricing Engine', 'Content Management'],
-  dp6: ['Product Analytics', 'A/B Testing Platform', 'Personalization Engine'],
-}
-
 export default function DataProductsPage() {
-  const [products, setProducts] = useState<DataProduct[]>(INITIAL_PRODUCTS)
+  const [products, setProducts] = useState<DataProduct[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'certified' | 'published' | 'draft'>('all')
   const [selectedProduct, setSelectedProduct] = useState<DataProduct | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -113,10 +47,36 @@ export default function DataProductsPage() {
     sla: '99.0%', tags: '',
   })
 
+  useEffect(() => {
+    fetch('/api/data-products')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        const items: DataProduct[] = (Array.isArray(data) ? data : []).map((p, i) => ({
+          id: String(p.product_id ?? p.id ?? i),
+          name: String(p.product_name ?? p.name ?? ''),
+          description: String(p.description ?? ''),
+          domain: String(p.domain ?? ''),
+          owner: String(p.owner ?? p.owner_team ?? ''),
+          status: (p.status as DataProduct['status']) ?? 'draft',
+          tier: (p.tier as DataProduct['tier']) ?? 'bronze',
+          qualityScore: Number(p.quality_score ?? p.qualityScore ?? 0),
+          consumers: Number(p.consumer_count ?? p.consumers ?? 0),
+          datasets: Number(p.dataset_count ?? p.datasets ?? 0),
+          sla: String(p.sla ?? p.sla_target ?? ''),
+          freshness: String(p.freshness ?? ''),
+          lastUpdated: String(p.last_updated ?? p.lastUpdated ?? new Date().toISOString()),
+          tags: Array.isArray(p.tags) ? p.tags as string[] : [],
+        }))
+        setProducts(items)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
   const filtered = products.filter(p => filter === 'all' || p.status === filter)
 
   const totalConsumers = products.reduce((s, p) => s + p.consumers, 0)
-  const avgQuality = Math.round(products.reduce((s, p) => s + p.qualityScore, 0) / products.length)
+  const avgQuality = products.length > 0 ? Math.round(products.reduce((s, p) => s + p.qualityScore, 0) / products.length) : 0
   const certifiedCount = products.filter(p => p.status === 'certified').length
 
   function createProduct() {
@@ -158,8 +118,8 @@ export default function DataProductsPage() {
         {[
           { label: 'Total Products', value: String(products.length), sub: `${certifiedCount} certified`, color: '#2563eb' },
           { label: 'Total Consumers', value: String(totalConsumers), sub: 'across all products', color: '#7c3aed' },
-          { label: 'Avg Quality Score', value: `${avgQuality}%`, color: scoreColor(avgQuality) },
-          { label: 'SLA Compliance', value: '99.4%', sub: '▲ 0.2% vs last week', color: '#16a34a' },
+          { label: 'Avg Quality Score', value: products.length > 0 ? `${avgQuality}%` : '—', color: products.length > 0 ? scoreColor(avgQuality) : '#94a3b8' },
+          { label: 'SLA Compliance', value: '—', sub: 'No data yet', color: '#94a3b8' },
         ].map((kpi, i) => (
           <div key={i} style={card}>
             <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>{kpi.label}</div>
@@ -183,64 +143,67 @@ export default function DataProductsPage() {
       </div>
 
       {/* Products Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '14px' }}>
-        {filtered.map(p => {
-          const tier = tierStyle(p.tier)
-          const stat = statusStyle(p.status)
-          return (
-            <div key={p.id} onClick={() => setSelectedProduct(p)} style={{
-              ...card, padding: '20px', cursor: 'pointer', transition: 'all 0.2s',
-              border: selectedProduct?.id === p.id ? '2px solid #E8541A' : '1px solid #ebe8df',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '20px' }}>{tier.icon}</span>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a' }}>{p.name}</div>
-                    <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '1px' }}>{p.domain} · {p.owner}</div>
+      {loading ? (
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+      ) : products.length === 0 ? (
+        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+          No data products yet
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '14px' }}>
+          {filtered.map(p => {
+            const tier = tierStyle(p.tier)
+            const stat = statusStyle(p.status)
+            return (
+              <div key={p.id} onClick={() => setSelectedProduct(p)} style={{
+                ...card, padding: '20px', cursor: 'pointer', transition: 'all 0.2s',
+                border: selectedProduct?.id === p.id ? '2px solid #E8541A' : '1px solid #ebe8df',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)' }}
+                onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'none' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>{tier.icon}</span>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a' }}>{p.name}</div>
+                      <div style={{ fontSize: '11.5px', color: '#94a3b8', marginTop: '1px' }}>{p.domain} · {p.owner}</div>
+                    </div>
                   </div>
+                  <span style={{ background: stat.bg, color: stat.color, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600 }}>{stat.label}</span>
                 </div>
-                <span style={{ background: stat.bg, color: stat.color, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600 }}>{stat.label}</span>
-              </div>
-              <p style={{ fontSize: '12.5px', color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>{p.description}</p>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                <span style={{ background: scoreBg(p.qualityScore), color: scoreColor(p.qualityScore), padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>Quality: {p.qualityScore}%</span>
-                <span style={{ background: '#f0f9ff', color: '#2563eb', padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500 }}>{p.consumers} consumers</span>
-                <span style={{ background: '#faf5ff', color: '#7c3aed', padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500 }}>{p.datasets} datasets</span>
-              </div>
-              {p.tags && p.tags.length > 0 && (
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
-                  {p.tags.map(tag => (
-                    <span key={tag} style={{ background: '#f8fafc', color: '#64748b', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>#{tag}</span>
-                  ))}
+                <p style={{ fontSize: '12.5px', color: '#64748b', margin: '0 0 14px', lineHeight: 1.5 }}>{p.description}</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                  <span style={{ background: scoreBg(p.qualityScore), color: scoreColor(p.qualityScore), padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>Quality: {p.qualityScore}%</span>
+                  <span style={{ background: '#f0f9ff', color: '#2563eb', padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500 }}>{p.consumers} consumers</span>
+                  <span style={{ background: '#faf5ff', color: '#7c3aed', padding: '3px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500 }}>{p.datasets} datasets</span>
                 </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#94a3b8' }}>
-                <span>SLA: {p.sla}</span>
-                <span>Freshness: {p.freshness}</span>
+                {p.tags && p.tags.length > 0 && (
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                    {p.tags.map(tag => (
+                      <span key={tag} style={{ background: '#f8fafc', color: '#64748b', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>#{tag}</span>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11.5px', color: '#94a3b8' }}>
+                  <span>SLA: {p.sla || '—'}</span>
+                  <span>Freshness: {p.freshness || '—'}</span>
+                </div>
               </div>
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
 
-      {/* ── Detail Drawer ── */}
+      {/* Detail Drawer */}
       {selectedProduct && (() => {
         const p = selectedProduct
         const tier = tierStyle(p.tier)
         const stat = statusStyle(p.status)
-        const datasets = SAMPLE_DATASETS[p.id] || []
-        const consumers = SAMPLE_CONSUMERS[p.id] || []
-        const totalRows = datasets.reduce((s, d) => s + d.rows, 0)
-        const avgDsQuality = datasets.length > 0 ? Math.round(datasets.reduce((s, d) => s + d.quality, 0) / datasets.length) : 0
 
         return (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', justifyContent: 'flex-end', zIndex: 300, backdropFilter: 'blur(4px)' }}
             onClick={e => { if (e.target === e.currentTarget) setSelectedProduct(null) }}>
             <div style={{ width: '620px', background: '#fff', height: '100%', overflowY: 'auto', boxShadow: '-8px 0 32px rgba(0,0,0,0.12)' }}>
-              {/* Header */}
               <div style={{ padding: '24px 28px', borderBottom: '1px solid #ebe8df', background: '#fafaf9' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
@@ -259,19 +222,17 @@ export default function DataProductsPage() {
               </div>
 
               <div style={{ padding: '24px 28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Description */}
                 <div>
                   <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Description</div>
-                  <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>{p.description}</div>
+                  <div style={{ fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>{p.description || '—'}</div>
                 </div>
 
-                {/* Key Metrics */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px' }}>
                   {[
                     { label: 'Quality', value: `${p.qualityScore}%`, color: scoreColor(p.qualityScore), bg: scoreBg(p.qualityScore) },
                     { label: 'Consumers', value: String(p.consumers), color: '#2563eb', bg: '#dbeafe' },
                     { label: 'Datasets', value: String(p.datasets), color: '#7c3aed', bg: '#f3e8ff' },
-                    { label: 'SLA', value: p.sla, color: '#16a34a', bg: '#dcfce7' },
+                    { label: 'SLA', value: p.sla || '—', color: '#16a34a', bg: '#dcfce7' },
                   ].map(m => (
                     <div key={m.label} style={{ background: m.bg, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
                       <div style={{ fontSize: '20px', fontWeight: 700, color: m.color }}>{m.value}</div>
@@ -280,7 +241,6 @@ export default function DataProductsPage() {
                   ))}
                 </div>
 
-                {/* Quality Score Bar */}
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
                     <span style={{ fontSize: '12px', fontWeight: 600, color: '#1a1a1a' }}>Overall Quality Score</span>
@@ -291,46 +251,6 @@ export default function DataProductsPage() {
                   </div>
                 </div>
 
-                {/* Datasets Table */}
-                {datasets.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
-                      Datasets ({datasets.length}) · {totalRows.toLocaleString()} total rows · Avg Quality: {avgDsQuality}%
-                    </div>
-                    <div style={{ borderRadius: '10px', border: '1px solid #ebe8df', overflow: 'hidden' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px 70px 70px', gap: '6px', padding: '8px 14px', background: '#fafaf9', borderBottom: '1px solid #ebe8df' }}>
-                        {['Dataset', 'Table', 'Rows', 'Fresh', 'Quality'].map(h => (
-                          <div key={h} style={{ fontSize: '10px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
-                        ))}
-                      </div>
-                      {datasets.map((ds, i) => (
-                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 80px 70px 70px', gap: '6px', padding: '8px 14px', borderBottom: i < datasets.length - 1 ? '1px solid #f8f6f0' : 'none', fontSize: '12px', alignItems: 'center' }}>
-                          <div style={{ fontWeight: 500, color: '#0f172a' }}>{ds.name}</div>
-                          <div><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', color: '#475569' }}>{ds.table}</code></div>
-                          <div style={{ color: '#64748b' }}>{ds.rows >= 1000000 ? `${(ds.rows / 1000000).toFixed(1)}M` : ds.rows >= 1000 ? `${(ds.rows / 1000).toFixed(0)}K` : ds.rows}</div>
-                          <div style={{ color: '#64748b' }}>{ds.freshness}</div>
-                          <div><span style={{ background: scoreBg(ds.quality), color: scoreColor(ds.quality), padding: '2px 6px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>{ds.quality}%</span></div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Consumers */}
-                {consumers.length > 0 && (
-                  <div>
-                    <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>
-                      Consumers ({consumers.length})
-                    </div>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {consumers.map(c => (
-                        <span key={c} style={{ background: '#f0f9ff', color: '#2563eb', padding: '5px 12px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 500 }}>{c}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Tags */}
                 {p.tags && p.tags.length > 0 && (
                   <div>
                     <div style={{ fontSize: '11px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '10px' }}>Tags</div>
@@ -342,11 +262,10 @@ export default function DataProductsPage() {
                   </div>
                 )}
 
-                {/* Metadata footer */}
                 <div style={{ background: '#fafaf9', borderRadius: '10px', padding: '14px 16px', border: '1px solid #ebe8df' }}>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '12px' }}>
                     <div><span style={{ color: '#94a3b8' }}>Last Updated:</span> <span style={{ color: '#475569', fontWeight: 500 }}>{fmtDate(p.lastUpdated)}</span></div>
-                    <div><span style={{ color: '#94a3b8' }}>Freshness:</span> <span style={{ color: '#16a34a', fontWeight: 500 }}>{p.freshness}</span></div>
+                    <div><span style={{ color: '#94a3b8' }}>Freshness:</span> <span style={{ color: '#16a34a', fontWeight: 500 }}>{p.freshness || '—'}</span></div>
                     <div><span style={{ color: '#94a3b8' }}>Domain:</span> <span style={{ color: '#475569', fontWeight: 500 }}>{p.domain}</span></div>
                     <div><span style={{ color: '#94a3b8' }}>Owner:</span> <span style={{ color: '#475569', fontWeight: 500 }}>{p.owner}</span></div>
                   </div>
@@ -357,7 +276,7 @@ export default function DataProductsPage() {
         )
       })()}
 
-      {/* ── Create Product Modal ── */}
+      {/* Create Product Modal */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: '#fff', borderRadius: '16px', width: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
