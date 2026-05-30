@@ -193,7 +193,7 @@ const sections: Section[] = [
     railIconD: 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1',
     items: [
       { href: '/alerts',     label: 'Alerts',     iconD: 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1' },
-      // Moved to Alerts page — "Incidents" tab within the existing tab switcher
+      // Moved to Alerts page — "Incidents" tab in PageTabBar (see /app/alerts/page.tsx)
       { href: '/audit-logs', label: 'Audit Logs', iconD: 'M9 12l2 2 4-4M21 12c0 5-4 9-9 9s-9-4-9-9 4-9 9-9c2.5 0 4.7 1 6.4 2.6' },
     ]
   },
@@ -326,7 +326,7 @@ export default function Sidebar() {
         {/* Logo icon */}
         <div style={{
           width: 38, height: 38, borderRadius: 10,
-          background: '#E8541A',
+          background: 'var(--brand-primary)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 2px 10px rgba(232,84,26,0.3)',
           flexShrink: 0,
@@ -341,7 +341,7 @@ export default function Sidebar() {
         {/* Brand name */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, flex: 1 }}>
           <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.5px' }}>Data</span>
-          <span style={{ fontSize: 20, fontWeight: 700, color: '#E8541A', letterSpacing: '-0.5px' }}>Guard</span>
+          <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--brand-primary)', letterSpacing: '-0.5px' }}>Guard</span>
         </div>
 
         {/* Connection selector — right side */}
@@ -428,7 +428,7 @@ export default function Sidebar() {
                   {/* Expand arrow — only in expanded (hamburger) mode */}
                   {expanded && (
                     <span style={{
-                      fontSize: 10, color: '#94a3b8',
+                      fontSize: 10, color: 'var(--text-muted)',
                       transform: isOpen ? 'rotate(90deg)' : 'none',
                       transition: 'transform 0.2s',
                       flexShrink: 0,
@@ -489,7 +489,7 @@ export default function Sidebar() {
           <div style={{
             padding: '12px 16px', marginTop: 'auto',
             borderTop: '1px solid var(--nav-border)',
-            background: '#080f1c',
+            background: 'var(--nav-footer-bg)',
           }}>
             <div style={{
               fontSize: 10.5, color: 'var(--nav-text)',
@@ -577,7 +577,7 @@ export default function Sidebar() {
             <div style={{
               padding: '12px 16px',
               borderTop: '1px solid var(--nav-border)',
-              background: '#080f1c',
+              background: 'var(--nav-footer-bg)',
             }}>
               <div style={{
                 fontSize: 10.5, color: 'var(--nav-text)',

@@ -60,6 +60,7 @@
 
   /* ── Brand ── */
   --brand-primary: #E8541A;
+  --nav-footer-bg: #080f1c;
 
   /* ── Legacy compat (keep old names pointing at new values) ── */
   --muted: var(--text-secondary);
