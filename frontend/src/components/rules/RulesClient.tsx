@@ -146,13 +146,11 @@ export default function RulesClient({ initialRules, connections }: Props) {
   const fetchTables = useCallback(async () => {
     setTablesLoading(true)
     try {
-      const res = await fetch('/api/snowflake/tables')
+      const res = await fetch('/api/snowflake/tables', { cache: 'no-store' })
       const data = await res.json()
       const tables = (data.tables || []).map((t: { name?: string; TABLE_NAME?: string }) => t.name || t.TABLE_NAME || '').filter(Boolean)
-      if (tables.length > 0) { setAvailableTables(tables.sort()); setTablesLoading(false); return }
-    } catch { /* fall through to fallback */ }
-    // Fallback: use known schema tables
-    setAvailableTables(Object.keys(KNOWN_COLUMNS).sort())
+      setAvailableTables(tables.sort())
+    } catch { setAvailableTables([]) }
     setTablesLoading(false)
   }, [])
 
@@ -160,14 +158,11 @@ export default function RulesClient({ initialRules, connections }: Props) {
     if (!table || table === 'ALL_TABLES') { setAvailableColumns([]); return }
     setColumnsLoading(true)
     try {
-      const res = await fetch(`/api/snowflake/columns?table=${encodeURIComponent(table)}`)
+      const res = await fetch(`/api/snowflake/columns?table=${encodeURIComponent(table)}`, { cache: 'no-store' })
       const data = await res.json()
       const cols = (data.columns || []).map((c: { name?: string; COLUMN_NAME?: string }) => c.name || c.COLUMN_NAME || '').filter(Boolean)
-      if (cols.length > 0) { setAvailableColumns(cols.sort()); setColumnsLoading(false); return }
-    } catch { /* fall through to fallback */ }
-    // Fallback: use known schema columns
-    const known = KNOWN_COLUMNS[table.toUpperCase()] || []
-    setAvailableColumns(known)
+      setAvailableColumns(cols.sort())
+    } catch { setAvailableColumns([]) }
     setColumnsLoading(false)
   }, [])
 
