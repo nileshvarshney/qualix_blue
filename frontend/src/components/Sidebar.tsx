@@ -1,0 +1,370 @@
+'use client'
+import { useState, useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
+import Link from 'next/link'
+import { loadConnections } from '@/lib/seedData'
+
+/* ─── Icon helper ─── */
+const I = ({ d, size = 18 }: { d: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+)
+
+/* ─── Connection type icons ─── */
+const connIcons: Record<string, string> = {
+  snowflake: '❄️', postgresql: '🐘', mysql: '🐬', bigquery: '📊',
+  redshift: '🔴', mongodb: '🍃', csv: '📄', api: '🔌',
+}
+
+/* ─── Top-bar Connection Selector ─── */
+function TopBarConnectionSelector() {
+  const [connections, setConnections] = useState<{ id: string; name: string; type: string; status: string; database?: string; host?: string }[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const [open, setOpen] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selectorPathname = usePathname()
+
+  useEffect(() => {
+    loadConnections().then(conns => {
+      if (conns.length > 0) {
+        setConnections(conns)
+        const active = conns.find(c => c.status === 'active')
+        if (active) setActiveId(active.id)
+        else setActiveId(conns[0].id)
+      }
+    })
+  }, [selectorPathname])
+
+  useEffect(() => {
+    function onUpdate() {
+      loadConnections().then(conns => {
+        setConnections(conns)
+        const active = conns.find(c => c.status === 'active')
+        if (active) setActiveId(active.id)
+        else if (conns.length > 0) setActiveId(conns[0].id)
+      })
+    }
+    window.addEventListener('storage', onUpdate)
+    window.addEventListener('qualix-connections-updated', onUpdate)
+    return () => {
+      window.removeEventListener('storage', onUpdate)
+      window.removeEventListener('qualix-connections-updated', onUpdate)
+    }
+  }, [])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (open && ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  const active = connections.find(c => c.id === activeId)
+
+  async function handleRefresh() {
+    if (!active) return
+    setRefreshing(true)
+    try {
+      await fetch('/api/connections/test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(active),
+      })
+      const r = await fetch('/api/connections')
+      const data = await r.json()
+      setConnections(Array.isArray(data) ? data : (data.connections ?? []))
+    } catch {}
+    setRefreshing(false)
+  }
+
+  if (connections.length === 0) {
+    return (
+      <Link href="/connections" style={{
+        display: 'inline-flex', alignItems: 'center', gap: '5px',
+        background: 'var(--surface)', border: '1px solid var(--border)', padding: '5px 12px',
+        borderRadius: '7px', fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600,
+        textDecoration: 'none',
+      }}>+ Connect</Link>
+    )
+  }
+
+  return (
+    <div ref={ref} style={{ display: 'flex', alignItems: 'center', gap: '5px', position: 'relative' }}>
+      <div onClick={() => setOpen(!open)} style={{
+        display: 'flex', alignItems: 'center', gap: '7px',
+        background: 'var(--surface-muted)', border: '1px solid var(--border)', padding: '5px 12px',
+        borderRadius: '7px', cursor: 'pointer', minWidth: '150px',
+        boxShadow: open ? '0 0 0 2px var(--accent-bg)' : 'none',
+      }}>
+        <span style={{ fontSize: '14px' }}>{active ? (connIcons[active.type] ?? '🔗') : '🔗'}</span>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {active?.name ?? 'Select'}
+        </span>
+        <span style={{
+          width: '7px', height: '7px', borderRadius: '50%',
+          background: active?.status === 'active' ? '#16a34a' : active?.status === 'error' ? '#dc2626' : '#d97706',
+          flexShrink: 0,
+        }} />
+        <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+      </div>
+      <button onClick={handleRefresh} disabled={refreshing} style={{
+        background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px',
+        borderRadius: '7px', cursor: refreshing ? 'not-allowed' : 'pointer',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '13px', opacity: refreshing ? 0.5 : 1,
+      }} title="Refresh connection">
+        {refreshing ? '⏳' : '🔄'}
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          zIndex: 100, minWidth: '240px', overflow: 'hidden',
+        }}>
+          {connections.map(conn => (
+            <button key={conn.id} onClick={() => { setActiveId(conn.id); setOpen(false) }} style={{
+              display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',
+              background: conn.id === activeId ? 'var(--accent-bg)' : 'var(--surface)', border: 'none',
+              alignItems: 'center', gap: '10px', cursor: 'pointer',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <span style={{ fontSize: '15px' }}>{connIcons[conn.type] ?? '🔗'}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12.5px', fontWeight: conn.id === activeId ? 600 : 400, color: conn.id === activeId ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                  {conn.id === activeId && '✓ '}{conn.name}
+                </div>
+                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{conn.type} · {conn.database ?? conn.host ?? ''}</div>
+              </div>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: conn.status === 'active' ? '#16a34a' : conn.status === 'error' ? '#dc2626' : '#d97706' }} />
+            </button>
+          ))}
+          <Link href="/connections" style={{
+            display: 'block', padding: '9px 14px', textAlign: 'center',
+            fontSize: '12px', color: 'var(--brand-primary)', fontWeight: 600,
+            textDecoration: 'none', borderTop: '1px solid var(--border)',
+          }}>⚙ Manage Connections</Link>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/* ─── Theme Toggle ─── */
+function ThemeToggle() {
+  const [dark, setDark] = useState(false)
+
+  useEffect(() => {
+    const stored = localStorage.getItem('qualix-theme')
+    setDark(stored === 'dark')
+  }, [])
+
+  function toggle() {
+    const next = !dark
+    setDark(next)
+    if (next) {
+      document.documentElement.setAttribute('data-theme', 'dark')
+      localStorage.setItem('qualix-theme', 'dark')
+    } else {
+      document.documentElement.removeAttribute('data-theme')
+      localStorage.setItem('qualix-theme', 'light')
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+      style={{
+        width: 36, height: 36, borderRadius: 8,
+        background: 'transparent', border: '1px solid var(--border)',
+        cursor: 'pointer', color: 'var(--text-secondary)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '16px', flexShrink: 0,
+      }}
+    >
+      {dark ? '☀' : '🌙'}
+    </button>
+  )
+}
+
+/* ─── Section definitions ─── */
+type Section = {
+  key: string
+  label: string
+  railIconD: string
+  defaultHref: string
+}
+
+const sections: Section[] = [
+  {
+    key: 'quality', label: 'Data Quality', defaultHref: '/',
+    railIconD: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-9c2.5 3 4 6 4 9s-1.5 6-4 9c-2.5-3-4-6-4-9s1.5-6 4-9zM3 12h18',
+  },
+  {
+    key: 'govern', label: 'Governance', defaultHref: '/lineage',
+    railIconD: 'M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z',
+  },
+  {
+    key: 'alerts', label: 'Alerts', defaultHref: '/alerts',
+    railIconD: 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1',
+  },
+  {
+    key: 'explore', label: 'Explore', defaultHref: '/data-browser',
+    railIconD: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  },
+  {
+    key: 'settings', label: 'Settings', defaultHref: '/settings',
+    railIconD: 'M10.3 3.5l-.4 1.7a7.5 7.5 0 00-1.6.7L6.6 5l-1.6 1.6 1 1.7c-.3.5-.5 1-.7 1.6l-1.7.4v2.3l1.7.4c.2.6.4 1.1.7 1.6l-1 1.7L6.6 19l1.7-.9c.5.3 1 .5 1.6.7l.4 1.7h2.3l.4-1.7c.6-.2 1.1-.4 1.6-.7l1.7.9 1.6-1.6-.9-1.7c.3-.5.5-1 .7-1.6l1.7-.4v-2.3l-1.7-.4c-.2-.6-.4-1.1-.7-1.6l.9-1.7-1.6-1.6-1.7.9c-.5-.3-1-.5-1.6-.7l-.4-1.7h-2.3zm1.2 5.5a3 3 0 110 6 3 3 0 010-6z',
+  },
+]
+
+/* Maps every known route to its parent section key */
+const SECTION_KEY_MAP: Record<string, string> = {
+  '/': 'quality', '/rules': 'quality', '/issues': 'quality', '/datasets': 'quality',
+  '/anomalies': 'quality', '/schedules': 'quality', '/execution-logs': 'quality',
+  '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
+  '/glossary': 'govern', '/contracts': 'govern', '/slas': 'govern', '/domains': 'govern',
+  '/alerts': 'alerts', '/incidents': 'alerts', '/audit-logs': 'alerts',
+  '/data-browser': 'explore', '/spot-check': 'explore', '/reports': 'explore',
+  '/executive': 'explore', '/data-products': 'explore',
+  '/ai-assistant': 'settings', '/settings': 'settings',
+  '/compliance': 'settings', '/architecture': 'settings',
+}
+
+/* ─── Constants ─── */
+const RAIL_W = 72
+const TOP_H  = 56
+
+/* ─── Component ─── */
+export default function Sidebar() {
+  const pathname = usePathname()
+  const activeSectionKey = SECTION_KEY_MAP[pathname] ?? 'quality'
+
+  return (
+    <>
+      {/* ── Top bar ── */}
+      <header style={{
+        position: 'fixed', top: 0, left: 0, right: 0, height: TOP_H,
+        background: 'var(--surface)',
+        display: 'flex', alignItems: 'center',
+        padding: '0 20px', gap: 14,
+        zIndex: 60,
+        borderBottom: '1px solid var(--border)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}>
+        {/* ── Brand lockup: artistic Q mark + wordmark ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+
+          {/* Artistic Q mark — no background container */}
+          <svg width="32" height="37" viewBox="0 0 38 44" fill="none" style={{ flexShrink: 0 }}>
+            <defs>
+              <linearGradient id="qMark" x1="2" y1="2" x2="36" y2="42" gradientUnits="userSpaceOnUse">
+                <stop offset="0%"   stopColor="#FF9050"/>
+                <stop offset="55%"  stopColor="#E8541A"/>
+                <stop offset="100%" stopColor="#A82E06"/>
+              </linearGradient>
+            </defs>
+
+            {/* Outer ring — the Q circle */}
+            <circle cx="19" cy="19" r="14" stroke="url(#qMark)" strokeWidth="4" fill="none"/>
+
+            {/* Inner decorative ring — depth layer */}
+            <circle cx="19" cy="19" r="8.5"
+              stroke="url(#qMark)" strokeWidth="1" fill="none"
+              opacity="0.35" strokeDasharray="2.5 3"/>
+
+            {/* 4-pointed star — the quality compass */}
+            <path
+              d="M19 12.5 L20.9 17.1 L25.5 19 L20.9 20.9 L19 25.5 L17.1 20.9 L12.5 19 L17.1 17.1 Z"
+              fill="url(#qMark)"/>
+
+            {/* Q tail — bold, expressive diagonal */}
+            <line x1="28" y1="29" x2="36" y2="42"
+              stroke="url(#qMark)" strokeWidth="4.5" strokeLinecap="round"/>
+
+            {/* Crown dot — accent at 12 o'clock */}
+            <circle cx="19" cy="5" r="2.8" fill="#FF9050"/>
+          </svg>
+
+          {/* Artistic wordmark */}
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', lineHeight: 1, gap: 0 }}>
+              <span style={{
+                fontSize: 21, fontWeight: 300,
+                color: 'var(--foreground)',
+                letterSpacing: '0.07em',
+              }}>Qual</span>
+              <span style={{
+                fontSize: 21, fontWeight: 800,
+                color: 'var(--brand-primary)',
+                letterSpacing: '-0.01em',
+                fontStyle: 'italic',
+              }}>ix</span>
+            </div>
+            <div style={{
+              fontSize: 9, color: 'var(--text-muted)',
+              letterSpacing: '0.13em', textTransform: 'uppercase',
+              fontWeight: 500, marginTop: 2,
+            }}>
+              AI Data Quality &amp; Governance
+            </div>
+          </div>
+
+        </div>
+
+        {/* Right side controls */}
+        <TopBarConnectionSelector />
+        <ThemeToggle />
+      </header>
+
+      {/* ── Sidebar icon rail ── */}
+      <nav style={{
+        position: 'fixed', left: 0, top: TOP_H, bottom: 0,
+        width: RAIL_W,
+        background: 'var(--nav-bg)',
+        display: 'flex', flexDirection: 'column',
+        zIndex: 55,
+        borderRight: '1px solid var(--nav-border)',
+        overflowY: 'auto',
+      }}>
+        <div style={{ paddingTop: 8, paddingBottom: 8 }}>
+          {sections.map((s, sIdx) => {
+            const isActive = activeSectionKey === s.key
+
+            return (
+              <div key={s.key}>
+                <Link href={s.defaultHref} style={{ textDecoration: 'none' }}>
+                  <div style={{
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    gap: 2, padding: '8px 0',
+                    background: isActive ? 'var(--nav-item-active-bg)' : 'transparent',
+                    color: isActive ? 'var(--nav-accent)' : 'var(--nav-text)',
+                    transition: 'all 0.15s',
+                    cursor: 'pointer',
+                  }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <I d={s.railIconD} size={20} />
+                    </span>
+                    <span style={{
+                      fontSize: 9, fontWeight: isActive ? 600 : 500,
+                      textAlign: 'center', lineHeight: '11px',
+                    }}>
+                      {s.label}
+                    </span>
+                  </div>
+                </Link>
+
+                {sIdx < sections.length - 1 && (
+                  <div style={{ height: 1, background: 'var(--nav-section-divider)', margin: '4px 12px' }} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+      </nav>
+    </>
+  )
+}

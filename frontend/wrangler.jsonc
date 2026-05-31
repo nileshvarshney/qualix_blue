@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dataguard",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-04-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Assets (static files built by Next.js)
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // KV for incremental static regeneration cache
+  // Uncomment and create a KV namespace if you need ISR:
+  // "kv_namespaces": [
+  //   { "binding": "NEXT_CACHE_WORKERS_KV", "id": "<your-kv-id>" }
+  // ],
+
+  // Environment variables (set sensitive ones in Cloudflare dashboard)
+  "vars": {
+    "NODE_ENV": "production"
+  },
+
+  // Workers limits
+  "placement": {
+    "mode": "smart"
+  }
+}
