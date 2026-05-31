@@ -25,6 +25,9 @@ services:
       - key: AUTO_RULES_MAX_PER_TABLE
         value: "10"
 
+      - key: SF_PLATFORM_ROLE
+        value: SYSADMIN
+
       # ── Set these in the Render dashboard (secrets) ──
       - key: SF_PLATFORM_ACCOUNT
         sync: false
@@ -33,8 +36,6 @@ services:
       - key: SF_PLATFORM_PASSWORD
         sync: false
       - key: SF_PLATFORM_WAREHOUSE
-        sync: false
-      - key: SF_PLATFORM_ROLE
         sync: false
       - key: SNOWFLAKE_APP_DATABASE
         sync: false
