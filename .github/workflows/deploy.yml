@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Workers
+name: Deploy
 
 on:
   push:
@@ -8,9 +8,9 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  deploy:
+  deploy-frontend:
+    name: Frontend → Cloudflare Workers
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -35,3 +35,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: "01da8b0b75c1b837318ce5caa03f2a1d"
           WRANGLER_SEND_METRICS: "false"
+
+  deploy-backend:
+    name: Backend → Render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          curl -s -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" | \
+          python3 -c "import sys,json; r=json.load(sys.stdin); print('Deploy triggered:', r.get('id','unknown'))"
