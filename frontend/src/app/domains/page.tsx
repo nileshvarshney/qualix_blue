@@ -58,11 +58,11 @@ export default function DomainsPage() {
   }, [])
   const [showModal, setShowModal] = useState(false)
   const [editDomain, setEditDomain] = useState<Domain | null>(null)
-  const [form, setForm] = useState({ name: '', icon: '🌐', color: '#2563eb', owner: '', connection: 'SF_Codex', desc: '', tables: '' })
+  const [form, setForm] = useState({ name: '', icon: '🌐', color: '#2563eb', owner: '', connection: '', desc: '', tables: '' })
   const [saving, setSaving] = useState(false)
 
   function openAdd() {
-    setForm({ name: '', icon: '🌐', color: '#2563eb', owner: '', connection: 'SF_Codex', desc: '', tables: '' })
+    setForm({ name: '', icon: '🌐', color: '#2563eb', owner: '', connection: '', desc: '', tables: '' })
     setEditDomain(null)
     setShowModal(true)
   }
@@ -240,7 +240,7 @@ export default function DomainsPage() {
               {/* Connection */}
               <div>
                 <label style={lbl}>Connection</label>
-                <input value={form.connection} onChange={e => setForm(f => ({ ...f, connection: e.target.value }))} placeholder="SF_Codex" style={inp} />
+                <input value={form.connection} onChange={e => setForm(f => ({ ...f, connection: e.target.value }))} placeholder="Connection name" style={inp} />
               </div>
 
               {/* Description */}
@@ -252,7 +252,7 @@ export default function DomainsPage() {
               {/* Tables */}
               <div>
                 <label style={lbl}>Tables (comma-separated)</label>
-                <input value={form.tables} onChange={e => setForm(f => ({ ...f, tables: e.target.value }))} placeholder="fact_orders, dim_customers, revenue_by_channel" style={inp} />
+                <input value={form.tables} onChange={e => setForm(f => ({ ...f, tables: e.target.value }))} placeholder="table_name_1, table_name_2" style={inp} />
                 <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Enter table names separated by commas</div>
               </div>
 

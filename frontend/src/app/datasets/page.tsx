@@ -140,7 +140,7 @@ export default function DatasetsPage() {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Datasets</h1>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
-            {loading ? 'Connecting to Snowflake…' : error ? 'Connection error' : `Live from Snowflake · ${tables.length} objects in SUPPLYCHAIN_DB.SUPPLYCHAIN`}
+            {loading ? 'Connecting to Snowflake…' : error ? 'Connection error' : `Live from Snowflake · ${tables.length} object${tables.length !== 1 ? 's' : ''}`}
           </p>
         </div>
         <button onClick={loadTables} disabled={loading} style={{ background: '#fff', border: '1px solid #e2e8f0', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: '#475569', cursor: loading ? 'default' : 'pointer' }}>

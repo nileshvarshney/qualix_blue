@@ -200,7 +200,7 @@ export default function DataBrowserPage() {
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Live Data Browser</h1>
           <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
-            {loading ? 'Connecting to Snowflake…' : error ? 'Connection error' : `Live · SUPPLYCHAIN_DB.SUPPLYCHAIN · ${s?.tableCount} tables · ${fmtNum(s?.totalRows ?? 0)} total rows`}
+            {loading ? 'Connecting to Snowflake…' : error ? 'Connection error' : `Live · ${s?.tableCount ?? 0} table${(s?.tableCount ?? 0) !== 1 ? 's' : ''} · ${fmtNum(s?.totalRows ?? 0)} total rows`}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -240,8 +240,7 @@ export default function DataBrowserPage() {
       {!loading && !error && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '10px 16px' }}>
           <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', color: '#15803d', fontWeight: 600 }}>Connected to Snowflake</span>
-          <span style={{ fontSize: '12px', color: '#16a34a', opacity: 0.8 }}>DM_Solutions · SUPPLYCHAIN_DB · SUPPLYCHAIN · COMPUTE_WH</span>
+          <span style={{ fontSize: '13px', color: '#15803d', fontWeight: 600 }}>Connected</span>
         </div>
       )}
 

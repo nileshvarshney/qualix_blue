@@ -71,7 +71,7 @@ export default function SLAsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
-  const [sForm, setSForm] = useState({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: 'Finance', connection: 'SF_Codex' })
+  const [sForm, setSForm] = useState({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: '', connection: '' })
 
   const addSla = () => {
     if (!sForm.name) return
@@ -84,11 +84,11 @@ export default function SLAsPage() {
       rootCause: 'No issues yet — newly created SLA.',
       impact: 'No impact — monitoring has not started.',
       recommendation: 'Configure monitoring and set up alerting thresholds.',
-      affectedPipelines: [], nextReview: '2026-06-15',
+      affectedPipelines: [], nextReview: '',
     }
     setAllSlas(prev => [ns, ...prev])
     setShowAdd(false)
-    setSForm({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: 'Finance', connection: 'SF_Codex' })
+    setSForm({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: '', connection: '' })
   }
 
   const overall  = Math.round(allSlas.reduce((acc, s) => acc + s.adherence, 0) / allSlas.length)
@@ -359,7 +359,7 @@ export default function SLAsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Dataset *</label>
-                  <input value={sForm.dataset} onChange={e => setSForm(f => ({ ...f, dataset: e.target.value }))} placeholder="e.g. fact_orders" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  <input value={sForm.dataset} onChange={e => setSForm(f => ({ ...f, dataset: e.target.value }))} placeholder="table or dataset name" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Type</label>
@@ -375,9 +375,7 @@ export default function SLAsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Domain</label>
-                  <select value={sForm.domain} onChange={e => setSForm(f => ({ ...f, domain: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none' }}>
-                    {['Finance', 'Marketing', 'Supply Chain', 'Sales', 'Engineering', 'Catalog'].map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                  <input value={sForm.domain} onChange={e => setSForm(f => ({ ...f, domain: e.target.value }))} placeholder="e.g. Finance, Marketing" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', boxSizing: 'border-box' as const }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Owner</label>

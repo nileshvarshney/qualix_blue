@@ -73,7 +73,7 @@ export default function ContractsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
-  const [cForm, setCForm] = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: 'SF_Codex' })
+  const [cForm, setCForm] = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
 
   const addContract = () => {
     if (!cForm.name) return
@@ -86,7 +86,7 @@ export default function ContractsPage() {
     }
     setAllContracts(prev => [nc, ...prev])
     setShowAdd(false)
-    setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: 'SF_Codex' })
+    setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
   }
 
   const total   = allContracts.length
@@ -373,7 +373,7 @@ export default function ContractsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Producer (source table) *</label>
-                  <input value={cForm.producer} onChange={e => setCForm(f => ({ ...f, producer: e.target.value }))} placeholder="e.g. fact_orders" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  <input value={cForm.producer} onChange={e => setCForm(f => ({ ...f, producer: e.target.value }))} placeholder="source table or dataset" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Consumer (downstream) *</label>
