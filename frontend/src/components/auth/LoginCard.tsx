@@ -100,40 +100,52 @@ export default function LoginCard() {
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Welcome back</div>
           <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 14 }}>Sign in to your workspace</div>
 
-          <label style={labelStyle}>Email address</label>
+          <label htmlFor="login-email" style={labelStyle}>Email address</label>
           <input
+            id="login-email"
             type="email"
             value={form.email}
-            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            onChange={e => {
+              setForm(f => ({ ...f, email: e.target.value }))
+              setErrors(prev => ({ ...prev, email: undefined }))
+            }}
             placeholder="your@email.com"
-            style={inputStyle(!!errors.email)}
+            style={fieldStyle(!!errors.email)}
           />
           {errors.email && <div style={errorStyle}>{errors.email}</div>}
 
-          <label style={{ ...labelStyle, marginTop: 10 }}>Password</label>
+          <label htmlFor="login-password" style={{ ...labelStyle, marginTop: 10 }}>Password</label>
           <input
+            id="login-password"
             type="password"
             value={form.password}
-            onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+            onChange={e => {
+              setForm(f => ({ ...f, password: e.target.value }))
+              setErrors(prev => ({ ...prev, password: undefined }))
+            }}
             placeholder="••••••••••••"
-            style={inputStyle(!!errors.password)}
+            style={fieldStyle(!!errors.password)}
           />
           {errors.password && <div style={errorStyle}>{errors.password}</div>}
           <div
             role="button"
             tabIndex={0}
             onClick={() => setMode('reset')}
-            onKeyDown={e => e.key === 'Enter' && setMode('reset')}
+            onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && setMode('reset')}
             style={{ fontSize: 9, color: '#2d5a9e', textAlign: 'right', marginTop: 4, cursor: 'pointer' }}
           >
             Forgot password?
           </div>
 
-          <label style={{ ...labelStyle, marginTop: 10 }}>Role</label>
+          <label htmlFor="login-role" style={{ ...labelStyle, marginTop: 10 }}>Role</label>
           <select
+            id="login-role"
             value={form.role}
-            onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-            style={selectStyle(!!errors.role)}
+            onChange={e => {
+              setForm(f => ({ ...f, role: e.target.value }))
+              setErrors(prev => ({ ...prev, role: undefined }))
+            }}
+            style={fieldStyle(!!errors.role)}
           >
             <option value="">Select your role…</option>
             {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -160,13 +172,17 @@ export default function LoginCard() {
 
           {!resetSent && (
             <>
-              <label style={labelStyle}>Email address</label>
+              <label htmlFor="reset-email" style={labelStyle}>Email address</label>
               <input
+                id="reset-email"
                 type="email"
                 value={resetEmail}
-                onChange={e => setResetEmail(e.target.value)}
+                onChange={e => {
+                  setResetEmail(e.target.value)
+                  setResetEmailError('')
+                }}
                 placeholder="your@email.com"
-                style={inputStyle(!!resetEmailError)}
+                style={fieldStyle(!!resetEmailError)}
               />
               {resetEmailError && <div style={errorStyle}>{resetEmailError}</div>}
               <button onClick={handleResetSubmit} style={{ ...btnPrimaryStyle, marginTop: 16 }}>
@@ -191,18 +207,7 @@ const labelStyle: React.CSSProperties = {
   color: '#475569', marginBottom: 3,
 }
 
-function inputStyle(hasError: boolean): React.CSSProperties {
-  return {
-    width: '100%', height: 30,
-    background: '#f8fafc',
-    border: `1px solid ${hasError ? '#ef4444' : '#e2e8f0'}`,
-    borderRadius: 6, padding: '0 9px',
-    fontSize: 11, color: '#0f172a',
-    outline: 'none', boxSizing: 'border-box',
-  }
-}
-
-function selectStyle(hasError: boolean): React.CSSProperties {
+function fieldStyle(hasError: boolean): React.CSSProperties {
   return {
     width: '100%', height: 30,
     background: '#f8fafc',
