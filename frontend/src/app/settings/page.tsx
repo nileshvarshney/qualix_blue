@@ -513,11 +513,11 @@ export default function SettingsPage() {
               <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a', marginBottom: '20px' }}>Integrations</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '12px' }}>
                 {[
-                  { name: 'Slack', icon: '💬', desc: 'Send alerts to Slack channels', connected: true, channel: '#data-alerts' },
+                  { name: 'Slack', icon: '💬', desc: 'Send alerts to Slack channels', connected: false, channel: '' },
                   { name: 'PagerDuty', icon: '🚨', desc: 'Escalate critical issues 24/7', connected: false, channel: '' },
                   { name: 'Jira', icon: '📋', desc: 'Auto-create tickets for issues', connected: false, channel: '' },
-                  { name: 'dbt', icon: '🔧', desc: 'Sync dbt model metadata', connected: true, channel: 'analytics project' },
-                  { name: 'GitHub Actions', icon: '⚙️', desc: 'Run checks in CI/CD pipelines', connected: true, channel: 'ci/cd workflow' },
+                  { name: 'dbt', icon: '🔧', desc: 'Sync dbt model metadata', connected: false, channel: '' },
+                  { name: 'GitHub Actions', icon: '⚙️', desc: 'Run checks in CI/CD pipelines', connected: false, channel: '' },
                   { name: 'Grafana', icon: '📊', desc: 'Visualize quality metrics', connected: false, channel: '' },
                 ].map(intg => (
                   <div key={intg.name} style={{ background: '#fafaf9', borderRadius: '10px', padding: '16px', border: `1px solid ${intg.connected ? '#86efac' : '#ebe8df'}` }}>
@@ -546,7 +546,7 @@ export default function SettingsPage() {
             <div style={card}>
               <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a', marginBottom: '20px' }}>Workspace Settings</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '90 days'], ['Timezone', '—']].map(([label, value]) => (
+                {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '—'], ['Timezone', '—']].map(([label, value]) => (
                   <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f1ea' }}>
                     <span style={{ fontSize: '13px', color: '#475569', fontWeight: 500 }}>{label}</span>
                     <span style={{ fontSize: '13px', color: '#1a1a1a', fontWeight: 600 }}>{value}</span>
