@@ -7,6 +7,12 @@ import SectionTabBar from '@/components/ui/SectionTabBar'
 export const metadata: Metadata = {
   title: 'Qualix — AI Data Quality & Governance',
   description: 'AI-powered data quality monitoring, governance, and management',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/icon.svg',
+  },
 }
 
 const themeInitScript = `(function(){try{var t=localStorage.getItem('qualix-theme');if(t==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})()`
