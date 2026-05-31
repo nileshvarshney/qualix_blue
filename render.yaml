@@ -1,4 +1,22 @@
 services:
+  # ── Ollama LLM service ────────────────────────────────────────────────────
+  - type: web
+    name: qualix-ollama
+    runtime: docker
+    dockerfilePath: ./ollama/Dockerfile
+    dockerContext: ./ollama
+    plan: standard          # needs ~2.5GB RAM for qwen2.5:3b
+    healthCheckPath: /api/tags
+    autoDeploy: true
+    disk:
+      name: ollama-models
+      mountPath: /root/.ollama
+      sizeGB: 10
+    envVars:
+      - key: OLLAMA_MODEL
+        value: qwen2.5:3b
+
+  # ── FastAPI backend ───────────────────────────────────────────────────────
   - type: web
     name: qualix-backend
     runtime: docker
@@ -18,7 +36,12 @@ services:
       - key: LLM_PROVIDER
         value: ollama
       - key: OLLAMA_MODEL
-        value: qwen2.5:7b-instruct
+        value: qwen2.5:3b
+      - key: OLLAMA_BASE_URL
+        fromService:
+          name: qualix-ollama
+          type: web
+          property: host
       - key: AUTO_RULES_ENABLED
         value: "true"
       - key: AUTO_RULES_MAX_PER_TABLE
@@ -42,6 +65,4 @@ services:
       - key: SECRET_KEY
         sync: false
       - key: ENCRYPTION_KEY
-        sync: false
-      - key: OLLAMA_BASE_URL
         sync: false
