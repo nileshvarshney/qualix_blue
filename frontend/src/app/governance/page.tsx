@@ -100,10 +100,10 @@ export default function GovernancePage() {
       {/* Top KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
         {[
-          { key: 'governance', label: 'Governance Score', value: '—' },
-          { key: 'policies', label: 'Policies Active', value: String(policies.filter(p => p.status === 'active').length), sub: `${policies.filter(p => p.enforcement === 'enforced').length} enforced · ${policies.filter(p => p.enforcement === 'advisory').length} advisory` },
-          { key: 'classified', label: 'Assets Classified', value: '—' },
-          { key: 'ownership', label: 'Ownership Coverage', value: '—' },
+          { key: 'governance', label: 'Governance Score', value: '—', change: undefined, changeColor: undefined },
+          { key: 'policies', label: 'Policies Active', value: String(policies.filter(p => p.status === 'active').length), sub: `${policies.filter(p => p.enforcement === 'enforced').length} enforced · ${policies.filter(p => p.enforcement === 'advisory').length} advisory`, change: undefined, changeColor: undefined },
+          { key: 'classified', label: 'Assets Classified', value: '—', change: undefined, changeColor: undefined },
+          { key: 'ownership', label: 'Ownership Coverage', value: '—', change: undefined, changeColor: undefined },
         ].map((kpi) => (
           <div key={kpi.key} onClick={() => setSelectedKpi(kpi.key)} style={{ ...card, cursor: 'pointer', transition: 'all 0.15s' }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#E8541A'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(232,84,26,0.08)' }}
