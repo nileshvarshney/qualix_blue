@@ -5,7 +5,7 @@ import { formatDateTime, connectionIcons } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 
 /* ─── localStorage persistence for edge deployments ─── */
-const LS_KEY = 'dataguard_connections'
+const LS_KEY = 'qualix_connections'
 
 interface TestStep { label: string; status: 'ok' | 'fail' | 'skip'; detail: string }
 interface TestResult {
@@ -220,7 +220,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     try {
       localStorage.setItem(LS_KEY, JSON.stringify(connections))
       // Notify sidebar's connection selector to re-read
-      window.dispatchEvent(new Event('dataguard-connections-updated'))
+      window.dispatchEvent(new Event('qualix-connections-updated'))
     } catch { /* quota */ }
   }, [connections])
 
@@ -467,7 +467,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   {editingId ? '✏️ Edit Connection' : 'Add Connection'}
                 </div>
                 <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
-                  {editingId ? 'Update credentials or settings for this connection' : 'Connect a new data source to DataGuard'}
+                  {editingId ? 'Update credentials or settings for this connection' : 'Connect a new data source to Qualix'}
                 </div>
               </div>
               <button onClick={resetForm} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>

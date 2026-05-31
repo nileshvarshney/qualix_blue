@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 type Row = Record<string, unknown>
 
@@ -188,10 +187,6 @@ export default function DataBrowserPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1600px' }}>
-      <PageTabBar tabs={[
-        { href: '/data-browser', label: 'Data Browser' },
-        { href: '/spot-check',   label: 'Spot Check' },
-      ]} />
       {/* Header */}
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
         Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>

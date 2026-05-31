@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 type LastRunStatus = 'passed' | 'failed' | 'warning'
 type ScheduleStatus = 'active' | 'paused'
@@ -125,10 +124,6 @@ export default function SchedulesPage() {
   if (loading) {
     return (
       <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-        <PageTabBar tabs={[
-          { href: '/schedules',      label: 'Schedules' },
-          { href: '/execution-logs', label: 'Execution Logs' },
-        ]} />
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
       </div>
     )
@@ -136,10 +131,6 @@ export default function SchedulesPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-      <PageTabBar tabs={[
-        { href: '/schedules',      label: 'Schedules' },
-        { href: '/execution-logs', label: 'Execution Logs' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
         Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
       </div>

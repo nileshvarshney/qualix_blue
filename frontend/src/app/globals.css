@@ -21,17 +21,17 @@
   --accent-bg: #e8eef8;          /* light accent tint */
   --accent-text: #ffffff;
 
-  /* ── Dark nav ── */
-  --nav-bg: #0f172a;
-  --nav-border: #1e293b;
-  --nav-text: #94a3b8;
-  --nav-text-active: #f1f5f9;
-  --nav-text-hover: #cbd5e1;
-  --nav-item-active-bg: rgba(59, 130, 246, 0.18);
-  --nav-item-hover-bg: #1e293b;
-  --nav-accent: #3b82f6;
-  --nav-section-divider: #1e293b;
-  --nav-flyout-bg: #111827;
+  /* ── Nav (light mode — shares surface with content area) ── */
+  --nav-bg:             #ffffff;
+  --nav-border:         #e2e8f0;
+  --nav-text:           #475569;
+  --nav-text-active:    #0f172a;
+  --nav-text-hover:     #0f172a;
+  --nav-item-active-bg: #e8eef8;
+  --nav-item-hover-bg:  #f8fafc;
+  --nav-accent:         #2d5a9e;
+  --nav-section-divider:#e2e8f0;
+  --nav-flyout-bg:      #ffffff;
 
   /* ── Status chips (muted shades only) ── */
   --status-ok-bg: #f0fdf4;       --status-ok-text: #166534;
@@ -60,11 +60,48 @@
 
   /* ── Brand ── */
   --brand-primary: #E8541A;
-  --nav-footer-bg: #080f1c;
+  --nav-footer-bg: #f8fafc;
 
   /* ── Legacy compat (keep old names pointing at new values) ── */
   --muted: var(--text-secondary);
   --sidebar: var(--nav-bg);
+}
+
+/* ── Dark mode overrides ── */
+[data-theme="dark"] {
+  --background:     #0f172a;
+  --surface:        #1e293b;
+  --surface-muted:  #162032;
+  --foreground:     #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted:     #64748b;
+  --border:         #334155;
+  --border-strong:  #475569;
+  --accent:         #3b82f6;
+  --accent-hover:   #2563eb;
+  --accent-bg:      rgba(59, 130, 246, 0.15);
+  --accent-text:    #ffffff;
+
+  --nav-bg:             #1e293b;
+  --nav-border:         #334155;
+  --nav-text:           #94a3b8;
+  --nav-text-active:    #f1f5f9;
+  --nav-text-hover:     #f1f5f9;
+  --nav-item-active-bg: rgba(59, 130, 246, 0.2);
+  --nav-item-hover-bg:  rgba(255, 255, 255, 0.04);
+  --nav-accent:         #3b82f6;
+  --nav-section-divider:#334155;
+  --nav-flyout-bg:      #1e293b;
+  --nav-footer-bg:      #0f172a;
+
+  --status-ok-bg:      rgba(22, 163, 74, 0.15);
+  --status-ok-text:    #4ade80;
+  --status-warn-bg:    rgba(202, 138, 4, 0.15);
+  --status-warn-text:  #fbbf24;
+  --status-error-bg:   rgba(220, 38, 38, 0.15);
+  --status-error-text: #f87171;
+  --status-neutral-bg: rgba(51, 65, 85, 0.5);
+  --status-neutral-text:#94a3b8;
 }
 
 body {

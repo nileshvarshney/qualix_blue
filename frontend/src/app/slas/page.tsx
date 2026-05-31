@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 type SLAStatus = 'healthy' | 'at-risk' | 'breached'
 type FilterType = 'all' | 'healthy' | 'at-risk' | 'breached'
@@ -107,10 +106,6 @@ export default function SLAsPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <PageTabBar tabs={[
-        { href: '/contracts', label: 'Contracts' },
-        { href: '/slas',      label: 'SLAs' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
         Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
       </div>

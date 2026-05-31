@@ -1,25 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
-import { Connection } from '@/lib/types'
-import { loadConnections } from '@/lib/seedData'
-import PageTabBar from '@/components/ui/PageTabBar'
-
-const connIcons: Record<string, string> = {
-  snowflake: '❄️', postgresql: '🐘', mysql: '🐬', bigquery: '📊',
-  redshift: '🔴', mongodb: '🍃', csv: '📄', api: '🔌',
-}
+import { useState } from 'react'
+import ConnectionsClient from '@/components/connections/ConnectionsClient'
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<'profile' | 'connections' | 'security' | 'notifications' | 'api' | 'integrations' | 'workspace'>('profile')
   const [saved, setSaved] = useState(false)
   const [profile, setProfile] = useState({ name: '', email: '', role: 'Admin', timezone: '', language: 'en' })
   const [notifs, setNotifs] = useState({ emailCritical: true, emailHigh: true, emailWeekly: true, slackCritical: true, slackHigh: false, slackDaily: false, pagerduty: false })
-
-  // Connections state
-  const [connections, setConnections] = useState<Connection[]>([])
-  const [connsLoading, setConnsLoading] = useState(false)
-  const [testing, setTesting] = useState<string | null>(null)
-  const [testResult, setTestResult] = useState<Record<string, { ok: boolean; msg: string }>>({})
 
   // Security state
   const [security, setSecurity] = useState({
@@ -37,17 +24,6 @@ export default function SettingsPage() {
   const [newKeyExpiry, setNewKeyExpiry] = useState('never')
   const [justCreated, setJustCreated] = useState<{ name: string; key: string } | null>(null)
   const [copied, setCopied] = useState(false)
-
-  // Load connections when tab switches to connections
-  useEffect(() => {
-    if (tab === 'connections') {
-      setConnsLoading(true)
-      loadConnections().then(conns => {
-        setConnections(conns)
-        setConnsLoading(false)
-      })
-    }
-  }, [tab])
 
   function generateKey(prefix = 'dg_live_') {
     const chars = 'abcdef0123456789'
@@ -77,20 +53,6 @@ export default function SettingsPage() {
     navigator.clipboard.writeText(key)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
-  }
-
-  async function testConnection(conn: Connection) {
-    setTesting(conn.id)
-    try {
-      const res = await fetch('/api/connections/test', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(conn),
-      })
-      const data = await res.json()
-      setTestResult(prev => ({ ...prev, [conn.id]: { ok: data.success !== false && !data.error, msg: data.error || data.message || 'Connected successfully' } }))
-    } catch {
-      setTestResult(prev => ({ ...prev, [conn.id]: { ok: false, msg: 'Test failed' } }))
-    }
-    setTesting(null)
   }
 
   function save() {
@@ -139,28 +101,37 @@ export default function SettingsPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1100px' }}>
-      <PageTabBar tabs={[
-        { href: '/settings',     label: 'General' },
-        { href: '/compliance',   label: 'Compliance' },
-        { href: '/architecture', label: 'User Guide' },
-      ]} />
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Analytics platform</span></div>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 24px' }}>Settings</h1>
+      <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: '0 0 20px' }}>Settings</h1>
 
-      <div style={{ display: 'flex', gap: '24px' }}>
-        {/* Sidebar */}
-        <div style={{ width: '200px', flexShrink: 0 }}>
-          <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '12px', overflow: 'hidden' }}>
-            {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', border: 'none', borderLeft: tab === t.id ? '2px solid #2563eb' : '2px solid transparent', background: tab === t.id ? '#eff6ff' : '#fff', color: tab === t.id ? '#2563eb' : '#475569', fontSize: '13px', fontWeight: tab === t.id ? 600 : 400, cursor: 'pointer', textAlign: 'left' }}>
-                <span>{t.icon}</span> {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Horizontal tab bar */}
+      <div style={{
+        display: 'flex', gap: '2px', marginBottom: '24px',
+        borderBottom: '1px solid var(--border)',
+        overflowX: 'auto',
+      }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id as typeof tab)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '10px 16px', border: 'none', background: 'transparent',
+              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+              marginBottom: '-1px',
+              color: tab === t.id ? 'var(--accent)' : 'var(--text-secondary)',
+              fontSize: 'var(--text-sm)', fontWeight: tab === t.id ? 600 : 400,
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              transition: 'color 0.15s',
+            }}
+          >
+            <span style={{ fontSize: '14px' }}>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
         {/* Content */}
-        <div style={{ flex: 1 }}>
+        <div>
           {/* ─── Profile ─── */}
           {tab === 'profile' && (
             <div style={card}>
@@ -188,72 +159,7 @@ export default function SettingsPage() {
 
           {/* ─── Connections ─── */}
           {tab === 'connections' && (
-            <div style={card}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a' }}>Connections</div>
-                  <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>Manage your database connections</div>
-                </div>
-                <a href="/connections" style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#E8541A', color: '#fff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>+ Add Connection</a>
-              </div>
-
-              {connsLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>Loading connections...</div>
-              ) : connections.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', border: '2px dashed #e2e8f0', borderRadius: '12px', color: '#94a3b8' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔌</div>
-                  <div style={{ fontSize: '14px', fontWeight: 500 }}>No connections configured</div>
-                  <div style={{ fontSize: '12.5px', marginTop: '4px' }}>Add a connection to start monitoring your data</div>
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {connections.map(conn => {
-                    const tr = testResult[conn.id]
-                    return (
-                      <div key={conn.id} style={{ background: '#fafaf9', borderRadius: '10px', padding: '16px 18px', border: `1px solid ${conn.status === 'active' ? '#86efac' : conn.status === 'error' ? '#fca5a5' : '#ebe8df'}` }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <span style={{ fontSize: '24px' }}>{connIcons[conn.type] ?? '🔗'}</span>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontWeight: 700, fontSize: '14px', color: '#1a1a1a' }}>{conn.name}</span>
-                              <span style={{
-                                width: '8px', height: '8px', borderRadius: '50%',
-                                background: conn.status === 'active' ? '#16a34a' : conn.status === 'error' ? '#dc2626' : '#d97706',
-                              }} />
-                              <span style={{
-                                background: conn.status === 'active' ? '#dcfce7' : conn.status === 'error' ? '#fee2e2' : '#fef3c7',
-                                color: conn.status === 'active' ? '#16a34a' : conn.status === 'error' ? '#dc2626' : '#d97706',
-                                padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize',
-                              }}>{conn.status}</span>
-                            </div>
-                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                              {conn.type} · {conn.database ?? conn.host ?? ''}{conn.schema ? `.${conn.schema}` : ''}{conn.warehouse ? ` · WH: ${conn.warehouse}` : ''}
-                            </div>
-                            {conn.lastTested && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>Last tested: {new Date(conn.lastTested).toLocaleString()}</div>}
-                          </div>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button onClick={() => testConnection(conn)} disabled={testing === conn.id} style={{
-                              padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff',
-                              color: '#475569', fontSize: '12px', fontWeight: 500, cursor: testing === conn.id ? 'not-allowed' : 'pointer',
-                              opacity: testing === conn.id ? 0.5 : 1,
-                            }}>{testing === conn.id ? '⏳ Testing...' : '🔄 Test'}</button>
-                            <a href="/connections" style={{
-                              padding: '6px 14px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff',
-                              color: '#2563eb', fontSize: '12px', fontWeight: 500, textDecoration: 'none',
-                            }}>✏️ Edit</a>
-                          </div>
-                        </div>
-                        {tr && (
-                          <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', background: tr.ok ? '#f0fdf4' : '#fef2f2', color: tr.ok ? '#16a34a' : '#dc2626', border: `1px solid ${tr.ok ? '#86efac' : '#fca5a5'}` }}>
-                            {tr.ok ? '✅' : '❌'} {tr.msg}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
+            <ConnectionsClient initialConnections={[]} />
           )}
 
           {/* ─── Security ─── */}
@@ -432,7 +338,7 @@ export default function SettingsPage() {
                 <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a' }}>API Keys</div>
                 <button onClick={() => { setShowKeyModal(true); setJustCreated(null) }} style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid #93c5fd', background: '#dbeafe', color: '#2563eb', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>+ Generate Key</button>
               </div>
-              <div style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '16px' }}>Use API keys to authenticate DataGuard from CI/CD pipelines, dashboards, or external tools.</div>
+              <div style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '16px' }}>Use API keys to authenticate Qualix from CI/CD pipelines, dashboards, or external tools.</div>
 
               {justCreated && (
                 <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
@@ -561,7 +467,6 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
-      </div>
     </div>
   )
 }

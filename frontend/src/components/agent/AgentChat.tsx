@@ -133,7 +133,7 @@ const SUGGESTIONS = [
 
 const INITIAL_MSG: AgentMessage = {
   role: 'assistant',
-  content: "Hi! I'm **DataGuard AI** 🛡️\n\nI can help you:\n- **Query your warehouse** — ask questions like *\"top 20 sales by region\"*\n- **Explore tables & columns** — discover schemas, understand how metrics are derived\n- **Create quality rules** and run checks\n- **Monitor data quality** across all your domains\n\nWhat would you like to do?",
+  content: "Hi! I'm **Qualix AI** 🛡️\n\nI can help you:\n- **Query your warehouse** — ask questions like *\"top 20 sales by region\"*\n- **Explore tables & columns** — discover schemas, understand how metrics are derived\n- **Create quality rules** and run checks\n- **Monitor data quality** across all your domains\n\nWhat would you like to do?",
   timestamp: '2026-01-01T00:00:00.000Z'   // stable — avoids server/client hydration mismatch
 }
 
@@ -204,7 +204,7 @@ export default function AgentChat() {
               boxShadow: '0 2px 8px rgba(37,99,235,0.4)'
             }}><RobotIcon size={28} /></div>
             <div>
-              <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>DataGuard AI</div>
+              <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>Qualix AI</div>
               <div style={{ color: '#10b981', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
                 Online & Ready

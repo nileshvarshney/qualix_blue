@@ -52,7 +52,7 @@ export async function querySnowflake(sql: string, binds?: unknown[]): Promise<Ro
     database:  conn.database ?? '',
     schema:    conn.schema   ?? '',
     role:      conn.role     ?? '',
-    application: 'DataGuard',
+    application: 'Qualix',
   })
 
   return new Promise((resolve, reject) => {

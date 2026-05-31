@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 type FilterType = 'all' | 'failed' | 'system' | 'user'
 
@@ -88,11 +87,6 @@ export default function AuditLogsPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <PageTabBar tabs={[
-        { href: '/alerts',     label: 'Alerts' },
-        { href: '/incidents',  label: 'Incidents' },
-        { href: '/audit-logs', label: 'Audit Logs' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
         Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
       </div>

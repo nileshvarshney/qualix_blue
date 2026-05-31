@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 interface Framework {
   id: string; name: string; version: string; description: string
@@ -64,11 +63,6 @@ export default function CompliancePage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <PageTabBar tabs={[
-        { href: '/settings',     label: 'General' },
-        { href: '/compliance',   label: 'Compliance' },
-        { href: '/architecture', label: 'User Guide' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Compliance</span></div>
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Compliance & Regulations</h1>
       <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Map data quality rules to regulatory frameworks and track compliance posture</p>

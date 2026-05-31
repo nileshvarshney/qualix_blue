@@ -1,6 +1,5 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 /* ── Schema definitions (two schemas for comparison) ──────────── */
 
@@ -85,7 +84,6 @@ export default function SpotCheckPage() {
   if (loading) {
     return (
       <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-        <PageTabBar tabs={[{ href: '/data-browser', label: 'Data Browser' }, { href: '/spot-check', label: 'Spot Check' }]} />
         <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 20px' }}>Spot Check</h1>
         <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
       </div>
@@ -95,7 +93,6 @@ export default function SpotCheckPage() {
   if (schemas.length === 0) {
     return (
       <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-        <PageTabBar tabs={[{ href: '/data-browser', label: 'Data Browser' }, { href: '/spot-check', label: 'Spot Check' }]} />
         <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Explore</span></div>
         <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Spot Check</h1>
         <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Compare tables, columns, and summary statistics across schemas</p>
@@ -160,10 +157,6 @@ export default function SpotCheckPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-      <PageTabBar tabs={[
-        { href: '/data-browser', label: 'Data Browser' },
-        { href: '/spot-check',   label: 'Spot Check' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Explore</span></div>
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Spot Check</h1>
       <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Compare tables, columns, and summary statistics across schemas</p>

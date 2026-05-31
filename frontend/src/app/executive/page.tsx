@@ -1,16 +1,11 @@
 'use client'
 import Link from 'next/link'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 const card: React.CSSProperties = { background: '#fff', borderRadius: '12px', padding: '18px 20px', border: '1px solid #ebe8df' }
 
 export default function ExecutivePage() {
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <PageTabBar tabs={[
-        { href: '/reports',   label: 'Reports' },
-        { href: '/executive', label: 'Executive View' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Executive</span></div>
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Executive Dashboard</h1>
       <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 24px' }}>Organization-wide data quality and governance at a glance</p>

@@ -1,6 +1,5 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PageTabBar from '@/components/ui/PageTabBar'
 
 interface Incident {
   id: string; title: string; asset: string; severity: 'critical' | 'high' | 'medium' | 'low'
@@ -64,11 +63,6 @@ export default function IncidentsPage() {
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <PageTabBar tabs={[
-        { href: '/alerts',     label: 'Alerts' },
-        { href: '/incidents',  label: 'Incidents' },
-        { href: '/audit-logs', label: 'Audit Logs' },
-      ]} />
       <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Incidents</span></div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>

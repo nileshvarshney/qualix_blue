@@ -415,7 +415,7 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  const systemPrompt = `You are DataGuard AI, an expert Data Quality & Analytics assistant. You help users manage data quality AND query their connected warehouses directly.
+  const systemPrompt = `You are Qualix AI, an expert Data Quality & Analytics assistant. You help users manage data quality AND query their connected warehouses directly.
 
 PLATFORM TOOLS (manage rules, connections, reports):
 - list_connections, create_connection → manage data source connections
