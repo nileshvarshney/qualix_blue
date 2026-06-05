@@ -17,3 +17,18 @@ def test_groq_config_defaults_present():
     keys = {d["key"] for d in CONFIG_DEFAULTS}
     assert "groq_api_key" in keys
     assert "groq_model" in keys
+
+
+def test_groq_provider_exists():
+    from app.services.llm_providers import GroqProvider
+    p = GroqProvider(api_key="gsk_test", model="llama-3.3-70b-versatile")
+    assert p.api_key == "gsk_test"
+    assert p.model == "llama-3.3-70b-versatile"
+
+
+def test_get_provider_groq_returns_groq_provider():
+    from app.services.llm_providers import get_provider, GroqProvider
+    import os
+    os.environ["GROQ_API_KEY"] = "gsk_test"
+    p = get_provider("groq")
+    assert isinstance(p, GroqProvider)

@@ -220,6 +220,51 @@ class GeminiProvider(LLMProvider):
             raise RuntimeError(f"Gemini: {e}")
 
 
+class GroqProvider(LLMProvider):
+    """Groq Cloud — OpenAI-compatible API at https://api.groq.com/openai/v1."""
+
+    def __init__(self, api_key: str, model: str):
+        self.api_key = api_key
+        self.model = model
+        if api_key:
+            from openai import AsyncOpenAI
+            self._client: "Optional[AsyncOpenAI]" = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1",
+            )
+        else:
+            self._client = None
+
+    async def complete(
+        self,
+        prompt: str,
+        system: Optional[str] = None,
+        max_tokens: int = 1024,
+    ) -> str:
+        if not self.api_key or self._client is None:
+            raise RuntimeError("Groq API key is not configured. Add it in Settings → LLM / AI.")
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+        try:
+            resp = await self._client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                max_tokens=max_tokens,
+            )
+            tok = resp.usage
+            if tok:
+                logger.debug(
+                    "Groq usage: prompt=%d completion=%d total=%d",
+                    tok.prompt_tokens, tok.completion_tokens, tok.total_tokens,
+                )
+            return resp.choices[0].message.content or ""
+        except Exception as e:
+            logger.error(f"Groq error: {e}")
+            raise RuntimeError(f"Groq: {e}")
+
+
 # ── DB-aware factory ──────────────────────────────────────────────────────────
 
 async def get_provider_from_db(name: Optional[str], db) -> LLMProvider:
@@ -245,7 +290,7 @@ async def get_provider_from_db(name: Optional[str], db) -> LLMProvider:
     if provider_name == "ollama":
         return OllamaProvider(
             base_url=await cfg("ollama_base_url", settings.ollama_base_url or "http://localhost:11434"),
-            model=await cfg("ollama_model", settings.ollama_model or "qwen2.5:7b-instruct"),
+            model=await cfg("ollama_model", settings.ollama_model or "qwen3:4b"),
         )
     if provider_name == "openai":
         return OpenAIProvider(
@@ -262,10 +307,15 @@ async def get_provider_from_db(name: Optional[str], db) -> LLMProvider:
             api_key=await cfg("gemini_api_key", settings.gemini_api_key),
             model=await cfg("gemini_model", settings.gemini_model or "gemini-2.5-flash"),
         )
+    if provider_name == "groq":
+        return GroqProvider(
+            api_key=await cfg("groq_api_key", settings.groq_api_key),
+            model=await cfg("groq_model", settings.groq_model or "llama-3.3-70b-versatile"),
+        )
     # Unknown provider → default to Ollama
     return OllamaProvider(
         base_url=await cfg("ollama_base_url", settings.ollama_base_url or "http://localhost:11434"),
-        model=await cfg("ollama_model", settings.ollama_model or "qwen2.5:7b-instruct"),
+        model=await cfg("ollama_model", settings.ollama_model or "qwen3:4b"),
     )
 
 
@@ -279,7 +329,9 @@ def get_provider(name: Optional[str] = None) -> LLMProvider:
         return ClaudeProvider(settings.anthropic_api_key, settings.claude_model or "claude-3-5-sonnet-latest")
     if provider_name in ("gemini_flash", "gemini"):
         return GeminiProvider(settings.gemini_api_key, settings.gemini_model or "gemini-2.5-flash")
+    if provider_name == "groq":
+        return GroqProvider(settings.groq_api_key, settings.groq_model or "llama-3.3-70b-versatile")
     return OllamaProvider(
         settings.ollama_base_url or "http://localhost:11434",
-        settings.ollama_model or "qwen2.5:7b-instruct",
+        settings.ollama_model or "qwen3:4b",
     )
