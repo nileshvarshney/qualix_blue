@@ -459,9 +459,9 @@ export default function RulesClient({ initialRules, connections }: Props) {
           { label: 'Disabled',       value: statusCounts.disabled || 0,      color: '#ea580c'                      },
           { label: 'Archived',       value: statusCounts.archived || 0,      color: 'var(--status-error-text)'     },
         ].map((kpi, i) => (
-          <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{ fontSize: '18px', fontWeight: 700, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{kpi.label}</div>
+          <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '7px', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{kpi.label}</div>
           </div>
         ))}
       </div>
@@ -500,12 +500,12 @@ export default function RulesClient({ initialRules, connections }: Props) {
       {/* Category Filter Chips */}
       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={() => setActiveCategory('all')} style={{
-          padding: '6px 14px', borderRadius: '20px', border: '1px solid', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+          padding: '4px 10px', borderRadius: '20px', border: '1px solid', fontSize: '11px', fontWeight: 500, cursor: 'pointer',
           background: activeCategory === 'all' ? 'var(--foreground)' : 'var(--surface)', color: activeCategory === 'all' ? 'var(--surface)' : 'var(--text-secondary)', borderColor: activeCategory === 'all' ? 'var(--foreground)' : 'var(--border)'
         }}>All ({rules.length})</button>
         {CATEGORIES.map(cat => (
           <button key={cat.value} onClick={() => setActiveCategory(cat.value)} style={{
-            padding: '6px 14px', borderRadius: '20px', border: '1px solid', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: '20px', border: '1px solid', fontSize: '11px', fontWeight: 500, cursor: 'pointer',
             background: activeCategory === cat.value ? categoryColors[cat.value] : 'var(--surface)',
             color: activeCategory === cat.value ? '#fff' : 'var(--text-secondary)',
             borderColor: activeCategory === cat.value ? categoryColors[cat.value] : 'var(--border)'
@@ -515,8 +515,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', flexShrink: 0 }}>
-          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px 10px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', flexShrink: 0 }}>
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
           <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
             {[
               { action: 'activate' as const, label: '✓ Activate', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
@@ -526,7 +526,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
               { action: 'delete' as const, label: '🗑 Delete', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
             ].map(btn => (
               <button key={btn.action} onClick={() => bulkAction(btn.action)} disabled={bulkLoading}
-                style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${btn.border}`, background: btn.bg, color: btn.color, fontSize: '11.5px', fontWeight: 600, cursor: 'pointer', opacity: bulkLoading ? 0.5 : 1 }}>
+                style={{ padding: '3px 9px', borderRadius: '6px', border: `1px solid ${btn.border}`, background: btn.bg, color: btn.color, fontSize: '11px', fontWeight: 600, cursor: 'pointer', opacity: bulkLoading ? 0.5 : 1 }}>
                 {btn.label}
               </button>
             ))}
