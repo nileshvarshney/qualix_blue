@@ -31,7 +31,7 @@ CONFIG_DEFAULTS: list[dict] = [
     {"category": "platform_connection", "key": "snowflake_app_schema",  "value": settings.snowflake_app_schema, "is_secret": False, "description": "Schema within the platform database"},
 
     # LLM
-    {"category": "llm", "key": "llm_provider", "value": "ollama", "is_secret": False, "description": "Active LLM provider: ollama, openai, claude, gemini_flash"},
+    {"category": "llm", "key": "llm_provider", "value": "ollama", "is_secret": False, "description": "Active LLM provider: ollama, openai, claude, gemini, groq"},
     {"category": "llm", "key": "ollama_base_url", "value": "", "is_secret": False, "description": "Base URL for the Ollama API server"},
     {"category": "llm", "key": "ollama_model", "value": "qwen3:4b", "is_secret": False, "description": "Ollama model name (run 'ollama list' to see available models)"},
     {"category": "llm", "key": "openai_api_key", "value": "", "is_secret": True, "description": "OpenAI API key (starts with sk- or sk-proj-)"},

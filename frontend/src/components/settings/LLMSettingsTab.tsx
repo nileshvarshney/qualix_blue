@@ -12,7 +12,7 @@ const PROVIDERS = [
     keyLabel: 'API Key',
     keyPlaceholder: 'sk-ant-…',
     modelField: 'claude_model',
-    models: ['claude-opus-4-8', 'claude-sonnet-4-6', 'claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'],
+    models: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-3-5-sonnet-latest', 'claude-3-haiku-20240307'],
     requiresKey: true,
   },
   {
@@ -228,6 +228,7 @@ export default function LLMSettingsTab() {
                   onChange={e => { setEditValues(prev => ({ ...prev, [p.modelField]: e.target.value })); setDirty(true) }}
                   style={sel}
                 >
+                  {!curModel && <option value="">Loading…</option>}
                   {p.models.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               ) : (
@@ -266,7 +267,11 @@ export default function LLMSettingsTab() {
                     }}
                     style={{ flex: 1, fontSize: '12px', padding: '4px 8px', border: '1px solid var(--accent)', borderRadius: '6px', background: '#fff', outline: 'none' }}
                   />
-                  <button onClick={() => setEditingKey(null)} style={iconBtn}>✕</button>
+                  <button
+                    onMouseDown={e => { e.preventDefault(); skipBlurRef.current = true }}
+                    onClick={() => setEditingKey(null)}
+                    style={iconBtn}
+                  >✕</button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
