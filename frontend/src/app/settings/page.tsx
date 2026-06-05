@@ -1,9 +1,10 @@
 'use client'
 import { useState } from 'react'
 import ConnectionsClient from '@/components/connections/ConnectionsClient'
+import LLMSettingsTab from '@/components/settings/LLMSettingsTab'
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState<'profile' | 'connections' | 'security' | 'notifications' | 'api' | 'integrations' | 'workspace' | 'roadmap'>('profile')
+  const [tab, setTab] = useState<'profile' | 'connections' | 'security' | 'notifications' | 'api' | 'integrations' | 'llm' | 'workspace' | 'roadmap'>('profile')
   const [saved, setSaved] = useState(false)
   const [profile, setProfile] = useState({ name: '', email: '', role: 'Admin', timezone: '', language: 'en' })
   const [notifs, setNotifs] = useState({ emailCritical: true, emailHigh: true, emailWeekly: true, slackCritical: true, slackHigh: false, slackDaily: false, pagerduty: false })
@@ -82,6 +83,7 @@ export default function SettingsPage() {
     { id: 'notifications', label: 'Notifications', icon: '🔔' },
     { id: 'api', label: 'API Keys', icon: '🔑' },
     { id: 'integrations', label: 'Integrations', icon: '🧩' },
+    { id: 'llm', label: 'LLM / AI', icon: '🤖' },
     { id: 'workspace', label: 'Workspace', icon: '🏢' },
     { id: 'roadmap', label: 'Under Development', icon: '🚧' },
   ] as const
@@ -446,6 +448,11 @@ export default function SettingsPage() {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* ─── LLM / AI ─── */}
+          {tab === 'llm' && (
+            <LLMSettingsTab />
           )}
 
           {/* ─── Under Development / Roadmap ─── */}
