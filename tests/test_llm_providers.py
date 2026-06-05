@@ -32,3 +32,11 @@ def test_get_provider_groq_returns_groq_provider():
     os.environ["GROQ_API_KEY"] = "gsk_test"
     p = get_provider("groq")
     assert isinstance(p, GroqProvider)
+
+
+def test_groq_in_valid_provider_names():
+    """test_llm endpoint must handle 'groq' as a valid provider name."""
+    import inspect
+    from app.api import config as config_module
+    src = inspect.getsource(config_module.test_llm)
+    assert "groq" in src, "test_llm endpoint missing 'groq' branch"

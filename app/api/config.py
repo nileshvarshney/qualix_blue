@@ -278,6 +278,23 @@ async def test_llm(db: AsyncSession = Depends(get_db)):
             )
             return {"status": "ok", "message": f"Gemini connection successful (model: {gemini_model or 'gemini-2.5-flash'})"}
 
+        elif provider_name == "groq":
+            groq_key = await config_service.get_value("groq_api_key", db)
+            groq_model_name = await config_service.get_value("groq_model", db)
+            if not groq_key:
+                return {"status": "error", "message": "Groq API key is not configured"}
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(
+                api_key=groq_key,
+                base_url="https://api.groq.com/openai/v1",
+            )
+            resp = await client.chat.completions.create(
+                model=groq_model_name or "llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": "Reply with the single word: ok"}],
+                max_tokens=5,
+            )
+            return {"status": "ok", "message": f"Groq connection successful (model: {resp.model})"}
+
         else:
             return {"status": "error", "message": f"Unknown provider: {provider_name}"}
 
