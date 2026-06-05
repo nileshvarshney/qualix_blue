@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Rule, RuleCategory, RuleType, RuleStatus, Connection } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
-import { useRulesGrouping, RowItem, GroupRow, RuleRow } from './useRulesGrouping'
+import { useRulesGrouping } from './useRulesGrouping'
 
 /* ── Categories ──────────────────────────────────────────────────── */
 
