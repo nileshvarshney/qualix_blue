@@ -102,7 +102,7 @@ export function useRulesGrouping(
     }
 
     const rows: RowItem[] = []
-    for (const [db, schemas] of Array.from(tree.entries()).sort()) {
+    for (const [db, schemas] of Array.from(tree.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
       const dbRules = Array.from(schemas.values()).flatMap(s => Array.from(s.values()).flat())
       const dbKey = `db::${db}`
       rows.push({
@@ -111,7 +111,7 @@ export function useRulesGrouping(
       })
       if (!expandedGroups.has(dbKey)) continue
 
-      for (const [schema, tables] of Array.from(schemas.entries()).sort()) {
+      for (const [schema, tables] of Array.from(schemas.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
         const schemaRules = Array.from(tables.values()).flat()
         const schemaKey = `${dbKey}::${schema}`
         rows.push({
@@ -120,7 +120,7 @@ export function useRulesGrouping(
         })
         if (!expandedGroups.has(schemaKey)) continue
 
-        for (const [table, tableRules] of Array.from(tables.entries()).sort()) {
+        for (const [table, tableRules] of Array.from(tables.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
           const tableKey = `${schemaKey}::${table}`
           rows.push({
             kind: 'group', key: tableKey, label: table, level: 2, icon: '⬜',
