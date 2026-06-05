@@ -6,52 +6,47 @@ type AlertFilter = 'all' | 'unacked' | 'critical' | 'high'
 type RuleFilter = 'all' | 'active' | 'critical' | 'triggered'
 
 interface RecentAlert {
-  id: string
-  rule: string
-  dataset: string
-  severity: Severity
-  message: string
-  channel: string
-  ts: string
-  ack: boolean
-  rootCause: string
-  impact: string
-  recommendation: string
-  affectedRecords: number
-  pipeline: string
+  id: string; rule: string; dataset: string; severity: Severity
+  message: string; channel: string; ts: string; ack: boolean
+  rootCause: string; impact: string; recommendation: string
+  affectedRecords: number; pipeline: string
 }
 
 interface AlertRule {
-  id: string
-  name: string
-  condition: string
-  datasets: string
-  channel: string
-  severity: Severity
-  enabled: boolean
-  triggered: number
-  lastFired: string
-  description: string
-  whenItFires: string
-  businessContext: string
-  remediation: string
-  cooldown: string
-  owner: string
+  id: string; name: string; condition: string; datasets: string
+  channel: string; severity: Severity; enabled: boolean
+  triggered: number; lastFired: string; description: string
+  whenItFires: string; businessContext: string; remediation: string
+  cooldown: string; owner: string
 }
 
-
 const SEV: Record<Severity, { bg: string; color: string; border: string }> = {
-  critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',  border: '#fca5a5' },
-  high:     { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',   border: '#fdba74' },
-  medium:   { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',   border: '#fde68a' },
+  critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',   border: '#fca5a5' },
+  high:     { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',    border: '#fdba74' },
+  medium:   { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',    border: '#fde68a' },
   info:     { bg: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', border: '#bae6fd' },
 }
 
+function Section({ title, gradient, border, body }: { title: string; gradient: string; border: string; body: string }) {
+  return (
+    <div style={{ borderRadius: '8px', overflow: 'hidden', border: `1px solid ${border}` }}>
+      <div style={{ background: gradient, padding: '7px 12px' }}>
+        <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>{title}</span>
+      </div>
+      <div style={{ padding: '10px 12px', fontSize: '12px', color: '#334155', lineHeight: '1.6' }}>{body || '—'}</div>
+    </div>
+  )
+}
+
 export default function AlertsPage() {
-  const [rules, setRules] = useState<AlertRule[]>([])
   const [alerts, setAlerts] = useState<RecentAlert[]>([])
+  const [rules, setRules] = useState<AlertRule[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'recent' | 'rules'>('recent')
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>('all')
+  const [ruleFilter, setRuleFilter] = useState<RuleFilter>('all')
+  const [popupAlert, setPopupAlert] = useState<RecentAlert | null>(null)
+  const [popupRule, setPopupRule] = useState<AlertRule | null>(null)
 
   useEffect(() => {
     fetch('/api/alerts')
@@ -77,35 +72,26 @@ export default function AlertsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
-  const [alertFilter, setAlertFilter] = useState<AlertFilter>('all')
-  const [ruleFilter, setRuleFilter] = useState<RuleFilter>('all')
-  const [expandedAlert, setExpandedAlert] = useState<string | null>(null)
-  const [expandedRule, setExpandedRule] = useState<string | null>(null)
 
   const unacked = alerts.filter(a => !a.ack).length
-  const activeRules = rules.filter(r => r.enabled).length
-  const criticalAlerts = alerts.filter(a => a.severity === 'critical').length
-  const triggeredRules = rules.filter(r => r.triggered > 0).length
+  const critical = alerts.filter(a => a.severity === 'critical').length
 
-  function toggleRule(id: string) {
+  function toggleRule(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
     setRules(prev => prev.map(r => r.id === id ? { ...r, enabled: !r.enabled } : r))
   }
   function ack(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, ack: true } : a))
   }
-  function ackAll() {
-    setAlerts(prev => prev.map(a => ({ ...a, ack: true })))
-  }
+  function ackAll() { setAlerts(prev => prev.map(a => ({ ...a, ack: true }))) }
 
-  // Filter helpers
   const filteredAlerts = alerts.filter(a => {
     if (alertFilter === 'unacked') return !a.ack
     if (alertFilter === 'critical') return a.severity === 'critical'
     if (alertFilter === 'high') return a.severity === 'high'
     return true
   })
-
   const filteredRules = rules.filter(r => {
     if (ruleFilter === 'active') return r.enabled
     if (ruleFilter === 'critical') return r.severity === 'critical'
@@ -113,415 +99,188 @@ export default function AlertsPage() {
     return true
   })
 
-  // Card click handlers
-  function handleAlertCard(filter: AlertFilter) {
-    setAlertFilter(prev => prev === filter ? 'all' : filter)
-    setTab('recent')
-  }
-  function handleRuleCard(filter: RuleFilter) {
-    setRuleFilter(prev => prev === filter ? 'all' : filter)
-    setTab('rules')
-  }
-
-  const statCards = [
-    {
-      label: 'Unacknowledged', value: unacked, icon: '🔔',
-      color: '#dc2626', activeFilter: 'unacked' as AlertFilter,
-      isRuleTab: false,
-      active: tab === 'recent' && alertFilter === 'unacked',
-    },
-    {
-      label: 'Total (24h)', value: alerts.length, icon: '📊',
-      color: 'var(--accent)', activeFilter: 'all' as AlertFilter,
-      isRuleTab: false,
-      active: tab === 'recent' && alertFilter === 'all',
-    },
-    {
-      label: 'Alert Rules', value: rules.length, icon: '⚙️',
-      color: 'var(--text-secondary)', activeFilter: 'all' as RuleFilter,
-      isRuleTab: true,
-      active: tab === 'rules' && ruleFilter === 'all',
-    },
-    {
-      label: 'Active Rules', value: activeRules, icon: '▶️',
-      color: '#16a34a', activeFilter: 'active' as RuleFilter,
-      isRuleTab: true,
-      active: tab === 'rules' && ruleFilter === 'active',
-    },
-  ]
+  const closePopup = () => { setPopupAlert(null); setPopupRule(null) }
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: 'var(--text-secondary)' }}>Analytics platform</span>
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Alerts</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0' }}>
-            {unacked} unacknowledged · {activeRules} active alert rules
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {unacked > 0 && (
-            <button onClick={ackAll} style={{
-              background: 'var(--surface)', border: '1px solid var(--border)', padding: '8px 14px',
-              borderRadius: '8px', fontSize: '13px', fontWeight: 500, color: 'var(--text-secondary)', cursor: 'pointer'
-            }}>✓ Ack All ({unacked})</button>
-          )}
-          <button style={{
-            background: 'var(--accent-bg)', border: '1px solid var(--border)', padding: '8px 16px',
-            borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: 'var(--accent)', cursor: 'pointer'
-          }}>+ New Alert Rule</button>
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+
+      {/* top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Alerts</span>
+        {unacked > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{unacked} unacked</span>}
+        {critical > 0 && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{critical} critical</span>}
+        {rules.length > 0 && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{rules.length} rules</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+          {unacked > 0 && <button onClick={ackAll} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>✓ Ack All</button>}
+          <button style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Rule</button>
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '24px' }}>
-        {statCards.map((s, i) => (
-          <div
-            key={i}
-            onClick={() => s.isRuleTab
-              ? handleRuleCard(s.activeFilter as RuleFilter)
-              : handleAlertCard(s.activeFilter as AlertFilter)
-            }
-            style={{
-              background: s.active ? s.color : 'var(--surface)',
-              border: `1px solid ${s.active ? s.color : 'var(--border)'}`,
-              borderRadius: '12px', padding: '16px 20px',
-              cursor: 'pointer',
-              transition: 'all 0.18s',
-              boxShadow: s.active ? `0 4px 16px ${s.color}33` : 'none',
-            }}
-          >
-            <div style={{ fontSize: '22px', marginBottom: '6px' }}>{s.icon}</div>
-            <div style={{ fontSize: '26px', fontWeight: 700, color: s.active ? '#fff' : s.color }}>{s.value}</div>
-            <div style={{ fontSize: '12px', color: s.active ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)', marginTop: '2px' }}>
-              {s.label}
-            </div>
-            {s.active && (
-              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.7)', marginTop: '4px', fontWeight: 500 }}>
-                ▼ filtered
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Quick filter pills for Recent Alerts */}
-      {tab === 'recent' && (
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
-          {([
-            { f: 'all', label: 'All Alerts', count: alerts.length },
-            { f: 'unacked', label: 'Unacknowledged', count: unacked },
-            { f: 'critical', label: 'Critical', count: criticalAlerts },
-            { f: 'high', label: 'High', count: alerts.filter(a => a.severity === 'high').length },
-          ] as { f: AlertFilter; label: string; count: number }[]).map(p => (
-            <button key={p.f} onClick={() => setAlertFilter(p.f)} style={{
-              padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-              border: `1px solid ${alertFilter === p.f ? 'var(--accent)' : 'var(--border)'}`,
-              background: alertFilter === p.f ? 'var(--accent-bg)' : 'var(--surface)',
-              color: alertFilter === p.f ? 'var(--accent)' : 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}>
-              {p.label} <span style={{ opacity: 0.75 }}>({p.count})</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', background: 'var(--surface-muted)', padding: '4px', borderRadius: '10px', width: 'fit-content' }}>
+      {/* tabs + filter pills */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
         {(['recent', 'rules'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
-            padding: '7px 18px', borderRadius: '7px', border: 'none',
-            background: tab === t ? 'var(--surface)' : 'transparent',
-            color: tab === t ? 'var(--foreground)' : 'var(--text-secondary)',
-            fontWeight: tab === t ? 600 : 400,
-            fontSize: '13px', cursor: 'pointer',
-            boxShadow: tab === t ? '0 1px 3px rgba(0,0,0,0.08)' : 'none'
+            padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+            background: tab === t ? '#1a1a1a' : 'var(--surface-muted)',
+            color: tab === t ? '#fff' : 'var(--text-secondary)',
+            fontWeight: tab === t ? 600 : 400, fontSize: '11px',
           }}>
-            {t === 'recent' ? `Recent Alerts (${filteredAlerts.length})` : `Alert Rules (${filteredRules.length})`}
+            {t === 'recent' ? `Recent (${filteredAlerts.length})` : `Rules (${filteredRules.length})`}
           </button>
+        ))}
+        <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
+        {tab === 'recent' && ([['all','All'],['unacked','Unacked'],['critical','Critical'],['high','High']] as [AlertFilter,string][]).map(([f,l]) => (
+          <button key={f} onClick={() => setAlertFilter(f)} style={{
+            padding: '3px 8px', borderRadius: '5px', border: `1px solid ${alertFilter === f ? 'var(--accent)' : 'var(--border)'}`,
+            background: alertFilter === f ? 'var(--accent-bg)' : 'transparent',
+            color: alertFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer',
+          }}>{l}</button>
+        ))}
+        {tab === 'rules' && ([['all','All'],['active','Active'],['critical','Critical'],['triggered','Triggered']] as [RuleFilter,string][]).map(([f,l]) => (
+          <button key={f} onClick={() => setRuleFilter(f)} style={{
+            padding: '3px 8px', borderRadius: '5px', border: `1px solid ${ruleFilter === f ? 'var(--accent)' : 'var(--border)'}`,
+            background: ruleFilter === f ? 'var(--accent-bg)' : 'transparent',
+            color: ruleFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer',
+          }}>{l}</button>
         ))}
       </div>
 
-      {/* Recent Alerts Tab */}
-      {tab === 'recent' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {loading ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
-          ) : filteredAlerts.length === 0 ? (
-            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No alerts yet</div>
-          ) : null}
-          {filteredAlerts.map(a => {
-            const ss = SEV[a.severity]
-            const isExpanded = expandedAlert === a.id
-            return (
-              <div
-                key={a.id}
-                onClick={() => setExpandedAlert(isExpanded ? null : a.id)}
-                style={{
-                  background: 'var(--surface)',
-                  border: `1px solid ${!a.ack ? ss.border : 'var(--border)'}`,
-                  borderLeft: `3px solid ${!a.ack ? ss.color : 'var(--border)'}`,
-                  borderRadius: '12px', cursor: 'pointer',
-                  opacity: a.ack && !isExpanded ? 0.75 : 1,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {/* Row header */}
-                <div style={{ padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
-                      <span style={{ background: ss.bg, color: ss.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600 }}>
-                        {a.severity}
-                      </span>
-                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{a.rule}</span>
-                      {a.ack && (
-                        <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '1px 6px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 600 }}>
-                          ✓ Acknowledged
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '5px' }}>{a.message}</div>
-                    <div style={{ display: 'flex', gap: '14px', fontSize: '12px', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
-                      <span>Dataset: <strong style={{ color: 'var(--text-secondary)' }}>{a.dataset}</strong></span>
-                      <span>Pipeline: <strong style={{ color: 'var(--text-secondary)' }}>{a.pipeline}</strong></span>
-                      <span>Channel: <strong style={{ color: 'var(--text-secondary)' }}>{a.channel}</strong></span>
-                      <span>{a.ts}</span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, marginLeft: '16px' }}>
-                    {!a.ack && (
-                      <button
-                        onClick={(e) => ack(a.id, e)}
-                        style={{
-                          padding: '5px 12px', borderRadius: '7px', border: '1px solid var(--border)',
-                          background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500
-                        }}
-                      >
-                        Acknowledge
-                      </button>
-                    )}
-                    <span style={{ color: 'var(--text-muted)', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
-                  </div>
-                </div>
-
-                {/* Expanded detail */}
-                {isExpanded && (
-                  <div style={{ borderTop: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
-                    {/* Metadata bar */}
-                    <div style={{ display: 'flex', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
-                      {[
-                        { label: 'Dataset', value: a.dataset },
-                        { label: 'Pipeline', value: a.pipeline },
-                        { label: 'Channel', value: a.channel },
-                        { label: 'Affected Records', value: a.affectedRecords.toLocaleString('en-US') },
-                        { label: 'Fired At', value: a.ts },
-                      ].map((m, i, arr) => (
-                        <div key={i} style={{
-                          flex: 1, padding: '10px 16px',
-                          borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none'
-                        }}>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '2px' }}>{m.value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {/* Root Cause */}
-                      <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
-                        <div style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', padding: '10px 16px' }}>
-                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>🔍 ROOT CAUSE</span>
-                        </div>
-                        <div style={{ padding: '14px 16px', background: '#faf5ff', fontSize: '13px', color: '#3b1f6e', lineHeight: '1.65' }}>
-                          {a.rootCause}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        {/* Business Impact */}
-                        <div style={{ borderRadius: '10px', overflow: 'hidden', border: `1px solid ${ss.border}` }}>
-                          <div style={{ background: a.severity === 'critical' ? '#dc2626' : a.severity === 'high' ? '#ea580c' : '#ca8a04', padding: '10px 16px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>⚠️ BUSINESS IMPACT</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', background: ss.bg, fontSize: '13px', color: '#334155', lineHeight: '1.65' }}>
-                            {a.impact}
-                          </div>
-                        </div>
-
-                        {/* Recommended Fix */}
-                        <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #bbf7d0' }}>
-                          <div style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', padding: '10px 16px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>✅ RECOMMENDED FIX</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', background: '#f0fdf4', fontSize: '13px', color: '#14532d', lineHeight: '1.65' }}>
-                            {a.recommendation}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+      {/* column headers */}
+      {tab === 'recent' && !loading && filteredAlerts.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {['Severity','Rule','Time',''].map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+        </div>
+      )}
+      {tab === 'rules' && !loading && filteredRules.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {['Severity','Rule','Triggered','Last Fired',''].map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
 
-      {/* Alert Rules Tab */}
-      {tab === 'rules' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {/* Rule filter pills */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-            {([
-              { f: 'all', label: 'All Rules', count: rules.length },
-              { f: 'active', label: 'Active', count: activeRules },
-              { f: 'critical', label: 'Critical', count: rules.filter(r => r.severity === 'critical').length },
-              { f: 'triggered', label: 'Recently Triggered', count: triggeredRules },
-            ] as { f: RuleFilter; label: string; count: number }[]).map(p => (
-              <button key={p.f} onClick={() => setRuleFilter(p.f)} style={{
-                padding: '5px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500,
-                border: `1px solid ${ruleFilter === p.f ? 'var(--accent)' : 'var(--border)'}`,
-                background: ruleFilter === p.f ? 'var(--accent-bg)' : 'var(--surface)',
-                color: ruleFilter === p.f ? 'var(--accent)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-              }}>
-                {p.label} <span style={{ opacity: 0.75 }}>({p.count})</span>
+      {/* scrollable list */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
+
+        {tab === 'recent' && !loading && filteredAlerts.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{alerts.length === 0 ? 'No alerts yet' : 'No alerts match filters'}</div>
+        )}
+        {tab === 'recent' && !loading && filteredAlerts.map(a => {
+          const ss = SEV[a.severity]
+          return (
+            <div key={a.id} onClick={() => setPopupAlert(a)}
+              style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: '0 8px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${!a.ack ? ss.color : 'var(--border)'}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', opacity: a.ack ? 0.65 : 1 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >
+              <span style={{ background: ss.bg, color: ss.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{a.severity}</span>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.rule}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{a.ts}</span>
+              {!a.ack
+                ? <button onClick={e => ack(a.id, e)} style={{ fontSize: '9px', border: '1px solid var(--border)', background: 'var(--surface)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Ack</button>
+                : <span style={{ fontSize: '9px', color: 'var(--status-ok-text)' }}>✓</span>
+              }
+            </div>
+          )
+        })}
+
+        {tab === 'rules' && !loading && filteredRules.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No alert rules yet</div>
+        )}
+        {tab === 'rules' && !loading && filteredRules.map(r => {
+          const ss = SEV[r.severity]
+          return (
+            <div key={r.id} onClick={() => setPopupRule(r)}
+              style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto auto', gap: '0 8px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${r.enabled ? ss.color : 'var(--border)'}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', opacity: !r.enabled ? 0.65 : 1 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >
+              <span style={{ background: ss.bg, color: ss.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{r.severity}</span>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: r.triggered > 0 ? 'var(--status-error-text)' : 'var(--status-ok-text)' }}>{r.triggered}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{r.lastFired}</span>
+              <button onClick={e => toggleRule(r.id, e)} style={{ width: '32px', height: '18px', borderRadius: '9px', border: 'none', background: r.enabled ? 'var(--accent)' : 'var(--border)', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                <span style={{ position: 'absolute', top: '2px', left: r.enabled ? '16px' : '2px', width: '14px', height: '14px', borderRadius: '50%', background: '#fff', transition: 'left 0.15s', display: 'block' }} />
               </button>
-            ))}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* popup */}
+      {(popupAlert ?? popupRule) && (
+        <>
+          <div onClick={closePopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
+            {popupAlert && (() => {
+              const ss = SEV[popupAlert.severity]
+              return (
+                <>
+                  <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <span style={{ background: ss.bg, color: ss.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popupAlert.severity}</span>
+                    <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popupAlert.rule}</span>
+                    <button onClick={closePopup} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
+                    {[['Table', popupAlert.dataset], ['Pipeline', popupAlert.pipeline], ['Channel', popupAlert.channel]].map(([l, v], i) => (
+                      <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
+                    {[['Affected Records', popupAlert.affectedRecords.toLocaleString()], ['Fired At', popupAlert.ts]].map(([l, v], i) => (
+                      <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Section title="🔍 ROOT CAUSE" gradient="linear-gradient(135deg,#7c3aed,#6d28d9)" border="#e9d5ff" body={popupAlert.rootCause} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <Section title="⚠️ IMPACT" gradient={popupAlert.severity === 'critical' ? '#dc2626' : '#ea580c'} border={ss.border} body={popupAlert.impact} />
+                      <Section title="✅ FIX" gradient="linear-gradient(135deg,#16a34a,#15803d)" border="#bbf7d0" body={popupAlert.recommendation} />
+                    </div>
+                  </div>
+                </>
+              )
+            })()}
+            {popupRule && (() => {
+              const ss = SEV[popupRule.severity]
+              return (
+                <>
+                  <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    <span style={{ background: ss.bg, color: ss.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popupRule.severity}</span>
+                    <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popupRule.name}</span>
+                    <button onClick={closePopup} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
+                    {[['Owner', popupRule.owner], ['Cooldown', popupRule.cooldown], ['Status', popupRule.enabled ? '✅ Active' : '⏸ Disabled']].map(([l, v], i) => (
+                      <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
+                    {[['Times Triggered', String(popupRule.triggered)], ['Last Fired', popupRule.lastFired]].map(([l, v], i) => (
+                      <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                        <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <Section title="📋 DESCRIPTION" gradient="linear-gradient(135deg,#7c3aed,#6d28d9)" border="#e9d5ff" body={`${popupRule.description}${popupRule.whenItFires ? `\n\nFires when: ${popupRule.whenItFires}` : ''}`} />
+                    <Section title="⚠️ BUSINESS CONTEXT" gradient="linear-gradient(135deg,#b45309,#d97706)" border="#fde68a" body={popupRule.businessContext} />
+                    <Section title="✅ REMEDIATION" gradient="linear-gradient(135deg,#16a34a,#15803d)" border="#bbf7d0" body={popupRule.remediation} />
+                  </div>
+                </>
+              )
+            })()}
           </div>
-
-          {filteredRules.length === 0 && (
-            <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No alert rules yet</div>
-          )}
-          {filteredRules.map(r => {
-            const ss = SEV[r.severity]
-            const isExpanded = expandedRule === r.id
-            return (
-              <div
-                key={r.id}
-                onClick={() => setExpandedRule(isExpanded ? null : r.id)}
-                style={{
-                  background: 'var(--surface)',
-                  border: '1px solid var(--border)',
-                  borderLeft: `3px solid ${r.enabled ? ss.color : 'var(--border)'}`,
-                  borderRadius: '12px', cursor: 'pointer',
-                  opacity: !r.enabled && !isExpanded ? 0.7 : 1,
-                  transition: 'all 0.15s',
-                }}
-              >
-                {/* Rule row */}
-                <div style={{ padding: '14px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{ flex: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{r.name}</span>
-                      <span style={{ background: ss.bg, color: ss.color, padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 600 }}>
-                        {r.severity}
-                      </span>
-                      {!r.enabled && (
-                        <span style={{ background: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', padding: '2px 7px', borderRadius: '10px', fontSize: '10.5px', fontWeight: 500 }}>
-                          disabled
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{r.condition}</div>
-                  </div>
-                  <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{r.datasets}</div>
-                    <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>datasets</div>
-                  </div>
-                  <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-secondary)' }}>
-                    <div style={{ fontWeight: 500, color: 'var(--text-secondary)' }}>{r.channel}</div>
-                    <div style={{ color: 'var(--text-muted)', marginTop: '2px' }}>channel</div>
-                  </div>
-                  <div style={{ textAlign: 'center', minWidth: '60px' }}>
-                    <div style={{ fontSize: '18px', fontWeight: 700, color: r.triggered > 0 ? '#dc2626' : '#16a34a' }}>{r.triggered}</div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>triggered</div>
-                  </div>
-                  <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', minWidth: '120px', textAlign: 'right' }}>{r.lastFired}</div>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); toggleRule(r.id) }}
-                    style={{
-                      width: '44px', height: '24px', borderRadius: '12px', border: 'none',
-                      background: r.enabled ? 'var(--accent)' : 'var(--border)',
-                      cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0
-                    }}
-                  >
-                    <span style={{
-                      position: 'absolute', top: '3px', left: r.enabled ? '22px' : '3px',
-                      width: '18px', height: '18px', borderRadius: '50%',
-                      background: '#fff', transition: 'left 0.2s', display: 'block'
-                    }} />
-                  </button>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '16px', transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
-                </div>
-
-                {/* Expanded rule detail */}
-                {isExpanded && (
-                  <div style={{ borderTop: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
-                    {/* Metadata bar */}
-                    <div style={{ display: 'flex', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
-                      {[
-                        { label: 'Owner', value: r.owner },
-                        { label: 'Cooldown', value: r.cooldown },
-                        { label: 'Times Triggered', value: r.triggered.toString() },
-                        { label: 'Last Fired', value: r.lastFired },
-                        { label: 'Status', value: r.enabled ? '✅ Active' : '⏸ Disabled' },
-                      ].map((m, i, arr) => (
-                        <div key={i} style={{
-                          flex: 1, padding: '10px 16px',
-                          borderRight: i < arr.length - 1 ? '1px solid var(--border)' : 'none'
-                        }}>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.label}</div>
-                          <div style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '2px' }}>{m.value}</div>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div style={{ padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {/* Description + When it fires */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                        <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
-                          <div style={{ background: 'linear-gradient(135deg, #7c3aed, #6d28d9)', padding: '10px 16px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>📋 RULE DESCRIPTION</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', background: '#faf5ff', fontSize: '13px', color: '#3b1f6e', lineHeight: '1.65' }}>
-                            <div style={{ marginBottom: '10px' }}>{r.description}</div>
-                            <div style={{ fontSize: '12px', background: '#ede9fe', padding: '8px 10px', borderRadius: '6px', color: '#5b21b6', fontFamily: 'monospace' }}>
-                              {r.whenItFires}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #fde68a' }}>
-                          <div style={{ background: 'linear-gradient(135deg, #b45309, #d97706)', padding: '10px 16px' }}>
-                            <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>⚠️ BUSINESS CONTEXT</span>
-                          </div>
-                          <div style={{ padding: '14px 16px', background: '#fffbeb', fontSize: '13px', color: '#451a03', lineHeight: '1.65' }}>
-                            {r.businessContext}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Remediation */}
-                      <div style={{ borderRadius: '10px', overflow: 'hidden', border: '1px solid #bbf7d0' }}>
-                        <div style={{ background: 'linear-gradient(135deg, #16a34a, #15803d)', padding: '10px 16px' }}>
-                          <span style={{ color: '#fff', fontWeight: 700, fontSize: '12px', letterSpacing: '0.04em' }}>✅ REMEDIATION PLAYBOOK</span>
-                        </div>
-                        <div style={{ padding: '14px 16px', background: '#f0fdf4', fontSize: '13px', color: '#14532d', lineHeight: '1.65' }}>
-                          {r.remediation}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+        </>
       )}
     </div>
   )
