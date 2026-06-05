@@ -103,6 +103,7 @@ async def create_asset(payload: DataAssetCreate, db: AsyncSession = Depends(get_
 async def list_assets(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
+    is_active: Optional[bool] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db)
@@ -113,9 +114,38 @@ async def list_assets(
         q = q.where(DataAsset.domain_id == domain_id)
     if subdomain_id:
         q = q.where(DataAsset.subdomain_id == subdomain_id)
+    if is_active is not None:
+        q = q.where(DataAsset.is_active == is_active)
     total = (await db.execute(select(sqlfunc.count()).select_from(q.subquery()))).scalar() or 0
-    result = await db.execute(q.order_by(DataAsset.sf_table_name).limit(limit).offset(offset))
-    return {"total": total, "limit": limit, "offset": offset, "items": result.scalars().all()}
+    result = await db.execute(
+        q.order_by(DataAsset.sf_database_name, DataAsset.sf_schema_name, DataAsset.sf_table_name)
+        .limit(limit).offset(offset)
+    )
+    assets = result.scalars().all()
+    return {
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "items": [
+            {
+                "asset_id": a.asset_id,
+                "connection_id": a.connection_id,
+                "sf_database_name": a.sf_database_name,
+                "sf_schema_name": a.sf_schema_name,
+                "sf_table_name": a.sf_table_name,
+                "table_type": a.table_type,
+                "table_description": a.table_description,
+                "criticality": a.criticality,
+                "certification_status": a.certification_status,
+                "is_active": a.is_active,
+                "row_count": a.row_count,
+                "bytes": a.bytes,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+                "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+            }
+            for a in assets
+        ],
+    }
 
 
 @router.get("/{asset_id}", response_model=DataAssetResponse)
@@ -306,6 +336,54 @@ async def get_discovery_job(job_id: str, user: dict = Depends(get_current_user))
     if not job:
         raise HTTPException(404, "Discovery job not found or expired")
     return job
+
+
+@router.post("/{asset_id}/refresh-stats")
+async def refresh_asset_stats(asset_id: str, db: AsyncSession = Depends(get_db)):
+    """Pull current row_count and bytes from Snowflake INFORMATION_SCHEMA and persist them."""
+    import asyncio as _asyncio
+    from app.services.discovery_service import _browse_tables_sync, _validate_ident
+
+    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    if not asset.connection_id:
+        raise HTTPException(400, "Asset has no associated connection; cannot fetch live stats")
+
+    conn_result = await db.execute(
+        select(SnowflakeConnection).where(SnowflakeConnection.connection_id == asset.connection_id)
+    )
+    conn = conn_result.scalar_one_or_none()
+    if not conn:
+        raise HTTPException(404, "Connection not found")
+
+    try:
+        db_safe     = _validate_ident(asset.sf_database_name or "", "database")
+        schema_safe = _validate_ident(asset.sf_schema_name,        "schema")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    try:
+        tables = await _asyncio.to_thread(_browse_tables_sync, conn, db_safe, schema_safe)
+    except Exception as e:
+        raise HTTPException(502, f"Snowflake error: {e}")
+
+    match = next((t for t in tables if t["table_name"].upper() == asset.sf_table_name.upper()), None)
+    if not match:
+        raise HTTPException(404, f"Table {asset.sf_table_name!r} not found in {db_safe}.{schema_safe}")
+
+    asset.row_count  = match.get("row_count")
+    asset.bytes      = match.get("bytes")
+    asset.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.commit()
+
+    return {
+        "asset_id":  asset_id,
+        "row_count": asset.row_count,
+        "bytes":     asset.bytes,
+        "message":   "Stats refreshed from Snowflake",
+    }
 
 
 @router.post("/{asset_id}/certify", response_model=DataAssetResponse)

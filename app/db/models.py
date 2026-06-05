@@ -133,6 +133,8 @@ class DataAsset(Base):
     certification_status: Mapped[str] = mapped_column(String(20), default="uncertified")
     certified_by: Mapped[Optional[str]] = mapped_column(String(200))
     certified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)

@@ -210,6 +210,10 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                     tables = await asyncio.to_thread(
                         _browse_tables_sync, conn, db_safe, schema_safe
                     )
+                    # Filter to specific tables if caller provided a list
+                    if sel.get("tables"):
+                        selected = set(sel["tables"])
+                        tables = [t for t in tables if t["table_name"] in selected]
                     all_failed = False
                 except Exception as e:
                     logger.warning("Failed to browse tables for %s.%s: %s", database, schema, e)
@@ -331,6 +335,8 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             owner_email=payload.get("owner_email"),
                             technical_owner_name=payload.get("technical_owner_name"),
                             technical_owner_email=payload.get("technical_owner_email"),
+                            row_count=table.get("row_count"),
+                            bytes=table.get("bytes"),
                         )
                         db.add(asset)
                         db.add(

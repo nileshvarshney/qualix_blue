@@ -77,6 +77,7 @@ class DataAssetResponse(BaseModel):
 class DiscoverySelection(BaseModel):
     database: str
     schema: str
+    tables: Optional[list[str]] = None  # None = import all tables in schema
 
 
 class DiscoveryRequest(BaseModel):

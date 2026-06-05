@@ -6,33 +6,38 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url)
-  const table = url.searchParams.get('table')
+  const table      = url.searchParams.get('table')
+  const database   = url.searchParams.get('database')
+  const schema     = url.searchParams.get('schema')
   const connectionId = url.searchParams.get('connection_id')
 
-  if (!table) return NextResponse.json({ error: 'table param required' }, { status: 400 })
+  if (!table || !database || !schema)
+    return NextResponse.json({ error: 'table, database and schema params required' }, { status: 400 })
 
   try {
     const connId = connectionId ?? await getPrimaryConnectionId()
-    if (!connId) return NextResponse.json({ columns: [] })
+    if (!connId) return NextResponse.json({ columns: [], error: 'No connection found' })
 
-    const res = await fetch(
-      `${BACKEND}/connections/${connId}/columns?table_name=${encodeURIComponent(table)}`,
-      { cache: 'no-store' }
-    )
-    if (!res.ok) return NextResponse.json({ columns: [] })
+    const qs = new URLSearchParams({ database, schema, table })
+    const res = await fetch(`${BACKEND}/connections/${connId}/columns?${qs}`, { cache: 'no-store' })
+    if (!res.ok) return NextResponse.json({ columns: [], error: `Backend ${res.status}` })
 
     const data = await res.json()
-    const columns = (data.columns ?? data ?? []).map((c: Record<string, unknown>) => ({
-      COLUMN_NAME: c.name ?? c.COLUMN_NAME ?? c.column_name,
-      DATA_TYPE: c.data_type ?? c.DATA_TYPE ?? 'VARCHAR',
-      IS_NULLABLE: c.is_nullable ?? c.IS_NULLABLE ?? 'YES',
-      ORDINAL_POSITION: c.ordinal_position ?? c.ORDINAL_POSITION ?? 0,
-      COMMENT: c.comment ?? c.COMMENT ?? null,
-    })).filter((c: Record<string, unknown>) => c.COLUMN_NAME)
+    const raw: Record<string, unknown>[] = data.columns ?? []
+    const columns = raw.map(c => ({
+      COLUMN_NAME:              c.column_name ?? c.name ?? c.COLUMN_NAME,
+      DATA_TYPE:                c.data_type   ?? c.DATA_TYPE   ?? 'VARCHAR',
+      IS_NULLABLE:              c.is_nullable ?? c.IS_NULLABLE ?? 'YES',
+      COLUMN_DEFAULT:           c.column_default ?? null,
+      CHARACTER_MAXIMUM_LENGTH: null,
+      NUMERIC_PRECISION:        null,
+      ORDINAL_POSITION:         c.ordinal_position ?? 0,
+      COMMENT:                  c.comment ?? c.COMMENT ?? null,
+    })).filter(c => c.COLUMN_NAME)
 
     return NextResponse.json({ columns })
-  } catch {
-    return NextResponse.json({ columns: [] })
+  } catch (e: unknown) {
+    return NextResponse.json({ columns: [], error: (e as Error).message })
   }
 }
 

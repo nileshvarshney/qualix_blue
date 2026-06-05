@@ -151,10 +151,28 @@ class SnowflakeAsyncSession:
         self._s.expunge_all()
 
 
+async def _resume_warehouse(session: Session) -> None:
+    """Resume the platform warehouse if it is suspended.
+
+    Snowflake SHOW/DESCRIBE commands work without an active warehouse but DML
+    (INSERT/UPDATE/DELETE) requires one.  When the warehouse is suspended we get
+    a ProgrammingError 57P03 which surfaces as an opaque 500.  Running this once
+    at session-open time is a cheap no-op when the warehouse is already running.
+    """
+    try:
+        await asyncio.to_thread(
+            session.execute,
+            text(f"ALTER WAREHOUSE {settings.sf_platform_warehouse} RESUME IF SUSPENDED"),
+        )
+    except Exception as e:
+        _log.debug("Warehouse auto-resume skipped (%s): %s", type(e).__name__, e)
+
+
 async def get_db():
     """FastAPI dependency — yields SnowflakeAsyncSession (same interface as AsyncSession)."""
     session = _SessionLocal()
     db = SnowflakeAsyncSession(session)
+    await _resume_warehouse(session)
     try:
         yield db
     finally:
@@ -166,6 +184,7 @@ async def get_session_ctx():
     """Async context manager for use outside of FastAPI route handlers (lifespan, services)."""
     session = _SessionLocal()
     db = SnowflakeAsyncSession(session)
+    await _resume_warehouse(session)
     try:
         yield db
     finally:
@@ -199,6 +218,8 @@ def create_tables():
             "ALTER TABLE dq_rules ADD COLUMN rejection_reason TEXT",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_name VARCHAR(200)",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_email VARCHAR(200)",
+            "ALTER TABLE data_assets ADD COLUMN row_count BIGINT",
+            "ALTER TABLE data_assets ADD COLUMN bytes BIGINT",
         ]:
             try:
                 conn.execute(text(col_ddl))

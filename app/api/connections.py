@@ -383,10 +383,11 @@ async def create_connection(
         data["password"] = encrypt(data["password"])
     if data.get("connection_string"):
         data["connection_string"] = encrypt(data["connection_string"])
-    # For non-Snowflake types, provide defaults for required Snowflake columns
-    if payload.database_type != "snowflake":
-        data.setdefault("account", payload.host or payload.base_url or payload.project or "N/A")
-        data.setdefault("sf_user", data.get("sf_user") or "N/A")
+    # Ensure NOT NULL columns always have a value regardless of connection type
+    if not data.get("account"):
+        data["account"] = payload.host or payload.base_url or payload.project or "N/A"
+    if not data.get("sf_user"):
+        data["sf_user"] = "N/A"
     conn = SnowflakeConnection(connection_id=str(uuid.uuid4()), **data)
     db.add(conn)
     await db.commit()
@@ -578,7 +579,120 @@ async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)
     return test_result
 
 
-# ── Browse (Snowflake-specific) ──────────────────────────────────────────────
+# ── Browse (inline credentials — no DB lookup required) ──────────────────────
+
+class BrowseCredentials(BaseModel):
+    account: str
+    sf_user: str
+    password: str
+    warehouse: str
+    role: Optional[str] = None
+    default_database: Optional[str] = None
+
+
+def _open_connector_inline(payload: BrowseCredentials):
+    import snowflake.connector
+    kwargs = dict(
+        account=payload.account,
+        user=payload.sf_user,
+        password=payload.password,
+        warehouse=payload.warehouse,
+    )
+    if payload.role:
+        kwargs["role"] = payload.role
+    if payload.default_database:
+        kwargs["database"] = payload.default_database
+    return snowflake.connector.connect(**kwargs)
+
+
+@router.post("/browse/databases")
+async def browse_databases_inline(payload: BrowseCredentials):
+    def _run():
+        sf = _open_connector_inline(payload)
+        cur = sf.cursor()
+        cur.execute("SHOW DATABASES")
+        rows = cur.fetchall()
+        col_names = [d[0].lower() for d in cur.description]
+        cur.close(); sf.close()
+        return [dict(zip(col_names, r)) for r in rows]
+
+    try:
+        dbs = await asyncio.to_thread(_run)
+        return {
+            "databases": [
+                {"name": d.get("name", ""), "owner": d.get("owner", ""), "comment": d.get("comment", "")}
+                for d in dbs
+                if d.get("name", "").upper() not in ("SNOWFLAKE", "SNOWFLAKE_SAMPLE_DATA")
+            ]
+        }
+    except Exception as e:
+        return {"databases": [], "error": str(e)}
+
+
+@router.post("/browse/schemas")
+async def browse_schemas_inline(payload: BrowseCredentials, database: str = Query(...)):
+    db_safe = _safe_ident(database, "database")
+
+    def _run():
+        sf = _open_connector_inline(payload)
+        cur = sf.cursor()
+        cur.execute(f'SHOW SCHEMAS IN DATABASE "{db_safe}"')
+        rows = cur.fetchall()
+        col_names = [d[0].lower() for d in cur.description]
+        cur.close(); sf.close()
+        return [dict(zip(col_names, r)) for r in rows]
+
+    try:
+        schemas = await asyncio.to_thread(_run)
+        return {
+            "schemas": [
+                {"name": s.get("name", ""), "owner": s.get("owner", "")}
+                for s in schemas
+                if s.get("name", "").upper() != "INFORMATION_SCHEMA"
+            ]
+        }
+    except Exception as e:
+        return {"schemas": [], "error": str(e)}
+
+
+@router.post("/browse/tables")
+async def browse_tables_inline(
+    payload: BrowseCredentials,
+    database: str = Query(...),
+    schema: str = Query(...),
+):
+    db_safe = _safe_ident(database, "database")
+    schema_safe = _safe_ident(schema, "schema")
+
+    def _run():
+        # SHOW TERSE OBJECTS does not require an active warehouse (unlike INFORMATION_SCHEMA queries)
+        sf = _open_connector_inline(payload)
+        cur = sf.cursor()
+        cur.execute(f'SHOW TERSE OBJECTS IN SCHEMA "{db_safe}"."{schema_safe}"')
+        rows = cur.fetchall()
+        col_names = [d[0].lower() for d in cur.description]
+        cur.close(); sf.close()
+        return [dict(zip(col_names, r)) for r in rows]
+
+    try:
+        raw = await asyncio.to_thread(_run)
+        tables = [
+            {
+                "table_name": r.get("name", ""),
+                "table_type": r.get("kind", "TABLE"),
+                "row_count": None,
+                "comment": None,
+            }
+            for r in raw
+            if r.get("kind", "").upper() in ("TABLE", "VIEW", "MATERIALIZED VIEW", "EXTERNAL TABLE")
+            and r.get("name", "")
+        ]
+        return {"tables": tables}
+    except Exception as e:
+        return {"tables": [], "error": str(e)}
+
+
+# ── Browse (by stored connection_id) ─────────────────────────────────────────
 
 async def _get_conn_or_404(connection_id: str, db: AsyncSession) -> SnowflakeConnection:
     result = await db.execute(
