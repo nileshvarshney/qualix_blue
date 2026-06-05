@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 const MASKED = '***MASKED***'
 
@@ -74,6 +74,7 @@ export default function LLMSettingsTab() {
   const [testStatus, setTestStatus] = useState<{ status: 'ok' | 'error'; message: string } | null>(null)
   const [testLoading, setTestLoading] = useState(false)
   const [loadError, setLoadError]   = useState<string | null>(null)
+  const skipBlurRef = useRef(false)
 
   useEffect(() => {
     fetch('/api/config?category=llm')
@@ -91,11 +92,6 @@ export default function LLMSettingsTab() {
 
   function fieldValue(key: string): string {
     return editValues[key] !== undefined ? editValues[key] : (fields[key] ?? '')
-  }
-
-  function isConfigured(keyField: string): boolean {
-    const v = fieldValue(keyField)
-    return v !== '' && v !== MASKED
   }
 
   function startEdit(keyField: string) {
@@ -134,11 +130,15 @@ export default function LLMSettingsTab() {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setDirty(false); setEditValues({})
-      const data = await fetch('/api/config?category=llm').then(r => r.json())
-      const rows: { key: string; value: string }[] = data.config?.llm ?? []
-      const map: Record<string, string> = {}
-      for (const row of rows) map[row.key] = row.value ?? ''
-      setFields(map)
+      try {
+        const data = await fetch('/api/config?category=llm').then(r => r.json())
+        const rows: { key: string; value: string }[] = data.config?.llm ?? []
+        const map: Record<string, string> = {}
+        for (const row of rows) map[row.key] = row.value ?? ''
+        setFields(map)
+      } catch {
+        // Save succeeded; re-fetch failed. Fields may be slightly stale until next load.
+      }
       setSaveMsg({ ok: true, text: 'Saved ✓' })
       setTimeout(() => setSaveMsg(null), 2500)
     } catch (e) {
@@ -250,10 +250,19 @@ export default function LLMSettingsTab() {
                     autoFocus
                     defaultValue={editValues[p.keyField] ?? ''}
                     placeholder={p.keyPlaceholder}
-                    onBlur={e => commitEdit(p.keyField, e.target.value)}
+                    onBlur={e => {
+                      if (skipBlurRef.current) { skipBlurRef.current = false; return }
+                      commitEdit(p.keyField, e.target.value)
+                    }}
                     onKeyDown={e => {
-                      if (e.key === 'Enter')  commitEdit(p.keyField, (e.target as HTMLInputElement).value)
-                      if (e.key === 'Escape') setEditingKey(null)
+                      if (e.key === 'Enter') {
+                        skipBlurRef.current = true
+                        commitEdit(p.keyField, (e.target as HTMLInputElement).value)
+                      }
+                      if (e.key === 'Escape') {
+                        skipBlurRef.current = true
+                        setEditingKey(null)
+                      }
                     }}
                     style={{ flex: 1, fontSize: '12px', padding: '4px 8px', border: '1px solid var(--accent)', borderRadius: '6px', background: '#fff', outline: 'none' }}
                   />
