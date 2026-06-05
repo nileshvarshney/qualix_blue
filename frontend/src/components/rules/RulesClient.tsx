@@ -576,7 +576,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
         <div style={{ flex: 1, overflowY: 'auto' }}>
           {rows.map(item => {
             if (item.kind === 'group') {
-              const g = item as GroupRow
+              const g = item
               const isExpanded = expandedGroups.has(g.key)
               const allGroupSel = g.rules.every(r => selectedIds.has(r.id))
               const someGroupSel = g.rules.some(r => selectedIds.has(r.id))
@@ -651,7 +651,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
             }
 
             // Rule row
-            const { rule, depth } = item as RuleRow
+            const { rule, depth } = item
             const sev = SEVERITY_CONFIG[rule.severity]
             const stat = STATUS_CONFIG[rule.status || (rule.enabled ? 'active' : 'disabled')]
             const isRunning = testing === rule.id
