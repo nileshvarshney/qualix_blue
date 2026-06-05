@@ -33,7 +33,7 @@ CONFIG_DEFAULTS: list[dict] = [
     # LLM
     {"category": "llm", "key": "llm_provider", "value": "ollama", "is_secret": False, "description": "Active LLM provider: ollama, openai, claude, gemini_flash"},
     {"category": "llm", "key": "ollama_base_url", "value": "", "is_secret": False, "description": "Base URL for the Ollama API server"},
-    {"category": "llm", "key": "ollama_model", "value": "qwen2.5:7b-instruct", "is_secret": False, "description": "Ollama model name (run 'ollama list' to see available models)"},
+    {"category": "llm", "key": "ollama_model", "value": "qwen3:4b", "is_secret": False, "description": "Ollama model name (run 'ollama list' to see available models)"},
     {"category": "llm", "key": "openai_api_key", "value": "", "is_secret": True, "description": "OpenAI API key (starts with sk- or sk-proj-)"},
     {"category": "llm", "key": "openai_model", "value": "gpt-4o-mini", "is_secret": False, "description": "OpenAI model name"},
     {"category": "llm", "key": "anthropic_api_key", "value": "", "is_secret": True, "description": "Anthropic API key (starts with sk-ant-)"},
