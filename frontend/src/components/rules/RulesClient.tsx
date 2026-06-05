@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Rule, RuleCategory, RuleType, RuleStatus, Connection } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { useRulesGrouping } from './useRulesGrouping'
 
 /* ── Categories ──────────────────────────────────────────────────── */
 
@@ -93,7 +94,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(initialRules.map(r => r.type)))
+  const [groupMode, setGroupMode] = useState<'rule-type' | 'db-table'>('rule-type')
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   // Create form
   const [form, setForm] = useState({
@@ -206,18 +208,6 @@ export default function RulesClient({ initialRules, connections }: Props) {
     return result
   }, [rules, activeCategory, statusFilter, severityFilter, tableFilter, search, scopeFilter])
 
-  // Group filtered rules by type
-  const grouped = useMemo(() => {
-    const map = new Map<string, Rule[]>()
-    for (const r of filtered) {
-      const key = r.type
-      if (!map.has(key)) map.set(key, [])
-      map.get(key)!.push(r)
-    }
-    // Sort groups: most rules first
-    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length)
-  }, [filtered])
-
   const categoryCounts = CATEGORIES.reduce((acc, cat) => {
     acc[cat.value] = rules.filter(r => r.category === cat.value).length; return acc
   }, {} as Record<string, number>)
@@ -227,6 +217,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
     rules.forEach(r => { const s = r.status || (r.enabled ? 'active' : 'disabled'); counts[s] = (counts[s] || 0) + 1 })
     return counts
   }, [rules])
+
+  const rows = useRulesGrouping(filtered, connections, groupMode, expandedGroups, testResults)
 
   const allSelected = filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
 
@@ -442,41 +434,40 @@ export default function RulesClient({ initialRules, connections }: Props) {
   /* ── Render ───────────────────────────────────────────────────── */
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>Workspace · <span style={{ color: 'var(--text-secondary)' }}>Rules</span></div>
+    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+      {/* top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: '0 0 4px' }}>Quality Rules</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-            {rules.filter(r => r.status === 'active' || r.enabled).length} active rules across {rules.length} total
-          </p>
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Quality Rules</div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.length} total
+          </div>
         </div>
         <button onClick={() => setShowModal(true)} style={{
-          background: 'var(--brand-primary)', color: '#fff', border: 'none',
-          padding: '8px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer'
+          background: 'var(--accent)', color: 'var(--accent-text)', border: 'none',
+          padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer'
         }}>+ Add Rule</button>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' }}>
+      {/* KPI stat bar */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', flexShrink: 0 }}>
         {[
-          { label: 'Total Rules', value: String(rules.length), color: 'var(--foreground)' },
-          { label: 'Active', value: String(statusCounts.active || 0), color: '#16a34a' },
-          { label: 'Pending Review', value: String(statusCounts.pending_review || 0), color: '#d97706' },
-          { label: 'Disabled', value: String(statusCounts.disabled || 0), color: '#ea580c' },
-          { label: 'Archived', value: String(statusCounts.archived || 0), color: '#dc2626' },
+          { label: 'Total',          value: rules.length,                    color: 'var(--foreground)'            },
+          { label: 'Active',         value: statusCounts.active || 0,        color: 'var(--status-ok-text)'        },
+          { label: 'Pending Review', value: statusCounts.pending_review || 0, color: 'var(--status-warn-text)'     },
+          { label: 'Disabled',       value: statusCounts.disabled || 0,      color: '#ea580c'                      },
+          { label: 'Archived',       value: statusCounts.archived || 0,      color: 'var(--status-error-text)'     },
         ].map((kpi, i) => (
-          <div key={i} style={card}>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 500 }}>{kpi.label}</div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: kpi.color, letterSpacing: '-1px' }}>{kpi.value}</div>
+          <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '7px', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
+            <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{kpi.label}</div>
           </div>
         ))}
       </div>
 
       {/* Search + Filters */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '320px' }}>
           <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '14px' }}>🔍</span>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rules..." style={{ ...inp(), paddingLeft: '32px' }} />
@@ -507,14 +498,14 @@ export default function RulesClient({ initialRules, connections }: Props) {
       </div>
 
       {/* Category Filter Chips */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={() => setActiveCategory('all')} style={{
-          padding: '6px 14px', borderRadius: '20px', border: '1px solid', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+          padding: '4px 10px', borderRadius: '20px', border: '1px solid', fontSize: '11px', fontWeight: 500, cursor: 'pointer',
           background: activeCategory === 'all' ? 'var(--foreground)' : 'var(--surface)', color: activeCategory === 'all' ? 'var(--surface)' : 'var(--text-secondary)', borderColor: activeCategory === 'all' ? 'var(--foreground)' : 'var(--border)'
         }}>All ({rules.length})</button>
         {CATEGORIES.map(cat => (
           <button key={cat.value} onClick={() => setActiveCategory(cat.value)} style={{
-            padding: '6px 14px', borderRadius: '20px', border: '1px solid', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+            padding: '4px 10px', borderRadius: '20px', border: '1px solid', fontSize: '11px', fontWeight: 500, cursor: 'pointer',
             background: activeCategory === cat.value ? categoryColors[cat.value] : 'var(--surface)',
             color: activeCategory === cat.value ? '#fff' : 'var(--text-secondary)',
             borderColor: activeCategory === cat.value ? categoryColors[cat.value] : 'var(--border)'
@@ -524,8 +515,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: 'var(--accent-bg)', borderRadius: '10px', border: '1px solid #bae6fd', marginBottom: '14px' }}>
-          <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px 10px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', flexShrink: 0 }}>
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
           <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
             {[
               { action: 'activate' as const, label: '✓ Activate', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
@@ -535,7 +526,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
               { action: 'delete' as const, label: '🗑 Delete', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
             ].map(btn => (
               <button key={btn.action} onClick={() => bulkAction(btn.action)} disabled={bulkLoading}
-                style={{ padding: '5px 12px', borderRadius: '6px', border: `1px solid ${btn.border}`, background: btn.bg, color: btn.color, fontSize: '11.5px', fontWeight: 600, cursor: 'pointer', opacity: bulkLoading ? 0.5 : 1 }}>
+                style={{ padding: '3px 9px', borderRadius: '6px', border: `1px solid ${btn.border}`, background: btn.bg, color: btn.color, fontSize: '11px', fontWeight: 600, cursor: 'pointer', opacity: bulkLoading ? 0.5 : 1 }}>
                 {btn.label}
               </button>
             ))}
@@ -544,247 +535,237 @@ export default function RulesClient({ initialRules, connections }: Props) {
       )}
 
       {/* Rules Table — Grouped by Type */}
-      <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-        {/* Table Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderBottom: '1px solid #f3f1ea', background: 'var(--surface-muted)' }}>
-          <div style={{ width: '32px', display: 'flex', alignItems: 'center' }}>
-            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#E8541A' }} />
+      <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {/* View toggle + stats bar */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '5px 10px 5px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '1px', background: 'var(--surface-muted)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+            {(['rule-type', 'db-table'] as const).map(mode => (
+              <button key={mode} onClick={() => { setGroupMode(mode); setExpandedGroups(new Set()) }}
+                style={{
+                  padding: '3px 10px', borderRadius: '4px', border: 'none', fontSize: '10.5px', fontWeight: 600, cursor: 'pointer',
+                  background: groupMode === mode ? 'var(--surface)' : 'transparent',
+                  color: groupMode === mode ? 'var(--foreground)' : 'var(--text-muted)',
+                  boxShadow: groupMode === mode ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+                }}>
+                {mode === 'rule-type' ? '⊞ Rule Type' : '🗂 DB / Table'}
+              </button>
+            ))}
           </div>
-          <div style={{ flex: 1, fontSize: '10.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Rule Type / Tables</div>
-          <div style={{ width: '80px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Category</div>
-          <div style={{ width: '70px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Scope</div>
-          <div style={{ width: '60px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Count</div>
-          <div style={{ width: '80px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</div>
-          <div style={{ width: '60px' }} />
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+            {filtered.length} rules · {rows.filter(r => r.kind === 'group' && r.level === 0).length} groups
+          </span>
         </div>
 
-        {/* Grouped Rules */}
-        {grouped.map(([type, groupRules]) => {
-          const isExpanded = expandedGroups.has(type)
-          const cat = CATEGORIES.find(c => c.value === groupRules[0].category)
-          const ruleTypeDef = RULE_TYPES.find(t => t.value === type)
-          const activeCount = groupRules.filter(r => r.status === 'active' || r.enabled).length
-          const allGroupSelected = groupRules.every(r => selectedIds.has(r.id))
-          const someGroupSelected = groupRules.some(r => selectedIds.has(r.id))
-          const scopes = new Set(groupRules.map(r => r.scope || 'generic'))
-          const tables = [...new Set(groupRules.map(r => r.tableName))].sort()
-          const passedCount = groupRules.filter(r => r.lastRunStatus === 'passed' || testResults[r.id]?.status === 'passed').length
-          const failedCount = groupRules.filter(r => r.lastRunStatus === 'failed' || testResults[r.id]?.status === 'failed').length
+        {/* Column header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)', flexShrink: 0 }}>
+          <div style={{ width: '24px' }}>
+            <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ width: '12px', height: '12px', cursor: 'pointer', accentColor: '#E8541A' }} />
+          </div>
+          <div style={{ flex: 1, fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Name</div>
+          <div style={{ width: '130px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            {groupMode === 'rule-type' ? 'Target' : 'Rule Type'}
+          </div>
+          <div style={{ width: '68px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Category</div>
+          <div style={{ width: '58px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Severity</div>
+          <div style={{ width: '86px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</div>
+          <div style={{ width: '60px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Last Run</div>
+          <div style={{ width: '96px' }} />
+        </div>
 
-          function toggleGroupSelect() {
-            setSelectedIds(prev => {
-              const s = new Set(prev)
-              if (allGroupSelected) groupRules.forEach(r => s.delete(r.id))
-              else groupRules.forEach(r => s.add(r.id))
-              return s
-            })
-          }
+        {/* Flat rows */}
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {rows.map(item => {
+            if (item.kind === 'group') {
+              const g = item
+              const isExpanded = expandedGroups.has(g.key)
+              const allGroupSel = g.rules.every(r => selectedIds.has(r.id))
+              const someGroupSel = g.rules.some(r => selectedIds.has(r.id))
+              const indent = g.level * 18
 
-          return (
-            <div key={type}>
-              {/* Group Header Row */}
-              <div
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '12px 16px', borderBottom: '1px solid #f3f1ea',
-                  background: isExpanded ? 'var(--surface-muted)' : 'var(--surface)',
-                  cursor: 'pointer', transition: 'background 0.15s',
-                }}
-              >
-                <div style={{ width: '32px', display: 'flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={allGroupSelected} ref={el => { if (el) el.indeterminate = someGroupSelected && !allGroupSelected }}
-                    onChange={toggleGroupSelect}
-                    style={{ width: '14px', height: '14px', cursor: 'pointer', accentColor: '#E8541A' }} />
-                </div>
+              function toggleGroup() {
+                setExpandedGroups(prev => { const s = new Set(prev); if (s.has(g.key)) s.delete(g.key); else s.add(g.key); return s })
+              }
+              function toggleGroupSelect(e: React.MouseEvent) {
+                e.stopPropagation()
+                setSelectedIds(prev => { const s = new Set(prev); if (allGroupSel) g.rules.forEach(r => s.delete(r.id)); else g.rules.forEach(r => s.add(r.id)); return s })
+              }
 
-                <div style={{ flex: 1, minWidth: 0 }} onClick={() => setExpandedGroups(prev => {
-                  const s = new Set(prev); if (s.has(type)) s.delete(type); else s.add(type); return s
-                })}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', transition: 'transform 0.2s', transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▶</span>
-                    <span style={{ fontSize: '16px' }}>{cat?.icon}</span>
-                    <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>
-                      {ruleTypeDef?.label || fmtType(type)}
-                    </span>
-                    <span style={{ padding: '2px 8px', borderRadius: '10px', background: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', fontSize: '11px', fontWeight: 600 }}>
-                      {groupRules.length} rule{groupRules.length > 1 ? 's' : ''}
-                    </span>
-                    {passedCount > 0 && <span style={{ padding: '2px 6px', borderRadius: '10px', background: '#dcfce7', color: '#16a34a', fontSize: '10px', fontWeight: 600 }}>✓ {passedCount}</span>}
-                    {failedCount > 0 && <span style={{ padding: '2px 6px', borderRadius: '10px', background: '#fee2e2', color: '#dc2626', fontSize: '10px', fontWeight: 600 }}>✗ {failedCount}</span>}
+              const ruleTypeDef = groupMode === 'rule-type' ? RULE_TYPES.find(t => t.value === g.key) : null
+              const cat = g.category ? CATEGORIES.find(c => c.value === g.category) : null
+              const isLeaf = (groupMode === 'rule-type' && g.level === 0) || (groupMode === 'db-table' && g.level === 2)
+
+              return (
+                <div key={g.key} onClick={toggleGroup} style={{
+                  display: 'flex', alignItems: 'center', gap: '4px',
+                  height: '32px', paddingRight: '10px',
+                  paddingLeft: `${10 + indent}px`,
+                  borderBottom: '1px solid var(--border)',
+                  background: g.level === 0 ? 'var(--surface-muted)' : g.level === 1 ? 'var(--surface)' : 'var(--background)',
+                  cursor: 'pointer',
+                  userSelect: 'none' as const,
+                }}>
+                  <div style={{ width: '24px', flexShrink: 0 }} onClick={toggleGroupSelect}>
+                    {isLeaf ? (
+                      <input type="checkbox" checked={allGroupSel}
+                        ref={el => { if (el) el.indeterminate = someGroupSel && !allGroupSel }}
+                        onChange={() => {}}
+                        style={{ width: '12px', height: '12px', cursor: 'pointer', accentColor: '#E8541A' }} />
+                    ) : <span />}
                   </div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '26px' }}>
-                    {ruleTypeDef?.desc || ''} · <span style={{ color: 'var(--text-secondary)' }}>
-                      {tables.length <= 3
-                        ? tables.map(t => t === 'ALL_TABLES' ? 'All Tables' : t).join(', ')
-                        : `${tables.slice(0, 2).join(', ')} +${tables.length - 2} more`}
+
+                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s', flexShrink: 0, width: '10px' }}>▶</span>
+                  {g.icon && <span style={{ fontSize: '12px', flexShrink: 0 }}>{g.icon}</span>}
+                  <span style={{ fontWeight: g.level === 0 ? 700 : 600, fontSize: g.level === 0 ? '12px' : '11.5px', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                    {ruleTypeDef?.label || g.label}
+                  </span>
+
+                  <span style={{ padding: '1px 6px', borderRadius: '8px', background: 'var(--surface-muted)', color: 'var(--text-muted)', fontSize: '10px', fontWeight: 600, border: '1px solid var(--border)', flexShrink: 0 }}>
+                    {g.stats.count}
+                  </span>
+
+                  {g.stats.passedCount > 0 && (
+                    <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>✓{g.stats.passedCount}</span>
+                  )}
+                  {g.stats.failedCount > 0 && (
+                    <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 600, flexShrink: 0 }}>✗{g.stats.failedCount}</span>
+                  )}
+
+                  {groupMode === 'rule-type' && cat && (
+                    <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600, background: categoryColors[g.category!] + '18', color: categoryColors[g.category!], flexShrink: 0 }}>
+                      {cat.label}
                     </span>
-                  </div>
+                  )}
+
+                  <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>
+                    {g.stats.activeCount}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/{g.stats.count}</span>
+                  </span>
+
+                  {isLeaf && (
+                    <button onClick={e => { e.stopPropagation(); g.rules.filter(r => r.status === 'active').forEach(r => testRule(r.id)) }}
+                      style={{ padding: '2px 7px', borderRadius: '5px', border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>
+                      ▶
+                    </button>
+                  )}
+                </div>
+              )
+            }
+
+            // Rule row
+            const { rule, depth } = item
+            const sev = SEVERITY_CONFIG[rule.severity]
+            const stat = STATUS_CONFIG[rule.status || (rule.enabled ? 'active' : 'disabled')]
+            const isRunning = testing === rule.id
+            const result = testResults[rule.id]
+            const isPending = rule.status === 'pending_review'
+            const canRun = rule.status === 'active'
+            const ruleTypeDef = RULE_TYPES.find(t => t.value === rule.type)
+            const indent = depth * 18
+
+            return (
+              <div key={rule.id} style={{
+                display: 'flex', alignItems: 'center', gap: '4px',
+                height: '30px', paddingRight: '10px',
+                paddingLeft: `${10 + indent}px`,
+                borderBottom: '1px solid #f0efe8',
+                background: selectedIds.has(rule.id) ? 'var(--accent-bg)' : 'transparent',
+              }}>
+                <div style={{ width: '24px', flexShrink: 0 }}>
+                  <input type="checkbox" checked={selectedIds.has(rule.id)} onChange={() => toggleSelect(rule.id)}
+                    style={{ width: '12px', height: '12px', cursor: 'pointer', accentColor: '#E8541A' }} />
                 </div>
 
-                {/* Category */}
-                <div style={{ width: '80px' }}>
-                  <span style={{
-                    padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
-                    background: categoryColors[groupRules[0].category] + '18',
-                    color: categoryColors[groupRules[0].category],
-                  }}>{cat?.label}</span>
+                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                    title={rule.name}>
+                    {rule.name}
+                    {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
+                  </span>
                 </div>
 
-                {/* Scope */}
-                <div style={{ width: '70px' }}>
-                  {scopes.has('generic') && <span style={{ padding: '2px 5px', borderRadius: '4px', background: 'var(--accent-bg)', color: '#0369a1', fontSize: '9px', fontWeight: 600, marginRight: '2px' }}>🔧</span>}
-                  {scopes.has('object-specific') && <span style={{ padding: '2px 5px', borderRadius: '4px', background: '#faf5ff', color: '#7c3aed', fontSize: '9px', fontWeight: 600 }}>🎯</span>}
-                </div>
-
-                {/* Count */}
-                <div style={{ width: '60px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#16a34a' }}>{activeCount}</span>
-                  <span style={{ fontSize: '11px', color: '#cbd5e1' }}> / {groupRules.length}</span>
-                </div>
-
-                {/* Status summary */}
-                <div style={{ width: '80px' }}>
-                  {activeCount === groupRules.length ? (
-                    <span style={{ padding: '3px 8px', borderRadius: '20px', background: '#dcfce7', color: '#16a34a', fontSize: '10px', fontWeight: 600 }}>All Active</span>
+                <div style={{ width: '130px', flexShrink: 0 }}>
+                  {groupMode === 'rule-type' ? (
+                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                      title={rule.tableName === 'ALL_TABLES' ? 'All Tables' : `${rule.tableName}${rule.columnName ? `.${rule.columnName}` : ''}`}>
+                      {rule.tableName === 'ALL_TABLES'
+                        ? <span style={{ color: '#0369a1', fontWeight: 600, fontSize: '10px' }}>All Tables</span>
+                        : <>{rule.tableName}<span style={{ color: 'var(--brand-primary)' }}>{rule.columnName ? `.${rule.columnName}` : ''}</span></>}
+                    </span>
                   ) : (
-                    <span style={{ padding: '3px 8px', borderRadius: '20px', background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: 600 }}>Mixed</span>
+                    <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-muted)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                      title={ruleTypeDef?.label || rule.type}>
+                      {ruleTypeDef?.label || rule.type}
+                    </span>
                   )}
                 </div>
 
-                {/* Expand/Actions */}
-                <div style={{ width: '60px', display: 'flex', gap: '4px' }}>
-                  <button onClick={(e) => { e.stopPropagation(); groupRules.filter(r => r.status === 'active').forEach(r => testRule(r.id)) }}
-                    style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', cursor: 'pointer' }}>▶ All</button>
+                <div style={{ width: '68px', flexShrink: 0 }}>
+                  <span style={{ padding: '1px 5px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600, background: categoryColors[rule.category] + '18', color: categoryColors[rule.category] }}>
+                    {CATEGORIES.find(c => c.value === rule.category)?.label}
+                  </span>
+                </div>
+
+                <div style={{ width: '58px', flexShrink: 0 }}>
+                  <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600 }}>{sev.label}</span>
+                </div>
+
+                <div style={{ width: '86px', flexShrink: 0 }}>
+                  <StatusDropdown rule={rule} stat={stat} onUpdate={updateRuleStatus} />
+                </div>
+
+                <div style={{ width: '60px', flexShrink: 0 }}>
+                  {isRunning ? (
+                    <span style={{ fontSize: '9.5px', color: 'var(--accent)', fontWeight: 500 }}>⏳</span>
+                  ) : result ? (
+                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: result.status === 'passed' ? '#dcfce7' : '#fee2e2', color: result.status === 'passed' ? '#16a34a' : '#dc2626' }}>
+                      {result.status === 'passed' ? '✓' : '✗'} {result.score}%
+                    </span>
+                  ) : rule.lastRunStatus ? (
+                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: rule.lastRunStatus === 'passed' ? '#dcfce7' : '#fee2e2', color: rule.lastRunStatus === 'passed' ? '#16a34a' : '#dc2626' }}>
+                      {rule.lastRunStatus === 'passed' ? '✓' : '✗'} {rule.lastRunScore}%
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: '9.5px', color: '#cbd5e1' }}>—</span>
+                  )}
+                </div>
+
+                <div style={{ width: '96px', flexShrink: 0, display: 'flex', gap: '3px', justifyContent: 'flex-end' }}>
+                  {isPending && (
+                    <>
+                      <button onClick={() => approveRule(rule.id)} title="Approve"
+                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #86efac', background: '#dcfce7', color: '#16a34a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✓</button>
+                      <button onClick={() => rejectRule(rule.id)} title="Reject"
+                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✕</button>
+                    </>
+                  )}
+                  <button onClick={() => openEdit(rule)}
+                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4f46e5', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✏</button>
+                  <button onClick={() => canRun && testRule(rule.id)} disabled={isRunning || !canRun}
+                    title={canRun ? 'Run' : 'Must be Active to run'}
+                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--accent-bg)', background: canRun ? 'var(--accent-bg)' : 'var(--surface-muted)', color: canRun ? 'var(--accent)' : '#cbd5e1', fontSize: '10px', cursor: canRun ? 'pointer' : 'not-allowed' }}>▶</button>
+                  <button onClick={() => deleteRule(rule.id)}
+                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fee2e2', background: '#fff', color: '#ef4444', fontSize: '10px', cursor: 'pointer' }}>🗑</button>
                 </div>
               </div>
+            )
+          })}
 
-              {/* Expanded: Individual Rules */}
-              {isExpanded && (
-                <div style={{ background: 'var(--surface-muted)' }}>
-                  {groupRules.map(rule => {
-                    const sev = SEVERITY_CONFIG[rule.severity]
-                    const stat = STATUS_CONFIG[rule.status || (rule.enabled ? 'active' : 'disabled')]
-                    const conn = connections.find(c => c.id === rule.connectionId)
-                    const isRunning = testing === rule.id
-                    const result = testResults[rule.id]
-                    const isPending = rule.status === 'pending_review'
-                    const canRun = rule.status === 'active'
-                    return (
-                      <div key={rule.id} style={{
-                        display: 'flex', alignItems: 'center', gap: '6px',
-                        padding: '9px 16px 9px 50px', borderBottom: '1px solid #f0efe8',
-                        background: selectedIds.has(rule.id) ? 'var(--accent-bg)' : 'transparent',
-                        transition: 'background 0.15s',
-                      }}>
-                        <div style={{ width: '32px' }}>
-                          <input type="checkbox" checked={selectedIds.has(rule.id)} onChange={() => toggleSelect(rule.id)} style={{ width: '13px', height: '13px', cursor: 'pointer', accentColor: '#E8541A' }} />
-                        </div>
-
-                        {/* Table.Column target */}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            {rule.tableName === 'ALL_TABLES' ? (
-                              <span style={{ fontSize: '10px', color: '#0369a1', fontWeight: 600, background: 'var(--accent-bg)', padding: '2px 8px', borderRadius: '4px' }}>All Tables</span>
-                            ) : (
-                              <span style={{ fontSize: '12px', color: 'var(--foreground)', fontFamily: 'monospace', fontWeight: 500 }}>
-                                {rule.tableName}{rule.columnName ? <span style={{ color: 'var(--brand-primary)' }}>.{rule.columnName}</span> : ''}
-                              </span>
-                            )}
-                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {rule.description ? `— ${rule.description}` : ''}
-                            </span>
-                          </div>
-                          {rule.rejectionReason && (
-                            <div style={{ fontSize: '10.5px', color: '#dc2626', marginTop: '2px' }}>
-                              ✕ Rejected by {rule.rejectedBy || 'steward'}: {rule.rejectionReason}
-                            </div>
-                          )}
-                          {rule.status === 'active' && rule.approvedBy && (
-                            <div style={{ fontSize: '10.5px', color: '#16a34a', marginTop: '2px' }}>
-                              ✓ Approved by {rule.approvedBy}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Severity */}
-                        <div style={{ width: '75px' }}>
-                          <span style={{ background: sev.bg, color: sev.color, padding: '2px 6px', borderRadius: '12px', fontSize: '9.5px', fontWeight: 600 }}>{sev.label}</span>
-                        </div>
-
-                        {/* Status */}
-                        <div style={{ width: '90px' }}>
-                          <StatusDropdown rule={rule} stat={stat} onUpdate={updateRuleStatus} />
-                        </div>
-
-                        {/* Connection */}
-                        <div style={{ width: '80px' }}>
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{conn?.name || '—'}</span>
-                        </div>
-
-                        {/* Last Run */}
-                        <div style={{ width: '70px' }}>
-                          {isRunning ? (
-                            <span style={{ fontSize: '10px', color: 'var(--accent)', fontWeight: 500 }}>⏳ Running</span>
-                          ) : result ? (
-                            <span style={{
-                              padding: '2px 6px', borderRadius: '12px', fontSize: '10px', fontWeight: 600,
-                              background: result.status === 'passed' ? '#dcfce7' : '#fee2e2',
-                              color: result.status === 'passed' ? '#16a34a' : '#dc2626'
-                            }}>{result.status === 'passed' ? '✓' : '✗'} {result.score}%</span>
-                          ) : rule.lastRunStatus ? (
-                            <span style={{
-                              padding: '2px 6px', borderRadius: '12px', fontSize: '10px', fontWeight: 600,
-                              background: rule.lastRunStatus === 'passed' ? '#dcfce7' : '#fee2e2',
-                              color: rule.lastRunStatus === 'passed' ? '#16a34a' : '#dc2626'
-                            }}>{rule.lastRunStatus === 'passed' ? '✓' : '✗'} {rule.lastRunScore}%</span>
-                          ) : (
-                            <span style={{ fontSize: '10px', color: '#cbd5e1' }}>—</span>
-                          )}
-                        </div>
-
-                        {/* Actions */}
-                        <div style={{ width: '210px', display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                          {isPending && (
-                            <>
-                              <button onClick={() => approveRule(rule.id)} title="Approve and activate this rule"
-                                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #86efac', background: '#dcfce7', color: '#16a34a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>✓ Approve</button>
-                              <button onClick={() => rejectRule(rule.id)} title="Reject this rule"
-                                style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>✕ Reject</button>
-                            </>
-                          )}
-                          <button onClick={() => openEdit(rule)}
-                            style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4f46e5', fontSize: '11px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>✏ Edit</button>
-                          <button onClick={() => canRun && testRule(rule.id)} disabled={isRunning || !canRun}
-                            title={canRun ? 'Run this rule' : 'Rule must be approved (Active) before it can run'}
-                            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--accent-bg)', background: canRun ? 'var(--accent-bg)' : 'var(--surface-muted)', color: canRun ? 'var(--accent)' : '#cbd5e1', fontSize: '11px', fontWeight: 500, cursor: canRun ? 'pointer' : 'not-allowed' }}>▶ Run</button>
-                          <button onClick={() => deleteRule(rule.id)}
-                            style={{ padding: '4px 6px', borderRadius: '6px', border: '1px solid #fee2e2', background: '#fff', color: '#ef4444', fontSize: '11px', cursor: 'pointer' }}>🗑</button>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          {filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: '36px', marginBottom: '10px' }}>📋</div>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--foreground)', marginBottom: '6px' }}>No rules found</div>
+              <div style={{ color: 'var(--text-secondary)', fontSize: '12px', marginBottom: '16px' }}>
+                {search || activeCategory !== 'all' || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Create your first quality rule'}
+              </div>
+              <button onClick={() => setShowModal(true)} style={{ background: 'var(--brand-primary)', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '7px', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>+ Add Rule</button>
             </div>
-          )
-        })}
+          )}
+        </div>
 
-        {filtered.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '60px', color: 'var(--text-muted)' }}>
-            <div style={{ fontSize: '40px', marginBottom: '12px' }}>📋</div>
-            <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--foreground)', marginBottom: '6px' }}>No rules found</div>
-            <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>
-              {search || activeCategory !== 'all' || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Create your first quality rule'}
-            </div>
-            <button onClick={() => setShowModal(true)} style={{ background: 'var(--brand-primary)', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '12.5px', cursor: 'pointer', fontWeight: 600 }}>+ Add Rule</button>
-          </div>
-        )}
-
-        {/* Summary Footer */}
+        {/* Summary footer */}
         {filtered.length > 0 && (
-          <div style={{ padding: '10px 16px', background: 'var(--surface-muted)', borderTop: '1px solid #f3f1ea', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-            <span>Showing {filtered.length} rules in {grouped.length} groups · {rules.length} total</span>
-            <span>{rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.filter(r => r.status === 'pending_review').length} pending review</span>
+          <div style={{ padding: '6px 12px', background: 'var(--surface-muted)', borderTop: '1px solid var(--border)', fontSize: '10.5px', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
+            <span>Showing {filtered.length} rules · {rows.filter(r => r.kind === 'group' && r.level === 0).length} groups</span>
+            <span>{rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.filter(r => r.status === 'pending_review').length} pending</span>
           </div>
         )}
       </div>

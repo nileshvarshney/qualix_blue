@@ -8,26 +8,23 @@ interface Incident {
   description: string; owner: string; ttrMinutes: number | null
 }
 
-function sevStyle(s: string) {
-  if (s === 'critical') return { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' }
-  if (s === 'high') return { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' }
-  if (s === 'medium') return { bg: '#fef3c7', color: '#d97706', border: '#fde68a' }
-  return { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' }
+const SEV: Record<string, { bg: string; color: string; border: string }> = {
+  critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+  high:     { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
+  medium:   { bg: '#fef3c7', color: '#d97706', border: '#fde68a' },
+  low:      { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
 }
-
-function statusStyle(s: string) {
-  if (s === 'open') return { bg: '#fee2e2', color: '#dc2626' }
-  if (s === 'investigating') return { bg: '#fef3c7', color: '#d97706' }
-  return { bg: '#dcfce7', color: '#16a34a' }
+const ST: Record<string, { bg: string; color: string }> = {
+  open:          { bg: '#fee2e2', color: '#dc2626' },
+  investigating: { bg: '#fef3c7', color: '#d97706' },
+  resolved:      { bg: '#f0fdf4', color: '#16a34a' },
 }
-
-const card: React.CSSProperties = { background: '#fff', borderRadius: '12px', padding: '18px 20px', border: '1px solid #ebe8df' }
 
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all')
-  const [expanded, setExpanded] = useState<string | null>(null)
+  const [popup, setPopup] = useState<Incident | null>(null)
 
   useEffect(() => {
     fetch('/api/incidents')
@@ -38,127 +35,128 @@ export default function IncidentsPage() {
           id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
           title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
           asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
-          severity: (inc.severity as Incident['severity']) ?? 'medium',
-          status: (inc.status ?? inc.incident_status ?? 'open') as Incident['status'],
+          severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
+          status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
           createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
-          resolvedAt: inc.resolved_at ? String(inc.resolved_at) : (inc.resolvedAt ? String(inc.resolvedAt) : null),
+          resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
           description: String(inc.description ?? inc.message ?? ''),
-          owner: String(inc.owner ?? inc.domain_id ?? inc.assigned_to ?? ''),
-          ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : (inc.ttrMinutes != null ? Number(inc.ttrMinutes) : null),
+          owner: String(inc.owner ?? inc.assigned_to ?? ''),
+          ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
         })))
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [])
 
-  const filtered = incidents.filter(inc => filter === 'all' || inc.status === filter)
-
-  const openCount = incidents.filter(i => i.status === 'open').length
+  const openCount          = incidents.filter(i => i.status === 'open').length
   const investigatingCount = incidents.filter(i => i.status === 'investigating').length
-  const resolvedCount = incidents.filter(i => i.status === 'resolved').length
-  const resolvedWithTTR = incidents.filter(i => i.ttrMinutes != null)
-  const avgTTR = resolvedWithTTR.length > 0
-    ? Math.round(resolvedWithTTR.reduce((s, i) => s + (i.ttrMinutes ?? 0), 0) / resolvedWithTTR.length)
-    : null
+  const resolvedCount      = incidents.filter(i => i.status === 'resolved').length
+  const avgTTR = (() => {
+    const r = incidents.filter(i => i.ttrMinutes != null)
+    return r.length ? Math.round(r.reduce((s, i) => s + (i.ttrMinutes ?? 0), 0) / r.length) : null
+  })()
+
+  const filtered = incidents.filter(i => filter === 'all' || i.status === filter)
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Incidents</span></div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Incidents</h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Track data quality incidents, investigate root causes, and measure resolution time</p>
-        </div>
-        <button style={{ background: '#E8541A', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>+ Report Incident</button>
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+
+      {/* top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Incidents</span>
+        {openCount > 0 && <span style={{ background: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{openCount} open</span>}
+        {investigatingCount > 0 && <span style={{ background: '#fef3c7', color: '#d97706', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{investigatingCount} investigating</span>}
+        {resolvedCount > 0 && <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{resolvedCount} resolved</span>}
+        {avgTTR != null && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>avg {avgTTR}m TTR</span>}
+        <button style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Report</button>
       </div>
 
-      {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
-        <div style={card}>
-          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Open Incidents</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#dc2626', letterSpacing: '-1px' }}>{openCount}</div>
-        </div>
-        <div style={card}>
-          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Investigating</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#d97706', letterSpacing: '-1px' }}>{investigatingCount}</div>
-        </div>
-        <div style={card}>
-          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Resolved This Week</div>
-          <div style={{ fontSize: '32px', fontWeight: 700, color: '#16a34a', letterSpacing: '-1px' }}>{resolvedCount}</div>
-        </div>
-        <div style={card}>
-          <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '8px', fontWeight: 500 }}>Avg. Time to Resolve</div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-            {avgTTR != null ? (
-              <>
-                <span style={{ fontSize: '32px', fontWeight: 700, color: '#1a1a1a', letterSpacing: '-1px' }}>{avgTTR}</span>
-                <span style={{ fontSize: '14px', color: '#94a3b8' }}>min</span>
-              </>
-            ) : (
-              <span style={{ fontSize: '32px', fontWeight: 700, color: '#94a3b8', letterSpacing: '-1px' }}>—</span>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '16px' }}>
-        {(['all', 'open', 'investigating', 'resolved'] as const).map(f => (
+      {/* filter pills */}
+      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+        {(['all','open','investigating','resolved'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '7px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-            fontSize: '12.5px', fontWeight: 500, textTransform: 'capitalize',
-            background: filter === f ? '#1a1a1a' : '#f8fafc', color: filter === f ? '#fff' : '#64748b',
-          }}>
-            {f} {f !== 'all' ? `(${f === 'open' ? openCount : f === 'investigating' ? investigatingCount : resolvedCount})` : ''}
-          </button>
+            padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+            background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
+            color: filter === f ? '#fff' : 'var(--text-secondary)',
+            fontWeight: filter === f ? 600 : 400, fontSize: '11px',
+          }}>{f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}</button>
         ))}
       </div>
 
-      {/* Incidents List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No incidents yet</div>
-        ) : null}
+      {/* column header */}
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '4px 64px 1fr 90px auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {['', 'Severity', 'Title', 'Status', 'Time'].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+        </div>
+      )}
+
+      {/* scrollable list */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
+        {!loading && filtered.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{incidents.length === 0 ? 'No incidents yet' : 'No incidents match filters'}</div>
+        )}
         {!loading && filtered.map(inc => {
-          const sev = sevStyle(inc.severity)
-          const stat = statusStyle(inc.status)
-          const isOpen = expanded === inc.id
+          const sev = SEV[inc.severity] ?? SEV.medium
+          const st  = ST[inc.status]  ?? ST.open
           return (
-            <div key={inc.id} style={{ ...card, padding: 0, overflow: 'hidden' }}>
-              <div onClick={() => setExpanded(isOpen ? null : inc.id)} style={{
-                display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 20px', cursor: 'pointer',
-                background: isOpen ? '#fafaf5' : '#fff',
-              }}>
-                <div style={{ width: '4px', alignSelf: 'stretch', background: sev.color, borderRadius: '2px', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '11.5px', color: '#94a3b8' }}>{inc.id}</span>
-                    <span style={{ fontWeight: 600, fontSize: '13.5px', color: '#1a1a1a' }}>{inc.title}</span>
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    {inc.asset}{inc.owner ? ` · ${inc.owner}` : ''}{inc.createdAt ? ` · ${new Date(inc.createdAt).toLocaleString()}` : ''}
-                  </div>
-                </div>
-                <span style={{ background: sev.bg, color: sev.color, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600, textTransform: 'capitalize', flexShrink: 0, border: `1px solid ${sev.border}` }}>{inc.severity}</span>
-                <span style={{ background: stat.bg, color: stat.color, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600, textTransform: 'capitalize', flexShrink: 0 }}>{inc.status}</span>
-                <span style={{ color: '#94a3b8', fontSize: '14px', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
-              </div>
-              {isOpen && (
-                <div style={{ padding: '0 20px 16px 38px', borderTop: '1px solid #f3f1ea' }}>
-                  <div style={{ marginTop: '14px', fontSize: '13px', color: '#475569', lineHeight: 1.6 }}>{inc.description}</div>
-                  {inc.ttrMinutes != null && (
-                    <div style={{ marginTop: '10px', fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
-                      ✅ Resolved in {inc.ttrMinutes} minutes
-                    </div>
-                  )}
-                </div>
-              )}
+            <div key={inc.id} onClick={() => setPopup(inc)}
+              style={{ display: 'grid', gridTemplateColumns: '4px 64px 1fr 90px auto', gap: '0 8px', alignItems: 'center', padding: '5px 6px', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+              onMouseLeave={e => (e.currentTarget.style.background = '')}
+            >
+              <div style={{ width: '4px', alignSelf: 'stretch', background: sev.color, borderRadius: '2px' }} />
+              <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{inc.severity}</span>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inc.title}</span>
+              <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{inc.status}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{inc.createdAt ? new Date(inc.createdAt).toLocaleString() : '—'}</span>
             </div>
           )
         })}
       </div>
+
+      {/* popup */}
+      {popup && (
+        <>
+          <div onClick={() => setPopup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <span style={{ background: SEV[popup.severity]?.bg ?? '#f1f5f9', color: SEV[popup.severity]?.color ?? '#64748b', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.severity}</span>
+              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popup.title}</span>
+              <button onClick={() => setPopup(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
+              {([['ID', popup.id], ['Asset', popup.asset || '—'], ['Owner', popup.owner || '—']] as [string, string][]).map(([l, v], i) => (
+                <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
+              {([['Status', popup.status], ['TTR', popup.ttrMinutes != null ? `${popup.ttrMinutes} min` : '—']] as [string, string][]).map(([l, v], i) => (
+                <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            {popup.description && (
+              <div style={{ margin: '12px 14px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
+                <div style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', padding: '7px 12px' }}>
+                  <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>📋 DESCRIPTION</span>
+                </div>
+                <div style={{ padding: '10px 12px', fontSize: '12px', color: '#334155', lineHeight: '1.6' }}>{popup.description}</div>
+              </div>
+            )}
+            {popup.ttrMinutes != null && (
+              <div style={{ margin: '8px 14px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '6px', fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
+                ✅ Resolved in {popup.ttrMinutes} minutes
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
