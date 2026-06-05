@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { Rule, RuleCategory, RuleType, RuleStatus, Connection } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { useRulesGrouping, RowItem, GroupRow, RuleRow } from './useRulesGrouping'
 
 /* ── Categories ──────────────────────────────────────────────────── */
 
@@ -93,7 +94,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set(initialRules.map(r => r.type)))
+  const [groupMode, setGroupMode] = useState<'rule-type' | 'db-table'>('rule-type')
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
 
   // Create form
   const [form, setForm] = useState({
@@ -227,6 +229,8 @@ export default function RulesClient({ initialRules, connections }: Props) {
     rules.forEach(r => { const s = r.status || (r.enabled ? 'active' : 'disabled'); counts[s] = (counts[s] || 0) + 1 })
     return counts
   }, [rules])
+
+  const rows = useRulesGrouping(filtered, connections, groupMode, expandedGroups, testResults)
 
   const allSelected = filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
 
@@ -449,7 +453,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
         <div>
           <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Quality Rules</div>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.length} total · {grouped.length} rule type{grouped.length !== 1 ? 's' : ''}
+            {rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.length} total
           </div>
         </div>
         <button onClick={() => setShowModal(true)} style={{
