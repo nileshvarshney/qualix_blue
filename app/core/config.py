@@ -33,13 +33,15 @@ class Settings(BaseSettings):
     # LLM
     llm_provider: str = "ollama"
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:7b-instruct"
+    ollama_model: str = "qwen3:4b"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     anthropic_api_key: str = ""
     claude_model: str = "claude-3-5-sonnet-latest"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
+    groq_api_key: str = ""
+    groq_model: str = "llama-3.3-70b-versatile"
 
     # Scheduler
     scheduler_type: str = "apscheduler"

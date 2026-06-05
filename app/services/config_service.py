@@ -40,6 +40,8 @@ CONFIG_DEFAULTS: list[dict] = [
     {"category": "llm", "key": "claude_model", "value": "claude-3-5-sonnet-latest", "is_secret": False, "description": "Claude model name"},
     {"category": "llm", "key": "gemini_api_key", "value": "", "is_secret": True, "description": "Google AI API key (starts with AIza)"},
     {"category": "llm", "key": "gemini_model", "value": "gemini-2.5-flash", "is_secret": False, "description": "Gemini model name"},
+    {"category": "llm", "key": "groq_api_key", "value": "", "is_secret": True, "description": "Groq API key (starts with gsk_)"},
+    {"category": "llm", "key": "groq_model", "value": "llama-3.3-70b-versatile", "is_secret": False, "description": "Groq model name (e.g. llama-3.3-70b-versatile)"},
 
     # Notifications
     {"category": "notifications", "key": "slack_webhook_url",          "value": "", "is_secret": True,  "description": "Global Slack incoming webhook URL"},
