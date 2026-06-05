@@ -57,7 +57,7 @@ export default function AlertsPage() {
           id: String(a.alert_id ?? a.id ?? i),
           rule: String(a.rule_name ?? a.rule ?? 'Alert'),
           dataset: String(a.asset_name ?? a.sf_table_name ?? a.dataset ?? ''),
-          severity: (a.severity as Severity) ?? 'info',
+          severity: (['critical','high','medium','info'] as const).includes(a.severity as Severity) ? (a.severity as Severity) : 'info',
           message: String(a.alert_message ?? a.message ?? ''),
           channel: String(a.channel ?? 'System'),
           ts: String(a.created_at ?? a.ts ?? ''),
@@ -148,12 +148,12 @@ export default function AlertsPage() {
       {/* column headers */}
       {tab === 'recent' && !loading && filteredAlerts.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Severity','Rule','Time',''].map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+          {['Severity','Rule','Time',''].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
       {tab === 'rules' && !loading && filteredRules.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Severity','Rule','Triggered','Last Fired',''].map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+          {['Severity','Rule','Triggered','Last Fired',''].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
 
@@ -239,7 +239,7 @@ export default function AlertsPage() {
                   <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <Section title="🔍 ROOT CAUSE" gradient="linear-gradient(135deg,#7c3aed,#6d28d9)" border="#e9d5ff" body={popupAlert.rootCause} />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                      <Section title="⚠️ IMPACT" gradient={popupAlert.severity === 'critical' ? '#dc2626' : '#ea580c'} border={ss.border} body={popupAlert.impact} />
+                      <Section title="⚠️ IMPACT" gradient={popupAlert.severity === 'critical' ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : 'linear-gradient(135deg,#ea580c,#c2410c)'} border={ss.border} body={popupAlert.impact} />
                       <Section title="✅ FIX" gradient="linear-gradient(135deg,#16a34a,#15803d)" border="#bbf7d0" body={popupAlert.recommendation} />
                     </div>
                   </div>
