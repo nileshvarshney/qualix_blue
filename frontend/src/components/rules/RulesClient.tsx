@@ -442,41 +442,40 @@ export default function RulesClient({ initialRules, connections }: Props) {
   /* ── Render ───────────────────────────────────────────────────── */
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>Workspace · <span style={{ color: 'var(--text-secondary)' }}>Rules</span></div>
+    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
+      {/* top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: '0 0 4px' }}>Quality Rules</h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: 0 }}>
-            {rules.filter(r => r.status === 'active' || r.enabled).length} active rules across {rules.length} total
-          </p>
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Quality Rules</div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {rules.filter(r => r.status === 'active' || r.enabled).length} active · {rules.length} total · {grouped.length} rule type{grouped.length !== 1 ? 's' : ''}
+          </div>
         </div>
         <button onClick={() => setShowModal(true)} style={{
-          background: 'var(--brand-primary)', color: '#fff', border: 'none',
-          padding: '8px 18px', borderRadius: '8px', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer'
+          background: 'var(--accent)', color: 'var(--accent-text)', border: 'none',
+          padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer'
         }}>+ Add Rule</button>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '14px', marginBottom: '20px' }}>
+      {/* KPI stat bar */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', flexShrink: 0 }}>
         {[
-          { label: 'Total Rules', value: String(rules.length), color: 'var(--foreground)' },
-          { label: 'Active', value: String(statusCounts.active || 0), color: '#16a34a' },
-          { label: 'Pending Review', value: String(statusCounts.pending_review || 0), color: '#d97706' },
-          { label: 'Disabled', value: String(statusCounts.disabled || 0), color: '#ea580c' },
-          { label: 'Archived', value: String(statusCounts.archived || 0), color: '#dc2626' },
+          { label: 'Total',          value: rules.length,                    color: 'var(--foreground)'            },
+          { label: 'Active',         value: statusCounts.active || 0,        color: 'var(--status-ok-text)'        },
+          { label: 'Pending Review', value: statusCounts.pending_review || 0, color: 'var(--status-warn-text)'     },
+          { label: 'Disabled',       value: statusCounts.disabled || 0,      color: '#ea580c'                      },
+          { label: 'Archived',       value: statusCounts.archived || 0,      color: 'var(--status-error-text)'     },
         ].map((kpi, i) => (
-          <div key={i} style={card}>
-            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 500 }}>{kpi.label}</div>
-            <div style={{ fontSize: '28px', fontWeight: 700, color: kpi.color, letterSpacing: '-1px' }}>{kpi.value}</div>
+          <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: kpi.color, lineHeight: 1 }}>{kpi.value}</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{kpi.label}</div>
           </div>
         ))}
       </div>
 
       {/* Search + Filters */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '14px', flexWrap: 'wrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
         <div style={{ position: 'relative', flex: '1 1 260px', maxWidth: '320px' }}>
           <span style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '14px' }}>🔍</span>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search rules..." style={{ ...inp(), paddingLeft: '32px' }} />
@@ -507,7 +506,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
       </div>
 
       {/* Category Filter Chips */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flexShrink: 0 }}>
         <button onClick={() => setActiveCategory('all')} style={{
           padding: '6px 14px', borderRadius: '20px', border: '1px solid', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
           background: activeCategory === 'all' ? 'var(--foreground)' : 'var(--surface)', color: activeCategory === 'all' ? 'var(--surface)' : 'var(--text-secondary)', borderColor: activeCategory === 'all' ? 'var(--foreground)' : 'var(--border)'
@@ -524,7 +523,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 16px', background: 'var(--accent-bg)', borderRadius: '10px', border: '1px solid #bae6fd', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 14px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', flexShrink: 0 }}>
           <span style={{ fontSize: '12.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
           <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
             {[
@@ -544,7 +543,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
       )}
 
       {/* Rules Table — Grouped by Type */}
-      <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)', overflow: 'hidden', flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
         {/* Table Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 16px', borderBottom: '1px solid #f3f1ea', background: 'var(--surface-muted)' }}>
           <div style={{ width: '32px', display: 'flex', alignItems: 'center' }}>

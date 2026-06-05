@@ -13,18 +13,18 @@ interface Anomaly {
   affectedModels: string[]; baseline: string; observed: string
 }
 
-const sevCfg: Record<string, { bg: string; color: string; border: string }> = {
+const SEV: Record<string, { bg: string; color: string; border: string }> = {
   critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
   high:     { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
   medium:   { bg: '#fefce8', color: '#ca8a04', border: '#fde68a' },
   low:      { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
 }
-const stCfg: Record<string, { bg: string; color: string }> = {
-  open:          { bg: '#fee2e2', color: '#dc2626' },
-  investigating: { bg: '#fff7ed', color: '#ea580c' },
-  resolved:      { bg: '#f0fdf4', color: '#16a34a' },
+const ST: Record<string, { background: string; color: string }> = {
+  open:          { background: '#fee2e2', color: '#dc2626' },
+  investigating: { background: '#fff7ed', color: '#ea580c' },
+  resolved:      { background: '#f0fdf4', color: '#16a34a' },
 }
-const typeColor: Record<string, string> = {
+const TYPE_COLOR: Record<string, string> = {
   'Volume Spike': '#6366f1', 'Null Rate': '#ec4899', 'Value Drift': '#f59e0b',
   'Schema Change': '#ef4444', 'Distribution Shift': '#8b5cf6',
   'Freshness': '#0ea5e9', 'Cardinality': '#14b8a6',
@@ -53,11 +53,12 @@ function mapDetection(d: Record<string, unknown>): Anomaly {
 }
 
 export default function AnomaliesPage() {
-  const [anomalies, setAnomalies]   = useState<Anomaly[]>([])
-  const [loading, setLoading]       = useState(true)
-  const [filter, setFilter]         = useState<FilterType>('all')
-  const [expanded, setExpanded]     = useState<string | null>(null)
-  const [search, setSearch]         = useState('')
+  const [anomalies, setAnomalies]         = useState<Anomaly[]>([])
+  const [loading, setLoading]             = useState(true)
+  const [filter, setFilter]               = useState<FilterType>('all')
+  const [expanded, setExpanded]           = useState<string | null>(null)
+  const [search, setSearch]               = useState('')
+  const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetch('/api/anomalies', { cache: 'no-store' })
@@ -88,181 +89,175 @@ export default function AnomaliesPage() {
     return matchFilter && matchSearch
   })
 
-  const statCards = [
-    { key: 'all'      as FilterType, label: 'Total Detected', value: total,    icon: '📡', color: '#6366f1', activeBg: '#6366f1' },
-    { key: 'critical' as FilterType, label: 'Critical',       value: critical,  icon: '🔴', color: '#dc2626', activeBg: '#dc2626' },
-    { key: 'open'     as FilterType, label: 'Open',           value: open,      icon: '⚠️', color: '#ea580c', activeBg: '#ea580c' },
-    { key: 'resolved' as FilterType, label: 'Resolved (7d)',  value: resolved,  icon: '✅', color: '#16a34a', activeBg: '#16a34a' },
+  const byType = filtered.reduce<Record<string, Anomaly[]>>((acc, a) => {
+    ;(acc[a.type] ??= []).push(a); return acc
+  }, {})
+  const types = Object.keys(byType).sort((a, b) => byType[b].length - byType[a].length)
+
+  function toggleType(t: string) {
+    setCollapsedTypes(prev => { const s = new Set(prev); s.has(t) ? s.delete(t) : s.add(t); return s })
+  }
+
+  const CARDS = [
+    { key: 'all'      as FilterType, label: 'Total',   value: total,    color: 'var(--accent)'            },
+    { key: 'critical' as FilterType, label: 'Critical', value: critical,  color: 'var(--status-error-text)' },
+    { key: 'open'     as FilterType, label: 'Open',     value: open,      color: '#ea580c'                  },
+    { key: 'resolved' as FilterType, label: 'Resolved', value: resolved,  color: 'var(--status-ok-text)'    },
   ]
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
-      </div>
+    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+      {/* top bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Anomalies</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>AI-detected data anomalies across all monitored datasets</p>
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Anomalies</div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {loading ? 'Loading…' : `${total} detected · ${critical} critical · ${open} open`}
+          </div>
         </div>
         {critical > 0 && (
-          <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '8px 14px', fontSize: '12.5px', color: '#dc2626', fontWeight: 600 }}>
+          <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 10px', fontSize: 'var(--text-xs)', fontWeight: 600 }}>
             ⚡ {critical} critical · {open} open
-          </div>
+          </span>
         )}
       </div>
 
-      {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '24px' }}>
-        {statCards.map(card => {
-          const isActive = filter === card.key
+      {/* stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', flexShrink: 0 }}>
+        {CARDS.map(s => {
+          const on = filter === s.key
           return (
-            <div key={card.key} onClick={() => setFilter(isActive && card.key !== 'all' ? 'all' : card.key)}
-              style={{
-                background: isActive ? card.activeBg : '#fff',
-                border: `2px solid ${isActive ? card.activeBg : '#ebe8df'}`,
-                borderRadius: '12px', padding: '16px 20px', cursor: 'pointer',
-                boxShadow: isActive ? `0 4px 16px ${card.activeBg}40` : 'none',
-                transition: 'all 0.18s',
-              }}>
-              <div style={{ fontSize: '22px', marginBottom: '6px' }}>{card.icon}</div>
-              <div style={{ fontSize: '26px', fontWeight: 700, color: isActive ? '#fff' : card.color }}>{card.value}</div>
-              <div style={{ fontSize: '12px', color: isActive ? 'rgba(255,255,255,0.8)' : '#64748b', marginTop: '2px' }}>{card.label}</div>
-              {isActive && card.key !== 'all' && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)', marginTop: '3px' }}>Click to clear filter</div>}
+            <div key={s.key} onClick={() => setFilter(p => p === s.key ? 'all' : s.key)}
+              style={{ background: on ? s.color : 'var(--surface)', border: `1px solid ${on ? s.color : 'var(--border)'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: on ? '#fff' : s.color, lineHeight: 1 }}>{loading ? '…' : s.value}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: on ? 'rgba(255,255,255,0.85)' : 'var(--text-muted)' }}>{s.label}</div>
             </div>
           )
         })}
       </div>
 
-      {/* Search */}
-      <div style={{ marginBottom: '16px' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Search by table, type, or description…"
-          style={{ width: '100%', padding: '9px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a', boxSizing: 'border-box', outline: 'none' }} />
-      </div>
+      {/* search */}
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="Search by table, type, or description…"
+        style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: 'var(--text-xs)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', flexShrink: 0, width: '100%', boxSizing: 'border-box' }} />
 
-      {filter !== 'all' && (
-        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '12.5px', color: '#64748b' }}>Showing:</span>
-          <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>{filter}</span>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          <button onClick={() => setFilter('all')} style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }}>✕ Clear</button>
+      {/* column header */}
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '4px 70px 1fr auto auto auto 24px', gap: '0 8px', padding: '0 24px', flexShrink: 0, borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
+          {['', 'Severity', 'Table.Column · Description', 'Delta', 'Status', 'Detected', ''].map((h, i) => (
+            <span key={i} style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+          ))}
         </div>
       )}
 
-      {/* List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {loading ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: '#fff', borderRadius: '14px', border: '2px dashed #e2e8f0' }}>
-            Loading anomalies…
-          </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', background: '#fff', borderRadius: '14px', border: '2px dashed #e2e8f0' }}>
+      {/* scrollable list grouped by type */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Loading anomalies…</div>
+        )}
+        {!loading && filtered.length === 0 && (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
             {anomalies.length === 0 ? 'No anomalies detected — add detectors to start monitoring' : 'No anomalies match your filters'}
           </div>
-        ) : filtered.map(a => {
-          const sc = sevCfg[a.severity] ?? sevCfg.medium
-          const st = stCfg[a.status] ?? stCfg.open
-          const tc = typeColor[a.type] || '#64748b'
-          const isOpen = expanded === a.id
+        )}
+
+        {!loading && types.map(type => {
+          const items    = byType[type]
+          const tc       = TYPE_COLOR[type] || '#64748b'
+          const collapsed = collapsedTypes.has(type)
+          const typeCrit = items.filter(a => a.severity === 'critical').length
 
           return (
-            <div key={a.id} style={{
-              background: '#fff',
-              border: `1.5px solid ${isOpen ? '#6366f1' : a.status === 'resolved' ? '#d1fae5' : sc.border}`,
-              borderRadius: '14px', overflow: 'hidden',
-              boxShadow: isOpen ? '0 6px 24px rgba(99,102,241,0.13)' : '0 1px 3px rgba(0,0,0,0.05)',
-              transition: 'all 0.2s',
-            }}>
-              <div onClick={() => setExpanded(isOpen ? null : a.id)}
-                style={{ padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ width: '4px', alignSelf: 'stretch', background: sc.color, borderRadius: '2px', flexShrink: 0 }} />
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0, minWidth: '90px' }}>
-                  <span style={{ background: sc.bg, color: sc.color, padding: '2px 9px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 700 }}>{a.severity}</span>
-                  <span style={{ background: `${tc}18`, color: tc, padding: '2px 8px', borderRadius: '6px', fontSize: '10.5px', fontWeight: 600 }}>{a.type}</span>
-                </div>
-                <div style={{ minWidth: '160px', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: '13px', color: '#1a1a1a' }}>{a.table}</div>
-                  <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>{a.column} · {a.domain}</div>
-                </div>
-                <div style={{ flex: 1, fontSize: '13px', color: '#475569', minWidth: 0 }}>{a.description}</div>
-                {a.delta && (
-                  <div style={{ fontWeight: 700, fontFamily: 'monospace', fontSize: '13px', color: a.delta.startsWith('+') || a.delta === 'REMOVED' ? '#dc2626' : '#ea580c', flexShrink: 0, minWidth: '70px', textAlign: 'center' }}>{a.delta}</div>
+            <div key={type} style={{ marginBottom: '3px' }}>
+              {/* type group header */}
+              <div onClick={() => toggleType(type)}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', userSelect: 'none', marginBottom: '2px' }}>
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'inline-block', transform: collapsed ? 'none' : 'rotate(90deg)', transition: 'transform 0.12s', lineHeight: 1, width: '8px', flexShrink: 0 }}>▶</span>
+                <span style={{ background: `${tc}18`, color: tc, padding: '1px 7px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 700, flexShrink: 0 }}>{type}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', flex: 1 }}>{items.length} anomal{items.length !== 1 ? 'ies' : 'y'}</span>
+                {typeCrit > 0 && (
+                  <span style={{ fontSize: '10px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>{typeCrit} critical</span>
                 )}
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <span style={{ ...st, padding: '3px 10px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 700, display: 'block', marginBottom: '3px' }}>{a.status}</span>
-                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>{a.detected}</span>
-                </div>
-                <div style={{ width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0, background: isOpen ? '#6366f1' : '#f1f5f9', color: isOpen ? '#fff' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', transition: 'all 0.18s' }}>
-                  {isOpen ? '▲' : '▼'}
-                </div>
               </div>
 
-              {isOpen && (
-                <div style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafd' }}>
-                  <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
-                    {[
-                      { label: 'Connection', value: a.connection },
-                      { label: 'Domain',     value: a.domain },
-                      { label: 'Baseline',   value: a.baseline || '—' },
-                      { label: 'Observed',   value: a.observed || '—' },
-                      { label: 'Detected',   value: a.detected },
-                    ].map((m, i) => (
-                      <div key={i} style={{ flex: 1, padding: '10px 16px', borderRight: i < 4 ? '1px solid #f1f5f9' : 'none' }}>
-                        <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>{m.label}</div>
-                        <div style={{ fontSize: '12.5px', fontWeight: 600, color: '#334155' }}>{m.value}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    {a.rootCause && (
-                      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e0e7ff', overflow: 'hidden' }}>
-                        <div style={{ background: 'linear-gradient(90deg, #eef2ff, #f5f3ff)', padding: '10px 16px', borderBottom: '1px solid #e0e7ff', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '16px' }}>🔍</span>
-                          <span style={{ fontSize: '12px', fontWeight: 800, color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Root Cause</span>
+              {!collapsed && (
+                <div style={{ marginLeft: '16px', marginBottom: '2px', borderLeft: '2px solid var(--border)' }}>
+                  {items.map(a => {
+                    const sc     = SEV[a.severity] ?? SEV.medium
+                    const st     = ST[a.status] ?? ST.open
+                    const isOpen = expanded === a.id
+
+                    return (
+                      <div key={a.id}>
+                        {/* single-line row */}
+                        <div onClick={() => setExpanded(isOpen ? null : a.id)}
+                          style={{ display: 'grid', gridTemplateColumns: '4px 70px 1fr auto auto auto 24px', gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isOpen ? 'var(--surface-muted)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', minHeight: '28px' }}>
+                          <div style={{ width: '4px', alignSelf: 'stretch', background: sc.color, borderRadius: '2px', minHeight: '16px' }} />
+                          <span style={{ background: sc.bg, color: sc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>{a.severity}</span>
+                          <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                            title={`${a.table}.${a.column} · ${a.domain} — ${a.description}`}>
+                            {a.table}<span style={{ color: 'var(--text-muted)' }}>.{a.column}</span>
+                            {a.description && <span style={{ color: 'var(--text-muted)', fontFamily: 'sans-serif', fontSize: '10px' }}> — {a.description}</span>}
+                          </span>
+                          {a.delta ? (
+                            <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: a.delta.startsWith('+') || a.delta === 'REMOVED' ? '#dc2626' : '#ea580c', fontWeight: 700, whiteSpace: 'nowrap' }}>{a.delta}</span>
+                          ) : <span />}
+                          <span style={{ ...st, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>{a.status}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{a.detected.slice(5)}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: '10px', textAlign: 'center', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
                         </div>
-                        <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{a.rootCause}</div>
-                      </div>
-                    )}
-                    {(a.impact || a.recommendation) && (
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                        {a.impact && (
-                          <div style={{ background: '#fff', borderRadius: '12px', border: `1px solid ${sc.border}`, overflow: 'hidden' }}>
-                            <div style={{ background: sc.bg, padding: '10px 16px', borderBottom: `1px solid ${sc.border}`, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '16px' }}>💥</span>
-                              <span style={{ fontSize: '12px', fontWeight: 800, color: sc.color, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Business Impact</span>
+
+                        {/* expanded detail */}
+                        {isOpen && (
+                          <div style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            <div style={{ display: 'flex', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                              {[
+                                { label: 'Connection', value: a.connection },
+                                { label: 'Domain',     value: a.domain },
+                                { label: 'Baseline',   value: a.baseline || '—' },
+                                { label: 'Observed',   value: a.observed || '—' },
+                                { label: 'Detected',   value: a.detected },
+                              ].map((m, i) => (
+                                <div key={i} style={{ flex: 1, padding: '8px 12px', borderRight: i < 4 ? '1px solid var(--border)' : 'none' }}>
+                                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>{m.label}</div>
+                                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)' }}>{m.value}</div>
+                                </div>
+                              ))}
                             </div>
-                            <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{a.impact}</div>
+                            {a.rootCause && (
+                              <div style={{ background: 'var(--surface)', border: '1px solid #e0e7ff', borderRadius: '8px', padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--foreground)', lineHeight: 1.6 }}>
+                                <span style={{ color: '#4338ca', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Root Cause · </span>
+                                {a.rootCause}
+                              </div>
+                            )}
+                            {(a.impact || a.recommendation) && (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                                {a.impact && (
+                                  <div style={{ background: sc.bg, border: `1px solid ${sc.border}`, borderRadius: '8px', padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--foreground)', lineHeight: 1.6 }}>
+                                    <span style={{ color: sc.color, fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Impact · </span>{a.impact}
+                                  </div>
+                                )}
+                                {a.recommendation && (
+                                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--foreground)', lineHeight: 1.6 }}>
+                                    <span style={{ color: '#15803d', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fix · </span>{a.recommendation}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                            {a.affectedModels.length > 0 && (
+                              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>Downstream:</span>
+                                {a.affectedModels.map(m => (
+                                  <code key={m} style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontFamily: 'monospace', border: '1px solid var(--border)' }}>{m}</code>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
-                        {a.recommendation && (
-                          <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #bbf7d0', overflow: 'hidden' }}>
-                            <div style={{ background: '#f0fdf4', padding: '10px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '16px' }}>✅</span>
-                              <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Recommended Fix</span>
-                            </div>
-                            <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{a.recommendation}</div>
-                          </div>
-                        )}
                       </div>
-                    )}
-                    {a.affectedModels.length > 0 && (
-                      <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e9eef5', padding: '14px 16px' }}>
-                        <div style={{ fontSize: '11px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px' }}>🔗 Affected Downstream Models</div>
-                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                          {a.affectedModels.map(m => (
-                            <code key={m} style={{ background: '#f1f5f9', color: '#334155', padding: '4px 10px', borderRadius: '6px', fontSize: '12px', fontFamily: 'monospace', border: '1px solid #e2e8f0' }}>{m}</code>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <button onClick={() => setExpanded(null)} style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}>
-                        ▲ Collapse
-                      </button>
-                    </div>
-                  </div>
+                    )
+                  })}
                 </div>
               )}
             </div>

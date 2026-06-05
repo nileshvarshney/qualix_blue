@@ -293,34 +293,37 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const trendData = stats.trend
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }} onClick={() => setActiveMetric(null)}>
-      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: 'var(--text-secondary)' }}>Analytics platform</span>
-      </div>
+    <div style={{ padding: '16px 24px', maxWidth: '1300px', overflowY: 'auto' }} onClick={() => setActiveMetric(null)}>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: 0, letterSpacing: '-0.4px' }}>Data quality overview</h1>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+      {/* top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+        <div>
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Data quality overview</div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {stats.totalAssets} datasets · {stats.totalRules} rules · {stats.openAlerts} open issues
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
           <Dropdown label="time" options={TIME_OPTIONS} value={timeFilter} onChange={setTimeFilter} />
           <Dropdown label="domain" options={DOMAIN_OPTIONS} value={domainFilter} onChange={setDomainFilter} />
           <button onClick={runCheck} disabled={running} style={{
-            background: 'var(--accent-bg)', border: '1px solid #93c5fd', padding: '7px 14px',
-            borderRadius: '8px', fontSize: '12.5px', color: 'var(--accent)', cursor: running ? 'not-allowed' : 'pointer',
+            background: 'var(--accent)', border: 'none', padding: '5px 12px',
+            borderRadius: '6px', fontSize: 'var(--text-xs)', color: 'var(--accent-text)', cursor: running ? 'not-allowed' : 'pointer',
             fontWeight: 600, opacity: running ? 0.6 : 1
-          }}>{running ? '⏳ Running…' : '+ New rule'}</button>
+          }}>{running ? '⏳…' : '+ Run'}</button>
         </div>
       </div>
 
       {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '14px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
         {/* Overall Quality Score */}
         <Link href="/reports" style={{ textDecoration: 'none' }}>
           <div style={{ ...card, cursor: 'pointer', transition: 'box-shadow 0.2s' }}
             onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
             onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
             <div style={cardLabel}>Overall quality score</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '10px' }}>
-              <span style={{ fontSize: '40px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', lineHeight: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px', marginBottom: '8px' }}>
+              <span style={{ fontSize: '32px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', lineHeight: 1 }}>
                 {score !== null ? score.toFixed(1) : '—'}
               </span>
               <div style={{ display: 'flex', flexDirection: 'column', fontSize: '11px', color: 'var(--text-secondary)' }}>
@@ -354,7 +357,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
             onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
             <div style={cardLabel}>Open issues</div>
-            <div style={{ fontSize: '40px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', marginBottom: '12px', lineHeight: 1 }}>
+            <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', marginBottom: '8px', lineHeight: 1 }}>
               {stats.openAlerts}
             </div>
             <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
@@ -374,7 +377,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
             onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
             <div style={cardLabel}>Datasets monitored</div>
-            <div style={{ fontSize: '40px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', marginBottom: '8px', lineHeight: 1 }}>
+            <div style={{ fontSize: '32px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', marginBottom: '8px', lineHeight: 1 }}>
               {stats.totalAssets}
             </div>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
@@ -389,7 +392,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
             onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
             <div style={cardLabel}>SLA adherence</div>
-            <span style={{ fontSize: '40px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', lineHeight: 1 }}>—</span>
+            <span style={{ fontSize: '32px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-1.5px', lineHeight: 1 }}>—</span>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>No SLA data yet</div>
             <div style={{ background: '#e5e7eb', height: '4px', borderRadius: '2px', marginTop: '8px' }} />
           </div>
@@ -397,14 +400,14 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       </div>
 
       {/* Six Dimensions */}
-      <div style={{ ...card, padding: '22px 24px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-          <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>Six dimensions of quality</div>
+      <div style={{ ...card, padding: '14px 16px', marginBottom: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Six dimensions of quality</div>
           <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
             {stats.totalRules} active rules · <span style={{ color: 'var(--accent)', cursor: 'pointer' }}>view all →</span>
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
           {([
             { name: 'Completeness', key: 'completeness' as const, category: 'completeness' },
             { name: 'Accuracy',     key: 'accuracy'     as const, category: 'accuracy' },
@@ -417,12 +420,12 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             const color = val === null ? '#9ca3af' : val >= 90 ? '#16a34a' : val >= 75 ? '#ea8b3a' : '#dc2626'
             return (
               <Link key={d.name} href={`/rules?category=${d.category}`} style={{ textDecoration: 'none' }}>
-                <div style={{ background: 'var(--surface-muted)', borderRadius: '10px', padding: '14px 12px', border: '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s' }}
+                <div style={{ background: 'var(--surface-muted)', borderRadius: '8px', padding: '10px 12px', border: '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--status-neutral-bg)'; e.currentTarget.style.borderColor = '#93c5fd' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
-                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 500 }}>{d.name}</div>
-                  <div style={{ fontSize: '24px', fontWeight: 700, color, letterSpacing: '-0.5px', marginBottom: '8px' }}>
-                    {val !== null ? <>{val}<span style={{ fontSize: '14px' }}>%</span></> : '—'}
+                  <div style={{ fontSize: '10.5px', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 500 }}>{d.name}</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color, letterSpacing: '-0.5px', marginBottom: '6px' }}>
+                    {val !== null ? <>{val}<span style={{ fontSize: '12px' }}>%</span></> : '—'}
                   </div>
                   <div style={{ height: '3px', background: '#e5e7eb', borderRadius: '2px', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${val ?? 0}%`, background: color, transition: 'width 0.5s' }} />
@@ -435,10 +438,10 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       </div>
 
       {/* Trend + Failing Rules */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 310px', gap: '16px', marginBottom: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: '10px', marginBottom: '10px' }}>
         <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>Quality trend · {timeFilter}</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Quality trend · {timeFilter}</div>
             <div style={{ display: 'flex', gap: '14px', fontSize: '11.5px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '3px', background: '#3b82f6', borderRadius: '2px' }} /><span style={{ color: 'var(--text-secondary)' }}>Score</span></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', opacity: 0.75 }} /><span style={{ color: 'var(--text-secondary)' }}>Incidents</span></div>
@@ -448,24 +451,24 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         </div>
 
         <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>Top failing rules</div>
-            <Link href="/rules" style={{ fontSize: '11.5px', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>View all →</Link>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Top failing rules</div>
+            <Link href="/rules" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>View all →</Link>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {stats.failingRules.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '16px 8px', textAlign: 'center' }}>
+              <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-xs)', padding: '12px 8px', textAlign: 'center' }}>
                 No failing rules
               </div>
             ) : stats.failingRules.map((rule, i) => (
               <Link key={i} href="/rules" style={{ textDecoration: 'none' }}>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.15s' }}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '5px 8px', borderRadius: '6px', cursor: 'pointer', transition: 'background 0.15s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ width: '3px', alignSelf: 'stretch', background: rule.severity === 'critical' ? '#dc2626' : '#ea8b3a', borderRadius: '2px', marginTop: '3px', flexShrink: 0 }} />
-                  <div>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>{rule.rule_name}</div>
-                    <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '2px' }}>{rule.asset_name} · {rule.detail}</div>
+                  <div style={{ width: '3px', alignSelf: 'stretch', background: rule.severity === 'critical' ? '#dc2626' : '#ea8b3a', borderRadius: '2px', flexShrink: 0, minHeight: '14px' }} />
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rule.rule_name}</div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{rule.asset_name} · {rule.detail}</div>
                   </div>
                 </div>
               </Link>
@@ -476,8 +479,8 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
       {/* Datasets requiring attention */}
       <div style={card}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-          <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>Datasets requiring attention</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Datasets requiring attention</div>
           <Link href="/datasets" style={{ fontSize: '12.5px', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>
             View all {stats.totalAssets} →
           </Link>
@@ -506,16 +509,16 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   onClick={() => router.push('/datasets')}>
-                  <td style={{ padding: '12px' }}>
+                  <td style={{ padding: '7px 12px' }}>
                     {parts.length > 1
                       ? <><span style={{ color: 'var(--text-muted)' }}>{parts[0]}.</span><span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{parts.slice(1).join('.')}</span></>
                       : <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{ds.asset_name}</span>
                     }
                   </td>
-                  <td style={{ padding: '12px' }}><ScorePill score={ds.score} /></td>
-                  <td style={{ padding: '12px', color: deltaColor, fontWeight: 600 }}>{deltaLabel}</td>
-                  <td style={{ padding: '12px', color: 'var(--text-secondary)' }}>{ds.domain_name}</td>
-                  <td style={{ padding: '12px' }}><span style={{ color: 'var(--accent)', fontSize: '12px' }}>→</span></td>
+                  <td style={{ padding: '7px 12px' }}><ScorePill score={ds.score} /></td>
+                  <td style={{ padding: '7px 12px', color: deltaColor, fontWeight: 600 }}>{deltaLabel}</td>
+                  <td style={{ padding: '7px 12px', color: 'var(--text-secondary)' }}>{ds.domain_name}</td>
+                  <td style={{ padding: '7px 12px' }}><span style={{ color: 'var(--accent)', fontSize: '12px' }}>→</span></td>
                 </tr>
               )
             })}
@@ -525,9 +528,9 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
       {/* Live results if available */}
       {stats.recentChecks.length > 0 && (
-        <div style={{ ...card, marginTop: '20px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
-            <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>Your latest check results</div>
+        <div style={{ ...card, marginTop: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+            <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Your latest check results</div>
             <span style={{ fontSize: '11px', color: '#16a34a', background: '#dcfce7', padding: '3px 10px', borderRadius: '20px', fontWeight: 600 }}>LIVE</span>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
