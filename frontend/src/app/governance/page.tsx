@@ -311,7 +311,7 @@ export default function GovernancePage() {
                 <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Policy Rules ({selectedPolicy.rules.length})</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {selectedPolicy.rules.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: r.status === 'pass' ? 'var(--status-ok-bg)' : r.status === 'fail' ? 'var(--status-error-bg)' : 'var(--status-warn-bg)', borderRadius: '6px', border: `1px solid ${r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)'}33` }}>
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: r.status === 'pass' ? 'var(--status-ok-bg)' : r.status === 'fail' ? 'var(--status-error-bg)' : 'var(--status-warn-bg)', borderRadius: '6px', border: `1px solid ${r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)'}` }}>
                       <span style={{ fontSize: '12px' }}>{r.status === 'pass' ? '✅' : r.status === 'fail' ? '❌' : '⚠️'}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{r.name}</div>
