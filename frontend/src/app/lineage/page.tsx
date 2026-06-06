@@ -285,7 +285,7 @@ export default function LineagePage() {
 
   if (loading) {
     return (
-      <div style={{ padding: '28px 36px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
+      <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
         <div style={{ textAlign: 'center', color: '#94a3b8' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px', animation: 'spin 1s linear infinite' }}>⚙️</div>
           <div>Loading lineage data...</div>
@@ -298,12 +298,8 @@ export default function LineagePage() {
 
   if (data.nodes.length === 0) {
     return (
-      <div style={{ padding: '28px 36px', maxWidth: '1500px' }}>
-        <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-          Workspace · <span style={{ color: '#475569' }}>Lineage</span>
-        </div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 20px' }}>Data Lineage</h1>
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+      <div style={{ padding: '10px 16px', maxWidth: '1500px' }}>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
           No lineage data yet — add connections and register datasets to see lineage
         </div>
       </div>
@@ -365,100 +361,88 @@ export default function LineagePage() {
   const timeSinceRefresh = Math.round((Date.now() - lastRefresh.getTime()) / 1000)
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1500px' }}>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: '#475569' }}>Lineage</span>
-      </div>
+    <div style={{ padding: '10px 16px', maxWidth: '1500px' }}>
 
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px', gap: '16px', flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Data Lineage</h1>
-          <p style={{ fontSize: '13px', color: '#64748b', margin: '4px 0 0' }}>
-            {isLive
-              ? `Live from ${data.connection.name} · ${data.connection.database}.${data.connection.schema} · ${laidOut.length} objects · ${data.edges.length} relationships`
-              : 'Demo mode · connect a Snowflake warehouse for live lineage'}
-            {isLive && data.meta?.edgeMethods && (
-              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#94a3b8' }}>
-                ({[
-                  data.meta.edgeMethods.fk > 0 && `${data.meta.edgeMethods.fk} FK`,
-                  data.meta.edgeMethods.ddl > 0 && `${data.meta.edgeMethods.ddl} DDL`,
-                  data.meta.edgeMethods.heuristic > 0 && `${data.meta.edgeMethods.heuristic} inferred`,
-                ].filter(Boolean).join(', ') || 'source only'})
-              </span>
-            )}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '6px',
-            background: isLive ? '#dcfce7' : '#fef3c7', color: isLive ? '#16a34a' : '#d97706',
-            padding: '5px 12px', borderRadius: '20px', fontSize: '11.5px', fontWeight: 600,
-          }}>
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: isLive ? '#16a34a' : '#d97706', animation: isLive ? 'pulse 2s infinite' : 'none' }} />
-            {isLive ? 'LIVE' : 'DEMO'}
+      {/* compact top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Lineage</span>
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
+          background: isLive ? 'var(--status-ok-bg)' : 'var(--status-warn-bg)',
+          color: isLive ? 'var(--status-ok-text)' : 'var(--status-warn-text)',
+          padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600,
+        }}>
+          <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isLive ? 'var(--status-ok-text)' : 'var(--status-warn-text)', display: 'inline-block', animation: isLive ? 'pulse 2s infinite' : 'none' }} />
+          {isLive ? 'LIVE' : 'DEMO'}
+        </span>
+        {isLive && (
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+            {laidOut.length} objects · {data.edges.length} edges
+            {data.meta?.edgeMethods && <> · {[
+              data.meta.edgeMethods.fk > 0 && `${data.meta.edgeMethods.fk} FK`,
+              data.meta.edgeMethods.ddl > 0 && `${data.meta.edgeMethods.ddl} DDL`,
+              data.meta.edgeMethods.heuristic > 0 && `${data.meta.edgeMethods.heuristic} inferred`,
+            ].filter(Boolean).join(', ')}</>}
           </span>
-          <span style={{ fontSize: '10.5px', color: '#94a3b8' }}>Auto-refresh 30s{timeSinceRefresh > 5 ? ` · ${timeSinceRefresh}s ago` : ''}</span>
-          <button onClick={() => fetchLineage()} style={{
-            background: '#fff', border: '1px solid #ebe8df', padding: '6px 14px',
-            borderRadius: '8px', fontSize: '12.5px', color: '#475569', cursor: 'pointer', fontWeight: 500,
-          }}>🔄 Refresh</button>
-          <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } } @keyframes dashFlow { to { stroke-dashoffset: -24 } }`}</style>
-        </div>
+        )}
+        {!isLive && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Demo mode · connect Snowflake for live lineage</span>}
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Auto-refresh 30s{timeSinceRefresh > 5 ? ` · ${timeSinceRefresh}s ago` : ''}</span>
+        <button onClick={() => fetchLineage()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: 'auto' }}>🔄 Refresh</button>
+        <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } } @keyframes dashFlow { to { stroke-dashoffset: -24 } }`}</style>
       </div>
 
-      {/* Search bar */}
-      <div style={{ position: 'relative', maxWidth: '480px', marginBottom: '16px' }}>
-        <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
-        <input ref={inputRef} value={search}
-          onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
-          onFocus={() => { if (search) setShowDropdown(true) }}
-          placeholder="Search tables, views, schemas..."
-          style={{
-            width: '100%', padding: '10px 40px 10px 38px', borderRadius: '10px',
-            border: '1px solid #e2e8f0', fontSize: '13px', background: '#fff',
-            color: '#0f172a', boxSizing: 'border-box', outline: 'none',
-            borderColor: showDropdown && matches.length > 0 ? '#93c5fd' : '#e2e8f0',
-            boxShadow: showDropdown && matches.length > 0 ? '0 0 0 3px #dbeafe' : 'none',
-          }}
-        />
-        {search && <button onClick={clearSearch} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px' }}>✕</button>}
+      {/* search + legend on same row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', position: 'relative' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+          <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
+          <input ref={inputRef} value={search}
+            onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
+            onFocus={() => { if (search) setShowDropdown(true) }}
+            placeholder="Search tables, views, schemas..."
+            style={{
+              width: '100%', padding: '4px 32px 4px 28px', borderRadius: '6px',
+              border: `1px solid ${showDropdown && matches.length > 0 ? '#93c5fd' : 'var(--border)'}`,
+              fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)',
+              boxSizing: 'border-box', outline: 'none',
+              boxShadow: showDropdown && matches.length > 0 ? '0 0 0 2px #dbeafe' : 'none',
+            }}
+          />
+          {search && <button onClick={clearSearch} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px' }}>✕</button>}
 
-        {showDropdown && matches.length > 0 && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', maxHeight: '280px', overflowY: 'auto' }}>
-            <div style={{ padding: '6px 12px', fontSize: '11px', color: '#94a3b8', fontWeight: 600, borderBottom: '1px solid #f3f1ea' }}>{matches.length} found</div>
-            {matches.map(m => {
-              const cfg = typeConfig[m.type] ?? typeConfig.warehouse
-              return (
-                <div key={m.id} onMouseDown={() => { selectNode(m.id); setSearch(m.label) }} style={{
-                  display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f8fafc',
-                }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#f0f9ff')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>{m.icon}</div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: '13px', color: '#1a1a1a' }}>{m.label}</div>
-                    <div style={{ fontSize: '11.5px', color: '#94a3b8' }}>{m.sub}</div>
+          {showDropdown && matches.length > 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', maxHeight: '280px', overflowY: 'auto' }}>
+              <div style={{ padding: '6px 12px', fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{matches.length} found</div>
+              {matches.map(m => {
+                const cfg = typeConfig[m.type] ?? typeConfig.warehouse
+                return (
+                  <div key={m.id} onMouseDown={() => { selectNode(m.id); setSearch(m.label) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--surface-muted)' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0 }}>{m.icon}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: '11.5px', color: 'var(--foreground)' }}>{m.label}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.sub}</div>
+                    </div>
+                    <span style={{ background: cfg.bg, color: cfg.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600 }}>{cfg.label}</span>
                   </div>
-                  <span style={{ background: cfg.bg, color: cfg.color, padding: '2px 8px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 600 }}>{cfg.label}</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-        {showDropdown && search.trim().length > 0 && matches.length === 0 && (
-          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: '#fff', border: '1px solid #e2e8f0', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
-            No objects found
-          </div>
-        )}
-      </div>
+                )
+              })}
+            </div>
+          )}
+          {showDropdown && search.trim().length > 0 && matches.length === 0 && (
+            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
+              No objects found
+            </div>
+          )}
+        </div>
 
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+        {/* legend pills — same row as search */}
         {Object.entries(typeConfig).map(([type, cfg]) => (
-          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '5px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '3px 10px', borderRadius: '20px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: cfg.border }} />
-            <span style={{ fontSize: '10.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
+          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>
+            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.border }} />
+            <span style={{ fontSize: '9.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
           </div>
         ))}
       </div>
