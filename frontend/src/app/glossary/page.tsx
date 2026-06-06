@@ -23,7 +23,6 @@ function leftBorderColor(s: string): string {
 }
 
 export default function GlossaryPage() {
-  const [search, setSearch] = useState('')
   const [domain, setDomain] = useState('All')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [terms, setTerms] = useState<GlossaryTerm[]>([])
@@ -45,7 +44,7 @@ export default function GlossaryPage() {
           synonyms: Array.isArray(t.synonyms) ? t.synonyms as string[] : [],
           owner: String(t.owner ?? ''),
           linkedAssets: Number(t.linked_assets ?? t.linkedAssets ?? 0),
-          status: (t.status as 'approved' | 'draft' | 'deprecated') ?? 'draft',
+          status: (['approved', 'draft', 'deprecated'] as const).includes(t.status as 'approved' | 'draft' | 'deprecated') ? (t.status as 'approved' | 'draft' | 'deprecated') : 'draft',
         })))
         setLoading(false)
       })
@@ -68,7 +67,6 @@ export default function GlossaryPage() {
   const filtered = terms.filter(t => {
     if (domain !== 'All' && t.domain !== domain) return false
     if (statusFilter !== 'all' && t.status !== statusFilter) return false
-    if (search && !t.name.toLowerCase().includes(search.toLowerCase()) && !t.definition.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
 
@@ -158,7 +156,7 @@ export default function GlossaryPage() {
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
               {[['Domain', popup.domain], ['Owner', popup.owner], ['Assets', String(popup.linkedAssets)]].map(([l, v], i) => (
-                <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                <div key={l} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
                   <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
                 </div>
