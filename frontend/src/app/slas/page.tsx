@@ -256,7 +256,7 @@ export default function SLAsPage() {
                     const bc = v >= 95 ? 'var(--status-ok-text)' : v >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
                     const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
                     return (
-                      <div key={days[i]} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                      <div key={days[i] ?? i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
                         <div style={{ fontSize: '9px', fontWeight: 600, color: bc }}>{v}%</div>
                         <div style={{ width: '100%', height: '20px', display: 'flex', alignItems: 'flex-end' }}>
                           <div style={{ width: '100%', height: `${v}%`, background: bc, borderRadius: '2px' }} />
