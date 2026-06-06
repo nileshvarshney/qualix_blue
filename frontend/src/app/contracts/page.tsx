@@ -123,7 +123,7 @@ export default function ContractsPage() {
         <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{active} active</span>
         {breached > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{breached} breached</span>}
         <div style={{ flex: 1 }} />
-        <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', color: 'var(--accent-bg)', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Contract</button>
+        <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Contract</button>
       </div>
 
       {/* KPI row */}
@@ -252,7 +252,7 @@ export default function ContractsPage() {
                     <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{selected.terms.filter(t => t.status === 'pass').length}/{selected.terms.length} passing</span>
                   </div>
                   {selected.terms.map((t, i) => (
-                    <div key={i} style={{ padding: '6px 10px', background: t.status !== 'pass' ? termBg[t.status] : 'transparent', borderLeft: `2px solid ${termColor[t.status]}`, borderBottom: i < selected.terms.length - 1 ? '1px solid var(--surface-muted)' : 'none' }}>
+                    <div key={t.term} style={{ padding: '6px 10px', background: t.status !== 'pass' ? termBg[t.status] : 'transparent', borderLeft: `2px solid ${termColor[t.status]}`, borderBottom: i < selected.terms.length - 1 ? '1px solid var(--surface-muted)' : 'none' }}>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
                         <span style={{ fontSize: '11px', color: termColor[t.status], flexShrink: 0, marginTop: '1px' }}>{termIcon[t.status]}</span>
                         <div>
