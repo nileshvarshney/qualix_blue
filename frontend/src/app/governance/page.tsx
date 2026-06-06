@@ -61,8 +61,8 @@ export default function GovernancePage() {
           name: String(p.policy_name ?? p.name ?? ''),
           description: String(p.description ?? ''),
           domain: String(p.domain ?? 'All'),
-          status: (p.status as 'active' | 'draft' | 'review') ?? 'draft',
-          enforcement: (p.enforcement as 'enforced' | 'advisory') ?? 'advisory',
+          status: (['active', 'draft', 'review'] as const).includes(p.status as 'active' | 'draft' | 'review') ? (p.status as 'active' | 'draft' | 'review') : 'draft',
+          enforcement: (['enforced', 'advisory'] as const).includes(p.enforcement as 'enforced' | 'advisory') ? (p.enforcement as 'enforced' | 'advisory') : 'advisory',
           rulesCount: Number(p.rules_count ?? p.rulesCount ?? 0),
           lastEval: String(p.last_evaluated ?? p.lastEval ?? 'Never'),
           rules: [],
@@ -191,8 +191,8 @@ export default function GovernancePage() {
             onMouseLeave={e => (e.currentTarget.style.background = '')}
           >
             <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.icon} {d.name}</span>
-            {[d.quality, d.documentation, d.classification, d.ownership, d.certification, d.sla].map((s, i) => (
-              <span key={i} style={{ background: scoreBg(s), color: scoreColor(s), padding: '1px 4px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{s}</span>
+            {SCORE_DIMENSIONS.map(dim => (
+              <span key={dim} style={{ background: scoreBg(d[dim]), color: scoreColor(d[dim]), padding: '1px 4px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{d[dim]}</span>
             ))}
             <span style={{ background: scoreBg(d.overall), color: scoreColor(d.overall), padding: '1px 6px', borderRadius: '3px', fontSize: '11px', fontWeight: 700, textAlign: 'center' }}>{d.overall}</span>
           </div>
@@ -257,7 +257,7 @@ export default function GovernancePage() {
                 </div>
               )}
               {selectedDomain.rulesTotal > 0 && (
-                <div style={{ padding: '10px 12px', background: 'var(--status-ok-bg)', borderRadius: '6px', border: '1px solid var(--status-ok-text)33' }}>
+                <div style={{ padding: '10px 12px', background: 'var(--status-ok-bg)', borderRadius: '6px', border: '1px solid var(--status-ok-text)' }}>
                   <div style={{ fontSize: '9px', color: 'var(--status-ok-text)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Rules Coverage</div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
                     <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--status-ok-text)' }}>{selectedDomain.rulesPassed}</span>
