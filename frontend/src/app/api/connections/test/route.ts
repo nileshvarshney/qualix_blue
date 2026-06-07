@@ -334,16 +334,18 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
     }
     steps.push({ label: 'Field validation', status: 'ok', detail: 'All required fields present' })
 
-    // 2. URL format check
+    // 2. URL format check — skip for powerbi (no server URL)
     const hostUrl = conn.host as string | undefined
-    if (hostUrl && !hostUrl.startsWith('http')) {
-      steps.push({ label: 'URL format', status: 'fail', detail: `Server URL must start with http:// or https://` })
-      return { success: false, status: 'error', steps, errorCode: 'INVALID_URL', errorMessage: 'Server URL format is invalid.', suggestion: 'Include the full URL, e.g. https://tableau.example.com' }
+    if (type !== 'powerbi') {
+      if (hostUrl && !hostUrl.startsWith('http')) {
+        steps.push({ label: 'URL format', status: 'fail', detail: `Server URL must start with http:// or https://` })
+        return { success: false, status: 'error', steps, errorCode: 'INVALID_URL', errorMessage: 'Server URL format is invalid.', suggestion: 'Include the full URL, e.g. https://tableau.example.com' }
+      }
+      steps.push({ label: 'URL format', status: 'ok', detail: hostUrl ? `URL format valid: ${hostUrl}` : 'N/A' })
     }
-    steps.push({ label: 'URL format', status: 'ok', detail: hostUrl ? `URL format valid: ${hostUrl}` : 'N/A' })
 
-    // 3. HTTP ping (for Tableau and Looker which have a host URL)
-    if (hostUrl) {
+    // 3. HTTP ping — skip for powerbi
+    if (type !== 'powerbi' && hostUrl) {
       try {
         const res = await fetch(hostUrl, { method: 'HEAD', signal: AbortSignal.timeout(6000) })
         steps.push({ label: 'Host reachability', status: 'ok', detail: `Host responding (HTTP ${res.status})` })
@@ -352,8 +354,8 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
         safeUpdateStatus(conn.id as string, 'error')
         return { success: false, status: 'error', steps, errorCode: 'NETWORK_ERROR', errorMessage: `Cannot reach ${hostUrl}`, suggestion: 'Verify the server URL and network connectivity.' }
       }
-    } else {
-      steps.push({ label: 'Host reachability', status: 'skip', detail: 'No host URL for this connector type' })
+    } else if (type !== 'powerbi') {
+      steps.push({ label: 'Host reachability', status: 'skip', detail: 'No host URL provided' })
     }
 
     // 4. Credential format check
@@ -388,7 +390,7 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
 
     // Bucket/container name format
     const bucketName = (conn.database as string) || ''
-    const validBucket = /^[a-z0-9][a-z0-9\-\.]{1,61}[a-z0-9]$/i.test(bucketName)
+    const validBucket = /^[a-z0-9][a-z0-9\-\.]{1,61}[a-z0-9]$/.test(bucketName)
     if (!validBucket && bucketName.length > 0) {
       steps.push({ label: 'Bucket name format', status: 'fail', detail: `"${bucketName}" does not look like a valid bucket/container name` })
       return { success: false, status: 'error', steps, errorCode: 'INVALID_BUCKET', errorMessage: `Bucket name "${bucketName}" is invalid.`, suggestion: 'Bucket/container names use lowercase letters, numbers, and hyphens.' }
@@ -398,7 +400,7 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
     // Region / account format
     if (type === 's3') {
       const region = (conn.schema as string) || ''
-      const validRegion = /^[a-z]{2}-[a-z]+-\d$/.test(region)
+      const validRegion = /^[a-z][a-z0-9-]+-\d+$/.test(region)
       steps.push({ label: 'Region format', status: validRegion ? 'ok' : 'fail', detail: validRegion ? `Region valid: ${region}` : `"${region}" doesn't match AWS region format (e.g. us-east-1)` })
       if (!validRegion) return { success: false, status: 'error', steps, errorCode: 'INVALID_REGION', errorMessage: `Region "${region}" is invalid.`, suggestion: 'Use an AWS region code like us-east-1, eu-west-1, ap-southeast-2.' }
     } else {
@@ -406,12 +408,16 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
     }
 
     // Credential length check
-    const key = (conn.password as string) || ''
-    if (key.length < 8) {
-      steps.push({ label: 'Credential format', status: 'fail', detail: 'Access key or account key appears too short' })
-      return { success: false, status: 'error', steps, errorCode: 'INVALID_CREDENTIAL', errorMessage: 'Credential appears invalid.', suggestion: 'Copy-paste your full access key or account key.' }
+    if (type !== 'gcs') {
+      const key = (conn.password as string) || ''
+      if (key.length < 8) {
+        steps.push({ label: 'Credential format', status: 'fail', detail: 'Access key or account key appears too short' })
+        return { success: false, status: 'error', steps, errorCode: 'INVALID_CREDENTIAL', errorMessage: 'Credential appears invalid.', suggestion: 'Copy-paste your full access key or account key.' }
+      }
+      steps.push({ label: 'Credential format', status: 'ok', detail: 'Credential format valid' })
+    } else {
+      steps.push({ label: 'Credential format', status: 'ok', detail: 'Service account key path accepted' })
     }
-    steps.push({ label: 'Credential format', status: 'ok', detail: 'Credential format valid' })
     steps.push({ label: 'Storage access', status: 'ok', detail: `${type === 's3' ? 'S3' : type === 'gcs' ? 'GCS' : 'Azure Blob'} credentials accepted (live bucket access requires server-side SDK)` })
     safeUpdateStatus(conn.id as string, 'active')
     return { success: true, status: 'active', steps, latencyMs: Date.now() - t0 }
@@ -441,7 +447,7 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
     } else {
       // Kinesis: region format
       const region = (conn.schema as string) || ''
-      const validRegion = /^[a-z]{2}-[a-z]+-\d$/.test(region)
+      const validRegion = /^[a-z][a-z0-9-]+-\d+$/.test(region)
       steps.push({ label: 'Region format', status: validRegion ? 'ok' : 'fail', detail: validRegion ? `Region valid: ${region}` : `"${region}" doesn't match AWS region format` })
       if (!validRegion) return { success: false, status: 'error', steps, errorCode: 'INVALID_REGION', errorMessage: `Region "${region}" is invalid.`, suggestion: 'Use an AWS region code like us-east-1.' }
     }
@@ -510,6 +516,8 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
   return { success: false, status: 'inactive', steps, errorCode: 'UNSUPPORTED', errorMessage: `Live testing for ${type} is not yet configured.`, suggestion: 'Contact support to enable live testing for this connector.' }
 }
 
+const NEW_CONNECTOR_TYPES = new Set(['tableau','powerbi','looker','s3','gcs','azureblob','kafka','kinesis','dbt','fivetran','airbyte'])
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json()
@@ -529,8 +537,6 @@ export async function POST(req: NextRequest) {
   const conn = connection as unknown as Record<string, unknown>
   // Ensure the ID is set for status updates
   conn.id = connectionId
-
-  const NEW_CONNECTOR_TYPES = new Set(['tableau','powerbi','looker','s3','gcs','azureblob','kafka','kinesis','dbt','fivetran','airbyte'])
 
   let result: TestResult
   if (connection.type === 'snowflake') {
