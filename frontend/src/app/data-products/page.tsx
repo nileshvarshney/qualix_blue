@@ -127,8 +127,8 @@ export default function DataProductsPage() {
       {/* Column headers */}
       {!loading && (
         <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', padding: '0 6px 3px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['', 'Name', 'Domain', 'Owner', 'Status', 'Quality', ''].map(h => (
-            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+          {['', 'Name', 'Domain', 'Owner', 'Status', 'Quality', ''].map((h, i) => (
+            <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
           ))}
         </div>
       )}
