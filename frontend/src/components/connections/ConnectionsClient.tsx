@@ -96,15 +96,43 @@ function TestResultModal({ result, connName, onClose }: { result: TestResult; co
 }
 
 const CONNECTION_TYPES: { value: ConnectionType; label: string; color: string }[] = [
-  { value: 'postgresql', label: 'PostgreSQL', color: '#336791' },
-  { value: 'mysql', label: 'MySQL', color: '#00758f' },
-  { value: 'snowflake', label: 'Snowflake', color: '#29B5E8' },
-  { value: 'bigquery', label: 'BigQuery', color: '#4285F4' },
-  { value: 'redshift', label: 'Redshift', color: '#8C4FFF' },
-  { value: 'mongodb', label: 'MongoDB', color: '#13AA52' },
-  { value: 'csv', label: 'CSV / File', color: '#64748b' },
-  { value: 'api', label: 'REST API', color: '#f59e0b' },
+  { value: 'postgresql', label: 'PostgreSQL',      color: '#336791' },
+  { value: 'mysql',      label: 'MySQL',            color: '#00758f' },
+  { value: 'snowflake',  label: 'Snowflake',        color: '#29B5E8' },
+  { value: 'bigquery',   label: 'BigQuery',         color: '#4285F4' },
+  { value: 'redshift',   label: 'Redshift',         color: '#8C4FFF' },
+  { value: 'mongodb',    label: 'MongoDB',          color: '#13AA52' },
+  { value: 'csv',        label: 'CSV / File',       color: '#64748b' },
+  { value: 'api',        label: 'REST API',         color: '#f59e0b' },
+  { value: 'databricks', label: 'Databricks',       color: '#FF3621' },
+  { value: 'sqlserver',  label: 'SQL Server',       color: '#CC2927' },
+  { value: 'oracle',     label: 'Oracle DB',        color: '#F80000' },
+  { value: 'db2',        label: 'IBM Db2',          color: '#006699' },
+  { value: 'saphana',    label: 'SAP HANA',         color: '#008FD3' },
+  { value: 'hive',       label: 'Apache Hive',      color: '#FDEE21' },
+  { value: 'synapse',    label: 'Azure Synapse',    color: '#0078D4' },
+  { value: 'teradata',   label: 'Teradata',         color: '#F37440' },
+  { value: 'tableau',    label: 'Tableau',          color: '#E97627' },
+  { value: 'powerbi',    label: 'Power BI',         color: '#F2C811' },
+  { value: 'looker',     label: 'Looker',           color: '#4285F4' },
+  { value: 's3',         label: 'Amazon S3',        color: '#FF9900' },
+  { value: 'gcs',        label: 'Google GCS',       color: '#4285F4' },
+  { value: 'azureblob',  label: 'Azure Blob',       color: '#0078D4' },
+  { value: 'kafka',      label: 'Apache Kafka',     color: '#231F20' },
+  { value: 'kinesis',    label: 'Amazon Kinesis',   color: '#FF9900' },
+  { value: 'dbt',        label: 'dbt',              color: '#FF694B' },
+  { value: 'fivetran',   label: 'Fivetran',         color: '#0073E6' },
+  { value: 'airbyte',    label: 'Airbyte',          color: '#615EFF' },
 ]
+
+const CATEGORIES = [
+  { id: 'databases',  label: 'Databases',  emoji: '🗄️', types: ['postgresql','mysql','mongodb','oracle','sqlserver','db2','saphana','hive'] },
+  { id: 'warehouses', label: 'Warehouses', emoji: '☁️', types: ['snowflake','bigquery','redshift','databricks','synapse','teradata'] },
+  { id: 'bi',         label: 'BI Tools',   emoji: '📈', types: ['tableau','powerbi','looker'] },
+  { id: 'storage',    label: 'Storage',    emoji: '🪣', types: ['s3','gcs','azureblob','csv','api'] },
+  { id: 'streaming',  label: 'Streaming',  emoji: '⚡', types: ['kafka','kinesis'] },
+  { id: 'transform',  label: 'Transform',  emoji: '🔄', types: ['dbt','fivetran','airbyte'] },
+] as const
 
 interface FieldDef {
   key: string; label: string; placeholder: string
@@ -169,17 +197,159 @@ const typeFields: Record<ConnectionType, FieldDef[]> = {
     { key: 'username', label: 'API Key / Username', placeholder: 'sk-... or api_user' },
     { key: 'password', label: 'API Secret / Password', placeholder: '••••••••', type: 'password' },
   ],
+  oracle: [
+    { key: 'host',     label: 'Host',         placeholder: 'db.example.com',     required: true },
+    { key: 'port',     label: 'Port',         placeholder: '1521',               type: 'number' },
+    { key: 'database', label: 'Service Name', placeholder: 'ORCL',               required: true },
+    { key: 'schema',   label: 'Schema',       placeholder: 'SCOTT' },
+    { key: 'username', label: 'Username',     placeholder: 'oracle_user' },
+    { key: 'password', label: 'Password',     placeholder: '••••••••',           type: 'password' },
+  ],
+  sqlserver: [
+    { key: 'host',     label: 'Host',          placeholder: 'db.example.com',    required: true },
+    { key: 'port',     label: 'Port',          placeholder: '1433',              type: 'number' },
+    { key: 'database', label: 'Database',      placeholder: 'my_database',       required: true },
+    { key: 'schema',   label: 'Instance Name', placeholder: 'MSSQLSERVER' },
+    { key: 'username', label: 'Username',      placeholder: 'sa' },
+    { key: 'password', label: 'Password',      placeholder: '••••••••',          type: 'password' },
+  ],
+  db2: [
+    { key: 'host',     label: 'Host',     placeholder: 'db.example.com', required: true },
+    { key: 'port',     label: 'Port',     placeholder: '50000',          type: 'number' },
+    { key: 'database', label: 'Database', placeholder: 'SAMPLE',         required: true },
+    { key: 'username', label: 'Username', placeholder: 'db2inst1' },
+    { key: 'password', label: 'Password', placeholder: '••••••••',       type: 'password' },
+  ],
+  saphana: [
+    { key: 'host',     label: 'Host',            placeholder: 'hana.example.com', required: true },
+    { key: 'port',     label: 'Port',            placeholder: '39015',            type: 'number' },
+    { key: 'schema',   label: 'Instance Number', placeholder: '00' },
+    { key: 'username', label: 'Username',        placeholder: 'SYSTEM' },
+    { key: 'password', label: 'Password',        placeholder: '••••••••',         type: 'password' },
+  ],
+  hive: [
+    { key: 'host',     label: 'Host',       placeholder: 'hive.example.com',    required: true },
+    { key: 'port',     label: 'Port',       placeholder: '10000',               type: 'number' },
+    { key: 'database', label: 'Database',   placeholder: 'default' },
+    { key: 'schema',   label: 'Auth Type',  placeholder: 'NONE | NOSASL | PLAIN' },
+    { key: 'username', label: 'Username',   placeholder: 'hive_user' },
+    { key: 'password', label: 'Password',   placeholder: '••••••••',            type: 'password' },
+  ],
+  databricks: [
+    { key: 'host',     label: 'Workspace URL', placeholder: 'adb-xxxx.azuredatabricks.net',  required: true, full: true, hint: 'Found in your Databricks workspace URL' },
+    { key: 'schema',   label: 'HTTP Path',     placeholder: '/sql/1.0/warehouses/xxxx',      required: true, full: true, hint: 'Found under SQL Warehouses → Connection Details' },
+    { key: 'password', label: 'Access Token',  placeholder: 'dapixxxxxxxxxxxxxxxx',          required: true, full: true, type: 'password', hint: 'Generate in User Settings → Developer → Access tokens' },
+    { key: 'database', label: 'Catalog',       placeholder: 'hive_metastore' },
+    { key: 'username', label: 'Schema',        placeholder: 'default' },
+  ],
+  synapse: [
+    { key: 'host',     label: 'Workspace URL', placeholder: 'myworkspace.sql.azuresynapse.net', required: true, full: true },
+    { key: 'database', label: 'Pool Name',     placeholder: 'mySqlPool',                        required: true },
+    { key: 'username', label: 'Username',      placeholder: 'sqladminuser' },
+    { key: 'password', label: 'Password',      placeholder: '••••••••',                         type: 'password' },
+  ],
+  teradata: [
+    { key: 'host',     label: 'Host',     placeholder: 'td.example.com', required: true },
+    { key: 'database', label: 'Database', placeholder: 'my_database' },
+    { key: 'username', label: 'Username', placeholder: 'dbc' },
+    { key: 'password', label: 'Password', placeholder: '••••••••',       type: 'password' },
+  ],
+  tableau: [
+    { key: 'host',     label: 'Server URL',            placeholder: 'https://tableau.example.com', required: true, full: true },
+    { key: 'database', label: 'Site ID',               placeholder: 'my-site (blank for default)' },
+    { key: 'username', label: 'Token Name',            placeholder: 'my-pat-name',                 required: true },
+    { key: 'password', label: 'Personal Access Token', placeholder: 'xxxxxxxxxxxxxxxxxxxx',         required: true, type: 'password' },
+  ],
+  powerbi: [
+    { key: 'schema',   label: 'Tenant ID',     placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', required: true, full: true },
+    { key: 'username', label: 'Client ID',     placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', required: true },
+    { key: 'password', label: 'Client Secret', placeholder: 'xxxxxxxxxxxxxxxxxxxx',                 required: true, type: 'password' },
+    { key: 'database', label: 'Workspace ID',  placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+  ],
+  looker: [
+    { key: 'host',     label: 'Host',          placeholder: 'your-company.looker.com', required: true },
+    { key: 'port',     label: 'Port',          placeholder: '19999',                   type: 'number' },
+    { key: 'username', label: 'Client ID',     placeholder: 'abc123',                  required: true },
+    { key: 'password', label: 'Client Secret', placeholder: 'xxxxxxxxxxxxxxxxxxxx',    required: true, type: 'password' },
+  ],
+  s3: [
+    { key: 'database', label: 'Bucket',           placeholder: 'my-data-bucket',         required: true },
+    { key: 'schema',   label: 'Region',           placeholder: 'us-east-1',              required: true },
+    { key: 'username', label: 'Access Key ID',    placeholder: 'AKIAIOSFODNN7EXAMPLE',   required: true },
+    { key: 'password', label: 'Secret Access Key',placeholder: 'wJalrXUtnFEMI/K7MDENG', required: true, type: 'password' },
+    { key: 'filePath', label: 'Prefix (optional)',placeholder: 'data/raw/' },
+  ],
+  gcs: [
+    { key: 'project',  label: 'Project ID',              placeholder: 'my-gcp-project-123', required: true },
+    { key: 'database', label: 'Bucket',                  placeholder: 'my-data-bucket',     required: true },
+    { key: 'keyFile',  label: 'Service Account Key Path',placeholder: '/path/to/key.json',  full: true, hint: 'Or set GOOGLE_APPLICATION_CREDENTIALS env variable' },
+  ],
+  azureblob: [
+    { key: 'username', label: 'Account Name',             placeholder: 'mystorageaccount',                        required: true },
+    { key: 'database', label: 'Container',                placeholder: 'my-container',                            required: true },
+    { key: 'password', label: 'Account Key or SAS Token', placeholder: 'DefaultEndpointsProtocol=https...',       required: true, type: 'password', full: true },
+  ],
+  kafka: [
+    { key: 'host',     label: 'Brokers',          placeholder: 'broker1:9092,broker2:9092', required: true, full: true },
+    { key: 'database', label: 'Topic',            placeholder: 'my-topic' },
+    { key: 'schema',   label: 'Consumer Group',   placeholder: 'qualix-consumer' },
+    { key: 'filePath', label: 'Security Protocol',placeholder: 'PLAINTEXT | SSL | SASL_SSL' },
+    { key: 'username', label: 'Username',         placeholder: 'kafka_user' },
+    { key: 'password', label: 'Password',         placeholder: '••••••••', type: 'password' },
+  ],
+  kinesis: [
+    { key: 'database', label: 'Stream Name',      placeholder: 'my-data-stream',          required: true },
+    { key: 'schema',   label: 'Region',           placeholder: 'us-east-1',               required: true },
+    { key: 'username', label: 'Access Key ID',    placeholder: 'AKIAIOSFODNN7EXAMPLE',    required: true },
+    { key: 'password', label: 'Secret Access Key',placeholder: 'wJalrXUtnFEMI/K7MDENG',  required: true, type: 'password' },
+  ],
+  dbt: [
+    { key: 'schema',   label: 'Adapter Type', placeholder: 'snowflake | bigquery | redshift | postgres', full: true },
+    { key: 'database', label: 'Project Name', placeholder: 'my_dbt_project',   required: true },
+    { key: 'password', label: 'API Key',      placeholder: 'dbt Cloud API key', type: 'password', hint: 'dbt Cloud: Settings → API tokens. Leave blank for dbt Core.' },
+    { key: 'username', label: 'Job ID',       placeholder: '12345 (dbt Cloud job)' },
+  ],
+  fivetran: [
+    { key: 'username', label: 'API Key',      placeholder: 'your_api_key',    required: true },
+    { key: 'password', label: 'API Secret',   placeholder: 'your_api_secret', required: true, type: 'password' },
+    { key: 'database', label: 'Connector ID', placeholder: 'connector_id' },
+  ],
+  airbyte: [
+    { key: 'host',     label: 'Host URL',      placeholder: 'http://localhost:8000',                  required: true, full: true },
+    { key: 'database', label: 'Connection ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+    { key: 'username', label: 'Username',      placeholder: 'airbyte' },
+    { key: 'password', label: 'Password',      placeholder: '••••••••',                               type: 'password' },
+  ],
 }
 
 const typeInfo: Record<ConnectionType, { desc: string; docUrl: string }> = {
-  postgresql: { desc: 'Open-source relational database', docUrl: '#' },
-  mysql: { desc: 'Popular open-source RDBMS', docUrl: '#' },
-  snowflake: { desc: 'Cloud data warehouse platform', docUrl: '#' },
-  bigquery: { desc: 'Google serverless data warehouse', docUrl: '#' },
-  redshift: { desc: 'AWS cloud data warehouse', docUrl: '#' },
-  mongodb: { desc: 'Document-oriented NoSQL database', docUrl: '#' },
-  csv: { desc: 'Flat file (CSV, TSV, Excel)', docUrl: '#' },
-  api: { desc: 'REST API data source', docUrl: '#' },
+  postgresql:  { desc: 'Open-source relational database',                  docUrl: '#' },
+  mysql:       { desc: 'Popular open-source RDBMS',                        docUrl: '#' },
+  snowflake:   { desc: 'Cloud data warehouse platform',                    docUrl: '#' },
+  bigquery:    { desc: 'Google serverless data warehouse',                 docUrl: '#' },
+  redshift:    { desc: 'AWS cloud data warehouse',                         docUrl: '#' },
+  mongodb:     { desc: 'Document-oriented NoSQL database',                 docUrl: '#' },
+  csv:         { desc: 'Flat file (CSV, TSV, Excel)',                      docUrl: '#' },
+  api:         { desc: 'REST API data source',                             docUrl: '#' },
+  oracle:      { desc: 'Enterprise relational database by Oracle',         docUrl: '#' },
+  sqlserver:   { desc: 'Microsoft SQL Server / Azure SQL Database',        docUrl: '#' },
+  db2:         { desc: 'IBM Db2 enterprise database',                      docUrl: '#' },
+  saphana:     { desc: 'SAP HANA in-memory database',                     docUrl: '#' },
+  hive:        { desc: 'Apache Hive data warehouse on Hadoop',             docUrl: '#' },
+  databricks:  { desc: 'Databricks Lakehouse — Delta Lake SQL Warehouse',  docUrl: '#' },
+  synapse:     { desc: 'Azure Synapse Analytics',                          docUrl: '#' },
+  teradata:    { desc: 'Teradata enterprise data warehouse',               docUrl: '#' },
+  tableau:     { desc: 'Tableau Server or Tableau Cloud (metadata)',       docUrl: '#' },
+  powerbi:     { desc: 'Microsoft Power BI workspace connector',           docUrl: '#' },
+  looker:      { desc: 'Looker (Google) BI platform',                     docUrl: '#' },
+  s3:          { desc: 'Amazon S3 object storage',                        docUrl: '#' },
+  gcs:         { desc: 'Google Cloud Storage bucket',                     docUrl: '#' },
+  azureblob:   { desc: 'Azure Blob Storage container',                    docUrl: '#' },
+  kafka:       { desc: 'Apache Kafka streaming platform',                 docUrl: '#' },
+  kinesis:     { desc: 'Amazon Kinesis data stream',                      docUrl: '#' },
+  dbt:         { desc: 'dbt transformation layer (Core or Cloud)',         docUrl: '#' },
+  fivetran:    { desc: 'Fivetran automated data movement',                docUrl: '#' },
+  airbyte:     { desc: 'Airbyte open-source data integration',            docUrl: '#' },
 }
 
 const statusBadge = {
@@ -191,6 +361,10 @@ const statusBadge = {
 interface Props { initialConnections: Connection[] }
 
 type FormState = Record<string, string> & { name: string; type: ConnectionType }
+
+function getCategoryForType(type: string): string {
+  return CATEGORIES.find(c => (c.types as readonly string[]).includes(type))?.id ?? 'databases'
+}
 
 export default function ConnectionsClient({ initialConnections }: Props) {
   // On mount: merge localStorage with server-provided data
@@ -213,6 +387,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   const [form, setForm] = useState<FormState>({ name: '', type: 'postgresql' })
   const [testing, setTesting] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<{ result: TestResult; connName: string } | null>(null)
+  const [activeCategory, setActiveCategory] = useState('databases')
+  const [testingModal, setTestingModal] = useState(false)
   const _router = useRouter()
 
   // Persist to localStorage whenever connections change + notify sidebar
@@ -235,6 +411,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     setForm({ name: '', type: 'postgresql' })
     setEditingId(null)
     setShowModal(false)
+    setActiveCategory('databases')
   }
 
   function openEdit(conn: Connection) {
@@ -249,6 +426,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     setForm(filled)
     setEditingId(conn.id)
     setShowModal(true)
+    setActiveCategory(getCategoryForType(conn.type))
   }
 
   async function save() {
@@ -312,6 +490,32 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     } finally {
       setTesting(null)
       // state is managed locally — no server refresh needed
+    }
+  }
+
+  async function testInModal() {
+    if (!form.name || !form.type) return
+    setTestingModal(true)
+    try {
+      const res = await fetch('/api/connections/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connectionId: editingId || '__preview__', connectionData: { ...form, id: editingId || '__preview__', status: 'inactive', createdAt: new Date().toISOString() } })
+      })
+      const result: TestResult = await res.json()
+      setTestResult({ result, connName: form.name })
+    } catch (e: unknown) {
+      setTestResult({
+        result: {
+          success: false, status: 'error',
+          steps: [{ label: 'API call', status: 'fail', detail: (e as Error).message }],
+          errorCode: 'CLIENT_ERROR', errorMessage: 'Could not reach the test endpoint.',
+          suggestion: 'Make sure the dev server is running.'
+        },
+        connName: form.name
+      })
+    } finally {
+      setTestingModal(false)
     }
   }
 
@@ -491,18 +695,42 @@ export default function ConnectionsClient({ initialConnections }: Props) {
               ) : (
                 <div>
                   <label style={lbl}>Database Type *</label>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-                    {CONNECTION_TYPES.map(t => (
-                      <button key={t.value} onClick={() => setField('type', t.value)} style={{
-                        padding: '10px 6px', borderRadius: '8px', border: '1px solid',
-                        borderColor: form.type === t.value ? t.color : '#e2e8f0',
-                        background: form.type === t.value ? `${t.color}12` : '#fafaf9',
-                        cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s'
-                      }}>
-                        <div style={{ fontSize: '20px', marginBottom: '4px' }}>{connectionIcons[t.value]}</div>
-                        <div style={{ fontSize: '10.5px', fontWeight: form.type === t.value ? 700 : 500, color: form.type === t.value ? t.color : '#64748b' }}>{t.label}</div>
+
+                  {/* Category tab segmented control */}
+                  <div style={{ display:'flex', border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fafaf9', marginBottom:'8px' }}>
+                    {CATEGORIES.map(cat => (
+                      <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+                        style={{
+                          flex:1, padding:'6px 2px', border:'none',
+                          borderRight: cat.id === CATEGORIES[CATEGORIES.length - 1].id ? 'none' : '1px solid #e2e8f0',
+                          background: activeCategory === cat.id ? '#dbeafe' : 'transparent',
+                          color: activeCategory === cat.id ? '#2563eb' : '#64748b',
+                          fontWeight: activeCategory === cat.id ? 700 : 500,
+                          fontSize:'10.5px', cursor:'pointer', textAlign:'center', lineHeight:1.3
+                        }}>
+                        <div style={{ fontSize:'13px', marginBottom:'2px' }}>{cat.emoji}</div>
+                        {cat.label}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Connector grid for active category */}
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'6px' }}>
+                    {CATEGORIES.find(c => c.id === activeCategory)?.types.map(typeVal => {
+                      const t = CONNECTION_TYPES.find(ct => ct.value === typeVal)
+                      if (!t) return null
+                      return (
+                        <button key={t.value} onClick={() => setField('type', t.value)} style={{
+                          padding:'8px 4px', borderRadius:'8px', border:'1px solid',
+                          borderColor: form.type === t.value ? t.color : '#e2e8f0',
+                          background: form.type === t.value ? `${t.color}12` : '#fafaf9',
+                          cursor:'pointer', textAlign:'center', transition:'all 0.15s'
+                        }}>
+                          <div style={{ fontSize:'18px', marginBottom:'3px' }}>{connectionIcons[t.value] || '🔌'}</div>
+                          <div style={{ fontSize:'10px', fontWeight: form.type === t.value ? 700 : 500, color: form.type === t.value ? t.color : '#64748b' }}>{t.label}</div>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -537,10 +765,21 @@ export default function ConnectionsClient({ initialConnections }: Props) {
               </div>
 
               {/* Buttons */}
-              <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-                <button onClick={resetForm} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+              <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>
+                <button onClick={resetForm} style={{ flex:1, padding:'10px', borderRadius:'8px', border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:'13px', fontWeight:500, cursor:'pointer' }}>Cancel</button>
+                <button onClick={testInModal} disabled={testingModal || !form.name} style={{
+                  flex:1.3, padding:'10px', borderRadius:'8px', border:'1px solid #93c5fd',
+                  background: (!form.name || testingModal) ? '#f8fafc' : '#dbeafe',
+                  color: (!form.name || testingModal) ? '#94a3b8' : '#2563eb',
+                  fontSize:'13px', fontWeight:600, cursor: (!form.name || testingModal) ? 'not-allowed' : 'pointer',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:'6px'
+                }}>
+                  {testingModal
+                    ? <><span style={{ display:'inline-block', animation:'spin 1s linear infinite' }}>⟳</span> Testing…</>
+                    : '🔗 Test Connection'}
+                </button>
                 <button onClick={save} disabled={saving || !form.name} style={{
-                  flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600,
+                  flex:1.5, padding:'10px', borderRadius:'8px', border:'none', fontSize:'13px', fontWeight:600,
                   cursor: form.name ? 'pointer' : 'not-allowed',
                   background: form.name ? '#2563eb' : '#e2e8f0',
                   color: form.name ? '#fff' : '#94a3b8'
