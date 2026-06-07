@@ -23,24 +23,34 @@ interface Contract {
   trend: string
 }
 
+const complianceColor = (c: number) =>
+  c >= 90 ? 'var(--status-ok-text)' : c >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
+const complianceBg = (c: number) =>
+  c >= 90 ? 'var(--status-ok-bg)' : c >= 75 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)'
+const statusColor = (s: ContractStatus) =>
+  s === 'active' ? 'var(--status-ok-text)' : s === 'warning' ? 'var(--status-warn-text)' : 'var(--status-error-text)'
+const statusBg = (s: ContractStatus) =>
+  s === 'active' ? 'var(--status-ok-bg)' : s === 'warning' ? 'var(--status-warn-bg)' : 'var(--status-error-bg)'
 
-const complianceColor = (c: number) => c >= 90 ? '#16a34a' : c >= 75 ? '#ca8a04' : '#dc2626'
-const stCfg: Record<ContractStatus, { bg: string; color: string; border: string }> = {
-  active:  { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
-  warning: { bg: '#fef3c7', color: '#d97706', border: '#fde68a' },
-  breached:{ bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+const termColor: Record<'pass' | 'fail' | 'warn', string> = {
+  pass: 'var(--status-ok-text)', fail: 'var(--status-error-text)', warn: 'var(--status-warn-text)',
 }
-const termIcon = { pass: '✅', fail: '❌', warn: '⚠️' }
-const termColor = { pass: '#16a34a', fail: '#dc2626', warn: '#d97706' }
-const termBg   = { pass: '#f0fdf4', fail: '#fff1f2', warn: '#fffbeb' }
+const termBg: Record<'pass' | 'fail' | 'warn', string> = {
+  pass: 'var(--status-ok-bg)', fail: 'var(--status-error-bg)', warn: 'var(--status-warn-bg)',
+}
+const termIcon = { pass: '✓', fail: '✕', warn: '⚠' }
+
+const COLS = '1fr 180px 90px 55px 45px 72px 90px'
 
 export default function ContractsPage() {
-  const [filter, setFilter]     = useState<FilterType>('all')
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [search, setSearch]     = useState('')
+  const [filter, setFilter]       = useState<FilterType>('all')
+  const [selected, setSelected]   = useState<Contract | null>(null)
+  const [search, setSearch]       = useState('')
   const [allContracts, setAllContracts] = useState<Contract[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showAdd, setShowAdd] = useState(false)
+  const [loading, setLoading]     = useState(true)
+  const [showAdd, setShowAdd]     = useState(false)
+  const [hoverId, setHoverId]     = useState<string | null>(null)
+  const [cForm, setCForm]         = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
 
   useEffect(() => {
     fetch('/api/slas')
@@ -72,7 +82,6 @@ export default function ContractsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
-  const [cForm, setCForm] = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
 
   const addContract = () => {
     if (!cForm.name) return
@@ -88,16 +97,16 @@ export default function ContractsPage() {
     setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
   }
 
-  const total   = allContracts.length
-  const active  = allContracts.filter(c => c.status === 'active').length
+  const total    = allContracts.length
+  const active   = allContracts.filter(c => c.status === 'active').length
   const breached = allContracts.filter(c => c.status === 'breached').length
-  const avgComp = Math.round(allContracts.reduce((s, c) => s + c.compliance, 0) / allContracts.length)
+  const avgComp  = total ? Math.round(allContracts.reduce((s, c) => s + c.compliance, 0) / total) : 0
 
   const filtered = allContracts.filter(c => {
     const matchFilter =
-      filter === 'all'     ? true :
-      filter === 'active'  ? c.status === 'active' || c.status === 'warning' :
-      filter === 'breached'? c.status === 'breached' : true
+      filter === 'all'      ? true :
+      filter === 'active'   ? c.status === 'active' || c.status === 'warning' :
+      filter === 'breached' ? c.status === 'breached' : true
     const matchSearch = search === '' ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.producer.toLowerCase().includes(search.toLowerCase()) ||
@@ -105,251 +114,164 @@ export default function ContractsPage() {
     return matchFilter && matchSearch
   })
 
-  const statCards = [
-    { key: 'all'      as FilterType, label: 'Total Contracts', value: total,   icon: '📄', color: '#2563eb',  activeBg: '#2563eb'  },
-    { key: 'active'   as FilterType, label: 'Active',          value: active,  icon: '✅', color: '#16a34a',  activeBg: '#16a34a'  },
-    { key: 'breached' as FilterType, label: 'Breached',        value: breached,icon: '🚨', color: '#dc2626',  activeBg: '#dc2626'  },
-    { key: 'all'      as FilterType, label: 'Avg Compliance',  value: avgComp + '%', icon: '📊', color: complianceColor(avgComp), activeBg: '#475569' },
-  ]
-
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Data Contracts</span>
+        <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{active} active</span>
+        {breached > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{breached} breached</span>}
+        <div style={{ flex: 1 }} />
+        <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '5px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Contract</button>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Data Contracts</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
-            Agreements between data producers and consumers
-            {breached > 0 && <span style={{ color: '#dc2626', fontWeight: 600 }}> — {breached} breach{breached > 1 ? 'es' : ''} active</span>}
-          </p>
-        </div>
-        <button onClick={() => setShowAdd(true)} style={{ background: '#E8541A', border: 'none', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
-          + New Contract
-        </button>
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
+        {[
+          { label: 'Total', value: total },
+          { label: 'Active', value: active },
+          { label: 'Breached', value: breached },
+          { label: 'Avg Compliance', value: avgComp + '%' },
+        ].map((k, i) => (
+          <div key={k.label} style={{ padding: '5px 10px', borderRight: i < 3 ? '1px solid var(--border)' : 'none', background: 'var(--surface)' }}>
+            <div style={{ fontSize: '8.5px', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{k.label}</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)', marginTop: '1px' }}>{k.value}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Clickable stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '12px', marginBottom: '24px' }}>
-        {statCards.map((card, idx) => {
-          const isActive = filter === card.key && !(idx === 0 || idx === 3)
-          return (
-            <div key={idx} onClick={() => idx === 0 || idx === 3 ? setFilter('all') : setFilter(isActive ? 'all' : card.key)}
-              style={{
-                background: isActive ? card.activeBg : '#fff',
-                border: `2px solid ${isActive ? card.activeBg : '#ebe8df'}`,
-                borderRadius: '12px', padding: '16px 20px',
-                cursor: idx === 0 || idx === 3 ? 'default' : 'pointer',
-                boxShadow: isActive ? `0 4px 16px ${card.activeBg}40` : 'none',
-                transition: 'all 0.18s',
-              }}>
-              <div style={{ fontSize: '22px', marginBottom: '6px' }}>{card.icon}</div>
-              <div style={{ fontSize: '26px', fontWeight: 700, color: isActive ? '#fff' : card.color }}>{card.value}</div>
-              <div style={{ fontSize: '12px', color: isActive ? 'rgba(255,255,255,0.8)' : '#64748b', marginTop: '2px' }}>{card.label}</div>
-              {isActive && <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.65)', marginTop: '3px' }}>Click to clear</div>}
-            </div>
-          )
-        })}
+      {/* Tabs + search */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+        {(['all', 'active', 'breached'] as FilterType[]).map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '4px 10px', borderRadius: '5px', border: 'none', fontSize: '11px',
+            fontWeight: filter === f ? 700 : 400,
+            background: filter === f ? 'var(--accent)' : 'var(--surface)',
+            color: filter === f ? 'var(--accent-bg)' : 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}>
+            {f === 'all' ? `All (${total})` : f === 'active' ? `Active (${active})` : `Breached (${breached})`}
+          </button>
+        ))}
+        <div style={{ flex: 1 }} />
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…"
+          style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', width: '160px' }} />
       </div>
 
-      {/* Search */}
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="Search contracts by name, producer, or consumer…"
-        style={{ width: '100%', padding: '9px 14px', borderRadius: '9px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a', marginBottom: '16px', boxSizing: 'border-box', outline: 'none' }} />
+      {/* Column headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', padding: '0 8px 3px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+        {['Contract', 'Producer → Consumer', 'Owner', 'Checks', 'Fails', 'Compliance', 'Status'].map(h => (
+          <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+        ))}
+      </div>
 
-      {/* Filter label */}
-      {filter !== 'all' && (
-        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '12.5px', color: '#64748b' }}>Showing:</span>
-          <span style={{ background: '#f1f5f9', color: '#334155', padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 }}>{filter}</span>
-          <span style={{ fontSize: '12px', color: '#94a3b8' }}>{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-          <button onClick={() => setFilter('all')} style={{ background: 'none', border: 'none', color: '#6366f1', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }}>✕ Clear</button>
-        </div>
-      )}
-
-      {/* Contract cards */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {filtered.map(c => {
-          const ss = stCfg[c.status]
-          const cc = complianceColor(c.compliance)
-          const isOpen = expanded === c.id
-          const failedTerms = c.terms.filter(t => t.status === 'fail')
-          const warnTerms   = c.terms.filter(t => t.status === 'warn')
-
-          return (
-            <div key={c.id} style={{
-              background: '#fff',
-              border: `1.5px solid ${isOpen ? '#6366f1' : c.status === 'breached' ? '#fca5a5' : c.status === 'warning' ? '#fde68a' : '#ebe8df'}`,
-              borderRadius: '14px', overflow: 'hidden',
-              boxShadow: isOpen ? '0 6px 24px rgba(99,102,241,0.13)' : c.status === 'breached' ? '0 2px 8px rgba(220,38,38,0.08)' : '0 1px 3px rgba(0,0,0,0.04)',
-              transition: 'all 0.2s',
+      {/* Rows */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>Loading…</div>}
+        {!loading && filtered.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', border: '2px dashed var(--border)', borderRadius: '8px', margin: '8px' }}>No contracts found</div>}
+        {!loading && filtered.map(c => (
+          <div key={c.id}
+            onClick={() => setSelected(selected?.id === c.id ? null : c)}
+            onMouseEnter={() => setHoverId(c.id)}
+            onMouseLeave={() => setHoverId(null)}
+            style={{
+              display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', alignItems: 'center',
+              padding: '5px 6px',
+              borderLeft: `2px solid ${statusColor(c.status)}`,
+              borderBottom: '1px solid var(--surface-muted)',
+              background: selected?.id === c.id ? 'var(--surface)' : hoverId === c.id ? 'var(--surface-muted)' : 'transparent',
+              cursor: 'pointer',
             }}>
+            <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{c.producer} → {c.consumer}</span>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.owner || '—'}</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--foreground)' }}>{c.checks}</span>
+            <span style={{ fontSize: '11px', fontWeight: 600, color: c.failures > 0 ? 'var(--status-error-text)' : 'var(--foreground)' }}>{c.failures}</span>
+            <span style={{ background: complianceBg(c.compliance), color: complianceColor(c.compliance), padding: '1px 4px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center' }}>{c.compliance}%</span>
+            <span style={{ background: statusBg(c.status), color: statusColor(c.status), padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 700, textTransform: 'capitalize' }}>{c.status}</span>
+          </div>
+        ))}
+      </div>
 
-              {/* Summary row */}
-              <div onClick={() => setExpanded(isOpen ? null : c.id)}
-                style={{ padding: '18px 22px', cursor: 'pointer', userSelect: 'none' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                      <span style={{ fontWeight: 700, fontSize: '14px', color: '#1a1a1a' }}>{c.name}</span>
-                      <span style={{ ...ss, padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>{c.status}</span>
-                      {failedTerms.length > 0 && (
-                        <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>
-                          {failedTerms.length} check{failedTerms.length > 1 ? 's' : ''} failing
-                        </span>
-                      )}
-                      {warnTerms.length > 0 && (
-                        <span style={{ background: '#fef3c7', color: '#d97706', padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 700 }}>
-                          {warnTerms.length} warning{warnTerms.length > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '8px' }}>{c.description}</div>
-                    <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#94a3b8', flexWrap: 'wrap' }}>
-                      <span>Producer: <strong style={{ color: '#475569' }}>{c.producer}</strong></span>
-                      <span>Consumer: <strong style={{ color: '#475569' }}>{c.consumer}</strong></span>
-                      <span>Owner: <strong style={{ color: '#475569' }}>{c.owner}</strong></span>
-                      <span>SLA: <strong style={{ color: cc }}>{c.sla}</strong></span>
-                      <span style={{ color: c.trend.startsWith('↑') ? '#16a34a' : '#dc2626' }}>{c.trend}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexShrink: 0 }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '30px', fontWeight: 800, color: cc, lineHeight: 1 }}>{c.compliance}%</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>compliance</div>
-                      <div style={{ fontSize: '11px', color: '#94a3b8' }}>{c.checks} checks · {c.failures} fail</div>
-                    </div>
-                    <div style={{
-                      width: '28px', height: '28px', borderRadius: '8px',
-                      background: isOpen ? '#6366f1' : '#f1f5f9',
-                      color: isOpen ? '#fff' : '#64748b',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '12px', transition: 'all 0.18s',
-                    }}>
-                      {isOpen ? '▲' : '▼'}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Compliance bar */}
-                <div style={{ marginTop: '12px', height: '5px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${c.compliance}%`, background: cc, borderRadius: '4px', transition: 'width 0.5s' }} />
-                </div>
+      {/* Slide-in panel */}
+      {selected && (
+        <>
+          <div onClick={() => setSelected(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+              <span style={{ fontWeight: 700, fontSize: '13px', flex: 1, color: 'var(--foreground)' }}>{selected.name}</span>
+              <span style={{ background: statusBg(selected.status), color: statusColor(selected.status), padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, textTransform: 'capitalize' }}>{selected.status}</span>
+              <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
+            </div>
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {/* Compliance badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: complianceBg(selected.compliance), borderRadius: '6px' }}>
+                <span style={{ fontSize: '9px', textTransform: 'uppercase', color: complianceColor(selected.compliance), letterSpacing: '0.05em' }}>Compliance</span>
+                <span style={{ fontSize: '20px', fontWeight: 800, color: complianceColor(selected.compliance) }}>{selected.compliance}%</span>
+                <span style={{ fontSize: '10px', color: complianceColor(selected.compliance) }}>{selected.checks} checks · {selected.failures} failures</span>
               </div>
-
-              {/* Expanded detail */}
-              {isOpen && (
-                <div style={{ borderTop: '2px solid #f1f5f9', background: '#f8fafd' }}>
-
-                  {/* Metadata bar */}
-                  <div style={{ display: 'flex', background: '#fff', borderBottom: '1px solid #f1f5f9' }}>
-                    {[
-                      { label: 'Connection',   value: c.connection },
-                      { label: 'SLA Target',   value: c.sla },
-                      { label: 'Created',      value: c.created },
-                      { label: 'Last Checked', value: c.lastChecked },
-                      { label: 'Trend',        value: c.trend },
-                    ].map((m, i) => (
-                      <div key={i} style={{ flex: 1, padding: '10px 16px', borderRight: i < 4 ? '1px solid #f1f5f9' : 'none' }}>
-                        <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>{m.label}</div>
-                        <div style={{ fontSize: '12.5px', fontWeight: 600, color: m.label === 'Trend' ? (m.value.startsWith('↑') ? '#16a34a' : '#dc2626') : '#334155' }}>{m.value}</div>
-                      </div>
-                    ))}
+              {/* Meta grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                {[
+                  { label: 'Producer', value: selected.producer },
+                  { label: 'Consumer', value: selected.consumer },
+                  { label: 'Owner', value: selected.owner },
+                  { label: 'SLA Target', value: selected.sla },
+                  { label: 'Connection', value: selected.connection },
+                  { label: 'Created', value: selected.created },
+                  { label: 'Last Checked', value: selected.lastChecked },
+                  { label: 'Trend', value: selected.trend },
+                ].map(m => (
+                  <div key={m.label} style={{ padding: '6px 8px', background: 'var(--surface-muted)', borderRadius: '5px' }}>
+                    <div style={{ fontSize: '8.5px', textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '0.05em' }}>{m.label}</div>
+                    <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', marginTop: '1px', wordBreak: 'break-all' }}>{m.value || '—'}</div>
                   </div>
-
-                  <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-
-                    {/* Breach explanation (only if breached or warning) */}
-                    {(c.status === 'breached' || c.status === 'warning') && c.breachReason && (
-                      <>
-                        <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fca5a5', overflow: 'hidden' }}>
-                          <div style={{ background: '#fee2e2', padding: '10px 16px', borderBottom: '1px solid #fca5a5', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '16px' }}>🚨</span>
-                            <span style={{ fontSize: '12px', fontWeight: 800, color: '#dc2626', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                              {c.status === 'breached' ? 'Breach Reason — Why is this contract failing?' : 'Warning — What is at risk?'}
-                            </span>
-                          </div>
-                          <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{c.breachReason}</div>
+                ))}
+              </div>
+              {/* Breach section */}
+              {(selected.status === 'breached' || selected.status === 'warning') && selected.breachReason && (
+                <div style={{ border: '1px solid var(--status-error-text)', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ padding: '6px 10px', background: 'var(--status-error-bg)', borderBottom: '1px solid var(--border)', fontSize: '9px', fontWeight: 700, color: 'var(--status-error-text)', textTransform: 'uppercase' }}>Breach Reason</div>
+                  <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--foreground)', lineHeight: 1.6 }}>{selected.breachReason}</div>
+                  {selected.breachImpact && <>
+                    <div style={{ padding: '6px 10px', background: 'var(--status-warn-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', fontSize: '9px', fontWeight: 700, color: 'var(--status-warn-text)', textTransform: 'uppercase' }}>Impact</div>
+                    <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--foreground)', lineHeight: 1.6 }}>{selected.breachImpact}</div>
+                  </>}
+                  {selected.breachRecommendation && <>
+                    <div style={{ padding: '6px 10px', background: 'var(--status-ok-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', fontSize: '9px', fontWeight: 700, color: 'var(--status-ok-text)', textTransform: 'uppercase' }}>Recommended Fix</div>
+                    <div style={{ padding: '8px 10px', fontSize: '12px', color: 'var(--foreground)', lineHeight: 1.6 }}>{selected.breachRecommendation}</div>
+                  </>}
+                </div>
+              )}
+              {/* Terms checklist */}
+              {selected.terms.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+                  <div style={{ padding: '6px 10px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Contract Terms</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{selected.terms.filter(t => t.status === 'pass').length}/{selected.terms.length} passing</span>
+                  </div>
+                  {selected.terms.map((t, i) => (
+                    <div key={t.term} style={{ padding: '6px 10px', background: t.status !== 'pass' ? termBg[t.status] : 'transparent', borderLeft: `2px solid ${termColor[t.status]}`, borderBottom: i < selected.terms.length - 1 ? '1px solid var(--surface-muted)' : 'none' }}>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                        <span style={{ fontSize: '11px', color: termColor[t.status], flexShrink: 0, marginTop: '1px' }}>{termIcon[t.status]}</span>
+                        <div>
+                          <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--foreground)' }}>{t.term}</div>
+                          <div style={{ fontSize: '10.5px', color: termColor[t.status] }}>{t.detail}</div>
                         </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                          <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #fdba74', overflow: 'hidden' }}>
-                            <div style={{ background: '#fff7ed', padding: '10px 16px', borderBottom: '1px solid #fdba74', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '16px' }}>💥</span>
-                              <span style={{ fontSize: '12px', fontWeight: 800, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Business Impact</span>
-                            </div>
-                            <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{c.breachImpact}</div>
-                          </div>
-                          <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #bbf7d0', overflow: 'hidden' }}>
-                            <div style={{ background: '#f0fdf4', padding: '10px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ fontSize: '16px' }}>✅</span>
-                              <span style={{ fontSize: '12px', fontWeight: 800, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Recommended Fix</span>
-                            </div>
-                            <div style={{ padding: '14px 16px', fontSize: '13px', color: '#1e293b', lineHeight: '1.7' }}>{c.breachRecommendation}</div>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Contract Terms checklist */}
-                    <div style={{ background: '#fff', borderRadius: '12px', border: '1px solid #e9eef5', overflow: 'hidden' }}>
-                      <div style={{ padding: '12px 16px', background: '#fafaf9', borderBottom: '1px solid #e9eef5', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontSize: '16px' }}>📋</span>
-                        <span style={{ fontSize: '12px', fontWeight: 800, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Contract Terms — Check-by-Check Results</span>
-                        <span style={{ marginLeft: 'auto', fontSize: '11.5px', color: '#94a3b8' }}>
-                          {c.terms.filter(t => t.status === 'pass').length}/{c.terms.length} passing
-                        </span>
-                      </div>
-                      <div style={{ padding: '8px 0' }}>
-                        {c.terms.map((t, i) => (
-                          <div key={i} style={{
-                            padding: '10px 16px',
-                            background: t.status !== 'pass' ? termBg[t.status] : 'transparent',
-                            borderLeft: `3px solid ${t.status !== 'pass' ? termColor[t.status] : 'transparent'}`,
-                            marginLeft: t.status !== 'pass' ? '0' : '3px',
-                            borderBottom: i < c.terms.length - 1 ? '1px solid #f3f1ea' : 'none',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                              <span style={{ fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>{termIcon[t.status]}</span>
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#1e293b', marginBottom: '2px' }}>{t.term}</div>
-                                <div style={{ fontSize: '12px', color: t.status !== 'pass' ? termColor[t.status] : '#64748b', lineHeight: '1.5' }}>{t.detail}</div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
                       </div>
                     </div>
-
-                    {/* Collapse */}
-                    <div>
-                      <button onClick={() => setExpanded(null)} style={{ padding: '7px 14px', borderRadius: '8px', border: '1.5px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer' }}>
-                        ▲ Collapse
-                      </button>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               )}
             </div>
-          )
-        })}
-
-        {loading && (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
-        )}
-        {!loading && filtered.length === 0 && (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
-            No data contracts yet
           </div>
-        )}
-      </div>
+        </>
+      )}
 
-      {/* New Contract Modal */}
+      {/* New Contract Modal — unchanged from original */}
       {showAdd && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowAdd(false)} />
           <div style={{ background: '#fff', borderRadius: '14px', width: '520px', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative', zIndex: 1 }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df' }}>
@@ -367,11 +289,11 @@ export default function ContractsPage() {
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Producer (source table) *</label>
+                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Producer *</label>
                   <input value={cForm.producer} onChange={e => setCForm(f => ({ ...f, producer: e.target.value }))} placeholder="source table or dataset" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Consumer (downstream) *</label>
+                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Consumer *</label>
                   <input value={cForm.consumer} onChange={e => setCForm(f => ({ ...f, consumer: e.target.value }))} placeholder="e.g. finance_report" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
                 </div>
               </div>
@@ -393,12 +315,7 @@ export default function ContractsPage() {
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid #ebe8df', display: 'flex', gap: '10px' }}>
               <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={addContract} disabled={!cForm.name || !cForm.producer || !cForm.consumer} style={{
-                flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600,
-                cursor: cForm.name && cForm.producer && cForm.consumer ? 'pointer' : 'not-allowed',
-                background: cForm.name && cForm.producer && cForm.consumer ? '#E8541A' : '#e2e8f0',
-                color: cForm.name && cForm.producer && cForm.consumer ? '#fff' : '#94a3b8'
-              }}>Create Contract</button>
+              <button onClick={addContract} disabled={!cForm.name || !cForm.producer || !cForm.consumer} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: cForm.name && cForm.producer && cForm.consumer ? 'pointer' : 'not-allowed', background: cForm.name && cForm.producer && cForm.consumer ? '#E8541A' : '#e2e8f0', color: cForm.name && cForm.producer && cForm.consumer ? '#fff' : '#94a3b8' }}>Create Contract</button>
             </div>
           </div>
         </div>

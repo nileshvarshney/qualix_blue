@@ -1,56 +1,43 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
 
-/* ── Schema definitions (two schemas for comparison) ──────────── */
-
 interface ColumnDef {
-  name: string; type: string; nullable: boolean; isPK?: boolean; isFK?: boolean
-  sampleValues?: string[]
+  name: string; type: string; nullable: boolean; isPK?: boolean; isFK?: boolean; sampleValues?: string[]
 }
-
 interface TableSchema {
   name: string; rowCount: number; columns: ColumnDef[]
   stats: Record<string, { sum?: number; avg?: number; min?: number; max?: number; nullCount: number; distinctCount: number }>
 }
-
-interface SchemaData {
-  name: string; database: string; tables: TableSchema[]
-}
-
-
-/* ── Helpers ──────────────────────────────────────────────────── */
+interface SchemaData { name: string; database: string; tables: TableSchema[] }
 
 function fmt(n: number | undefined): string {
   if (n === undefined) return '—'
   if (Math.abs(n) >= 1_000_000_000) return (n / 1_000_000_000).toFixed(1) + 'B'
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M'
-  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1) + 'K'
+  if (Math.abs(n) >= 1_000_000)     return (n / 1_000_000).toFixed(1) + 'M'
+  if (Math.abs(n) >= 1_000)         return (n / 1_000).toFixed(1) + 'K'
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 })
 }
-
 function pctDiff(a: number, b: number): { text: string; color: string } {
-  if (a === 0 && b === 0) return { text: '0%', color: '#94a3b8' }
-  if (a === 0) return { text: '+100%', color: '#dc2626' }
+  if (a === 0 && b === 0) return { text: '0%', color: 'var(--text-muted)' }
+  if (a === 0) return { text: '+100%', color: 'var(--status-error-text)' }
   const pct = ((b - a) / a) * 100
-  if (Math.abs(pct) < 0.01) return { text: '0%', color: '#16a34a' }
+  if (Math.abs(pct) < 0.01) return { text: '0%', color: 'var(--status-ok-text)' }
   const sign = pct > 0 ? '+' : ''
-  const color = Math.abs(pct) < 1 ? '#16a34a' : Math.abs(pct) < 5 ? '#d97706' : '#dc2626'
+  const color = Math.abs(pct) < 1 ? 'var(--status-ok-text)' : Math.abs(pct) < 5 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
   return { text: `${sign}${pct.toFixed(2)}%`, color }
 }
 
-const card: React.CSSProperties = { background: '#fff', borderRadius: '12px', padding: '18px 20px', border: '1px solid #ebe8df' }
-const inp = (extra?: React.CSSProperties): React.CSSProperties => ({ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', background: '#fff', boxSizing: 'border-box' as const, ...extra })
-
-/* ── Component ────────────────────────────────────────────────── */
+const COLS = '1fr 70px 70px 90px'
 
 export default function SpotCheckPage() {
-  const [schemas, setSchemas] = useState<SchemaData[]>([])
-  const [loading, setLoading] = useState(true)
-  const [schemaA, setSchemaA] = useState(0)
-  const [schemaB, setSchemaB] = useState(1)
+  const [schemas,       setSchemas]       = useState<SchemaData[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [schemaA,       setSchemaA]       = useState(0)
+  const [schemaB,       setSchemaB]       = useState(1)
+  const [search,        setSearch]        = useState('')
   const [selectedTable, setSelectedTable] = useState<string | null>(null)
-  const [tab, setTab] = useState<'tables' | 'columns' | 'stats'>('tables')
-  const [search, setSearch] = useState('')
+  const [tab,           setTab]           = useState<'columns'|'stats'>('columns')
+  const [hoverId,       setHoverId]       = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/snowflake/tables')
@@ -58,57 +45,28 @@ export default function SpotCheckPage() {
       .then(data => {
         const tables = Array.isArray(data) ? data : (data.tables ?? [])
         if (tables.length === 0) { setLoading(false); return }
-        // Group by schema to build schema objects
         const schemaMap = new Map<string, TableSchema[]>()
         for (const t of tables) {
           const key = `${t.database_name ?? ''}.${t.schema_name ?? ''}`
           if (!schemaMap.has(key)) schemaMap.set(key, [])
-          schemaMap.get(key)!.push({
-            name: String(t.table_name ?? t.name ?? ''),
-            rowCount: Number(t.row_count ?? t.rowCount ?? 0),
-            columns: [],
-            stats: {},
-          })
+          schemaMap.get(key)!.push({ name: String(t.table_name ?? t.name ?? ''), rowCount: Number(t.row_count ?? t.rowCount ?? 0), columns: [], stats: {} })
         }
         const built: SchemaData[] = []
         for (const [key, tbs] of schemaMap) {
           const parts = key.split('.')
           built.push({ name: parts[1] || key, database: parts[0] || '', tables: tbs })
         }
-        setSchemas(built)
-        setLoading(false)
+        setSchemas(built); setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [])
 
-  if (loading) {
-    return (
-      <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 20px' }}>Spot Check</h1>
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '1px solid var(--border)' }}>Loading…</div>
-      </div>
-    )
-  }
+  const SCHEMAS  = schemas
+  const sA       = SCHEMAS[schemaA] ?? SCHEMAS[0]
+  const sB       = SCHEMAS[Math.min(schemaB, SCHEMAS.length - 1)] ?? SCHEMAS[0]
 
-  if (schemas.length === 0) {
-    return (
-      <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-        <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Explore</span></div>
-        <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Spot Check</h1>
-        <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Compare tables, columns, and summary statistics across schemas</p>
-        <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
-          Connect a data source to use schema comparison
-        </div>
-      </div>
-    )
-  }
-
-  const SCHEMAS = schemas
-  const sA = SCHEMAS[schemaA] ?? SCHEMAS[0]
-  const sB = SCHEMAS[Math.min(schemaB, SCHEMAS.length - 1)] ?? SCHEMAS[0]
-
-  // Table comparison
   const allTableNames = useMemo(() => {
+    if (!sA || !sB) return []
     const set = new Set([...sA.tables.map(t => t.name), ...sB.tables.map(t => t.name)])
     return [...set].sort()
   }, [sA, sB])
@@ -118,354 +76,263 @@ export default function SpotCheckPage() {
     return allTableNames.filter(t => t.toLowerCase().includes(search.toLowerCase()))
   }, [allTableNames, search])
 
-  const tableA = sA.tables.find(t => t.name === selectedTable)
-  const tableB = sB.tables.find(t => t.name === selectedTable)
+  const tableA = sA?.tables.find(t => t.name === selectedTable)
+  const tableB = sB?.tables.find(t => t.name === selectedTable)
 
-  // Column comparison for selected table
   const columnComparison = useMemo(() => {
     if (!tableA && !tableB) return []
-    const colsA = tableA?.columns || []
-    const colsB = tableB?.columns || []
+    const colsA = tableA?.columns || []; const colsB = tableB?.columns || []
     const allNames = new Set([...colsA.map(c => c.name), ...colsB.map(c => c.name)])
-    return [...allNames].map(name => ({
-      name,
-      inA: colsA.find(c => c.name === name),
-      inB: colsB.find(c => c.name === name),
-    }))
+    return [...allNames].map(name => ({ name, inA: colsA.find(c => c.name === name), inB: colsB.find(c => c.name === name) }))
   }, [tableA, tableB])
 
-  // Stats comparison
   const statsComparison = useMemo(() => {
     if (!tableA && !tableB) return []
-    const statsA = tableA?.stats || {}
-    const statsB = tableB?.stats || {}
+    const statsA = tableA?.stats || {}; const statsB = tableB?.stats || {}
     const allCols = new Set([...Object.keys(statsA), ...Object.keys(statsB)])
-    return [...allCols].map(col => ({
-      column: col,
-      a: statsA[col],
-      b: statsB[col],
-    }))
+    return [...allCols].map(col => ({ column: col, a: statsA[col], b: statsB[col] }))
   }, [tableA, tableB])
 
-  // Summary KPIs
-  const tablesOnlyA = allTableNames.filter(t => sA.tables.some(ta => ta.name === t) && !sB.tables.some(tb => tb.name === t))
-  const tablesOnlyB = allTableNames.filter(t => !sA.tables.some(ta => ta.name === t) && sB.tables.some(tb => tb.name === t))
-  const tablesCommon = allTableNames.filter(t => sA.tables.some(ta => ta.name === t) && sB.tables.some(tb => tb.name === t))
+  const tablesOnlyA  = sA && sB ? allTableNames.filter(t =>  sA.tables.some(ta => ta.name === t) && !sB.tables.some(tb => tb.name === t)) : []
+  const tablesOnlyB  = sA && sB ? allTableNames.filter(t => !sA.tables.some(ta => ta.name === t) &&  sB.tables.some(tb => tb.name === t)) : []
+  const tablesCommon = sA && sB ? allTableNames.filter(t =>  sA.tables.some(ta => ta.name === t) &&  sB.tables.some(tb => tb.name === t)) : []
+  const totalRowsA   = sA ? sA.tables.reduce((s, t) => s + t.rowCount, 0) : 0
+  const totalRowsB   = sB ? sB.tables.reduce((s, t) => s + t.rowCount, 0) : 0
+  const rowDiff      = sA && sB ? pctDiff(totalRowsA, totalRowsB) : null
 
-  const totalRowsA = sA.tables.reduce((s, t) => s + t.rowCount, 0)
-  const totalRowsB = sB.tables.reduce((s, t) => s + t.rowCount, 0)
+  const sel = { width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }
+
+  if (loading) return (
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Spot Check</span>
+        <span style={{ background: 'var(--surface-muted)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px' }}>Loading…</span>
+      </div>
+    </div>
+  )
+
+  if (schemas.length === 0) return (
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Spot Check</span>
+      </div>
+      <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px', border: '2px dashed var(--border)', borderRadius: '8px' }}>
+        Connect a data source to use schema comparison
+      </div>
+    </div>
+  )
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1400px' }}>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>Workspace · <span style={{ color: '#475569' }}>Explore</span></div>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>Spot Check</h1>
-      <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 20px' }}>Compare tables, columns, and summary statistics across schemas</p>
+    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
-      {/* Schema Selectors */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '12px', marginBottom: '20px', alignItems: 'end' }}>
-        <div style={card}>
-          <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Source Schema (A)</div>
-          <select value={schemaA} onChange={e => { setSchemaA(Number(e.target.value)); setSelectedTable(null) }} style={inp({ fontWeight: 600 })}>
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <span style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Spot Check</span>
+        <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{tablesCommon.length} common</span>
+        {tablesOnlyA.length > 0 && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{tablesOnlyA.length} only A</span>}
+        {tablesOnlyB.length > 0 && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{tablesOnlyB.length} only B</span>}
+        {rowDiff && <span style={{ background: 'var(--surface-muted)', color: rowDiff.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>row diff {rowDiff.text}</span>}
+      </div>
+
+      {/* Schema selector row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 32px 1fr', gap: '6px', alignItems: 'center', flexShrink: 0 }}>
+        <div>
+          <select value={schemaA} onChange={e => { setSchemaA(Number(e.target.value)); setSelectedTable(null) }} style={{ ...sel, fontWeight: 600 }}>
             {SCHEMAS.map((s, i) => <option key={i} value={i}>{s.database}.{s.name}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-            <span><strong style={{ color: '#1a1a1a' }}>{sA.tables.length}</strong> tables</span>
-            <span><strong style={{ color: '#1a1a1a' }}>{fmt(totalRowsA)}</strong> total rows</span>
-          </div>
+          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '4px' }}>{sA?.tables.length} tables · {fmt(totalRowsA)} rows</div>
         </div>
-
-        <div style={{ padding: '10px', textAlign: 'center' }}>
-          <button onClick={() => { setSchemaA(schemaB); setSchemaB(schemaA); setSelectedTable(null) }}
-            style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', fontSize: '16px' }}
-            title="Swap schemas">⇄</button>
-        </div>
-
-        <div style={card}>
-          <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>Target Schema (B)</div>
-          <select value={schemaB} onChange={e => { setSchemaB(Number(e.target.value)); setSelectedTable(null) }} style={inp({ fontWeight: 600 })}>
+        <button onClick={() => { setSchemaA(schemaB); setSchemaB(schemaA); setSelectedTable(null) }}
+          style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '5px', padding: '4px', cursor: 'pointer', fontSize: '13px', textAlign: 'center' }}>⇄</button>
+        <div>
+          <select value={schemaB} onChange={e => { setSchemaB(Number(e.target.value)); setSelectedTable(null) }} style={{ ...sel, fontWeight: 600 }}>
             {SCHEMAS.map((s, i) => <option key={i} value={i}>{s.database}.{s.name}</option>)}
           </select>
-          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '12px', color: '#64748b' }}>
-            <span><strong style={{ color: '#1a1a1a' }}>{sB.tables.length}</strong> tables</span>
-            <span><strong style={{ color: '#1a1a1a' }}>{fmt(totalRowsB)}</strong> total rows</span>
-          </div>
+          <div style={{ fontSize: '9px', color: 'var(--text-muted)', marginTop: '2px', paddingLeft: '4px' }}>{sB?.tables.length} tables · {fmt(totalRowsB)} rows</div>
         </div>
       </div>
 
-      {/* Summary KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '20px' }}>
-        {[
-          { label: 'Common Tables', value: tablesCommon.length, icon: '✅', color: '#16a34a', bg: '#f0fdf4' },
-          { label: 'Only in A', value: tablesOnlyA.length, icon: '🔵', color: '#2563eb', bg: '#eff6ff' },
-          { label: 'Only in B', value: tablesOnlyB.length, icon: '🟣', color: '#7c3aed', bg: '#faf5ff' },
-          { label: 'Row Diff', value: pctDiff(totalRowsA, totalRowsB).text, icon: '📊', color: pctDiff(totalRowsA, totalRowsB).color, bg: '#fafaf9' },
-          { label: 'Total Tables', value: allTableNames.length, icon: '📋', color: '#475569', bg: '#f8fafc' },
-        ].map(k => (
-          <div key={k.label} style={{ ...card, background: k.bg, textAlign: 'center' }}>
-            <div style={{ fontSize: '18px', marginBottom: '4px' }}>{k.icon}</div>
-            <div style={{ fontSize: '24px', fontWeight: 700, color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{k.label}</div>
-          </div>
+      {/* Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter tables…"
+        style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', flexShrink: 0 }} />
+
+      {/* Column headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', padding: '0 6px 3px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+        {['Table', 'Rows A', 'Rows B', 'Status'].map(h => (
+          <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
 
-      {/* Main Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '16px' }}>
-        {/* Table List */}
-        <div style={{ ...card, padding: '0', overflow: 'hidden', alignSelf: 'start', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }}>
-          <div style={{ padding: '12px 14px', borderBottom: '1px solid #ebe8df', background: '#fafaf9' }}>
-            <div style={{ fontSize: '12px', fontWeight: 700, color: '#1a1a1a', marginBottom: '8px' }}>Tables ({allTableNames.length})</div>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter tables..."
-              style={inp({ fontSize: '12px', padding: '6px 8px' })} />
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1 }}>
-            {filteredTables.map(name => {
-              const inA = sA.tables.some(t => t.name === name)
-              const inB = sB.tables.some(t => t.name === name)
-              const isSelected = selectedTable === name
-              return (
-                <div key={name} onClick={() => { setSelectedTable(name); setTab('columns') }}
-                  style={{
-                    padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f3f1ea',
-                    background: isSelected ? '#E8541A08' : 'transparent',
-                    borderLeft: isSelected ? '3px solid #E8541A' : '3px solid transparent',
-                    transition: 'all 0.1s',
-                  }}
-                  onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = '#fafaf9' }}
-                  onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '12.5px', fontWeight: isSelected ? 700 : 500, color: '#1a1a1a', fontFamily: 'monospace' }}>{name}</span>
-                    <div style={{ display: 'flex', gap: '3px' }}>
-                      {inA && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb' }} title="In Schema A" />}
-                      {inB && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#7c3aed' }} title="In Schema B" />}
-                    </div>
-                  </div>
-                  {!inA && <span style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 600 }}>Only in B</span>}
-                  {!inB && <span style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600 }}>Only in A</span>}
-                  {inA && inB && (
-                    <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>
-                      A: {fmt(sA.tables.find(t => t.name === name)!.rowCount)} rows · B: {fmt(sB.tables.find(t => t.name === name)!.rowCount)} rows
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        </div>
+      {/* Table list */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {filteredTables.map(name => {
+          const inA = sA.tables.some(t => t.name === name)
+          const inB = sB.tables.some(t => t.name === name)
+          const tA  = sA.tables.find(t => t.name === name)
+          const tB  = sB.tables.find(t => t.name === name)
+          const diff = tA && tB ? pctDiff(tA.rowCount, tB.rowCount) : null
+          const missing = !inA || !inB
+          const hasDiff = diff && Math.abs(parseFloat(diff.text)) > 1
 
-        {/* Detail Panel */}
-        <div>
-          {!selectedTable ? (
-            /* Table Overview */
-            <div style={card}>
-              <div style={{ fontSize: '14.5px', fontWeight: 700, color: '#1a1a1a', marginBottom: '16px' }}>Table-Level Comparison</div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #ebe8df' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11px' }}>Table</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#2563eb', fontWeight: 600, fontSize: '11px' }}>Rows (A)</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#7c3aed', fontWeight: 600, fontSize: '11px' }}>Rows (B)</th>
-                    <th style={{ textAlign: 'right', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11px' }}>Diff</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11px' }}>Cols (A)</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11px' }}>Cols (B)</th>
-                    <th style={{ textAlign: 'center', padding: '8px 12px', color: '#94a3b8', fontWeight: 500, fontSize: '11px' }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {allTableNames.map(name => {
-                    const tA = sA.tables.find(t => t.name === name)
-                    const tB = sB.tables.find(t => t.name === name)
-                    const diff = tA && tB ? pctDiff(tA.rowCount, tB.rowCount) : null
-                    return (
-                      <tr key={name} onClick={() => { setSelectedTable(name); setTab('columns') }}
-                        style={{ borderBottom: '1px solid #f3f1ea', cursor: 'pointer' }}
-                        onMouseEnter={e => (e.currentTarget.style.background = '#fafaf9')}
-                        onMouseLeave={e => (e.currentTarget.style.background = '')}>
-                        <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontWeight: 600, color: '#1a1a1a' }}>{name}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', color: '#2563eb', fontWeight: 600 }}>{tA ? fmt(tA.rowCount) : <span style={{ color: '#dc2626' }}>MISSING</span>}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', color: '#7c3aed', fontWeight: 600 }}>{tB ? fmt(tB.rowCount) : <span style={{ color: '#dc2626' }}>MISSING</span>}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 600, color: diff?.color || '#94a3b8' }}>{diff?.text || '—'}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#475569' }}>{tA?.columns.length || '—'}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center', color: '#475569' }}>{tB?.columns.length || '—'}</td>
-                        <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                          {!tA || !tB ? (
-                            <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Schema Drift</span>
-                          ) : diff && Math.abs(parseFloat(diff.text)) > 1 ? (
-                            <span style={{ background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Row Diff</span>
-                          ) : (
-                            <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Match</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+          const statusBg    = missing ? 'var(--status-error-bg)'   : hasDiff ? 'var(--status-warn-bg)'   : 'var(--status-ok-bg)'
+          const statusColor = missing ? 'var(--status-error-text)' : hasDiff ? 'var(--status-warn-text)' : 'var(--status-ok-text)'
+          const statusLabel = missing ? (!inA ? 'Only in B' : 'Only in A') : hasDiff ? 'Row Diff' : 'Match'
+
+          return (
+            <div key={name}
+              onClick={() => { setSelectedTable(selectedTable === name ? null : name); setTab('columns') }}
+              onMouseEnter={() => setHoverId(name)}
+              onMouseLeave={() => setHoverId(null)}
+              style={{
+                display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', alignItems: 'center',
+                padding: '5px 6px', borderLeft: `2px solid ${missing ? 'var(--status-error-text)' : hasDiff ? 'var(--status-warn-text)' : 'var(--border)'}`,
+                borderBottom: '1px solid var(--surface-muted)',
+                background: selectedTable === name ? 'var(--surface)' : hoverId === name ? 'var(--surface-muted)' : 'transparent',
+                cursor: 'pointer',
+              }}>
+              <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{name}</span>
+              <span style={{ fontSize: '10px', color: inA ? '#2563eb' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tA ? fmt(tA.rowCount) : '—'}</span>
+              <span style={{ fontSize: '10px', color: inB ? '#7c3aed' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tB ? fmt(tB.rowCount) : '—'}</span>
+              <span style={{ background: statusBg, color: statusColor, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600 }}>{statusLabel}</span>
             </div>
-          ) : (
-            /* Table Detail */
-            <div style={card}>
-              {/* Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <div>
-                  <button onClick={() => setSelectedTable(null)} style={{ background: 'none', border: 'none', color: '#E8541A', cursor: 'pointer', fontSize: '12px', fontWeight: 600, padding: 0, marginBottom: '4px' }}>← Back to all tables</button>
-                  <div style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a1a', fontFamily: 'monospace' }}>{selectedTable}</div>
+          )
+        })}
+        {filteredTables.length === 0 && (
+          <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>No tables match filter</div>
+        )}
+      </div>
+
+      {/* Slide-in panel */}
+      {selectedTable && (() => {
+        const tA = sA.tables.find(t => t.name === selectedTable)
+        const tB = sB.tables.find(t => t.name === selectedTable)
+        const diff = tA && tB ? pctDiff(tA.rowCount, tB.rowCount) : null
+
+        return (
+          <>
+            <div onClick={() => setSelectedTable(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
+            <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(520px,60vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
+              {/* Panel header */}
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedTable}</div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  {tableA && (
-                    <div style={{ padding: '6px 12px', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
-                      <div style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600 }}>Schema A</div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e40af' }}>{fmt(tableA.rowCount)} rows · {tableA.columns.length} cols</div>
-                    </div>
-                  )}
-                  {tableB && (
-                    <div style={{ padding: '6px 12px', background: '#faf5ff', borderRadius: '8px', border: '1px solid #d8b4fe' }}>
-                      <div style={{ fontSize: '10px', color: '#7c3aed', fontWeight: 600 }}>Schema B</div>
-                      <div style={{ fontSize: '14px', fontWeight: 700, color: '#6d28d9' }}>{fmt(tableB.rowCount)} rows · {tableB.columns.length} cols</div>
-                    </div>
-                  )}
-                  {tableA && tableB && (() => {
-                    const d = pctDiff(tableA.rowCount, tableB.rowCount)
-                    return (
-                      <div style={{ padding: '6px 12px', background: '#fafaf9', borderRadius: '8px', border: '1px solid #ebe8df', textAlign: 'center' }}>
-                        <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Row Diff</div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, color: d.color }}>{d.text}</div>
-                      </div>
-                    )
-                  })()}
-                </div>
+                {diff && <span style={{ fontSize: '11px', fontWeight: 700, color: diff.color }}>row diff: {diff.text}</span>}
+                <button onClick={() => setSelectedTable(null)} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '24px', height: '24px', borderRadius: '5px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '12px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+
+              {/* A / B summary */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                {tA ? (
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '8px 10px' }}>
+                    <div style={{ fontSize: '9px', color: '#2563eb', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Schema A</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e40af', marginTop: '2px' }}>{fmt(tA.rowCount)} rows · {tA.columns.length} cols</div>
+                  </div>
+                ) : <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: 'var(--status-error-text)', fontWeight: 600 }}>Not in Schema A</div>}
+                {tB ? (
+                  <div style={{ background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '6px', padding: '8px 10px' }}>
+                    <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Schema B</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#6d28d9', marginTop: '2px' }}>{fmt(tB.rowCount)} rows · {tB.columns.length} cols</div>
+                  </div>
+                ) : <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: 'var(--status-error-text)', fontWeight: 600 }}>Not in Schema B</div>}
               </div>
 
               {/* Tabs */}
-              <div style={{ display: 'flex', gap: '4px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', gap: '4px', padding: '8px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 {(['columns', 'stats'] as const).map(t => (
                   <button key={t} onClick={() => setTab(t)} style={{
-                    padding: '7px 16px', borderRadius: '8px', border: 'none', cursor: 'pointer',
-                    fontSize: '12.5px', fontWeight: 600, textTransform: 'capitalize',
-                    background: tab === t ? '#1a1a1a' : '#f8fafc', color: tab === t ? '#fff' : '#64748b',
-                  }}>{t === 'columns' ? 'Column Comparison' : 'Summary Statistics'}</button>
+                    padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t ? 600 : 400,
+                    background: tab === t ? '#1a1a1a' : 'var(--surface-muted)', color: tab === t ? '#fff' : 'var(--text-secondary)', textTransform: 'capitalize',
+                  }}>{t === 'columns' ? 'Columns' : 'Statistics'}</button>
                 ))}
               </div>
 
-              {/* Columns Tab */}
+              {/* Column comparison */}
               {tab === 'columns' && (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '2px solid #ebe8df' }}>
-                      <th style={{ textAlign: 'left', padding: '8px 10px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Column</th>
-                      <th style={{ textAlign: 'left', padding: '8px 10px', color: '#2563eb', fontWeight: 600, fontSize: '10.5px' }}>Type (A)</th>
-                      <th style={{ textAlign: 'left', padding: '8px 10px', color: '#7c3aed', fontWeight: 600, fontSize: '10.5px' }}>Type (B)</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Nullable</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Keys</th>
-                      <th style={{ textAlign: 'center', padding: '8px 10px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {columnComparison.map(({ name, inA, inB }) => {
-                      const typeMismatch = inA && inB && inA.type !== inB.type
-                      const nullMismatch = inA && inB && inA.nullable !== inB.nullable
-                      const missing = !inA || !inB
-                      const hasDiff = typeMismatch || nullMismatch || missing
-                      return (
-                        <tr key={name} style={{ borderBottom: '1px solid #f3f1ea', background: hasDiff ? '#fffbeb' : '' }}>
-                          <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontWeight: 600, color: '#1a1a1a' }}>
-                            {name}
-                          </td>
-                          <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '11px', color: inA ? (typeMismatch ? '#dc2626' : '#475569') : '#dc2626' }}>
-                            {inA ? inA.type : 'MISSING'}
-                          </td>
-                          <td style={{ padding: '8px 10px', fontFamily: 'monospace', fontSize: '11px', color: inB ? (typeMismatch ? '#dc2626' : '#475569') : '#dc2626' }}>
-                            {inB ? inB.type : 'MISSING'}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            {inA && inB ? (
-                              nullMismatch ? (
-                                <span style={{ color: '#d97706', fontWeight: 600, fontSize: '10px' }}>A:{inA.nullable ? 'Y' : 'N'} B:{inB.nullable ? 'Y' : 'N'}</span>
-                              ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '11px' }}>{inA.nullable ? 'Yes' : 'No'}</span>
-                              )
-                            ) : '—'}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            {(inA?.isPK || inB?.isPK) && <span style={{ background: '#fef3c7', color: '#b45309', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700, marginRight: '2px' }}>PK</span>}
-                            {(inA?.isFK || inB?.isFK) && <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700 }}>FK</span>}
-                          </td>
-                          <td style={{ padding: '8px 10px', textAlign: 'center' }}>
-                            {missing ? (
-                              <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>
-                                {!inA ? 'Only in B' : 'Only in A'}
-                              </span>
-                            ) : typeMismatch ? (
-                              <span style={{ background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Type Diff</span>
-                            ) : nullMismatch ? (
-                              <span style={{ background: '#fff7ed', color: '#ea580c', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Null Diff</span>
-                            ) : (
-                              <span style={{ background: '#dcfce7', color: '#16a34a', padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 600 }}>Match</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-
-              {/* Stats Tab */}
-              {tab === 'stats' && (
-                statsComparison.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No numeric statistics available for this table</div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {statsComparison.map(({ column, a, b }) => (
-                      <div key={column} style={{ border: '1px solid #ebe8df', borderRadius: '10px', overflow: 'hidden' }}>
-                        <div style={{ padding: '10px 14px', background: '#fafaf9', borderBottom: '1px solid #ebe8df', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '13px', color: '#1a1a1a' }}>{column}</span>
-                          {a && b && a.sum !== undefined && b.sum !== undefined && (() => {
-                            const d = pctDiff(a.sum, b.sum)
-                            return <span style={{ fontSize: '11px', fontWeight: 600, color: d.color }}>SUM diff: {d.text}</span>
-                          })()}
-                        </div>
-                        <div style={{ padding: '12px 14px' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-                            <thead>
-                              <tr style={{ borderBottom: '1px solid #f3f1ea' }}>
-                                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Metric</th>
-                                <th style={{ textAlign: 'right', padding: '6px 8px', color: '#2563eb', fontWeight: 600, fontSize: '10.5px' }}>Schema A</th>
-                                <th style={{ textAlign: 'right', padding: '6px 8px', color: '#7c3aed', fontWeight: 600, fontSize: '10.5px' }}>Schema B</th>
-                                <th style={{ textAlign: 'right', padding: '6px 8px', color: '#94a3b8', fontWeight: 500, fontSize: '10.5px' }}>Diff</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {[
-                                { label: 'SUM', valA: a?.sum, valB: b?.sum },
-                                { label: 'AVG', valA: a?.avg, valB: b?.avg },
-                                { label: 'MIN', valA: a?.min, valB: b?.min },
-                                { label: 'MAX', valA: a?.max, valB: b?.max },
-                                { label: 'NULL Count', valA: a?.nullCount, valB: b?.nullCount },
-                                { label: 'Distinct Count', valA: a?.distinctCount, valB: b?.distinctCount },
-                              ].map(row => {
-                                const diff = row.valA !== undefined && row.valB !== undefined ? pctDiff(row.valA, row.valB) : null
-                                return (
-                                  <tr key={row.label} style={{ borderBottom: '1px solid #f8f7f4' }}>
-                                    <td style={{ padding: '6px 8px', fontWeight: 600, color: '#475569' }}>{row.label}</td>
-                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#1a1a1a' }}>{fmt(row.valA)}</td>
-                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontFamily: 'monospace', color: '#1a1a1a' }}>{fmt(row.valB)}</td>
-                                    <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: diff?.color || '#94a3b8' }}>{diff?.text || '—'}</td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
+                <div style={{ flex: 1, overflowY: 'auto' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 50px 50px 72px', gap: '0 4px', padding: '4px 10px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
+                    {['Column', 'Type A', 'Type B', 'Null', 'Keys', 'Status'].map(h => (
+                      <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
                     ))}
                   </div>
-                )
+                  {columnComparison.map(({ name, inA, inB }) => {
+                    const typeMismatch = inA && inB && inA.type !== inB.type
+                    const nullMismatch = inA && inB && inA.nullable !== inB.nullable
+                    const missing = !inA || !inB
+                    const hasDiff2 = typeMismatch || nullMismatch || missing
+                    return (
+                      <div key={name} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 80px 50px 50px 72px', gap: '0 4px', alignItems: 'center', padding: '4px 10px', borderBottom: '1px solid var(--surface-muted)', background: hasDiff2 ? 'var(--status-warn-bg)' : 'transparent', fontSize: '10.5px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: '10px', color: inA ? (typeMismatch ? 'var(--status-error-text)' : 'var(--text-secondary)') : 'var(--status-error-text)' }}>{inA ? inA.type : 'MISSING'}</span>
+                        <span style={{ fontFamily: 'monospace', fontSize: '10px', color: inB ? (typeMismatch ? 'var(--status-error-text)' : 'var(--text-secondary)') : 'var(--status-error-text)' }}>{inB ? inB.type : 'MISSING'}</span>
+                        <span style={{ fontSize: '9.5px', color: nullMismatch ? 'var(--status-warn-text)' : 'var(--text-muted)' }}>
+                          {inA && inB ? (nullMismatch ? `A:${inA.nullable?'Y':'N'} B:${inB.nullable?'Y':'N'}` : (inA.nullable ? 'Y' : 'N')) : '—'}
+                        </span>
+                        <span style={{ fontSize: '9px' }}>
+                          {(inA?.isPK || inB?.isPK) && <span style={{ background: '#fef3c7', color: '#b45309', padding: '0 3px', borderRadius: '2px', fontWeight: 700, marginRight: '2px' }}>PK</span>}
+                          {(inA?.isFK || inB?.isFK) && <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '0 3px', borderRadius: '2px', fontWeight: 700 }}>FK</span>}
+                        </span>
+                        <span style={{ background: missing ? 'var(--status-error-bg)' : typeMismatch ? 'var(--status-warn-bg)' : nullMismatch ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)', color: missing ? 'var(--status-error-text)' : typeMismatch ? 'var(--status-warn-text)' : nullMismatch ? 'var(--status-warn-text)' : 'var(--status-ok-text)', padding: '1px 4px', borderRadius: '3px', fontSize: '9px', fontWeight: 600 }}>
+                          {missing ? (!inA ? 'Only B' : 'Only A') : typeMismatch ? 'Type ≠' : nullMismatch ? 'Null ≠' : 'Match'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {columnComparison.length === 0 && <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>No column data available</div>}
+                </div>
+              )}
+
+              {/* Stats */}
+              {tab === 'stats' && (
+                <div style={{ flex: 1, overflowY: 'auto', padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {statsComparison.length === 0 ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>No numeric statistics available</div>
+                  ) : statsComparison.map(({ column, a, b }) => (
+                    <div key={column} style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+                      <div style={{ padding: '6px 10px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11.5px', color: 'var(--foreground)' }}>{column}</span>
+                        {a && b && a.sum !== undefined && b.sum !== undefined && (() => {
+                          const d = pctDiff(a.sum, b.sum)
+                          return <span style={{ fontSize: '10px', fontWeight: 600, color: d.color }}>SUM diff: {d.text}</span>
+                        })()}
+                      </div>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10.5px' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                            {['Metric', 'Schema A', 'Schema B', 'Diff'].map(h => (
+                              <th key={h} style={{ padding: '4px 8px', textAlign: h === 'Metric' ? 'left' : 'right', color: 'var(--text-muted)', fontWeight: 500, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[
+                            { label: 'SUM', valA: a?.sum, valB: b?.sum },
+                            { label: 'AVG', valA: a?.avg, valB: b?.avg },
+                            { label: 'MIN', valA: a?.min, valB: b?.min },
+                            { label: 'MAX', valA: a?.max, valB: b?.max },
+                            { label: 'NULLs', valA: a?.nullCount, valB: b?.nullCount },
+                            { label: 'Distinct', valA: a?.distinctCount, valB: b?.distinctCount },
+                          ].map(row => {
+                            const d = row.valA !== undefined && row.valB !== undefined ? pctDiff(row.valA, row.valB) : null
+                            return (
+                              <tr key={row.label} style={{ borderBottom: '1px solid var(--surface-muted)' }}>
+                                <td style={{ padding: '4px 8px', fontWeight: 600, color: 'var(--text-secondary)' }}>{row.label}</td>
+                                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--foreground)' }}>{fmt(row.valA)}</td>
+                                <td style={{ padding: '4px 8px', textAlign: 'right', fontFamily: 'monospace', color: 'var(--foreground)' }}>{fmt(row.valB)}</td>
+                                <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: d?.color || 'var(--text-muted)' }}>{d?.text || '—'}</td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
+          </>
+        )
+      })()}
     </div>
   )
 }
