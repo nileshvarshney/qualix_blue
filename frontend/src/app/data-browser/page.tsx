@@ -114,19 +114,21 @@ export default function DataBrowserPage() {
       </div>
 
       {/* Search + Filter bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tables…"
-          style={{ flex: 1, padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', minWidth: '120px' }} />
-        {(['all', 'data', 'empty'] as const).map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '3px 10px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 500,
-            background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
-            color: filter === f ? '#fff' : 'var(--text-secondary)',
-          }}>
-            {f === 'all' ? `All (${tables.length})` : f === 'data' ? `Has Data (${s?.populated ?? 0})` : `Empty (${s?.empty ?? 0})`}
-          </button>
-        ))}
-      </div>
+      {!loading && !error && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tables…"
+            style={{ flex: 1, padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', minWidth: '120px' }} />
+          {(['all', 'data', 'empty'] as const).map(f => (
+            <button key={f} onClick={() => setFilter(f)} style={{
+              padding: '3px 10px', borderRadius: '5px', border: 'none', cursor: 'pointer', fontSize: '10px', fontWeight: 500,
+              background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
+              color: filter === f ? '#fff' : 'var(--text-secondary)',
+            }}>
+              {f === 'all' ? `All (${tables.length})` : f === 'data' ? `Has Data (${s?.populated ?? 0})` : `Empty (${s?.empty ?? 0})`}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Column headers */}
       {!loading && !error && (
