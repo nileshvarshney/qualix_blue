@@ -1,4 +1,4 @@
-export type ConnectionType = 'postgresql' | 'mysql' | 'bigquery' | 'snowflake' | 'csv' | 'api' | 'mongodb' | 'redshift'
+export type ConnectionType = 'postgresql' | 'mysql' | 'bigquery' | 'snowflake' | 'csv' | 'api' | 'mongodb' | 'redshift' | 'databricks' | 'sqlserver' | 'oracle' | 'db2' | 'saphana' | 'hive' | 'synapse' | 'teradata' | 'tableau' | 'powerbi' | 'looker' | 's3' | 'gcs' | 'azureblob' | 'kafka' | 'kinesis' | 'dbt' | 'fivetran' | 'airbyte'
 
 export interface Connection {
   id: string
