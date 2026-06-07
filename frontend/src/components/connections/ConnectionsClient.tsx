@@ -502,6 +502,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId: editingId || '__preview__', connectionData: { ...form, id: editingId || '__preview__', status: 'inactive', createdAt: new Date().toISOString() } })
       })
+      if (!res.ok) throw new Error(`Test endpoint returned ${res.status}`)
       const result: TestResult = await res.json()
       setTestResult({ result, connName: form.name })
     } catch (e: unknown) {
@@ -699,7 +700,11 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   {/* Category tab segmented control */}
                   <div style={{ display:'flex', border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fafaf9', marginBottom:'8px' }}>
                     {CATEGORIES.map(cat => (
-                      <button key={cat.id} onClick={() => setActiveCategory(cat.id)}
+                      <button key={cat.id} onClick={() => {
+                        setActiveCategory(cat.id)
+                        const firstType = cat.types[0] as string
+                        setField('type', firstType)
+                      }}
                         style={{
                           flex:1, padding:'6px 2px', border:'none',
                           borderRight: cat.id === CATEGORIES[CATEGORIES.length - 1].id ? 'none' : '1px solid #e2e8f0',
