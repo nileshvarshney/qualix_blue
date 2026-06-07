@@ -53,7 +53,7 @@ function ruleTypeLabel(type?: string): string {
 const LIST_COLS = '44px 1fr 70px 90px'
 
 export default function ReportsClient({ initialReports }: { initialReports: Report[] }) {
-  const [reports,  setReports]  = useState(initialReports.sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime()))
+  const [reports,  setReports]  = useState([...initialReports].sort((a, b) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime()))
   const [selected, setSelected] = useState<Report | null>(reports[0] || null)
 
   useEffect(() => {
@@ -72,6 +72,7 @@ export default function ReportsClient({ initialReports }: { initialReports: Repo
   const [categoryFilter,  setCategoryFilter]   = useState<string>('all')
   const [resultSearch,    setResultSearch]     = useState('')
   const [hoverId,         setHoverId]          = useState<string | null>(null)
+  const [hoverResultIdx,  setHoverResultIdx]   = useState<number | null>(null)
   const [form, setForm] = useState({ name: '', type: 'quality', format: 'web', domain: 'All Domains', dataset: 'All Datasets', dateRange: 'Last 7 days', includeAnomalies: true, includeSLAs: true, includeLineage: false, notify: false })
   const router = useRouter()
 
@@ -119,13 +120,16 @@ export default function ReportsClient({ initialReports }: { initialReports: Repo
   async function runReport() {
     if (!form.name.trim()) return
     setRunning(true); setShowModal(false)
-    const res    = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, type: form.type, domain: form.domain, dataset: form.dataset, dateRange: form.dateRange }) })
-    const report = await res.json()
-    const enriched = { ...report, name: form.name || REPORT_TYPES.find(t => t.id === form.type)?.label }
-    setReports(prev => [enriched, ...prev])
-    setSelected(enriched)
-    setRunning(false)
-    router.refresh()
+    try {
+      const res    = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, type: form.type, domain: form.domain, dataset: form.dataset, dateRange: form.dateRange }) })
+      const report = await res.json()
+      const enriched = { ...report, name: form.name || REPORT_TYPES.find(t => t.id === form.type)?.label }
+      setReports(prev => [enriched, ...prev])
+      setSelected(enriched)
+      router.refresh()
+    } finally {
+      setRunning(false)
+    }
   }
 
   return (
@@ -261,10 +265,14 @@ export default function ReportsClient({ initialReports }: { initialReports: Repo
                       <div style={{ fontSize: '14px', fontWeight: 700, color: scoreColor(last.score) }}>{last.score}%</div>
                     </div>
                     <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ overflow: 'visible' }}>
-                      <defs><linearGradient id="tG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={scoreColor(last.score)} stopOpacity="0.15" /><stop offset="100%" stopColor={scoreColor(last.score)} stopOpacity="0" /></linearGradient></defs>
-                      {[0, 0.5, 1].map((t, i) => <line key={i} x1={PAD} y1={PAD + t * (H - PAD * 2)} x2={W - PAD} y2={PAD + t * (H - PAD * 2)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 2" />)}
-                      <path d={areaD} fill="url(#tG)" />
-                      <path d={pathD} fill="none" stroke={scoreColor(last.score)} strokeWidth="1.5" strokeLinecap="round" />
+                      {(() => { const gradId = `tG-${selected.id}`; return (
+                        <>
+                          <defs><linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={scoreColor(last.score)} stopOpacity="0.15" /><stop offset="100%" stopColor={scoreColor(last.score)} stopOpacity="0" /></linearGradient></defs>
+                          {[0, 0.5, 1].map((t, i) => <line key={i} x1={PAD} y1={PAD + t * (H - PAD * 2)} x2={W - PAD} y2={PAD + t * (H - PAD * 2)} stroke="var(--border)" strokeWidth="1" strokeDasharray="3 2" />)}
+                          <path d={areaD} fill={`url(#${gradId})`} />
+                          <path d={pathD} fill="none" stroke={scoreColor(last.score)} strokeWidth="1.5" strokeLinecap="round" />
+                        </>
+                      ) })()}
                       {pts.map((p, i) => (
                         <g key={i}>
                           <circle cx={p.x} cy={p.y} r="2.5" fill={i === pts.length - 1 ? scoreColor(p.score) : 'var(--surface)'} stroke={scoreColor(p.score)} strokeWidth="1.5" />
@@ -308,9 +316,9 @@ export default function ReportsClient({ initialReports }: { initialReports: Repo
                   const scope  = r.scope === 'object-specific' ? { bg: '#faf5ff', color: '#7c3aed', label: 'Object' } : { bg: '#f0f9ff', color: '#0369a1', label: 'Generic' }
                   return (
                     <div key={i}>
-                      <div onClick={() => setExpandedResult(isExp ? null : i)} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 72px 62px 52px 62px 62px 72px', gap: '0 4px', padding: '7px 10px', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', background: isExp ? 'var(--surface-muted)' : r.status === 'failed' ? 'var(--status-error-bg)' : 'transparent', alignItems: 'center', fontSize: '10.5px' }}
-                        onMouseEnter={e => { if (!isExp) e.currentTarget.style.background = 'var(--surface-muted)' }}
-                        onMouseLeave={e => { if (!isExp) e.currentTarget.style.background = r.status === 'failed' ? 'var(--status-error-bg)' : 'transparent' }}>
+                      <div onClick={() => setExpandedResult(isExp ? null : i)} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 72px 62px 52px 62px 62px 72px', gap: '0 4px', padding: '7px 10px', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', background: isExp ? 'var(--surface-muted)' : hoverResultIdx === i ? 'var(--surface-muted)' : r.status === 'failed' ? 'var(--status-error-bg)' : 'transparent', alignItems: 'center', fontSize: '10.5px' }}
+                        onMouseEnter={() => setHoverResultIdx(i)}
+                        onMouseLeave={() => setHoverResultIdx(null)}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <span style={{ fontSize: '11px', fontWeight: 500, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.ruleName}</span>
                           <span style={{ background: scope.bg, color: scope.color, padding: '0 4px', borderRadius: '3px', fontSize: '8.5px', fontWeight: 600, flexShrink: 0 }}>{scope.label}</span>
