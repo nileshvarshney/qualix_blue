@@ -159,8 +159,6 @@ const typeFields: Record<ConnectionType, FieldDef[]> = {
     { key: 'account', label: 'Account Identifier', placeholder: 'abc12345.us-east-1', required: true, full: true, hint: 'Found in your Snowflake URL: <account>.snowflakecomputing.com' },
     { key: 'warehouse', label: 'Warehouse', placeholder: 'COMPUTE_WH', required: true },
     { key: 'role', label: 'Role', placeholder: 'SYSADMIN' },
-    { key: 'database', label: 'Database', placeholder: 'MY_DATABASE', required: true },
-    { key: 'schema', label: 'Schema', placeholder: 'PUBLIC' },
     { key: 'username', label: 'Username', placeholder: 'SNOWFLAKE_USER', required: true },
     { key: 'password', label: 'Password', placeholder: '••••••••', type: 'password', required: true },
   ],
