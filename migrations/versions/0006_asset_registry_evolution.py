@@ -83,7 +83,7 @@ def upgrade() -> None:
 
     conn.execute(sa.text("""
         UPDATE data_assets SET
-            qualified_name = COALESCE(snowflake_account, '') || '/' ||
+            qualified_name = connection_id || '/' ||
                              COALESCE(sf_database_name, '') || '/' ||
                              COALESCE(sf_schema_name, '') || '/' || sf_table_name
         WHERE asset_type = 'table' AND sf_table_name IS NOT NULL
@@ -201,14 +201,14 @@ def upgrade() -> None:
     # ── Phase 8: create column assets from column_metadata ───────────────────
     col_rows = conn.execute(sa.text(
         "SELECT cm.col_id, cm.asset_id AS table_asset_id, cm.column_name, "
-        "       da.qualified_name AS table_qn "
+        "       da.qualified_name AS table_qn, da.connection_id "
         "FROM column_metadata cm "
         "JOIN data_assets da ON da.asset_id = cm.asset_id"
     )).fetchall()
 
-    for (col_id, table_asset_id, col_name, table_qn) in col_rows:
+    for (col_id, table_asset_id, col_name, table_qn, conn_id) in col_rows:
         col_asset_id = _sid(f"column:{table_asset_id}:{col_name}")
-        col_qn = f"{table_qn}.{col_name}" if table_qn else col_name
+        col_qn = f"{table_qn}/{col_name}" if table_qn else col_name
         existing = conn.execute(
             sa.text("SELECT 1 FROM data_assets WHERE asset_id = :id"),
             {"id": col_asset_id}
@@ -217,14 +217,14 @@ def upgrade() -> None:
             conn.execute(sa.text("""
                 INSERT INTO data_assets
                     (asset_id, asset_type, physical_name, display_name,
-                     qualified_name, status, parent_asset_id,
+                     qualified_name, status, parent_asset_id, connection_id,
                      created_at, updated_at, discovered_at, last_seen_at)
                 VALUES
                     (:aid, 'column', :col_name, :col_name, :col_qn,
-                     'active', :parent_id,
+                     'active', :parent_id, :conn_id,
                      :now, :now, :now, :now)
             """), {"aid": col_asset_id, "col_name": col_name, "col_qn": col_qn,
-                   "parent_id": table_asset_id, "now": now})
+                   "parent_id": table_asset_id, "conn_id": conn_id, "now": now})
 
 
 def downgrade() -> None:
