@@ -273,6 +273,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         },
                         success=True,
                     )
+                    all_failed = False
                     continue
 
                 if (database, schema) in excluded_schema_set:
@@ -287,6 +288,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         },
                         success=True,
                     )
+                    all_failed = False
                     continue
 
                 try:
