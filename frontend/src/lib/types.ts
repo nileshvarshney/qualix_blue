@@ -14,6 +14,8 @@ export interface Connection {
   account?: string
   warehouse?: string
   role?: string
+  excludedDatabases?: string[]
+  excludedSchemas?: Array<{ database: string; schema: string }>
   // BigQuery-specific
   project?: string
   keyFile?: string
