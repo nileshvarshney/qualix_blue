@@ -71,6 +71,8 @@ def _make_conn(**kwargs):
         is_active=True,
         connection_type="named",
         is_primary_target=False,
+        excluded_databases=None,
+        excluded_schemas=None,
         created_at=__import__("datetime").datetime(2026, 1, 1),
         updated_at=__import__("datetime").datetime(2026, 1, 1),
     )
@@ -174,3 +176,30 @@ async def test_resolve_executor_raises_when_no_target():
 
     with pytest.raises(RuntimeError, match="Settings.*Target Database"):
         await _resolve_executor(asset, db)
+
+
+def test_mask_includes_exclusion_fields():
+    """_mask() must include excluded_databases and excluded_schemas."""
+    conn = _make_conn(excluded_databases=["RAW"], excluded_schemas=[{"database": "PROD", "schema": "STAGING"}])
+    result = _mask(conn)
+    assert result["excluded_databases"] == ["RAW"]
+    assert result["excluded_schemas"] == [{"database": "PROD", "schema": "STAGING"}]
+
+
+def test_mask_exclusions_default_none():
+    """_mask() must return None for exclusions when not set."""
+    conn = _make_conn(excluded_databases=None, excluded_schemas=None)
+    result = _mask(conn)
+    assert result["excluded_databases"] is None
+    assert result["excluded_schemas"] is None
+
+
+def test_connection_update_accepts_exclusions():
+    """ConnectionUpdate must accept excluded_databases and excluded_schemas."""
+    from app.api.connections import ConnectionUpdate
+    u = ConnectionUpdate(
+        excluded_databases=["SANDBOX"],
+        excluded_schemas=[{"database": "PROD", "schema": "STAGING"}],
+    )
+    assert u.excluded_databases == ["SANDBOX"]
+    assert u.excluded_schemas == [{"database": "PROD", "schema": "STAGING"}]
