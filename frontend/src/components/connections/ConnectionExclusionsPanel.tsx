@@ -32,6 +32,11 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
+    if (!connection.id) {
+      setDbsError('Connection has no ID — save it before managing exclusions.')
+      setLoaded(true)
+      return
+    }
     setDbsLoading(true)
     setDbsError(null)
     const excluded = new Set(connection.excludedDatabases ?? [])

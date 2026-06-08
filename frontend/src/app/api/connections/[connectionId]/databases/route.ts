@@ -45,6 +45,10 @@ export async function GET(
       cache: 'no-store',
     })
     const data = await res.json()
+    if (!res.ok) {
+      const msg = data?.detail || data?.error || `HTTP ${res.status}`
+      return NextResponse.json({ databases: [], error: msg })
+    }
     return NextResponse.json(data)
   } catch (e: unknown) {
     return NextResponse.json({ databases: [], error: (e as Error).message })
