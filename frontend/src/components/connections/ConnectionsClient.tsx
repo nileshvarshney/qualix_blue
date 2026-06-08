@@ -637,20 +637,23 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   padding: '7px 12px', borderRadius: '7px', border: '1px solid #dbeafe',
                   background: '#fff', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500
                 }}>✏️ Edit</button>
-                {conn.type === 'snowflake' && (
-                  <button onClick={() => setExclusionsPanelConn(conn)} style={{
-                    padding: '7px 10px', borderRadius: '7px', border: '1px solid #e2e8f0',
-                    background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
-                    display: 'flex', alignItems: 'center', gap: '4px'
-                  }}>
-                    Exclude
-                    {exclusionCount(conn) > 0 && (
-                      <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', lineHeight: 1.4 }}>
-                        {exclusionCount(conn)} excluded
-                      </span>
-                    )}
-                  </button>
-                )}
+                {conn.type === 'snowflake' && (() => {
+                  const excCount = exclusionCount(conn)
+                  return (
+                    <button onClick={() => setExclusionsPanelConn(conn)} aria-label={`Manage exclusions for ${conn.name}`} style={{
+                      padding: '7px 10px', borderRadius: '7px', border: '1px solid #e2e8f0',
+                      background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
+                      display: 'flex', alignItems: 'center', gap: '4px'
+                    }}>
+                      Exclude
+                      {excCount > 0 && (
+                        <span aria-hidden="true" style={{ background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', lineHeight: 1.4 }}>
+                          {excCount} excluded
+                        </span>
+                      )}
+                    </button>
+                  )
+                })()}
                 <button onClick={() => deleteConn(conn.id)} style={{
                   padding: '7px 10px', borderRadius: '7px', border: '1px solid #fee2e2',
                   background: '#fff', color: '#ef4444', fontSize: '12px', cursor: 'pointer'
