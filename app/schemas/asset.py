@@ -99,6 +99,8 @@ class DataAssetCertifyRequest(BaseModel):
 
 
 class DataAssetResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     asset_id: str
     domain_id: str
     subdomain_id: str
@@ -133,9 +135,6 @@ class DataAssetResponse(BaseModel):
     sensitivity: Optional[str] = None
     discovered_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 
 class DiscoverySelection(BaseModel):
