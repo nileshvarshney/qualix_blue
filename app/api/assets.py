@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import DataAsset, Domain, Subdomain, AuditLog, SnowflakeConnection
-from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, AssetStatusUpdate, DiscoveryRequest
+from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, AssetStatusUpdate, DiscoveryRequest, AssetTreeNode
 from app.core.security import get_current_user, get_domain_filter
 import uuid
 from datetime import datetime, timezone
@@ -184,27 +184,27 @@ async def get_asset_tree(
 ):
     query = select(DataAsset).where(DataAsset.parent_asset_id == None)
     if source_id:
-        query = query.where(DataAsset.asset_id == source_id)
+        query = query.where(DataAsset.connection_id == source_id)
     result = await db.execute(query)
     roots = result.scalars().all()
 
     async def build_tree(asset, remaining_depth):
-        node = {
-            "asset_id": asset.asset_id,
-            "display_name": asset.display_name or asset.physical_name,
-            "physical_name": asset.physical_name,
-            "asset_type": asset.asset_type,
-            "status": asset.status,
-            "qualified_name": asset.qualified_name,
-            "children": [],
-        }
+        children_nodes = []
         if remaining_depth > 0:
             child_result = await db.execute(
                 select(DataAsset).where(DataAsset.parent_asset_id == asset.asset_id)
             )
             children = child_result.scalars().all()
-            node["children"] = [await build_tree(c, remaining_depth - 1) for c in children]
-        return node
+            children_nodes = [await build_tree(c, remaining_depth - 1) for c in children]
+        return AssetTreeNode(
+            asset_id=asset.asset_id,
+            display_name=asset.display_name or asset.physical_name,
+            physical_name=asset.physical_name,
+            asset_type=asset.asset_type,
+            status=asset.status,
+            qualified_name=asset.qualified_name,
+            children=children_nodes,
+        )
 
     return [await build_tree(r, depth - 1) for r in roots]
 
