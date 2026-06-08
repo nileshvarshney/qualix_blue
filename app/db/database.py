@@ -218,8 +218,10 @@ def create_tables():
             "ALTER TABLE dq_rules ADD COLUMN rejection_reason TEXT",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_name VARCHAR(200)",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_email VARCHAR(200)",
-            "ALTER TABLE assets ADD COLUMN row_count BIGINT",
-            "ALTER TABLE assets ADD COLUMN bytes BIGINT",
+            # Asset Registry evolution — description field on assets
+            "ALTER TABLE assets ADD COLUMN description TEXT",
+            # Migrate data_assets → assets if old name still exists
+            "ALTER TABLE data_assets RENAME TO assets",
         ]:
             try:
                 conn.execute(text(col_ddl))
