@@ -109,7 +109,7 @@ async def _delete_domain_data(domain_id: str, db: AsyncSession) -> dict:
     counts["rules"]            = await _del(DQRule,            DQRule.domain_id == domain_id)
     counts["sharing_agreements"]= await _del(DataSharingAgreement,
                                              DataSharingAgreement.producer_domain_id == domain_id)
-    counts["data_assets"]      = await _del(Asset,  Asset.domain_id == domain_id)
+    counts["assets"]            = await _del(Asset,  Asset.domain_id == domain_id)
 
     return {k: v for k, v in counts.items() if v and v > 0}
 

@@ -218,8 +218,8 @@ def create_tables():
             "ALTER TABLE dq_rules ADD COLUMN rejection_reason TEXT",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_name VARCHAR(200)",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_email VARCHAR(200)",
-            "ALTER TABLE data_assets ADD COLUMN row_count BIGINT",
-            "ALTER TABLE data_assets ADD COLUMN bytes BIGINT",
+            "ALTER TABLE assets ADD COLUMN row_count BIGINT",
+            "ALTER TABLE assets ADD COLUMN bytes BIGINT",
         ]:
             try:
                 conn.execute(text(col_ddl))

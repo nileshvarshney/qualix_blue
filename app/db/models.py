@@ -11,6 +11,7 @@ from sqlalchemy import (
 )
 from sqlalchemy import TypeDecorator
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.ext.associationproxy import association_proxy
 from app.db.database import Base
 
 
@@ -112,19 +113,12 @@ class Subdomain(Base):
 
 
 class Asset(Base):
-    __tablename__ = "data_assets"   # stays "data_assets" until Task 12
+    __tablename__ = "assets"
 
     asset_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=True)
     subdomain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"), nullable=True)
     connection_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
-    snowflake_account: Mapped[Optional[str]] = mapped_column(String(200))
-    sf_database_name: Mapped[Optional[str]] = mapped_column(String(200))
-    sf_schema_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    sf_table_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    table_type: Mapped[Optional[str]] = mapped_column(String(50))
-    table_description: Mapped[Optional[str]] = mapped_column(Text)
-    view_definition: Mapped[Optional[str]] = mapped_column(Text)
     owner_name: Mapped[Optional[str]] = mapped_column(String(200))
     owner_email: Mapped[Optional[str]] = mapped_column(String(200))
     technical_owner_name: Mapped[Optional[str]] = mapped_column(String(200))
@@ -133,14 +127,12 @@ class Asset(Base):
     certification_status: Mapped[str] = mapped_column(String(20), default="uncertified")
     certified_by: Mapped[Optional[str]] = mapped_column(String(200))
     certified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     # Asset Registry fields
-    parent_asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=True)
+    parent_asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True)
     asset_type: Mapped[str] = mapped_column(String(50), server_default="table", nullable=False)
     physical_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     display_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
@@ -175,12 +167,26 @@ class Asset(Base):
         "AssetSourceMeta", back_populates="asset", uselist=False, cascade="all, delete-orphan"
     )
 
+    # Backward-compat proxies for Python attribute access after Snowflake column drop
+    sf_table_name = association_proxy("source_meta", "sf_table_name")
+    sf_schema_name = association_proxy("source_meta", "sf_schema_name")
+    sf_database_name = association_proxy("source_meta", "sf_database_name")
+    sf_table_type = association_proxy("source_meta", "sf_table_type")
+    view_definition = association_proxy("source_meta", "view_definition")
+    row_count = association_proxy("source_meta", "row_count")
+    bytes = association_proxy("source_meta", "bytes")
+    snowflake_account = association_proxy("source_meta", "sf_account")
+
+    @property
+    def table_description(self) -> Optional[str]:
+        return self.description
+
 
 class AssetSourceMeta(Base):
     __tablename__ = "asset_source_meta"
 
     asset_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("data_assets.asset_id", ondelete="CASCADE"), primary_key=True
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), primary_key=True
     )
     provider: Mapped[str] = mapped_column(String(50), server_default="snowflake", nullable=False)
     sf_account: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
@@ -232,7 +238,7 @@ class DQRule(Base):
     rule_description: Mapped[Optional[str]] = mapped_column(Text)
     domain_id: Mapped[str] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=False)
     subdomain_id: Mapped[str] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"), nullable=False)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
     rule_category: Mapped[Optional[str]] = mapped_column(String(50))
     target_column: Mapped[Optional[str]] = mapped_column(String(200))
@@ -285,7 +291,7 @@ class DQSchedule(Base):
 
     schedule_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     rule_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("dq_rules.rule_id"))
-    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("data_assets.asset_id"))
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"))
     subdomain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"))
     domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"))
     schedule_level: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -311,7 +317,7 @@ class DQRuleRun(Base):
 
     run_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     rule_id: Mapped[str] = mapped_column(String(36), ForeignKey("dq_rules.rule_id"), nullable=False)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     domain_id: Mapped[str] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=False)
     subdomain_id: Mapped[str] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"), nullable=False)
     execution_start_time: Mapped[Optional[datetime]] = mapped_column(DateTime)
@@ -389,7 +395,7 @@ class SchemaBaseline(Base):
     __tablename__ = "schema_baselines"
 
     baseline_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id", ondelete="CASCADE"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
     columns_snapshot: Mapped[Optional[list]] = mapped_column(JSONVariant)
     approved_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
@@ -401,7 +407,7 @@ class SchemaDriftEvent(Base):
     __tablename__ = "schema_drift_events"
 
     event_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id", ondelete="CASCADE"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
     baseline_id: Mapped[str] = mapped_column(String(36), ForeignKey("schema_baselines.baseline_id"), nullable=False)
     detected_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     change_type: Mapped[str] = mapped_column(String(30), nullable=False)
@@ -523,7 +529,7 @@ class GlossaryTermAsset(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     term_id: Mapped[str] = mapped_column(String(36), ForeignKey("glossary_terms.term_id"), nullable=False)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     column_name: Mapped[Optional[str]] = mapped_column(String(200))
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
@@ -533,7 +539,7 @@ class DataClassification(Base):
     __tablename__ = "data_classifications"
 
     classification_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     column_name: Mapped[Optional[str]] = mapped_column(String(200))
     classification: Mapped[str] = mapped_column(String(30), nullable=False)
     justification: Mapped[Optional[str]] = mapped_column(Text)
@@ -549,7 +555,7 @@ class ColumnMetadata(Base):
     )
 
     col_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     column_name: Mapped[str] = mapped_column(String(200), nullable=False)
     data_type: Mapped[Optional[str]] = mapped_column(String(100))
     is_nullable: Mapped[Optional[bool]] = mapped_column(Boolean)
@@ -579,7 +585,7 @@ class ColumnProfileHistory(Base):
     )
 
     history_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id", ondelete="CASCADE"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
     column_name: Mapped[str] = mapped_column(String(255), nullable=False)
     profile_date: Mapped[date] = mapped_column(Date, nullable=False)
     null_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -612,7 +618,7 @@ class DataProductAsset(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     product_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_products.product_id"), nullable=False)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     role: Mapped[Optional[str]] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
@@ -636,7 +642,7 @@ class AssetUsage(Base):
     __tablename__ = "asset_usage"
 
     usage_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     event_type: Mapped[str] = mapped_column(String(30), nullable=False)
     user_email: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
@@ -649,7 +655,7 @@ class AssetRating(Base):
     )
 
     rating_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     rating: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     review: Mapped[Optional[str]] = mapped_column(Text)
     user_email: Mapped[Optional[str]] = mapped_column(String(200))
@@ -675,7 +681,7 @@ class AccessRequest(Base):
     __tablename__ = "access_requests"
 
     request_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     requester_email: Mapped[str] = mapped_column(String(200), nullable=False)
     requester_name: Mapped[Optional[str]] = mapped_column(String(200))
     reason: Mapped[str] = mapped_column(Text, nullable=False)
@@ -732,7 +738,7 @@ class AnomalyDetector(Base):
     __tablename__ = "anomaly_detectors"
 
     detector_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     column_name: Mapped[Optional[str]] = mapped_column(String(200))
     detector_type: Mapped[str] = mapped_column(String(30), nullable=False)
     config: Mapped[Optional[dict]] = mapped_column(JSONVariant)
@@ -763,7 +769,7 @@ class QualityCostConfig(Base):
     __tablename__ = "quality_cost_configs"
 
     config_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=True)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True)
     domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=True)
     cost_per_failed_row: Mapped[Optional[float]] = mapped_column(Float)
     cost_per_incident: Mapped[Optional[float]] = mapped_column(Float)
@@ -778,7 +784,7 @@ class QualityIncident(Base):
 
     incident_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     title: Mapped[Optional[str]] = mapped_column(String(200))
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     severity: Mapped[Optional[str]] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="open")
     trigger_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
@@ -817,7 +823,7 @@ class ComplianceMapping(Base):
     __tablename__ = "compliance_mappings"
 
     mapping_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     framework_id: Mapped[str] = mapped_column(String(36), ForeignKey("compliance_frameworks.framework_id"), nullable=False)
     req_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("compliance_requirements.req_id"), nullable=True)
     rule_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("dq_rules.rule_id"), nullable=True)
@@ -858,7 +864,7 @@ class DataContract(Base):
     __tablename__ = "data_contracts"
 
     contract_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     contract_name: Mapped[str] = mapped_column(String(200), nullable=False)
     version: Mapped[str] = mapped_column(String(20), default="1.0")
     producer_team: Mapped[Optional[str]] = mapped_column(String(200))
@@ -929,7 +935,7 @@ class DataSharingAgreement(Base):
     agreement_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     producer_domain_id: Mapped[str] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=False)
     consumer_domain_id: Mapped[str] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=False)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     quality_sla: Mapped[float] = mapped_column(Float, nullable=False)
     freshness_sla: Mapped[int] = mapped_column(Integer, nullable=False)
     breach_action: Mapped[Optional[str]] = mapped_column(String(30))
@@ -947,7 +953,7 @@ class MaskingPolicy(Base):
     )
 
     policy_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
     column_name: Mapped[str] = mapped_column(String(200), nullable=False)
     masking_type: Mapped[str] = mapped_column(String(30), nullable=False)
     applies_to_roles: Mapped[Optional[str]] = mapped_column(Text)
