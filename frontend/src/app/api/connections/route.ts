@@ -18,6 +18,9 @@ function mapToConnection(c: Record<string, unknown>): Connection {
     port: (c.port as number) ?? undefined,
     excludedDatabases: (c.excluded_databases as string[]) ?? undefined,
     excludedSchemas: (c.excluded_schemas as Array<{ database: string; schema: string }>) ?? undefined,
+    filterMode: ((c.filter_mode as 'include' | 'exclude') ?? 'exclude'),
+    includedDatabases: (c.included_databases as string[]) ?? undefined,
+    includedSchemas: (c.included_schemas as Array<{ database: string; schema: string }>) ?? undefined,
     status: c.is_active ? 'active' : 'inactive',
     lastTested: (c.last_tested_at as string) ?? undefined,
     createdAt: c.created_at as string,
@@ -26,7 +29,7 @@ function mapToConnection(c: Record<string, unknown>): Connection {
 
 /** Map frontend Connection field names to backend ConnectionCreate/Update field names */
 function mapToBackend(body: Record<string, unknown>): Record<string, unknown> {
-  const { name, type, username, database, schema, ...rest } = body
+  const { name, type, username, database, schema, filterMode, includedDatabases, includedSchemas, ...rest } = body
   return {
     ...rest,
     ...(name !== undefined && { connection_name: name }),
@@ -34,6 +37,9 @@ function mapToBackend(body: Record<string, unknown>): Record<string, unknown> {
     ...(username !== undefined && { sf_user: username }),
     ...(database !== undefined && { default_database: database }),
     ...(schema !== undefined && { default_schema: schema }),
+    ...(filterMode !== undefined && { filter_mode: filterMode }),
+    ...(includedDatabases !== undefined && { included_databases: includedDatabases }),
+    ...(includedSchemas !== undefined && { included_schemas: includedSchemas }),
   }
 }
 

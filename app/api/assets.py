@@ -194,31 +194,94 @@ async def get_asset_tree(
     depth: int = 3,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Asset).where(Asset.parent_asset_id == None)
-    if source_id:
-        query = query.where(Asset.connection_id == source_id)
-    result = await db.execute(query)
-    roots = result.scalars().all()
+    from app.db.models import AssetSourceMeta as _ASM
 
-    async def build_tree(asset, remaining_depth):
-        children_nodes = []
-        if remaining_depth > 0:
-            child_result = await db.execute(
-                select(Asset).where(Asset.parent_asset_id == asset.asset_id)
-            )
-            children = child_result.scalars().all()
-            children_nodes = [await build_tree(c, remaining_depth - 1) for c in children]
-        return AssetTreeNode(
-            asset_id=asset.asset_id,
-            display_name=asset.display_name or asset.physical_name,
-            physical_name=asset.physical_name,
-            asset_type=asset.asset_type,
-            status=asset.status,
-            qualified_name=asset.qualified_name,
-            children=children_nodes,
+    # Fetch source assets for ACTIVE connections only
+    src_query = (
+        select(Asset)
+        .join(SnowflakeConnection, Asset.connection_id == SnowflakeConnection.connection_id)
+        .where(
+            Asset.asset_type == "source",
+            SnowflakeConnection.is_active == True,
         )
+    )
+    if source_id:
+        src_query = src_query.where(Asset.connection_id == source_id)
+    src_result = await db.execute(src_query)
+    sources = src_result.scalars().all()
 
-    return [await build_tree(r, depth - 1) for r in roots]
+    tree = []
+    for source in sources:
+        conn_id = source.connection_id or source.asset_id
+
+        # Load all active tables for this connection in one query
+        tbl_result = await db.execute(
+            select(Asset, _ASM)
+            .join(_ASM, Asset.asset_id == _ASM.asset_id)
+            .where(
+                Asset.connection_id == conn_id,
+                Asset.asset_type == "table",
+                Asset.is_active == True,
+            )
+            .order_by(_ASM.sf_database_name, _ASM.sf_schema_name, Asset.physical_name)
+        )
+        rows = tbl_result.all()
+
+        # Group: db_name -> schema_name -> [assets]
+        db_map: dict[str, dict[str, list]] = {}
+        for asset, meta in rows:
+            db_name = meta.sf_database_name or "UNKNOWN"
+            schema_name = meta.sf_schema_name or "UNKNOWN"
+            db_map.setdefault(db_name, {}).setdefault(schema_name, []).append(asset)
+
+        db_nodes = []
+        for db_name, schema_map in sorted(db_map.items()):
+            schema_nodes = []
+            if depth >= 2:
+                for schema_name, table_assets in sorted(schema_map.items()):
+                    table_nodes = []
+                    if depth >= 3:
+                        table_nodes = [
+                            AssetTreeNode(
+                                asset_id=a.asset_id,
+                                display_name=a.display_name or a.physical_name,
+                                physical_name=a.physical_name,
+                                asset_type=a.asset_type,
+                                status=a.status,
+                                qualified_name=a.qualified_name,
+                            )
+                            for a in table_assets
+                        ]
+                    schema_nodes.append(AssetTreeNode(
+                        asset_id=f"sc|{conn_id}|{db_name}|{schema_name}",
+                        display_name=schema_name,
+                        physical_name=schema_name,
+                        asset_type="schema",
+                        status="active",
+                        qualified_name=f"schema:{conn_id}:{db_name}:{schema_name}",
+                        children=table_nodes,
+                    ))
+            db_nodes.append(AssetTreeNode(
+                asset_id=f"db|{conn_id}|{db_name}",
+                display_name=db_name,
+                physical_name=db_name,
+                asset_type="database",
+                status="active",
+                qualified_name=f"database:{conn_id}:{db_name}",
+                children=schema_nodes,
+            ))
+
+        tree.append(AssetTreeNode(
+            asset_id=source.asset_id,
+            display_name=source.display_name or source.physical_name,
+            physical_name=source.physical_name,
+            asset_type=source.asset_type,
+            status=source.status,
+            qualified_name=source.qualified_name,
+            children=db_nodes,
+        ))
+
+    return tree
 
 
 @router.get("/{asset_id}", response_model=AssetResponse)
@@ -235,6 +298,97 @@ async def get_asset_children(
     asset_id: str,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.db.models import AssetSourceMeta as _ASM
+
+    # Virtual database node: "db|{conn_id}|{db_name}"
+    if asset_id.startswith("db|"):
+        parts = asset_id.split("|", 2)
+        if len(parts) == 3:
+            _, conn_id, db_name = parts
+            result = await db.execute(
+                select(_ASM.sf_schema_name)
+                .join(Asset, Asset.asset_id == _ASM.asset_id)
+                .where(
+                    Asset.connection_id == conn_id,
+                    _ASM.sf_database_name == db_name,
+                    Asset.asset_type == "table",
+                    Asset.is_active == True,
+                )
+                .distinct()
+                .order_by(_ASM.sf_schema_name)
+            )
+            return [
+                AssetTreeNode(
+                    asset_id=f"sc|{conn_id}|{db_name}|{row[0]}",
+                    display_name=row[0],
+                    physical_name=row[0],
+                    asset_type="schema",
+                    status="active",
+                    qualified_name=f"schema:{conn_id}:{db_name}:{row[0]}",
+                )
+                for row in result.all()
+                if row[0]
+            ]
+
+    # Virtual schema node: "sc|{conn_id}|{db_name}|{schema_name}"
+    if asset_id.startswith("sc|"):
+        parts = asset_id.split("|", 3)
+        if len(parts) == 4:
+            _, conn_id, db_name, schema_name = parts
+            result = await db.execute(
+                select(Asset)
+                .join(_ASM, Asset.asset_id == _ASM.asset_id)
+                .where(
+                    Asset.connection_id == conn_id,
+                    _ASM.sf_database_name == db_name,
+                    _ASM.sf_schema_name == schema_name,
+                    Asset.asset_type == "table",
+                    Asset.is_active == True,
+                )
+                .order_by(Asset.physical_name)
+            )
+            return [
+                AssetTreeNode(
+                    asset_id=a.asset_id,
+                    display_name=a.display_name or a.physical_name,
+                    physical_name=a.physical_name,
+                    asset_type=a.asset_type,
+                    status=a.status,
+                    qualified_name=a.qualified_name,
+                )
+                for a in result.scalars().all()
+            ]
+
+    # Real asset: check if it's a source asset and build DB hierarchy
+    src_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    asset = src_result.scalar_one_or_none()
+    if asset and asset.asset_type == "source":
+        conn_id = asset.connection_id or asset.asset_id
+        db_result = await db.execute(
+            select(_ASM.sf_database_name)
+            .join(Asset, Asset.asset_id == _ASM.asset_id)
+            .where(
+                Asset.connection_id == conn_id,
+                Asset.asset_type == "table",
+                Asset.is_active == True,
+            )
+            .distinct()
+            .order_by(_ASM.sf_database_name)
+        )
+        return [
+            AssetTreeNode(
+                asset_id=f"db|{conn_id}|{row[0]}",
+                display_name=row[0],
+                physical_name=row[0],
+                asset_type="database",
+                status="active",
+                qualified_name=f"database:{conn_id}:{row[0]}",
+            )
+            for row in db_result.all()
+            if row[0]
+        ]
+
+    # Generic fallback: parent_asset_id lookup
     result = await db.execute(
         select(Asset).where(Asset.parent_asset_id == asset_id)
     )

@@ -1,7 +1,8 @@
 'use client'
-import { useState, useCallback } from 'react'
-import AssetTreePanel from '@/components/asset-registry/AssetTreePanel'
+import { useState, useCallback, useRef } from 'react'
+import AssetTreePanel, { AssetTreePanelHandle } from '@/components/asset-registry/AssetTreePanel'
 import AssetDetailPanel from '@/components/asset-registry/AssetDetailPanel'
+import ImportDatasetsModal from '@/components/datasets/ImportDatasetsModal'
 
 interface Asset {
   asset_id: string
@@ -26,6 +27,8 @@ interface Asset {
 export default function AssetRegistryPage() {
   const [selected, setSelected] = useState<Asset | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showImport, setShowImport] = useState(false)
+  const treePanelRef = useRef<AssetTreePanelHandle | null>(null)
 
   const handleSelect = useCallback(async (assetId: string) => {
     setLoading(true)
@@ -41,13 +44,28 @@ export default function AssetRegistryPage() {
     setSelected(prev => prev ? { ...prev, description: desc } : prev)
   }, [])
 
+  const handleDiscoveryComplete = useCallback(() => {
+    setShowImport(false)
+    treePanelRef.current?.refresh()
+  }, [])
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
-      <AssetTreePanel onSelect={handleSelect} selectedId={selected?.asset_id ?? null} />
+      <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, background: 'var(--surface)' }}>
           <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Asset Registry</span>
-          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>Master inventory of all discovered data assets</span>
+          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', flex: 1 }}>Master inventory of all discovered data assets</span>
+          <button
+            onClick={() => setShowImport(true)}
+            style={{
+              padding: '5px 14px', borderRadius: '6px', border: '1px solid var(--border)',
+              background: 'var(--accent-bg)', color: 'var(--accent)',
+              fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            + Discover Assets
+          </button>
         </div>
         {loading ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Loading...</div>
@@ -55,6 +73,12 @@ export default function AssetRegistryPage() {
           <AssetDetailPanel asset={selected} onDescriptionSaved={handleDescriptionSaved} />
         )}
       </div>
+      {showImport && (
+        <ImportDatasetsModal
+          onClose={() => setShowImport(false)}
+          onComplete={handleDiscoveryComplete}
+        />
+      )}
     </div>
   )
 }

@@ -16,6 +16,13 @@ const connIcons: Record<string, string> = {
   redshift: '🔴', mongodb: '🍃', csv: '📄', api: '🔌',
 }
 
+const ACTIVE_CONN_KEY = 'qualix-active-conn'
+
+function publishActiveConn(id: string) {
+  try { localStorage.setItem(ACTIVE_CONN_KEY, id) } catch {}
+  window.dispatchEvent(new CustomEvent('qualix-active-conn-changed', { detail: id }))
+}
+
 /* ─── Top-bar Connection Selector ─── */
 function TopBarConnectionSelector() {
   const [connections, setConnections] = useState<{ id: string; name: string; type: string; status: string; database?: string; host?: string }[]>([])
@@ -25,32 +32,31 @@ function TopBarConnectionSelector() {
   const ref = useRef<HTMLDivElement>(null)
   const selectorPathname = usePathname()
 
+  function applyConns(conns: { id: string; name: string; type: string; status: string }[]) {
+    const activeConns = conns.filter(c => c.status === 'active')
+    setConnections(activeConns)
+    if (activeConns.length === 0) { setActiveId(null); return }
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_CONN_KEY) : null
+    const keep = saved && activeConns.find(c => c.id === saved)
+    const chosen = keep ? saved! : activeConns[0].id
+    setActiveId(chosen)
+    publishActiveConn(chosen)
+  }
+
   useEffect(() => {
-    loadConnections().then(conns => {
-      if (conns.length > 0) {
-        setConnections(conns)
-        const active = conns.find(c => c.status === 'active')
-        if (active) setActiveId(active.id)
-        else setActiveId(conns[0].id)
-      }
-    })
+    loadConnections().then(applyConns)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectorPathname])
 
   useEffect(() => {
-    function onUpdate() {
-      loadConnections().then(conns => {
-        setConnections(conns)
-        const active = conns.find(c => c.status === 'active')
-        if (active) setActiveId(active.id)
-        else if (conns.length > 0) setActiveId(conns[0].id)
-      })
-    }
+    function onUpdate() { loadConnections().then(applyConns) }
     window.addEventListener('storage', onUpdate)
     window.addEventListener('qualix-connections-updated', onUpdate)
     return () => {
       window.removeEventListener('storage', onUpdate)
       window.removeEventListener('qualix-connections-updated', onUpdate)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -60,6 +66,12 @@ function TopBarConnectionSelector() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
+
+  function selectConn(id: string) {
+    setActiveId(id)
+    setOpen(false)
+    publishActiveConn(id)
+  }
 
   const active = connections.find(c => c.id === activeId)
 
@@ -71,9 +83,7 @@ function TopBarConnectionSelector() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(active),
       })
-      const r = await fetch('/api/connections')
-      const data = await r.json()
-      setConnections(Array.isArray(data) ? data : (data.connections ?? []))
+      loadConnections().then(applyConns)
     } catch {}
     setRefreshing(false)
   }
@@ -101,11 +111,7 @@ function TopBarConnectionSelector() {
         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {active?.name ?? 'Select'}
         </span>
-        <span style={{
-          width: '7px', height: '7px', borderRadius: '50%',
-          background: active?.status === 'active' ? '#16a34a' : active?.status === 'error' ? '#dc2626' : '#d97706',
-          flexShrink: 0,
-        }} />
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
         <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
       </div>
       <button onClick={handleRefresh} disabled={refreshing} style={{
@@ -123,7 +129,7 @@ function TopBarConnectionSelector() {
           zIndex: 100, minWidth: '240px', overflow: 'hidden',
         }}>
           {connections.map(conn => (
-            <button key={conn.id} onClick={() => { setActiveId(conn.id); setOpen(false) }} style={{
+            <button key={conn.id} onClick={() => selectConn(conn.id)} style={{
               display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',
               background: conn.id === activeId ? 'var(--accent-bg)' : 'var(--surface)', border: 'none',
               alignItems: 'center', gap: '10px', cursor: 'pointer',
@@ -136,7 +142,7 @@ function TopBarConnectionSelector() {
                 </div>
                 <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>{conn.type} · {conn.database ?? conn.host ?? ''}</div>
               </div>
-              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: conn.status === 'active' ? '#16a34a' : conn.status === 'error' ? '#dc2626' : '#d97706' }} />
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a' }} />
             </button>
           ))}
           <Link href="/connections" style={{

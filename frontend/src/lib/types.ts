@@ -16,6 +16,9 @@ export interface Connection {
   role?: string
   excludedDatabases?: string[]
   excludedSchemas?: Array<{ database: string; schema: string }>
+  filterMode?: 'include' | 'exclude'
+  includedDatabases?: string[]
+  includedSchemas?: Array<{ database: string; schema: string }>
   // BigQuery-specific
   project?: string
   keyFile?: string

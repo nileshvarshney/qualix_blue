@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const { asset_id } = await req.json()
     if (!asset_id) return NextResponse.json({ error: 'asset_id required' }, { status: 400 })
 
-    const res = await fetch(`${BACKEND}/assets/${asset_id}/refresh-stats`, {
+    const res = await fetch(`${BACKEND}/asset-registry/${asset_id}/refresh-stats`, {
       method: 'POST',
       cache: 'no-store',
     })

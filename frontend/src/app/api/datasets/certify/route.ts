@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
     const { asset_id, certification_status } = await req.json()
     if (!asset_id) return NextResponse.json({ error: 'asset_id required' }, { status: 400 })
 
-    const res = await fetch(`${BACKEND}/assets/${asset_id}/certify`, {
+    const res = await fetch(`${BACKEND}/asset-registry/${asset_id}/certify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ certification_status: certification_status ?? 'certified' }),

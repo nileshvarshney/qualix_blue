@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react'
 
 interface TreeNode {
   asset_id: string
@@ -85,22 +85,48 @@ function NodeRow({
   )
 }
 
-export default function AssetTreePanel({
-  onSelect, selectedId,
-}: {
+const ACTIVE_CONN_KEY = 'qualix-active-conn'
+
+function getStoredConnId(): string | null {
+  try { return localStorage.getItem(ACTIVE_CONN_KEY) } catch { return null }
+}
+
+export interface AssetTreePanelHandle {
+  refresh: () => void
+}
+
+const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
   onSelect: (id: string) => void; selectedId: string | null
-}) {
+}>(function AssetTreePanel({ onSelect, selectedId }, ref) {
   const [roots, setRoots] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState<TreeNode[] | null>(null)
   const [searching, setSearching] = useState(false)
+  const [sourceId, setSourceId] = useState<string | null>(() => getStoredConnId())
 
-  useEffect(() => {
-    fetch('/api/asset-registry/tree?depth=2')
+  const fetchTree = useCallback((connId: string | null) => {
+    setLoading(true)
+    const url = connId
+      ? `/api/asset-registry/tree?depth=2&source_id=${encodeURIComponent(connId)}`
+      : '/api/asset-registry/tree?depth=2'
+    fetch(url)
       .then(r => r.json())
       .then(data => { setRoots(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetchTree(sourceId)
+  }, [sourceId, fetchTree])
+
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      const id = (e as CustomEvent).detail as string | null ?? getStoredConnId()
+      setSourceId(id)
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
 
   const toggleNode = useCallback((assetId: string) => {
@@ -134,6 +160,10 @@ export default function AssetTreePanel({
     }
   }
 
+  useImperativeHandle(ref, () => ({
+    refresh: () => fetchTree(sourceId),
+  }), [fetchTree, sourceId])
+
   const displayNodes = searchResults ?? roots
 
   return (
@@ -162,4 +192,6 @@ export default function AssetTreePanel({
       </div>
     </div>
   )
-}
+})
+
+export default AssetTreePanel

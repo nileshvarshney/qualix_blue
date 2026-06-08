@@ -365,14 +365,14 @@ function getCategoryForType(type: string): string {
   return CATEGORIES.find(c => (c.types as readonly string[]).includes(type))?.id ?? 'databases'
 }
 
-function exclusionCount(conn: Connection): number {
-  return (conn.excludedDatabases?.length ?? 0) + (conn.excludedSchemas?.length ?? 0)
+function filterCount(conn: Connection): number {
+  return conn.filterMode === 'include'
+    ? (conn.includedDatabases?.length ?? 0) + (conn.includedSchemas?.length ?? 0)
+    : (conn.excludedDatabases?.length ?? 0) + (conn.excludedSchemas?.length ?? 0)
 }
 
 export default function ConnectionsClient({ initialConnections }: Props) {
-  // On mount: merge localStorage with server-provided data
   const [connections, setConnections] = useState<Connection[]>(() => {
-    // SSR-safe: only read localStorage on client
     if (typeof window === 'undefined') return initialConnections
     try {
       const raw = localStorage.getItem(LS_KEY)
@@ -394,6 +394,27 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   const [activeCategory, setActiveCategory] = useState('databases')
   const [testingModal, setTestingModal] = useState(false)
   const _router = useRouter()
+
+  // On mount: reconcile localStorage against backend — drop connections
+  // deleted from the backend and add any created outside this browser.
+  useEffect(() => {
+    fetch('/api/connections', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: unknown) => {
+        if (!data) return
+        const apiConns: Connection[] = Array.isArray(data) ? data : ((data as { connections?: Connection[] }).connections ?? [])
+        if (apiConns.length === 0) return
+        const apiIds = new Set(apiConns.map(c => c.id))
+        setConnections(prev => {
+          const kept = prev.filter(c => apiIds.has(c.id))
+          const prevIds = new Set(prev.map(c => c.id))
+          const added = apiConns.filter(c => !prevIds.has(c.id))
+          return [...kept, ...added]
+        })
+      })
+      .catch(() => {/* keep local state on network error */})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Persist to localStorage whenever connections change + notify sidebar
   useEffect(() => {
@@ -458,6 +479,13 @@ export default function ConnectionsClient({ initialConnections }: Props) {
       if (res.ok) {
         const newConn = await res.json()
         setConnections(prev => [...prev, newConn])
+        resetForm()
+        setSaving(false)
+        // For Snowflake, immediately open the filter panel as a follow-up step
+        if (newConn.type === 'snowflake') {
+          setExclusionsPanelConn(newConn)
+        }
+        return
       }
     }
 
@@ -642,17 +670,20 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   background: '#fff', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500
                 }}>✏️ Edit</button>
                 {conn.type === 'snowflake' && (() => {
-                  const excCount = exclusionCount(conn)
+                  const count = filterCount(conn)
+                  const isInclude = conn.filterMode === 'include'
+                  const badgeBg = isInclude ? '#dbeafe' : '#fef3c7'
+                  const badgeColor = isInclude ? '#2563eb' : '#d97706'
                   return (
-                    <button onClick={() => setExclusionsPanelConn(conn)} aria-label={`Manage exclusions for ${conn.name}`} style={{
+                    <button onClick={() => setExclusionsPanelConn(conn)} aria-label={`Manage filters for ${conn.name}`} style={{
                       padding: '7px 10px', borderRadius: '7px', border: '1px solid #e2e8f0',
                       background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
                       display: 'flex', alignItems: 'center', gap: '4px'
                     }}>
-                      Exclude
-                      {excCount > 0 && (
-                        <span aria-hidden="true" style={{ background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', lineHeight: 1.4 }}>
-                          {excCount} excluded
+                      ⚙ Filters
+                      {count > 0 && (
+                        <span aria-hidden="true" style={{ background: badgeBg, color: badgeColor, fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', lineHeight: 1.4 }}>
+                          {count} {isInclude ? 'included' : 'excluded'}
                         </span>
                       )}
                     </button>
@@ -805,6 +836,37 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   </div>
                 ))}
               </div>
+
+              {/* Database Filters — only for Snowflake connections that have been saved */}
+              {editingId && form.type === 'snowflake' && (() => {
+                const conn = connections.find(c => c.id === editingId)
+                if (!conn) return null
+                const count = filterCount(conn)
+                const isInclude = conn.filterMode === 'include'
+                const accentColor = isInclude ? '#2563eb' : '#d97706'
+                const accentBg    = isInclude ? '#dbeafe' : '#fef3c7'
+                const accentBorder = isInclude ? '#93c5fd' : '#fde68a'
+                return (
+                  <div style={{ border: `1px solid ${count > 0 ? accentBorder : '#e2e8f0'}`, borderRadius: '8px', padding: '12px 14px', background: count > 0 ? accentBg : '#fafaf9' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginBottom: '2px' }}>Database Filters</div>
+                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                          {count > 0
+                            ? <><span style={{ color: accentColor, fontWeight: 600 }}>{count} item{count !== 1 ? 's' : ''}</span>{' · '}{isInclude ? 'Include only selected' : 'Exclude selected'}</>
+                            : 'No filters — all databases and schemas are discovered'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setExclusionsPanelConn(conn)}
+                        style={{ padding: '7px 12px', borderRadius: '7px', border: `1px solid ${accentColor}`, background: accentBg, color: accentColor, fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        Configure Filters
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Buttons */}
               <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>

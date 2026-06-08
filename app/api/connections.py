@@ -59,6 +59,9 @@ class ConnectionCreate(BaseModel):
     is_primary_target: bool = False
     excluded_databases: Optional[List[str]] = None
     excluded_schemas: Optional[List[Dict[str, str]]] = None
+    filter_mode: str = "exclude"
+    included_databases: Optional[List[str]] = None
+    included_schemas: Optional[List[Dict[str, str]]] = None
     # Multi-database fields
     host: Optional[str] = None
     port: Optional[int] = None
@@ -87,6 +90,9 @@ class ConnectionUpdate(BaseModel):
     is_primary_target: Optional[bool] = None
     excluded_databases: Optional[List[str]] = None
     excluded_schemas: Optional[List[Dict[str, str]]] = None
+    filter_mode: Optional[str] = None
+    included_databases: Optional[List[str]] = None
+    included_schemas: Optional[List[Dict[str, str]]] = None
     host: Optional[str] = None
     port: Optional[int] = None
     project: Optional[str] = None
@@ -117,6 +123,9 @@ def _mask(conn: SnowflakeConnection) -> dict:
         "is_primary_target": conn.is_primary_target,
         "excluded_databases": conn.excluded_databases,
         "excluded_schemas": conn.excluded_schemas,
+        "filter_mode": conn.filter_mode or "exclude",
+        "included_databases": conn.included_databases,
+        "included_schemas": conn.included_schemas,
         # Multi-database fields
         "host": conn.host,
         "port": conn.port,

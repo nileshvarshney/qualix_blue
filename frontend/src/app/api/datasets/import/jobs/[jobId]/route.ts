@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { jobId } = await params
   try {
-    const res = await fetch(`${BACKEND}/assets/discovery/jobs/${jobId}`, { cache: 'no-store' })
+    const res = await fetch(`${BACKEND}/asset-registry/discovery/jobs/${jobId}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ status: 'error', error: 'Job not found' }, { status: res.status })
     const data = await res.json()
     return NextResponse.json(data)

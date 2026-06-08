@@ -11,21 +11,21 @@ export async function GET(req: NextRequest) {
     const depth = searchParams.get('depth') ?? '3';
     const params = new URLSearchParams({ depth });
     if (source_id) params.set('source_id', source_id);
-    const res = await fetch(`${BACKEND}/assets/tree?${params}`);
+    const res = await fetch(`${BACKEND}/asset-registry/tree?${params}`);
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   }
 
   if (action === 'children') {
     const asset_id = searchParams.get('asset_id') ?? '';
-    const res = await fetch(`${BACKEND}/assets/${encodeURIComponent(asset_id)}/children`);
+    const res = await fetch(`${BACKEND}/asset-registry/${encodeURIComponent(asset_id)}/children`);
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   }
 
   if (action === 'ancestors') {
     const asset_id = searchParams.get('asset_id') ?? '';
-    const res = await fetch(`${BACKEND}/assets/${encodeURIComponent(asset_id)}/ancestors`);
+    const res = await fetch(`${BACKEND}/asset-registry/${encodeURIComponent(asset_id)}/ancestors`);
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   }
@@ -38,13 +38,13 @@ export async function GET(req: NextRequest) {
     if (q) params.set('q', q);
     if (asset_type) params.set('asset_type', asset_type);
     if (status) params.set('status', status);
-    const res = await fetch(`${BACKEND}/assets/search?${params}`);
+    const res = await fetch(`${BACKEND}/asset-registry/search?${params}`);
     const data = await res.json();
     return NextResponse.json(data, { status: res.status });
   }
 
   // Default: return enriched assets list
-  const res = await fetch(`${BACKEND}/assets/enriched`);
+  const res = await fetch(`${BACKEND}/asset-registry/enriched`);
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }
@@ -53,7 +53,7 @@ export async function PATCH(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const asset_id = searchParams.get('asset_id') ?? '';
   const body = await req.json();
-  const res = await fetch(`${BACKEND}/assets/${encodeURIComponent(asset_id)}/status`, {
+  const res = await fetch(`${BACKEND}/asset-registry/${encodeURIComponent(asset_id)}/status`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

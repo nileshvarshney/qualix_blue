@@ -245,10 +245,20 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
             conn = await _fetch_connection(payload["connection_id"], db)
 
+            filter_mode = conn.filter_mode or "exclude"
+
+            # Exclude mode: skip databases/schemas on the deny list
             excluded_db_set = set(conn.excluded_databases or [])
             excluded_schema_set = {
                 (e["database"], e["schema"])
                 for e in (conn.excluded_schemas or [])
+            }
+
+            # Include mode: only allow databases/schemas on the allow list
+            included_db_set = set(conn.included_databases or [])
+            included_schema_set = {
+                (e["database"], e["schema"])
+                for e in (conn.included_schemas or [])
             }
 
             await upsert_source_asset(payload["connection_id"], conn.connection_name, db)
@@ -261,35 +271,68 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                 database = sel["database"]
                 schema = sel["schema"]
 
-                if database in excluded_db_set:
-                    job_tracker.append_result(
-                        job_id,
-                        {
-                            "database": database,
-                            "schema": schema,
-                            "table_name": "*",
-                            "status": "excluded",
-                            "reason": "database excluded by connection config",
-                        },
-                        success=True,
-                    )
-                    all_failed = False
-                    continue
+                if filter_mode == "include":
+                    # Skip if database not in the include list (when a list is configured)
+                    if included_db_set and database not in included_db_set:
+                        job_tracker.append_result(
+                            job_id,
+                            {
+                                "database": database,
+                                "schema": schema,
+                                "table_name": "*",
+                                "status": "excluded",
+                                "reason": "database not in connection include list",
+                            },
+                            success=True,
+                        )
+                        all_failed = False
+                        continue
+                    # Skip if schema not in the include list (when schema-level filtering is configured)
+                    if included_schema_set and (database, schema) not in included_schema_set:
+                        job_tracker.append_result(
+                            job_id,
+                            {
+                                "database": database,
+                                "schema": schema,
+                                "table_name": "*",
+                                "status": "excluded",
+                                "reason": "schema not in connection include list",
+                            },
+                            success=True,
+                        )
+                        all_failed = False
+                        continue
+                else:
+                    # Exclude mode (default)
+                    if database in excluded_db_set:
+                        job_tracker.append_result(
+                            job_id,
+                            {
+                                "database": database,
+                                "schema": schema,
+                                "table_name": "*",
+                                "status": "excluded",
+                                "reason": "database excluded by connection config",
+                            },
+                            success=True,
+                        )
+                        all_failed = False
+                        continue
 
-                if (database, schema) in excluded_schema_set:
-                    job_tracker.append_result(
-                        job_id,
-                        {
-                            "database": database,
-                            "schema": schema,
-                            "table_name": "*",
-                            "status": "excluded",
-                            "reason": "schema excluded by connection config",
-                        },
-                        success=True,
-                    )
-                    all_failed = False
-                    continue
+                    if (database, schema) in excluded_schema_set:
+                        job_tracker.append_result(
+                            job_id,
+                            {
+                                "database": database,
+                                "schema": schema,
+                                "table_name": "*",
+                                "status": "excluded",
+                                "reason": "schema excluded by connection config",
+                            },
+                            success=True,
+                        )
+                        all_failed = False
+                        continue
 
                 try:
                     db_safe = _validate_ident(database, "database")

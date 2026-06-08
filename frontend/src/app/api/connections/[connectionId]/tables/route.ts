@@ -4,37 +4,24 @@ export const dynamic = 'force-dynamic'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-function mapCredentials(conn: Record<string, unknown>) {
-  return {
-    account:          conn.account,
-    sf_user:          conn.username,
-    password:         conn.password,
-    warehouse:        conn.warehouse,
-    role:             conn.role ?? null,
-    default_database: conn.database ?? null,
-  }
-}
-
-export async function POST(
+export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ connectionId: string }> }
 ) {
-  await params
+  const { connectionId } = await params
   const sp = new URL(req.url).searchParams
   const database = sp.get('database') ?? ''
   const schema   = sp.get('schema') ?? ''
   try {
-    const conn = await req.json()
     const res = await fetch(
-      `${BACKEND}/connections/browse/tables?database=${encodeURIComponent(database)}&schema=${encodeURIComponent(schema)}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mapCredentials(conn)),
-        cache: 'no-store',
-      }
+      `${BACKEND}/connections/${connectionId}/tables?database=${encodeURIComponent(database)}&schema=${encodeURIComponent(schema)}`,
+      { cache: 'no-store' }
     )
     const data = await res.json()
+    if (!res.ok) {
+      const msg = (data as Record<string, unknown>)?.detail || (data as Record<string, unknown>)?.error || `HTTP ${res.status}`
+      return NextResponse.json({ tables: [], error: msg })
+    }
     return NextResponse.json(data)
   } catch (e: unknown) {
     return NextResponse.json({ tables: [], error: (e as Error).message })

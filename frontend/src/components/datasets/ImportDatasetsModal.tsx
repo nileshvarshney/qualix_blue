@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { Connection } from '@/lib/types'
+import ConnectionExclusionsPanel from '@/components/connections/ConnectionExclusionsPanel'
 
 const LS_KEY = 'qualix_connections'
 
@@ -75,6 +76,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   const [jobStatus, setJobStatus]       = useState('')
   const [jobResults, setJobResults]     = useState<JobResult[]>([])
   const [globalError, setGlobalError]   = useState<string | null>(null)
+  const [showExclusions, setShowExclusions] = useState(false)
 
   // Guard against stale fetch responses when connection changes
   const connRef = useRef<string | null>(null)
@@ -96,11 +98,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
     setDbsLoading(true)
     setDbsError(null)
 
-    fetch(`/api/connections/${selectedConn.id}/databases`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(selectedConn),
-    })
+    fetch(`/api/connections/${selectedConn.id}/databases`)
       .then(r => r.json())
       .then(d => {
         if (connRef.current !== myConnId) return
@@ -161,11 +159,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
       const myConnId = selectedConn.id
       setTree(prev => ({ ...prev, [dbName]: { ...prev[dbName], expanded: true, loading: true, error: undefined } }))
 
-      fetch(`/api/connections/${selectedConn.id}/schemas?database=${encodeURIComponent(dbName)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selectedConn),
-      })
+      fetch(`/api/connections/${selectedConn.id}/schemas?database=${encodeURIComponent(dbName)}`)
         .then(r => r.json())
         .then(d => {
           if (connRef.current !== myConnId) return
@@ -229,10 +223,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
         },
       }))
 
-      fetch(
-        `/api/connections/${selectedConn.id}/tables?database=${encodeURIComponent(dbName)}&schema=${encodeURIComponent(schemaName)}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selectedConn) }
-      )
+      fetch(`/api/connections/${selectedConn.id}/tables?database=${encodeURIComponent(dbName)}&schema=${encodeURIComponent(schemaName)}`)
         .then(r => r.json())
         .then(d => {
           if (connRef.current !== myConnId) return
@@ -315,10 +306,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   }
 
   async function fetchSchemasNow(dbName: string): Promise<string[]> {
-    const r = await fetch(
-      `/api/connections/${selectedConn!.id}/schemas?database=${encodeURIComponent(dbName)}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(selectedConn) }
-    )
+    const r = await fetch(`/api/connections/${selectedConn!.id}/schemas?database=${encodeURIComponent(dbName)}`)
     const d = await r.json()
     if (d.error) throw new Error(d.error)
     return (d.schemas ?? []).map((x: { name: string }) => x.name)
@@ -391,6 +379,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   const errorCount    = jobResults.filter(r => r.status === 'error').length
 
   return (
+    <>
     <div style={OVERLAY} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={DIALOG}>
 
@@ -405,18 +394,35 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
 
         {/* Connection selector */}
         <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          <select
-            value={selectedConn?.id ?? ''}
-            onChange={e => {
-              const c = connections.find(x => x.id === e.target.value) ?? null
-              setSelectedConn(c)
-              setGlobalError(null)
-            }}
-            style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a' }}
-          >
-            <option value="">— Select a connection —</option>
-            {connections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
-          </select>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <select
+              value={selectedConn?.id ?? ''}
+              onChange={e => {
+                const c = connections.find(x => x.id === e.target.value) ?? null
+                setSelectedConn(c)
+                setGlobalError(null)
+                setShowExclusions(false)
+              }}
+              style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a' }}
+            >
+              <option value="">— Select a connection —</option>
+              {connections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
+            </select>
+            {selectedConn && (
+              <button
+                onClick={() => setShowExclusions(v => !v)}
+                title="Include / exclude databases and schemas"
+                style={{
+                  padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
+                  background: showExclusions ? '#dbeafe' : '#fff',
+                  color: showExclusions ? '#2563eb' : '#64748b',
+                  fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                ⚙ Exclusions
+              </button>
+            )}
+          </div>
           {connections.length === 0 && (
             <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>No connections found. Add one on the Connections page first.</div>
           )}
@@ -565,6 +571,19 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
         </div>
       </div>
     </div>
+
+    {showExclusions && selectedConn && (
+      <ConnectionExclusionsPanel
+        connection={selectedConn}
+        onClose={() => setShowExclusions(false)}
+        onSaved={(updated: Connection) => {
+          setSelectedConn(updated)
+          setConnections(prev => prev.map(c => c.id === updated.id ? updated : c))
+          setShowExclusions(false)
+        }}
+      />
+    )}
+    </>
   )
 }
 

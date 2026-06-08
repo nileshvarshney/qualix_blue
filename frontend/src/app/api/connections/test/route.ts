@@ -519,13 +519,55 @@ async function testNewConnector(conn: Record<string, unknown>, type: string): Pr
 
 const NEW_CONNECTOR_TYPES = new Set(['tableau','powerbi','looker','s3','gcs','azureblob','kafka','kinesis','dbt','fivetran','airbyte'])
 
+const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   const body = await req.json()
   const { connectionId, connectionData } = body
 
-  // Try store first, fall back to client-provided data (for edge/Cloudflare deployments
-  // where in-memory store is per-request and doesn't persist)
+  // For saved connections, proxy to the backend which decrypts the password itself.
+  // The frontend only ever has the masked value ("***MASKED***"), so testing locally
+  // would always fail auth. The backend also updates last_test_status + is_active.
+  if (connectionId && connectionId !== '__preview__') {
+    try {
+      const backendRes = await fetch(`${BACKEND}/connections/${connectionId}/test`, {
+        method: 'POST',
+        cache: 'no-store',
+      })
+      const backendResult = await backendRes.json()
+      // Normalise backend snake_case keys to the camelCase shape the UI expects
+      const result: TestResult = {
+        success:      backendResult.success ?? false,
+        status:       backendResult.status ?? (backendResult.success ? 'active' : 'error'),
+        steps:        (backendResult.steps ?? []).map((s: Record<string, string>) => ({
+          label:  s.label,
+          status: s.status,
+          detail: s.detail ?? s.message ?? '',
+        })),
+        errorCode:    backendResult.error_code    ?? backendResult.errorCode,
+        errorMessage: backendResult.error_message ?? backendResult.errorMessage,
+        suggestion:   backendResult.suggestion,
+        latencyMs:    backendResult.latency_ms    ?? backendResult.latencyMs,
+      }
+      // Also update is_active so the sidebar dropdown stays in sync
+      if (result.status === 'active' || result.status === 'error') {
+        try {
+          await fetch(`${BACKEND}/connections/${connectionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: result.status === 'active' }),
+            cache: 'no-store',
+          })
+        } catch { /* non-critical */ }
+      }
+      return NextResponse.json(result)
+    } catch {
+      // Backend unreachable — fall through to client-side test below
+    }
+  }
+
+  // Preview tests (unsaved connections) — run client-side with provided credentials.
   let connection = store.connections.getById(connectionId)
   if (!connection && connectionData) {
     connection = connectionData
@@ -536,7 +578,6 @@ export async function POST(req: NextRequest) {
   }
 
   const conn = connection as unknown as Record<string, unknown>
-  // Ensure the ID is set for status updates
   conn.id = connectionId
 
   let result: TestResult
