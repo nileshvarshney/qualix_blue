@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnection
+from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
     AssetStatusUpdate, AssetRegistryDiscoveryRequest, AssetTreeNode,
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 import logging
 
 logger = logging.getLogger("dq_platform.assets")
-router = APIRouter(prefix="/assets", tags=["Data Assets"])
+router = APIRouter(prefix="/asset-registry", tags=["Asset Registry"])
 
 
 # Snowflake browse is handled by /connections/:id/databases|schemas|tables
