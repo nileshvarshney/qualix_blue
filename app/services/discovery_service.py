@@ -245,6 +245,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
             conn = await _fetch_connection(payload["connection_id"], db)
 
+            excluded_db_set = set(conn.excluded_databases or [])
+            excluded_schema_set = {
+                (e["database"], e["schema"])
+                for e in (conn.excluded_schemas or [])
+            }
+
             await upsert_source_asset(payload["connection_id"], conn.connection_name, db)
 
             scanned_ids: set[str] = set()
@@ -254,6 +260,34 @@ async def run_discovery(job_id: str, payload: dict) -> None:
             for sel in payload.get("selections", []):
                 database = sel["database"]
                 schema = sel["schema"]
+
+                if database in excluded_db_set:
+                    job_tracker.append_result(
+                        job_id,
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "table_name": "*",
+                            "status": "excluded",
+                            "reason": "database excluded by connection config",
+                        },
+                        success=True,
+                    )
+                    continue
+
+                if (database, schema) in excluded_schema_set:
+                    job_tracker.append_result(
+                        job_id,
+                        {
+                            "database": database,
+                            "schema": schema,
+                            "table_name": "*",
+                            "status": "excluded",
+                            "reason": "schema excluded by connection config",
+                        },
+                        success=True,
+                    )
+                    continue
 
                 try:
                     db_safe = _validate_ident(database, "database")
