@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import DataAsset, Domain, Subdomain, AuditLog, SnowflakeConnection
-from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, DiscoveryRequest
+from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, AssetStatusUpdate, DiscoveryRequest
 from app.core.security import get_current_user, get_domain_filter
 import uuid
 from datetime import datetime, timezone
@@ -148,6 +148,67 @@ async def list_assets(
     }
 
 
+@router.get("/search")
+async def search_assets(
+    q: Optional[str] = None,
+    asset_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy import or_
+    query = select(DataAsset)
+    if q:
+        query = query.where(
+            or_(
+                DataAsset.physical_name.ilike(f"%{q}%"),
+                DataAsset.display_name.ilike(f"%{q}%"),
+                DataAsset.qualified_name.ilike(f"%{q}%"),
+            )
+        )
+    if asset_type:
+        query = query.where(DataAsset.asset_type == asset_type)
+    if status:
+        query = query.where(DataAsset.status == status)
+    query = query.limit(limit)
+    result = await db.execute(query)
+    assets = result.scalars().all()
+    return [DataAssetResponse.model_validate(a) for a in assets]
+
+
+@router.get("/tree")
+async def get_asset_tree(
+    source_id: Optional[str] = None,
+    depth: int = 3,
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(DataAsset).where(DataAsset.parent_asset_id == None)
+    if source_id:
+        query = query.where(DataAsset.asset_id == source_id)
+    result = await db.execute(query)
+    roots = result.scalars().all()
+
+    async def build_tree(asset, remaining_depth):
+        node = {
+            "asset_id": asset.asset_id,
+            "display_name": asset.display_name or asset.physical_name,
+            "physical_name": asset.physical_name,
+            "asset_type": asset.asset_type,
+            "status": asset.status,
+            "qualified_name": asset.qualified_name,
+            "children": [],
+        }
+        if remaining_depth > 0:
+            child_result = await db.execute(
+                select(DataAsset).where(DataAsset.parent_asset_id == asset.asset_id)
+            )
+            children = child_result.scalars().all()
+            node["children"] = [await build_tree(c, remaining_depth - 1) for c in children]
+        return node
+
+    return [await build_tree(r, depth - 1) for r in roots]
+
+
 @router.get("/{asset_id}", response_model=DataAssetResponse)
 async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
@@ -155,6 +216,59 @@ async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
     if not asset:
         raise HTTPException(404, "Asset not found")
     return asset
+
+
+@router.get("/{asset_id}/children")
+async def get_asset_children(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(DataAsset).where(DataAsset.parent_asset_id == asset_id)
+    )
+    children = result.scalars().all()
+    return [DataAssetResponse.model_validate(c) for c in children]
+
+
+@router.get("/{asset_id}/ancestors")
+async def get_asset_ancestors(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    ancestors = []
+    current_id = asset_id
+    visited = set()
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        result = await db.execute(
+            select(DataAsset).where(DataAsset.asset_id == current_id)
+        )
+        asset = result.scalar_one_or_none()
+        if not asset:
+            break
+        ancestors.append(DataAssetResponse.model_validate(asset))
+        current_id = asset.parent_asset_id
+    # Return from root to leaf (reverse, excluding the asset itself)
+    ancestors.reverse()
+    return ancestors[:-1] if ancestors else []
+
+
+@router.patch("/{asset_id}/status")
+async def update_asset_status(
+    asset_id: str,
+    body: AssetStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(DataAsset).where(DataAsset.asset_id == asset_id)
+    )
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    asset.status = body.status
+    await db.commit()
+    await db.refresh(asset)
+    return DataAssetResponse.model_validate(asset)
 
 
 @router.put("/{asset_id}", response_model=DataAssetResponse)
