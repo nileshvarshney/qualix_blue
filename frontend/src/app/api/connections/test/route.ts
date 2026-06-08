@@ -85,7 +85,9 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
 
     // 4. Credential check — attempt OAuth/token endpoint to verify credentials exist
     // We call the Snowflake login endpoint which will reject bad credentials clearly
-    const loginRes = await fetch(`${accountUrl}/session/v1/login-request?requestId=qualix-test&databaseName=${conn.database}&warehouse=${conn.warehouse}&roleName=${conn.role || ''}`, {
+    const loginParams = new URLSearchParams({ requestId: 'qualix-test', warehouse: conn.warehouse as string, roleName: (conn.role as string) || '' })
+    if (conn.database) loginParams.set('databaseName', conn.database as string)
+    const loginRes = await fetch(`${accountUrl}/session/v1/login-request?${loginParams}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify({
@@ -139,7 +141,7 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
             latencyMs: Date.now() - t0
           }
         }
-        if (sfMessage.toLowerCase().includes('database')) {
+        if (conn.database && sfMessage.toLowerCase().includes('database')) {
           steps.push({ label: 'Authentication', status: 'ok', detail: `Credentials valid for "${conn.username}"` })
           steps.push({ label: 'Database access', status: 'fail', detail: `Database "${conn.database}" does not exist or role cannot access it` })
           safeUpdateStatus(conn.id as string, 'error')
