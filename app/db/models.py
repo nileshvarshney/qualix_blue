@@ -86,7 +86,7 @@ class Domain(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     subdomains: Mapped[list["Subdomain"]] = relationship("Subdomain", back_populates="domain")
-    assets: Mapped[list["DataAsset"]] = relationship("DataAsset", back_populates="domain")
+    assets: Mapped[list["DataAsset"]] = relationship("DataAsset", back_populates="domain_obj")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="domain")
 
 
@@ -115,8 +115,8 @@ class DataAsset(Base):
     __tablename__ = "data_assets"
 
     asset_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    domain_id: Mapped[str] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=False)
-    subdomain_id: Mapped[str] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"), nullable=False)
+    domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=True)
+    subdomain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("subdomains.subdomain_id"), nullable=True)
     connection_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     snowflake_account: Mapped[Optional[str]] = mapped_column(String(200))
     sf_database_name: Mapped[Optional[str]] = mapped_column(String(200))
@@ -139,10 +139,37 @@ class DataAsset(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
-    domain: Mapped["Domain"] = relationship("Domain", back_populates="assets")
-    subdomain: Mapped["Subdomain"] = relationship("Subdomain", back_populates="assets")
+    # Asset Registry fields
+    parent_asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("data_assets.asset_id"), nullable=True)
+    asset_type: Mapped[str] = mapped_column(String(50), server_default="table", nullable=False)
+    physical_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    qualified_name: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    path: Mapped[Optional[str]] = mapped_column(String(2000), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), server_default="active", nullable=False)
+    owner_user_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    owner_team_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    steward_user_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    domain: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    sensitivity: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    discovered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    domain_obj: Mapped[Optional["Domain"]] = relationship("Domain", back_populates="assets")
+    subdomain: Mapped[Optional["Subdomain"]] = relationship("Subdomain", back_populates="assets")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="asset")
     rule_runs: Mapped[list["DQRuleRun"]] = relationship("DQRuleRun", back_populates="asset")
+    parent: Mapped[Optional["DataAsset"]] = relationship(
+        "DataAsset",
+        remote_side="DataAsset.asset_id",
+        foreign_keys="[DataAsset.parent_asset_id]",
+        back_populates="children",
+    )
+    children: Mapped[list["DataAsset"]] = relationship(
+        "DataAsset",
+        foreign_keys="[DataAsset.parent_asset_id]",
+        back_populates="parent",
+    )
 
 
 class RuleTag(Base):
