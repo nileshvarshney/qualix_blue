@@ -1,11 +1,37 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Literal
 from datetime import datetime
 
 Criticality = Literal["critical", "high", "medium", "low"]
 CertificationStatus = Literal["certified", "warning", "failed", "uncertified"]
+
+AssetType = Literal[
+    'source', 'database', 'schema', 'table',
+    'column', 'file', 'dataset', 'logical_dataset'
+]
+
+AssetStatus = Literal['active', 'missing', 'deprecated', 'scan_failed', 'disabled']
+
+
+class AssetStatusUpdate(BaseModel):
+    status: AssetStatus
+
+
+class AssetTreeNode(BaseModel):
+    asset_id: str
+    display_name: Optional[str] = None
+    physical_name: Optional[str] = None
+    asset_type: str = 'table'
+    status: str = 'active'
+    qualified_name: Optional[str] = None
+    children: list['AssetTreeNode'] = []
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+AssetTreeNode.model_rebuild()
 
 
 class DataAssetCreate(BaseModel):
@@ -26,6 +52,18 @@ class DataAssetCreate(BaseModel):
     criticality: Criticality = "medium"
     certification_status: CertificationStatus = "uncertified"
     is_active: bool = True
+    asset_type: Optional[str] = 'table'
+    parent_asset_id: Optional[str] = None
+    physical_name: Optional[str] = None
+    display_name: Optional[str] = None
+    qualified_name: Optional[str] = None
+    path: Optional[str] = None
+    status: Optional[str] = 'active'
+    owner_user_id: Optional[str] = None
+    owner_team_id: Optional[str] = None
+    steward_user_id: Optional[str] = None
+    domain: Optional[str] = None
+    sensitivity: Optional[str] = None
 
 
 class DataAssetUpdate(BaseModel):
@@ -41,6 +79,18 @@ class DataAssetUpdate(BaseModel):
     criticality: Optional[Criticality] = None
     certification_status: Optional[CertificationStatus] = None
     is_active: Optional[bool] = None
+    asset_type: Optional[str] = None
+    parent_asset_id: Optional[str] = None
+    physical_name: Optional[str] = None
+    display_name: Optional[str] = None
+    qualified_name: Optional[str] = None
+    path: Optional[str] = None
+    status: Optional[str] = None
+    owner_user_id: Optional[str] = None
+    owner_team_id: Optional[str] = None
+    steward_user_id: Optional[str] = None
+    domain: Optional[str] = None
+    sensitivity: Optional[str] = None
 
 
 class DataAssetCertifyRequest(BaseModel):
@@ -69,6 +119,20 @@ class DataAssetResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    asset_type: str = 'table'
+    parent_asset_id: Optional[str] = None
+    physical_name: Optional[str] = None
+    display_name: Optional[str] = None
+    qualified_name: Optional[str] = None
+    path: Optional[str] = None
+    status: str = 'active'
+    owner_user_id: Optional[str] = None
+    owner_team_id: Optional[str] = None
+    steward_user_id: Optional[str] = None
+    domain: Optional[str] = None
+    sensitivity: Optional[str] = None
+    discovered_at: Optional[datetime] = None
+    last_seen_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
