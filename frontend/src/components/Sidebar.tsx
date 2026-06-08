@@ -221,7 +221,7 @@ const sections: Section[] = [
 
 /* Maps every known route to its parent section key */
 const SECTION_KEY_MAP: Record<string, string> = {
-  '/': 'quality', '/rules': 'quality', '/issues': 'quality', '/datasets': 'quality',
+  '/': 'quality', '/rules': 'quality', '/issues': 'quality', '/datasets': 'quality', '/asset-registry': 'quality',
   '/anomalies': 'quality', '/schedules': 'quality', '/execution-logs': 'quality',
   '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
   '/glossary': 'govern', '/contracts': 'govern', '/slas': 'govern', '/domains': 'govern',

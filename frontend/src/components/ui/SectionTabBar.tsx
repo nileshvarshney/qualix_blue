@@ -12,7 +12,7 @@ const SECTIONS: Section[] = [
       { href: '/',               label: 'Overview' },
       { href: '/rules',          label: 'Rules' },
       { href: '/issues',         label: 'Issues' },
-      { href: '/datasets',       label: 'Data Assets' },
+      { href: '/asset-registry', label: 'Asset Registry' },
       { href: '/anomalies',      label: 'Anomalies' },
       { href: '/schedules',      label: 'Schedules' },
       { href: '/execution-logs', label: 'Execution Logs' },
