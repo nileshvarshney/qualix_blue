@@ -97,6 +97,13 @@ def test_mask_primary_target():
     assert result["is_primary_target"] is True
 
 
+def test_snowflake_connection_has_exclusion_columns():
+    """SnowflakeConnection must have excluded_databases and excluded_schemas columns."""
+    cols = {c.key for c in SnowflakeConnection.__table__.columns}
+    assert "excluded_databases" in cols
+    assert "excluded_schemas" in cols
+
+
 def test_platform_info_returns_expected_keys():
     """GET /config/platform-info response shape must match the spec."""
     from app.api.config import get_platform_info

@@ -433,6 +433,8 @@ class SnowflakeConnection(Base):
     role: Mapped[Optional[str]] = mapped_column(String(200))
     default_database: Mapped[Optional[str]] = mapped_column(String(200))
     default_schema: Mapped[Optional[str]] = mapped_column(String(200))
+    excluded_databases: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    excluded_schemas: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     connection_type: Mapped[str] = mapped_column(String(50), default="named")

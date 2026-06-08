@@ -229,6 +229,8 @@ def create_tables():
             # snowflake_connections additions
             "ALTER TABLE snowflake_connections ADD COLUMN connection_type VARCHAR(50) DEFAULT 'named'",
             "ALTER TABLE snowflake_connections ADD COLUMN is_primary_target BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE snowflake_connections ADD COLUMN excluded_databases VARIANT",
+            "ALTER TABLE snowflake_connections ADD COLUMN excluded_schemas VARIANT",
             # dq_rules additions (governance upgrade)
             "ALTER TABLE dq_rules ADD COLUMN rule_category VARCHAR(50)",
             "ALTER TABLE dq_rules ADD COLUMN version INTEGER DEFAULT 1",
