@@ -85,7 +85,7 @@ def upgrade() -> None:
         UPDATE data_assets SET
             qualified_name = COALESCE(snowflake_account, '') || '/' ||
                              COALESCE(sf_database_name, '') || '/' ||
-                             sf_schema_name || '/' || sf_table_name
+                             COALESCE(sf_schema_name, '') || '/' || sf_table_name
         WHERE asset_type = 'table' AND sf_table_name IS NOT NULL
           AND qualified_name IS NULL
     """))
@@ -122,7 +122,7 @@ def upgrade() -> None:
                      created_at, updated_at, discovered_at, last_seen_at)
                 VALUES
                     (:aid, 'source', :name, :name,
-                     'source:' || :name, 'active', :conn_id,
+                     :conn_id, 'active', :conn_id,
                      :now, :now, :now, :now)
             """), {"aid": src_id, "name": conn_id, "conn_id": conn_id, "now": now})
 
@@ -245,7 +245,3 @@ def downgrade() -> None:
                 'steward_user_id', 'domain', 'sensitivity', 'discovered_at', 'last_seen_at'):
         op.drop_column('data_assets', col)
 
-    op.alter_column('data_assets', 'domain_id',
-                    existing_type=sa.String(36), nullable=False)
-    op.alter_column('data_assets', 'subdomain_id',
-                    existing_type=sa.String(36), nullable=False)
