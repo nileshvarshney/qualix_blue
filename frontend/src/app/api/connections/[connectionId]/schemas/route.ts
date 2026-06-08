@@ -38,3 +38,21 @@ export async function POST(
     return NextResponse.json({ schemas: [], error: (e as Error).message })
   }
 }
+
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ connectionId: string }> }
+) {
+  const { connectionId } = await params
+  const database = new URL(req.url).searchParams.get('database') ?? ''
+  try {
+    const res = await fetch(
+      `${BACKEND}/connections/${connectionId}/schemas?database=${encodeURIComponent(database)}`,
+      { cache: 'no-store' }
+    )
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch (e: unknown) {
+    return NextResponse.json({ schemas: [], error: (e as Error).message })
+  }
+}

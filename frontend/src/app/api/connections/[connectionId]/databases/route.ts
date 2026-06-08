@@ -34,3 +34,19 @@ export async function POST(
     return NextResponse.json({ databases: [], error: (e as Error).message })
   }
 }
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ connectionId: string }> }
+) {
+  const { connectionId } = await params
+  try {
+    const res = await fetch(`${BACKEND}/connections/${connectionId}/databases`, {
+      cache: 'no-store',
+    })
+    const data = await res.json()
+    return NextResponse.json(data)
+  } catch (e: unknown) {
+    return NextResponse.json({ databases: [], error: (e as Error).message })
+  }
+}
