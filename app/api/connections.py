@@ -18,7 +18,14 @@ logger = logging.getLogger("dataguard.connections")
 router = APIRouter(prefix="/connections", tags=["Connections"])
 
 MASKED = "***MASKED***"
-SUPPORTED_DB_TYPES = ("snowflake", "postgresql", "mysql", "bigquery", "redshift", "mongodb", "csv", "api")
+SUPPORTED_DB_TYPES = (
+    "snowflake", "postgresql", "mysql", "bigquery", "redshift", "mongodb", "csv", "api",
+    "oracle", "sqlserver", "db2", "saphana", "hive", "synapse", "teradata",
+    "tableau", "powerbi", "looker",
+    "s3", "gcs", "azureblob",
+    "kafka", "kinesis",
+    "dbt", "fivetran", "airbyte",
+)
 
 _IDENT_RE = re.compile(r'^[A-Za-z0-9_$]+$')
 

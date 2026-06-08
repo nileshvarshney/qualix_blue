@@ -445,16 +445,20 @@ export default function ConnectionsClient({ initialConnections }: Props) {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editingId, ...payload })
       })
-      const updated = await res.json()
-      setConnections(prev => prev.map(c => c.id === editingId ? updated : c))
+      if (res.ok) {
+        const updated = await res.json()
+        setConnections(prev => prev.map(c => c.id === editingId ? updated : c))
+      }
     } else {
       // CREATE new connection
       const res = await fetch('/api/connections', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })
-      const newConn = await res.json()
-      setConnections(prev => [...prev, newConn])
+      if (res.ok) {
+        const newConn = await res.json()
+        setConnections(prev => [...prev, newConn])
+      }
     }
 
     resetForm()
@@ -562,7 +566,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
       {/* Connection Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '14px' }}>
         {connections.map(conn => {
-          const s = statusBadge[conn.status]
+          const s = statusBadge[conn.status] ?? statusBadge.inactive
           const icon = connectionIcons[conn.type] || '🔌'
           const typeColor = CONNECTION_TYPES.find(t => t.value === conn.type)?.color || '#64748b'
           const fields = typeFields[conn.type] || []
