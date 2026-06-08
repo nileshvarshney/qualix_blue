@@ -402,7 +402,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             status="active",
                             domain_id=domain_id,
                             subdomain_id=subdomain_id,
-                            table_description=table.get("comment") or "",
+                            description=table.get("comment") or "",
                             criticality=payload.get("criticality", "medium"),
                             owner_name=payload.get("owner_name"),
                             owner_email=payload.get("owner_email"),

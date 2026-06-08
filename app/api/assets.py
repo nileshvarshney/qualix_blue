@@ -31,20 +31,21 @@ async def list_assets_enriched(
 ):
     """Returns assets joined with domain, subdomain, and connection names."""
     effective_domain = get_domain_filter(user) or domain_id
-    q = select(Asset, Domain, Subdomain).join(
-        Domain, Asset.domain_id == Domain.domain_id
-    ).join(
-        Subdomain, Asset.subdomain_id == Subdomain.subdomain_id
+    q = (
+        select(Asset, Domain, Subdomain, AssetSourceMeta)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .join(Subdomain, Asset.subdomain_id == Subdomain.subdomain_id)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+        .order_by(Asset.display_name, Asset.physical_name)
     )
     if effective_domain:
         q = q.where(Asset.domain_id == effective_domain)
     if subdomain_id:
         q = q.where(Asset.subdomain_id == subdomain_id)
-    result = await db.execute(q.order_by(Asset.sf_table_name))
-    rows = result.all()
+    rows = (await db.execute(q)).all()
 
     # Bulk-fetch connection names for assets that have one
-    conn_ids = {asset.connection_id for asset, _, _ in rows if asset.connection_id}
+    conn_ids = {asset.connection_id for asset, _, _, _ in rows if asset.connection_id}
     conn_map: dict[str, str] = {}
     if conn_ids:
         conn_result = await db.execute(
@@ -58,17 +59,16 @@ async def list_assets_enriched(
             "asset_id": asset.asset_id,
             "connection_id": asset.connection_id,
             "connection_name": conn_map.get(asset.connection_id) if asset.connection_id else None,
-            "sf_database_name": asset.sf_database_name,
-            "sf_schema_name": asset.sf_schema_name,
-            "sf_table_name": asset.sf_table_name,
-            "table_description": asset.table_description,
-            "table_type": asset.table_type,
+            "sf_database_name": meta.sf_database_name if meta else None,
+            "sf_schema_name": meta.sf_schema_name if meta else None,
+            "sf_table_name": meta.sf_table_name if meta else asset.physical_name,
+            "table_description": asset.description,
+            "table_type": meta.sf_table_type if meta else None,
             "criticality": asset.criticality,
             "owner_name": asset.owner_name,
             "owner_email": asset.owner_email,
             "technical_owner_name": asset.technical_owner_name,
             "technical_owner_email": asset.technical_owner_email,
-            "criticality": asset.criticality,
             "certification_status": asset.certification_status,
             "certified_by": asset.certified_by,
             "is_active": asset.is_active,
@@ -78,7 +78,7 @@ async def list_assets_enriched(
             "subdomain_name": subdomain.subdomain_name,
             "created_at": asset.created_at.isoformat(),
         }
-        for asset, domain, subdomain in rows
+        for asset, domain, subdomain, meta in rows
     ]
 
 
@@ -121,11 +121,19 @@ async def list_assets(
     if is_active is not None:
         q = q.where(Asset.is_active == is_active)
     total = (await db.execute(select(sqlfunc.count()).select_from(q.subquery()))).scalar() or 0
-    result = await db.execute(
-        q.order_by(Asset.sf_database_name, Asset.sf_schema_name, Asset.sf_table_name)
+    joined_q = (
+        select(Asset, AssetSourceMeta)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+        .order_by(AssetSourceMeta.sf_database_name, AssetSourceMeta.sf_schema_name, AssetSourceMeta.sf_table_name)
         .limit(limit).offset(offset)
     )
-    assets = result.scalars().all()
+    if domain_id:
+        joined_q = joined_q.where(Asset.domain_id == domain_id)
+    if subdomain_id:
+        joined_q = joined_q.where(Asset.subdomain_id == subdomain_id)
+    if is_active is not None:
+        joined_q = joined_q.where(Asset.is_active == is_active)
+    rows = (await db.execute(joined_q)).all()
     return {
         "total": total,
         "limit": limit,
@@ -134,20 +142,20 @@ async def list_assets(
             {
                 "asset_id": a.asset_id,
                 "connection_id": a.connection_id,
-                "sf_database_name": a.sf_database_name,
-                "sf_schema_name": a.sf_schema_name,
-                "sf_table_name": a.sf_table_name,
-                "table_type": a.table_type,
-                "table_description": a.table_description,
+                "sf_database_name": m.sf_database_name if m else None,
+                "sf_schema_name": m.sf_schema_name if m else None,
+                "sf_table_name": m.sf_table_name if m else a.physical_name,
+                "table_type": m.sf_table_type if m else None,
+                "table_description": a.description,
                 "criticality": a.criticality,
                 "certification_status": a.certification_status,
                 "is_active": a.is_active,
-                "row_count": a.row_count,
-                "bytes": a.bytes,
+                "row_count": m.row_count if m else None,
+                "bytes": m.bytes if m else None,
                 "created_at": a.created_at.isoformat() if a.created_at else None,
                 "updated_at": a.updated_at.isoformat() if a.updated_at else None,
             }
-            for a in assets
+            for a, m in rows
         ],
     }
 
