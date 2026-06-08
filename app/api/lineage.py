@@ -10,7 +10,7 @@ from sqlalchemy import select, func, and_
 
 from app.db.database import get_db
 from app.db.models import (
-    Asset, ColumnMetadata, ColumnProfileHistory,
+    Asset, AssetSourceMeta, ColumnMetadata, ColumnProfileHistory,
     DataClassification, GlossaryTerm, GlossaryTermAsset,
     SnowflakeConnection,
 )
@@ -72,17 +72,18 @@ async def _enrich(asset: Asset, db: AsyncSession) -> dict:
     )
     terms = list(terms_result.scalars().all())
 
+    meta = asset.source_meta
     return {
         "asset_id": asset.asset_id,
-        "sf_table_name": asset.sf_table_name,
-        "sf_schema_name": asset.sf_schema_name,
-        "sf_database_name": asset.sf_database_name,
-        "table_type": asset.table_type,
-        "table_description": asset.table_description,
+        "sf_table_name": meta.sf_table_name if meta else asset.physical_name,
+        "sf_schema_name": meta.sf_schema_name if meta else None,
+        "sf_database_name": meta.sf_database_name if meta else None,
+        "table_type": meta.sf_table_type if meta else asset.table_type,
+        "table_description": asset.description or asset.table_description,
         "owner_name": asset.owner_name,
         "technical_owner_name": asset.technical_owner_name,
         "column_count": col_count,
-        "row_count": row_count,
+        "row_count": (meta.row_count if meta else None) or row_count,
         "classifications": classifications,
         "terms": terms,
     }
@@ -90,20 +91,28 @@ async def _enrich(asset: Asset, db: AsyncSession) -> dict:
 
 def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: Asset) -> Optional[str]:
     """Synchronous Snowflake call — run via asyncio.to_thread."""
+    meta = asset.source_meta
+    if not meta or not meta.sf_table_name:
+        return None
     try:
         from app.api.connections import _open_connector
         sf = _open_connector(conn)
         cur = sf.cursor()
-        db_part = f'"{asset.sf_database_name}".' if asset.sf_database_name else ""
-        cur.execute(
-            f"SELECT GET_DDL('VIEW', '{db_part}\"{asset.sf_schema_name}\".\"{asset.sf_table_name}\"')"
-        )
-        row = cur.fetchone()
-        cur.close()
-        sf.close()
-        return row[0] if row else None
+        try:
+            db_part = f'"{meta.sf_database_name}".' if meta.sf_database_name else ""
+            cur.execute(
+                f"SELECT GET_DDL('VIEW', '{db_part}\"{meta.sf_schema_name}\".\"{meta.sf_table_name}\"')"
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+        except Exception as exc:
+            logger.debug("view_definition fetch failed for %s: %s", meta.sf_table_name, exc)
+            return None
+        finally:
+            cur.close()
+            sf.close()
     except Exception as exc:
-        logger.debug("view_definition fetch failed for %s: %s", asset.sf_table_name, exc)
+        logger.debug("view_definition fetch failed: %s", exc)
         return None
 
 
@@ -120,24 +129,27 @@ async def get_lineage(
     check_domain_access(user, asset.domain_id)
 
     # ── Lazy-fetch view_definition for VIEW assets that don't have it stored ──
-    is_view = asset.table_type and "VIEW" in asset.table_type.upper()
-    if is_view and not asset.view_definition and asset.connection_id:
+    meta = asset.source_meta
+    is_view = meta and meta.sf_table_type and "VIEW" in meta.sf_table_type.upper()
+    if meta and is_view and not meta.view_definition and asset.connection_id:
         sf_conn = await db.get(SnowflakeConnection, asset.connection_id)
         if sf_conn:
             view_def = await asyncio.to_thread(_sync_fetch_view_definition, sf_conn, asset)
             if view_def:
-                asset.view_definition = view_def
+                meta.view_definition = view_def
                 await db.commit()
 
     # ── Upstream ──────────────────────────────────────────────────────────────
     upstream_assets: list[Asset] = []
-    if asset.view_definition and asset.connection_id:
-        refs = extract_table_refs(asset.view_definition)
+    if meta and meta.view_definition and asset.connection_id:
+        refs = extract_table_refs(meta.view_definition)
         if refs:
             result = await db.execute(
-                select(Asset).where(
+                select(Asset).join(
+                    AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id
+                ).where(
                     and_(
-                        func.upper(Asset.sf_table_name).in_(refs),
+                        func.upper(AssetSourceMeta.sf_table_name).in_(refs),
                         Asset.connection_id == asset.connection_id,
                         Asset.asset_id != asset_id,
                     )
@@ -147,19 +159,24 @@ async def get_lineage(
 
     # ── Downstream ────────────────────────────────────────────────────────────
     downstream_assets: list[Asset] = []
-    if asset.connection_id:
+    table_name = (meta.sf_table_name if meta else None) or asset.physical_name or ""
+    if asset.connection_id and table_name:
         candidate_result = await db.execute(
-            select(Asset).where(
+            select(Asset).join(
+                AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id
+            ).where(
                 and_(
-                    Asset.view_definition.ilike(f"%{asset.sf_table_name}%"),
+                    AssetSourceMeta.view_definition.ilike(f"%{table_name}%"),
                     Asset.connection_id == asset.connection_id,
                     Asset.asset_id != asset_id,
                 )
             )
         )
         for candidate in candidate_result.scalars().all():
-            refs = extract_table_refs(candidate.view_definition or "")
-            if asset.sf_table_name.upper() in refs:
+            refs_cand = extract_table_refs(
+                candidate.source_meta.view_definition if candidate.source_meta else ""
+            )
+            if table_name.upper() in refs_cand:
                 downstream_assets.append(candidate)
 
     asset_node = await _enrich(asset, db)
