@@ -34,7 +34,21 @@ class AssetTreeNode(BaseModel):
 AssetTreeNode.model_rebuild()
 
 
-class DataAssetCreate(BaseModel):
+class AssetSourceMetaResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    provider: str = 'snowflake'
+    sf_account: Optional[str] = None
+    sf_database_name: Optional[str] = None
+    sf_schema_name: Optional[str] = None
+    sf_table_name: Optional[str] = None
+    sf_table_type: Optional[str] = None
+    view_definition: Optional[str] = None
+    row_count: Optional[int] = None
+    bytes: Optional[int] = None
+    updated_at: Optional[datetime] = None
+
+
+class AssetCreate(BaseModel):
     domain_id: str
     subdomain_id: str
     connection_id: Optional[str] = None
@@ -66,7 +80,7 @@ class DataAssetCreate(BaseModel):
     sensitivity: Optional[str] = None
 
 
-class DataAssetUpdate(BaseModel):
+class AssetUpdate(BaseModel):
     sf_schema_name: Optional[str] = None
     sf_table_name: Optional[str] = None
     table_type: Optional[str] = None
@@ -93,48 +107,41 @@ class DataAssetUpdate(BaseModel):
     sensitivity: Optional[str] = None
 
 
-class DataAssetCertifyRequest(BaseModel):
+class AssetCertifyRequest(BaseModel):
     certification_status: CertificationStatus
     certified_by: Optional[str] = None
 
 
-class DataAssetResponse(BaseModel):
+class AssetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     asset_id: str
-    domain_id: str
-    subdomain_id: str
-    snowflake_account: Optional[str]
-    sf_database_name: Optional[str]
-    sf_schema_name: str
-    sf_table_name: str
-    table_type: Optional[str]
-    table_description: Optional[str]
-    owner_name: Optional[str]
-    owner_email: Optional[str]
-    technical_owner_name: Optional[str]
-    technical_owner_email: Optional[str]
-    criticality: str
-    certification_status: str
-    certified_by: Optional[str]
-    certified_at: Optional[datetime]
-    is_active: bool
-    created_at: datetime
-    updated_at: datetime
-    asset_type: str = 'table'
     parent_asset_id: Optional[str] = None
+    connection_id: Optional[str] = None
+    asset_type: str = 'table'
     physical_name: Optional[str] = None
     display_name: Optional[str] = None
     qualified_name: Optional[str] = None
     path: Optional[str] = None
+    description: Optional[str] = None
     status: str = 'active'
+    criticality: str = 'medium'
+    sensitivity: Optional[str] = None
     owner_user_id: Optional[str] = None
     owner_team_id: Optional[str] = None
     steward_user_id: Optional[str] = None
     domain: Optional[str] = None
-    sensitivity: Optional[str] = None
+    domain_id: Optional[str] = None
+    subdomain_id: Optional[str] = None
+    certification_status: str = 'uncertified'
+    certified_by: Optional[str] = None
+    certified_at: Optional[datetime] = None
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
     discovered_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
+    source_meta: Optional[AssetSourceMetaResponse] = None
 
 
 class DiscoverySelection(BaseModel):
@@ -143,7 +150,7 @@ class DiscoverySelection(BaseModel):
     tables: Optional[list[str]] = None  # None = import all tables in schema
 
 
-class DiscoveryRequest(BaseModel):
+class AssetRegistryDiscoveryRequest(BaseModel):
     connection_id: str
     selections: list[DiscoverySelection]
     criticality: Criticality = "medium"
@@ -163,3 +170,11 @@ class DiscoveryTableResult(BaseModel):
     asset_id: Optional[str] = None
     domain_name: Optional[str] = None
     subdomain_name: Optional[str] = None
+
+
+# Backward-compatibility aliases
+DataAssetCreate = AssetCreate
+DataAssetUpdate = AssetUpdate
+DataAssetCertifyRequest = AssetCertifyRequest
+DataAssetResponse = AssetResponse
+DiscoveryRequest = AssetRegistryDiscoveryRequest

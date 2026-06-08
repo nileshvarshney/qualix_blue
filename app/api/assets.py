@@ -5,7 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
 from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnection
-from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, AssetStatusUpdate, DiscoveryRequest, AssetTreeNode
+from app.schemas.asset import (
+    AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
+    AssetStatusUpdate, AssetRegistryDiscoveryRequest, AssetTreeNode,
+    AssetSourceMetaResponse,
+)
 from app.core.security import get_current_user, get_domain_filter
 import uuid
 from datetime import datetime, timezone
@@ -78,8 +82,8 @@ async def list_assets_enriched(
     ]
 
 
-@router.post("", response_model=DataAssetResponse)
-async def create_asset(payload: DataAssetCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+@router.post("", response_model=AssetResponse)
+async def create_asset(payload: AssetCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     asset = Asset(asset_id=str(uuid.uuid4()), **payload.model_dump())
     db.add(asset)
     db.add(AuditLog(audit_id=str(uuid.uuid4()), user_email=user.get("email"), action="CREATE",
@@ -173,7 +177,7 @@ async def search_assets(
     query = query.limit(limit)
     result = await db.execute(query)
     assets = result.scalars().all()
-    return [DataAssetResponse.model_validate(a) for a in assets]
+    return [AssetResponse.model_validate(a) for a in assets]
 
 
 @router.get("/tree")
@@ -209,7 +213,7 @@ async def get_asset_tree(
     return [await build_tree(r, depth - 1) for r in roots]
 
 
-@router.get("/{asset_id}", response_model=DataAssetResponse)
+@router.get("/{asset_id}", response_model=AssetResponse)
 async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
@@ -227,7 +231,7 @@ async def get_asset_children(
         select(Asset).where(Asset.parent_asset_id == asset_id)
     )
     children = result.scalars().all()
-    return [DataAssetResponse.model_validate(c) for c in children]
+    return [AssetResponse.model_validate(c) for c in children]
 
 
 @router.get("/{asset_id}/ancestors")
@@ -246,7 +250,7 @@ async def get_asset_ancestors(
         asset = result.scalar_one_or_none()
         if not asset:
             break
-        ancestors.append(DataAssetResponse.model_validate(asset))
+        ancestors.append(AssetResponse.model_validate(asset))
         current_id = asset.parent_asset_id
     # Return from root to leaf (reverse, excluding the asset itself)
     ancestors.reverse()
@@ -268,11 +272,11 @@ async def update_asset_status(
     asset.status = body.status
     await db.commit()
     await db.refresh(asset)
-    return DataAssetResponse.model_validate(asset)
+    return AssetResponse.model_validate(asset)
 
 
-@router.put("/{asset_id}", response_model=DataAssetResponse)
-async def update_asset(asset_id: str, payload: DataAssetUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+@router.put("/{asset_id}", response_model=AssetResponse)
+async def update_asset(asset_id: str, payload: AssetUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
@@ -421,7 +425,7 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.post("/discovery", status_code=202)
 async def start_discovery(
-    payload: DiscoveryRequest,
+    payload: AssetRegistryDiscoveryRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -500,10 +504,10 @@ async def refresh_asset_stats(asset_id: str, db: AsyncSession = Depends(get_db))
     }
 
 
-@router.post("/{asset_id}/certify", response_model=DataAssetResponse)
+@router.post("/{asset_id}/certify", response_model=AssetResponse)
 async def certify_asset(
     asset_id: str,
-    payload: DataAssetCertifyRequest,
+    payload: AssetCertifyRequest,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
