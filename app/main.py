@@ -157,7 +157,6 @@ app.include_router(service_accounts_router)
 app.include_router(domains.router)
 app.include_router(subdomains.router)
 app.include_router(assets.router)
-app.include_router(assets_compat.router)
 app.include_router(rules.router)
 app.include_router(schedules.router)
 app.include_router(executions.router)
@@ -196,6 +195,7 @@ app.include_router(observability.router)
 app.include_router(cicd.router)
 app.include_router(privacy.router)
 app.include_router(admin.router)
+app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 
 # ── Health & Info ─────────────────────────────────────────────────────────────
