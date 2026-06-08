@@ -14,11 +14,13 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal
 from app.db.models import AuditLog, DataAsset, Domain, DQRule, Subdomain, SnowflakeConnection
 from app.services import job_tracker
 from app.services.ai_service import classify_table
+from app.services.asset_registry import stable_asset_id
 
 logger = logging.getLogger("dq_platform.discovery")
 
@@ -133,6 +135,65 @@ def _resolve_domain_subdomain(
     return domain_id, subdomain_id, domain_name, subdomain_name
 
 
+async def upsert_source_asset(
+    connection_id: str,
+    display_name: str,
+    db: AsyncSession,
+) -> str:
+    """Ensure a source-type asset exists for this connection; return its asset_id."""
+    from sqlalchemy import select
+    from app.db.models import DataAsset
+    src_id = stable_asset_id(f"source:{connection_id}")
+    result = await db.execute(
+        select(DataAsset).where(DataAsset.asset_id == src_id)
+    )
+    asset = result.scalar_one_or_none()
+    now = datetime.now(timezone.utc)
+    if asset is None:
+        asset = DataAsset(
+            asset_id=src_id,
+            asset_type="source",
+            physical_name=connection_id,
+            display_name=display_name,
+            qualified_name=connection_id,
+            status="active",
+            connection_id=connection_id,
+            last_seen_at=now,
+            discovered_at=now,
+        )
+        db.add(asset)
+    else:
+        asset.status = "active"
+        asset.last_seen_at = now
+        asset.display_name = display_name
+    await db.commit()
+    return src_id
+
+
+async def mark_missing_assets(
+    connection_id: str,
+    scanned_asset_ids: set[str],
+    db: AsyncSession,
+) -> None:
+    """Mark assets for this connection that weren't in this scan as missing."""
+    from sqlalchemy import select
+    from app.db.models import DataAsset
+    result = await db.execute(
+        select(DataAsset).where(
+            DataAsset.connection_id == connection_id,
+            DataAsset.status == "active",
+            DataAsset.asset_type == "table",
+        )
+    )
+    assets = result.scalars().all()
+    now = datetime.now(timezone.utc)
+    for asset in assets:
+        if asset.asset_id not in scanned_asset_ids:
+            asset.status = "missing"
+            asset.last_seen_at = now
+    await db.commit()
+
+
 async def run_discovery(job_id: str, payload: dict) -> None:
     """
     Background orchestrator for auto data discovery.
@@ -182,6 +243,9 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
             conn = await _fetch_connection(payload["connection_id"], db)
 
+            await upsert_source_asset(payload["connection_id"], conn.connection_name, db)
+
+            scanned_ids: set[str] = set()
             total_selections = len(payload.get("selections", []))
             all_failed = True
 
@@ -256,6 +320,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             existing_asset = existing_asset_res.scalar_one_or_none()
 
                             if existing_asset:
+                                scanned_ids.add(existing_asset.asset_id)
                                 rule_count_res = await db.execute(
                                     select(_func.count()).select_from(DQRule).where(
                                         DQRule.asset_id == existing_asset.asset_id
@@ -338,6 +403,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             row_count=table.get("row_count"),
                             bytes=table.get("bytes"),
                         )
+                        scanned_ids.add(asset.asset_id)
                         db.add(asset)
                         db.add(
                             AuditLog(
@@ -418,6 +484,8 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             },
                             success=False,
                         )
+
+            await mark_missing_assets(payload["connection_id"], scanned_ids, db)
 
         if all_failed and total_selections > 0:
             job_tracker.mark_failed(job_id, "All database/schema selections failed")
