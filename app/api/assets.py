@@ -460,46 +460,54 @@ async def get_discovery_job(job_id: str, user: dict = Depends(get_current_user))
 async def refresh_asset_stats(asset_id: str, db: AsyncSession = Depends(get_db)):
     """Pull current row_count and bytes from Snowflake INFORMATION_SCHEMA and persist them."""
     import asyncio as _asyncio
+    from sqlalchemy.orm import selectinload
     from app.services.discovery_service import _browse_tables_sync, _validate_ident
 
-    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    result = await db.execute(
+        select(Asset).options(selectinload(Asset.source_meta)).where(Asset.asset_id == asset_id)
+    )
     asset = result.scalar_one_or_none()
     if not asset:
-        raise HTTPException(404, "Asset not found")
+        raise HTTPException(status_code=404, detail="Asset not found")
     if not asset.connection_id:
-        raise HTTPException(400, "Asset has no associated connection; cannot fetch live stats")
+        raise HTTPException(status_code=400, detail="Asset has no associated connection; cannot fetch live stats")
 
     conn_result = await db.execute(
         select(SnowflakeConnection).where(SnowflakeConnection.connection_id == asset.connection_id)
     )
     conn = conn_result.scalar_one_or_none()
     if not conn:
-        raise HTTPException(404, "Connection not found")
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    meta = asset.source_meta
+    if not meta or not meta.sf_database_name or not meta.sf_schema_name:
+        raise HTTPException(status_code=400, detail="Asset has no source metadata; cannot refresh stats")
 
     try:
-        db_safe     = _validate_ident(asset.sf_database_name or "", "database")
-        schema_safe = _validate_ident(asset.sf_schema_name,        "schema")
+        db_safe     = _validate_ident(meta.sf_database_name, "database")
+        schema_safe = _validate_ident(meta.sf_schema_name, "schema")
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
     try:
         tables = await _asyncio.to_thread(_browse_tables_sync, conn, db_safe, schema_safe)
     except Exception as e:
-        raise HTTPException(502, f"Snowflake error: {e}")
+        raise HTTPException(status_code=502, detail=f"Snowflake error: {e}")
 
-    match = next((t for t in tables if t["table_name"].upper() == asset.sf_table_name.upper()), None)
+    match = next((t for t in tables if t["table_name"].upper() == (meta.sf_table_name or "").upper()), None)
     if not match:
-        raise HTTPException(404, f"Table {asset.sf_table_name!r} not found in {db_safe}.{schema_safe}")
+        raise HTTPException(status_code=404, detail=f"Table {meta.sf_table_name!r} not found in {db_safe}.{schema_safe}")
 
-    asset.row_count  = match.get("row_count")
-    asset.bytes      = match.get("bytes")
-    asset.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    meta.row_count  = match.get("row_count")
+    meta.bytes      = match.get("bytes")
+    meta.sf_table_type = match.get("table_type")
+    meta.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
     return {
         "asset_id":  asset_id,
-        "row_count": asset.row_count,
-        "bytes":     asset.bytes,
+        "row_count": meta.row_count,
+        "bytes":     meta.bytes,
         "message":   "Stats refreshed from Snowflake",
     }
 

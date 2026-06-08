@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal
-from app.db.models import AuditLog, Asset, Domain, DQRule, Subdomain, SnowflakeConnection
+from app.db.models import AuditLog, Asset, AssetSourceMeta, Domain, DQRule, Subdomain, SnowflakeConnection
 from app.services import job_tracker
 from app.services.ai_service import classify_table
 from app.services.asset_registry import stable_asset_id
@@ -94,11 +94,13 @@ async def _get_existing_table_names(db, connection_id: str, database: str, schem
     if not table_names:
         return set()
     result = await db.execute(
-        select(Asset.sf_table_name).where(
+        select(AssetSourceMeta.sf_table_name)
+        .join(Asset, Asset.asset_id == AssetSourceMeta.asset_id)
+        .where(
             Asset.connection_id == connection_id,
-            Asset.sf_database_name == database,
-            Asset.sf_schema_name == schema,
-            Asset.sf_table_name.in_(table_names),
+            AssetSourceMeta.sf_database_name == database,
+            AssetSourceMeta.sf_schema_name == schema,
+            AssetSourceMeta.sf_table_name.in_(table_names),
             Asset.is_active == True,
         )
     )
@@ -309,11 +311,13 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             from sqlalchemy import func as _func
 
                             existing_asset_res = await db.execute(
-                                select(Asset).where(
+                                select(Asset)
+                                .join(AssetSourceMeta, AssetSourceMeta.asset_id == Asset.asset_id)
+                                .where(
                                     Asset.connection_id == payload["connection_id"],
-                                    Asset.sf_database_name == database,
-                                    Asset.sf_schema_name == schema,
-                                    Asset.sf_table_name == tname,
+                                    AssetSourceMeta.sf_database_name == database,
+                                    AssetSourceMeta.sf_schema_name == schema,
+                                    AssetSourceMeta.sf_table_name == tname,
                                     Asset.is_active == True,
                                 )
                             )
@@ -385,26 +389,42 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             classification, domain_map, sub_map, fallback_domain, fallback_sub_id
                         )
 
+                        asset_id_new = str(uuid.uuid4())
+                        qualified_name = f"{database}.{schema}.{tname}"
+                        now = datetime.now(timezone.utc).replace(tzinfo=None)
                         asset = Asset(
-                            asset_id=str(uuid.uuid4()),
+                            asset_id=asset_id_new,
                             connection_id=payload["connection_id"],
-                            sf_database_name=database,
-                            sf_schema_name=schema,
-                            sf_table_name=tname,
+                            asset_type="table",
+                            physical_name=tname,
+                            display_name=tname,
+                            qualified_name=qualified_name,
+                            status="active",
                             domain_id=domain_id,
                             subdomain_id=subdomain_id,
-                            table_type=table.get("table_type"),
                             table_description=table.get("comment") or "",
                             criticality=payload.get("criticality", "medium"),
                             owner_name=payload.get("owner_name"),
                             owner_email=payload.get("owner_email"),
                             technical_owner_name=payload.get("technical_owner_name"),
                             technical_owner_email=payload.get("technical_owner_email"),
+                            is_active=True,
+                            discovered_at=now,
+                            last_seen_at=now,
+                        )
+                        scanned_ids.add(asset_id_new)
+                        db.add(asset)
+                        db.add(AssetSourceMeta(
+                            asset_id=asset_id_new,
+                            provider="snowflake",
+                            sf_account=conn.account,
+                            sf_database_name=database,
+                            sf_schema_name=schema,
+                            sf_table_name=tname,
+                            sf_table_type=table.get("table_type"),
                             row_count=table.get("row_count"),
                             bytes=table.get("bytes"),
-                        )
-                        scanned_ids.add(asset.asset_id)
-                        db.add(asset)
+                        ))
                         db.add(
                             AuditLog(
                                 audit_id=str(uuid.uuid4()),
@@ -416,6 +436,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                     "sf_database_name": database,
                                     "sf_schema_name": schema,
                                     "sf_table_name": tname,
+                                    "qualified_name": qualified_name,
                                     "domain_id": domain_id,
                                     "subdomain_id": subdomain_id,
                                     "source": "auto_discovery",
