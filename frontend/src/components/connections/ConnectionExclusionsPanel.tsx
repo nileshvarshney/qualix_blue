@@ -38,7 +38,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
     fetch(`/api/connections/${connection.id}/databases`)
       .then(r => r.json())
       .then(data => {
-        const dbNames: string[] = data.databases ?? []
+        const dbNames: string[] = (data.databases ?? []).map((x: { name: string }) => x.name)
         setDbs(dbNames.map(name => ({
           name,
           checked: excluded.has(name) ? 'all' : 'none',
@@ -83,7 +83,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
     try {
       const res = await fetch(`/api/connections/${connection.id}/schemas?database=${encodeURIComponent(dbName)}`)
       const data = await res.json()
-      const schemaNames: string[] = data.schemas ?? []
+      const schemaNames: string[] = (data.schemas ?? []).map((x: { name: string }) => x.name)
       const excludedSchemas = new Set(
         (connection.excludedSchemas ?? [])
           .filter(e => e.database === dbName)
@@ -173,6 +173,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)' }}>
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
       <div style={{ background: '#fff', borderRadius: '16px', width: '520px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
