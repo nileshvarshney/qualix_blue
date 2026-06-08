@@ -19,3 +19,40 @@ def test_stable_asset_id_is_valid_uuid():
     result = stable_asset_id("schema:conn-abc:MY_DB:PUBLIC")
     parsed = uuid.UUID(result)
     assert str(parsed) == result
+
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.mark.asyncio
+async def test_effective_description_returns_own():
+    from app.services.asset_registry import effective_description
+    db = AsyncMock()
+    mock_asset = MagicMock()
+    mock_asset.description = "My own description"
+    mock_asset.parent_asset_id = None
+    db.execute.return_value.scalar_one_or_none.return_value = mock_asset
+    result = await effective_description("asset-123", db)
+    assert result == "My own description"
+
+
+@pytest.mark.asyncio
+async def test_effective_description_walks_ancestors():
+    from app.services.asset_registry import effective_description
+    db = AsyncMock()
+    child = MagicMock(); child.description = None; child.parent_asset_id = "parent-456"
+    parent = MagicMock(); parent.description = "Parent desc"; parent.parent_asset_id = None
+    db.execute.return_value.scalar_one_or_none.side_effect = [child, parent]
+    result = await effective_description("child-123", db)
+    assert result == "Parent desc"
+
+
+@pytest.mark.asyncio
+async def test_effective_description_none_when_empty_lineage():
+    from app.services.asset_registry import effective_description
+    db = AsyncMock()
+    asset = MagicMock(); asset.description = None; asset.parent_asset_id = None
+    db.execute.return_value.scalar_one_or_none.return_value = asset
+    result = await effective_description("orphan-123", db)
+    assert result is None

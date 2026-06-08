@@ -658,18 +658,24 @@ async def generate_asset_description(
     db: AsyncSession,
 ) -> str:
     """Generate and save a business description for a data asset using column metadata."""
-    from app.db.models import ColumnMetadata
+    from app.db.models import ColumnMetadata, AssetSourceMeta
+    from sqlalchemy.orm import selectinload
 
     asset_res = await db.execute(
-        select(Asset, Domain, Subdomain)
-        .join(Domain, Asset.domain_id == Domain.domain_id)
-        .join(Subdomain, Asset.subdomain_id == Subdomain.subdomain_id)
+        select(Asset)
+        .options(selectinload(Asset.source_meta))
         .where(Asset.asset_id == asset_id)
     )
-    row = asset_res.one_or_none()
-    if not row:
+    asset = asset_res.scalar_one_or_none()
+    if not asset:
         return "Asset not found."
-    asset, domain, subdomain = row.Asset, row.Domain, row.Subdomain
+
+    meta = asset.source_meta
+    table_label = (
+        f"{meta.sf_schema_name}.{meta.sf_table_name}"
+        if meta and meta.sf_table_name
+        else asset.qualified_name or asset.physical_name or asset_id
+    )
 
     cols_res = await db.execute(
         select(ColumnMetadata).where(ColumnMetadata.asset_id == asset_id).limit(50)
@@ -687,20 +693,19 @@ async def generate_asset_description(
 
     sys_doc = (
         "You are a data governance expert. Write a concise 2-4 sentence business description "
-        "for a Snowflake table. Describe what business data it contains, who likely uses it, "
+        "for a data asset. Describe what business data it contains, who likely uses it, "
         "and what it is useful for. Do NOT mention column names directly. Write for a business audience."
     )
     prompt = (
-        f"Table: {asset.sf_schema_name}.{asset.sf_table_name}\n"
-        f"Domain: {domain.domain_name} > {subdomain.subdomain_name}\n"
-        f"Owner: {asset.owner_name or 'unknown'}\n"
+        f"Asset: {table_label}\n"
+        f"Type: {asset.asset_type}\n"
         f"Criticality: {asset.criticality}\n"
         f"Columns ({len(cols)}):\n" + "\n".join(col_lines[:30])
     )
 
     provider = await get_provider_from_db(provider_name, db)
     description = (await provider.complete(prompt, sys_doc, max_tokens=300)).strip()
-    asset.table_description = description
+    asset.description = description
     await db.commit()
     return description
 
