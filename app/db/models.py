@@ -154,6 +154,7 @@ class DataAsset(Base):
     sensitivity: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     discovered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     domain_obj: Mapped[Optional["Domain"]] = relationship("Domain", back_populates="assets")
     subdomain: Mapped[Optional["Subdomain"]] = relationship("Subdomain", back_populates="assets")
@@ -170,6 +171,30 @@ class DataAsset(Base):
         foreign_keys="[DataAsset.parent_asset_id]",
         back_populates="parent",
     )
+    source_meta: Mapped[Optional["AssetSourceMeta"]] = relationship(
+        "AssetSourceMeta", back_populates="asset", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class AssetSourceMeta(Base):
+    __tablename__ = "asset_source_meta"
+
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("data_assets.asset_id", ondelete="CASCADE"), primary_key=True
+    )
+    provider: Mapped[str] = mapped_column(String(50), server_default="snowflake", nullable=False)
+    sf_account: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sf_database_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sf_schema_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sf_table_name: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    sf_table_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    view_definition: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    asset: Mapped["DataAsset"] = relationship("DataAsset", back_populates="source_meta")
 
 
 class RuleTag(Base):
