@@ -1,5 +1,4 @@
 # tests/test_asset_registry.py
-import pytest
 from app.services.asset_registry import stable_asset_id
 
 
