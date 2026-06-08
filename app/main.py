@@ -31,6 +31,7 @@ from app.api import (
 from app.api.users import router as users_router
 from app.api.oauth import router as oauth_router
 from app.api.service_accounts import router as service_accounts_router
+from app.api import assets_compat
 
 setup_logging()
 logger = logging.getLogger("dataguard")
@@ -156,6 +157,7 @@ app.include_router(service_accounts_router)
 app.include_router(domains.router)
 app.include_router(subdomains.router)
 app.include_router(assets.router)
+app.include_router(assets_compat.router)
 app.include_router(rules.router)
 app.include_router(schedules.router)
 app.include_router(executions.router)
