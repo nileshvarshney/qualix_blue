@@ -25,7 +25,6 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
   const missing: string[] = []
   if (!conn.account)   missing.push('Account Identifier')
   if (!conn.warehouse) missing.push('Warehouse')
-  if (!conn.database)  missing.push('Database')
   if (!conn.username)  missing.push('Username')
 
   if (missing.length > 0) {
@@ -106,7 +105,7 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
     if (loginRes.status === 200 && loginBody?.success === true) {
       steps.push({ label: 'Authentication', status: 'ok', detail: `Credentials verified for user "${conn.username}"` })
       steps.push({ label: 'Warehouse access', status: 'ok', detail: `Warehouse "${conn.warehouse}" accessible` })
-      steps.push({ label: 'Database access', status: 'ok', detail: `Database "${conn.database}" accessible` })
+      if (conn.database) steps.push({ label: 'Database access', status: 'ok', detail: `Database "${conn.database}" accessible` })
 
       safeUpdateStatus(conn.id as string, 'active')
       return { success: true, status: 'active', steps, latencyMs: Date.now() - t0 }

@@ -38,6 +38,11 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
     fetch(`/api/connections/${connection.id}/databases`)
       .then(r => r.json())
       .then(data => {
+        if (data.error) {
+          setDbsError(`Failed to load databases: ${data.error}`)
+          setLoaded(true)
+          return
+        }
         const dbNames: string[] = (data.databases ?? []).map((x: { name: string }) => x.name)
         setDbs(dbNames.map(name => ({
           name,
