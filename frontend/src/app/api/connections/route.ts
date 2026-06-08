@@ -20,6 +20,8 @@ export async function GET() {
       username: (c.sf_user as string) ?? undefined,
       warehouse: (c.warehouse as string) ?? undefined,
       role: (c.role as string) ?? undefined,
+      database: (c.default_database as string) ?? undefined,
+      schema: (c.default_schema as string) ?? undefined,
       host: (c.host as string) ?? undefined,
       port: (c.port as number) ?? undefined,
       excludedDatabases: (c.excluded_databases as string[]) ?? undefined,
