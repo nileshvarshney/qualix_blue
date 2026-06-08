@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Optional
+from typing import Optional, List, Dict
 import asyncio
 import re
 import uuid
@@ -50,8 +50,8 @@ class ConnectionCreate(BaseModel):
     is_active: bool = True
     connection_type: str = "named"
     is_primary_target: bool = False
-    excluded_databases: Optional[list] = None
-    excluded_schemas: Optional[list] = None
+    excluded_databases: Optional[List[str]] = None
+    excluded_schemas: Optional[List[Dict[str, str]]] = None
     # Multi-database fields
     host: Optional[str] = None
     port: Optional[int] = None
@@ -78,8 +78,8 @@ class ConnectionUpdate(BaseModel):
     is_active: Optional[bool] = None
     connection_type: Optional[str] = None
     is_primary_target: Optional[bool] = None
-    excluded_databases: Optional[list] = None
-    excluded_schemas: Optional[list] = None
+    excluded_databases: Optional[List[str]] = None
+    excluded_schemas: Optional[List[Dict[str, str]]] = None
     host: Optional[str] = None
     port: Optional[int] = None
     project: Optional[str] = None
