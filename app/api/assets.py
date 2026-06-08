@@ -529,3 +529,35 @@ async def certify_asset(
     await db.commit()
     await db.refresh(asset)
     return asset
+
+
+@router.post("/{asset_id}/generate-description")
+async def generate_asset_description_endpoint(
+    asset_id: str,
+    provider_name: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """AI-generate a business description for this asset and save it."""
+    from app.services.asset_registry import generate_description
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Asset not found")
+    description = await generate_description(asset_id, db, provider_name)
+    return {"asset_id": asset_id, "description": description}
+
+
+@router.get("/{asset_id}/effective-description")
+async def get_effective_description(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Return this asset's description, or the nearest ancestor's if own is empty."""
+    from app.services.asset_registry import effective_description
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    desc = await effective_description(asset_id, db)
+    source = "own" if asset.description else "inherited"
+    return {"asset_id": asset_id, "description": desc, "source": source}
