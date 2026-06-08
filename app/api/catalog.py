@@ -14,7 +14,7 @@ from app.db.database import get_db
 from app.db.models import (
     Asset, GlossaryTerm, DataProduct, AssetUsage,
     DQQualityScore, DataClassification, GlossaryTermAsset,
-    Domain, AssetTag, Tag, SavedSearch,
+    Domain, AssetTag, Tag, SavedSearch, AssetSourceMeta,
 )
 from app.core.security import get_current_user, require_admin
 from app.services.catalog_service import refresh_search_index, enrich_asset_results
@@ -51,28 +51,28 @@ async def _search_via_ilike(
     pattern = f"%{q}%" if q else "%"
 
     if not effective_type or effective_type == "asset":
-        q_stmt = select(Asset)
+        q_stmt = select(Asset).outerjoin(
+            AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id
+        )
         if q:
             q_stmt = q_stmt.where(
-                Asset.sf_table_name.ilike(pattern)
-                | Asset.table_description.ilike(pattern)
-                | Asset.owner_name.ilike(pattern)
+                AssetSourceMeta.sf_table_name.ilike(pattern)
+                | Asset.description.ilike(pattern)
+                | Asset.display_name.ilike(pattern)
             )
         if domain_id:
             q_stmt = q_stmt.where(Asset.domain_id == domain_id)
         if certification:
             q_stmt = q_stmt.where(Asset.certification_status == certification)
         if owner:
-            q_stmt = q_stmt.where(
-                Asset.owner_name.ilike(f"%{owner}%")
-                | Asset.owner_email.ilike(f"%{owner}%")
-            )
+            q_stmt = q_stmt.where(Asset.owner_user_id.ilike(f"%{owner}%"))
         if restrict_asset_ids is not None:
             q_stmt = q_stmt.where(Asset.asset_id.in_(restrict_asset_ids))
         for a in (await db.execute(q_stmt)).scalars().all():
             results.append({
                 "entity_type": "asset", "id": a.asset_id,
-                "name": a.sf_table_name, "description": a.table_description,
+                "name": (a.source_meta.sf_table_name if a.source_meta else None) or a.physical_name or a.display_name,
+                "description": a.description,
                 "domain": domain_names.get(a.domain_id), "owner": a.owner_name or a.owner_email,
                 "certification_status": a.certification_status,
                 "quality_score": None, "trust_score": None, "avg_rating": None,
@@ -297,10 +297,10 @@ async def catalog_asset_detail(
 
     return {
         "asset_id": asset.asset_id,
-        "sf_table_name": asset.sf_table_name,
-        "sf_schema_name": asset.sf_schema_name,
-        "sf_database_name": asset.sf_database_name,
-        "table_description": asset.table_description,
+        "sf_table_name": asset.source_meta.sf_table_name if asset.source_meta else None,
+        "sf_schema_name": asset.source_meta.sf_schema_name if asset.source_meta else None,
+        "sf_database_name": asset.source_meta.sf_database_name if asset.source_meta else None,
+        "table_description": asset.description,
         "criticality": asset.criticality,
         "certification_status": asset.certification_status,
         "certified_by": asset.certified_by,
@@ -412,7 +412,7 @@ async def catalog_popular(
             .where(Asset.is_active == True)  # noqa: E712
             .order_by(
                 Asset.certification_status.isnot(None).desc(),
-                Asset.table_description.isnot(None).desc(),
+                Asset.description.isnot(None).desc(),
                 desc(Asset.updated_at),
             )
             .limit(6)
@@ -421,7 +421,8 @@ async def catalog_popular(
     return [
         {
             "entity_type": "asset", "id": a.asset_id,
-            "name": a.sf_table_name, "description": a.table_description,
+            "name": (a.source_meta.sf_table_name if a.source_meta else None) or a.physical_name or a.display_name,
+            "description": a.description,
             "domain": domain_names.get(a.domain_id),
             "owner": a.owner_name or a.owner_email,
             "usage_count": usage_map.get(a.asset_id, 0),
@@ -441,10 +442,12 @@ async def catalog_recent(
     )
     return [
         {
-            "asset_id": a.asset_id, "sf_table_name": a.sf_table_name,
-            "sf_schema_name": a.sf_schema_name, "sf_database_name": a.sf_database_name,
+            "asset_id": a.asset_id,
+            "sf_table_name": a.source_meta.sf_table_name if a.source_meta else None,
+            "sf_schema_name": a.source_meta.sf_schema_name if a.source_meta else None,
+            "sf_database_name": a.source_meta.sf_database_name if a.source_meta else None,
             "domain_id": a.domain_id, "subdomain_id": a.subdomain_id,
-            "table_description": a.table_description,
+            "table_description": a.description,
             "certification_status": a.certification_status,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,
         }
@@ -461,7 +464,7 @@ async def catalog_domain_assets(
     assets = (await db.execute(
         select(Asset)
         .where(Asset.domain_id == domain_id, Asset.is_active == True)  # noqa: E712
-        .order_by(Asset.sf_table_name)
+        .order_by(Asset.physical_name)
     )).scalars().all()
     if not assets:
         return []
@@ -477,9 +480,11 @@ async def catalog_domain_assets(
 
     return [
         {
-            "asset_id": a.asset_id, "sf_table_name": a.sf_table_name,
-            "sf_schema_name": a.sf_schema_name, "sf_database_name": a.sf_database_name,
-            "table_description": a.table_description, "criticality": a.criticality,
+            "asset_id": a.asset_id,
+            "sf_table_name": a.source_meta.sf_table_name if a.source_meta else None,
+            "sf_schema_name": a.source_meta.sf_schema_name if a.source_meta else None,
+            "sf_database_name": a.source_meta.sf_database_name if a.source_meta else None,
+            "table_description": a.description, "criticality": a.criticality,
             "certification_status": a.certification_status, "certified_by": a.certified_by,
             "owner_name": a.owner_name, "owner_email": a.owner_email,
             "term_count": term_map.get(a.asset_id, 0),
