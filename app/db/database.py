@@ -197,19 +197,39 @@ async def get_session_ctx():
 AsyncSessionLocal = get_session_ctx
 
 
+def _run_ddl(conn, statements: list[str]) -> None:
+    """Execute DDL statements, silently ignoring 'already exists' / 'does not exist' errors."""
+    for ddl in statements:
+        try:
+            conn.execute(text(ddl))
+        except Exception as exc:
+            msg = str(exc).lower()
+            if any(k in msg for k in ("already exist", "does not exist", "ambiguous", "invalid identifier")):
+                pass
+            else:
+                _log.warning("DDL warning [%s]: %s", ddl[:60], exc)
+
+
 def create_tables():
-    """Idempotent table creation. Called once at startup via asyncio.to_thread."""
+    """Idempotent schema creation and evolution. Called once at startup."""
     db_name = settings.snowflake_app_database
     schema_name = settings.snowflake_app_schema
 
-    # Ensure the app database and schema exist before creating tables
     with engine.connect() as conn:
+        # ── Ensure database and schema exist ──────────────────────────────────
         conn.execute(text(f'CREATE DATABASE IF NOT EXISTS "{db_name}"'))
         conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{db_name}"."{schema_name}"'))
-        for col_ddl in [
+
+        # ── Rename old table if still using the legacy name ───────────────────
+        # data_assets was renamed to assets in the Asset Registry redesign.
+        _run_ddl(conn, ["ALTER TABLE data_assets RENAME TO assets"])
+
+        # ── Additive column migrations (idempotent) ───────────────────────────
+        _run_ddl(conn, [
+            # snowflake_connections additions
             "ALTER TABLE snowflake_connections ADD COLUMN connection_type VARCHAR(50) DEFAULT 'named'",
             "ALTER TABLE snowflake_connections ADD COLUMN is_primary_target BOOLEAN DEFAULT FALSE",
-            # dq_rules columns added in governance upgrade (approval workflow, versioning)
+            # dq_rules additions (governance upgrade)
             "ALTER TABLE dq_rules ADD COLUMN rule_category VARCHAR(50)",
             "ALTER TABLE dq_rules ADD COLUMN version INTEGER DEFAULT 1",
             "ALTER TABLE dq_rules ADD COLUMN sla_threshold FLOAT",
@@ -218,26 +238,29 @@ def create_tables():
             "ALTER TABLE dq_rules ADD COLUMN rejection_reason TEXT",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_name VARCHAR(200)",
             "ALTER TABLE dq_rules ADD COLUMN business_owner_email VARCHAR(200)",
-            # Asset Registry evolution — description field on assets
+            # Asset Registry: generic description field
             "ALTER TABLE assets ADD COLUMN description TEXT",
-            # Migrate data_assets → assets if old name still exists
-            "ALTER TABLE data_assets RENAME TO assets",
-        ]:
-            try:
-                conn.execute(text(col_ddl))
-            except Exception as exc:
-                if "already exist" in str(exc).lower() or "ambiguous" in str(exc).lower():
-                    pass  # column already present
-                else:
-                    _log.warning("ALTER TABLE failed: %s", exc)
+            # Asset Registry hierarchy fields (added in registry evolution)
+            "ALTER TABLE assets ADD COLUMN parent_asset_id VARCHAR(36)",
+            "ALTER TABLE assets ADD COLUMN asset_type VARCHAR(50) DEFAULT 'table'",
+            "ALTER TABLE assets ADD COLUMN physical_name VARCHAR(500)",
+            "ALTER TABLE assets ADD COLUMN display_name VARCHAR(500)",
+            "ALTER TABLE assets ADD COLUMN qualified_name VARCHAR(2000)",
+            "ALTER TABLE assets ADD COLUMN path VARCHAR(2000)",
+            "ALTER TABLE assets ADD COLUMN status VARCHAR(50) DEFAULT 'active'",
+            "ALTER TABLE assets ADD COLUMN owner_user_id VARCHAR(36)",
+            "ALTER TABLE assets ADD COLUMN owner_team_id VARCHAR(36)",
+            "ALTER TABLE assets ADD COLUMN steward_user_id VARCHAR(36)",
+            "ALTER TABLE assets ADD COLUMN discovered_at TIMESTAMP_NTZ",
+            "ALTER TABLE assets ADD COLUMN last_seen_at TIMESTAMP_NTZ",
+        ])
         conn.commit()
 
-    # Snowflake doesn't support indexes on standard tables — strip them
+    # ── Snowflake doesn't support indexes on standard tables ──────────────────
     for table in Base.metadata.tables.values():
         table.indexes.clear()
 
-    # Create tables one at a time (sorted by FK dependency), skipping any that already exist.
-    # Snowflake's checkfirst inspection is unreliable, so we catch "already exists" errors.
+    # ── Create all tables from ORM metadata (skips existing) ─────────────────
     created = skipped = 0
     for table in Base.metadata.sorted_tables:
         try:
@@ -249,6 +272,38 @@ def create_tables():
             else:
                 _log.warning("Could not create table %s: %s", table.name, exc)
     _log.info("create_tables: %d created, %d already existed", created, skipped)
+
+    # ── Backfill asset_source_meta from legacy Snowflake columns on assets ────
+    # Runs only if assets has the old SF columns AND asset_source_meta is empty.
+    with engine.connect() as conn:
+        try:
+            existing = conn.execute(text("SELECT COUNT(*) FROM asset_source_meta")).scalar()
+            if existing == 0:
+                conn.execute(text("""
+                    INSERT INTO asset_source_meta
+                        (asset_id, provider, sf_account, sf_database_name, sf_schema_name,
+                         sf_table_name, sf_table_type, view_definition, row_count, bytes,
+                         created_at, updated_at)
+                    SELECT asset_id, 'snowflake',
+                           snowflake_account, sf_database_name, sf_schema_name,
+                           sf_table_name, table_type, view_definition, row_count, bytes,
+                           created_at, updated_at
+                    FROM assets
+                    WHERE sf_table_name IS NOT NULL
+                """))
+                conn.execute(text("""
+                    UPDATE assets
+                    SET description = table_description
+                    WHERE table_description IS NOT NULL AND description IS NULL
+                """))
+                conn.commit()
+                _log.info("create_tables: backfilled asset_source_meta from legacy assets columns")
+        except Exception as exc:
+            msg = str(exc).lower()
+            if "invalid identifier" in msg or "does not exist" in msg:
+                pass  # old SF columns already dropped — nothing to backfill
+            else:
+                _log.warning("asset_source_meta backfill skipped: %s", exc)
 
 
 async def check_db_health() -> tuple[bool, str]:
