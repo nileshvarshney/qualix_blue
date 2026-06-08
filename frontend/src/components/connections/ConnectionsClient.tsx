@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { Connection, ConnectionType } from '@/lib/types'
 import { formatDateTime, connectionIcons } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import ConnectionExclusionsPanel from './ConnectionExclusionsPanel'
 
 /* ─── localStorage persistence for edge deployments ─── */
 const LS_KEY = 'qualix_connections'
@@ -364,6 +365,10 @@ function getCategoryForType(type: string): string {
   return CATEGORIES.find(c => (c.types as readonly string[]).includes(type))?.id ?? 'databases'
 }
 
+function exclusionCount(conn: Connection): number {
+  return (conn.excludedDatabases?.length ?? 0) + (conn.excludedSchemas?.length ?? 0)
+}
+
 export default function ConnectionsClient({ initialConnections }: Props) {
   // On mount: merge localStorage with server-provided data
   const [connections, setConnections] = useState<Connection[]>(() => {
@@ -381,6 +386,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   })
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [exclusionsPanelConn, setExclusionsPanelConn] = useState<Connection | null>(null)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<FormState>({ name: '', type: 'postgresql' })
   const [testing, setTesting] = useState<string | null>(null)
@@ -631,6 +637,20 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   padding: '7px 12px', borderRadius: '7px', border: '1px solid #dbeafe',
                   background: '#fff', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500
                 }}>✏️ Edit</button>
+                {conn.type === 'snowflake' && (
+                  <button onClick={() => setExclusionsPanelConn(conn)} style={{
+                    padding: '7px 10px', borderRadius: '7px', border: '1px solid #e2e8f0',
+                    background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
+                    display: 'flex', alignItems: 'center', gap: '4px'
+                  }}>
+                    Exclude
+                    {exclusionCount(conn) > 0 && (
+                      <span style={{ background: '#fef3c7', color: '#d97706', fontSize: '10px', fontWeight: 600, padding: '1px 5px', borderRadius: '10px', lineHeight: 1.4 }}>
+                        {exclusionCount(conn)} excluded
+                      </span>
+                    )}
+                  </button>
+                )}
                 <button onClick={() => deleteConn(conn.id)} style={{
                   padding: '7px 10px', borderRadius: '7px', border: '1px solid #fee2e2',
                   background: '#fff', color: '#ef4444', fontSize: '12px', cursor: 'pointer'
@@ -656,6 +676,18 @@ export default function ConnectionsClient({ initialConnections }: Props) {
           result={testResult.result}
           connName={testResult.connName}
           onClose={() => setTestResult(null)}
+        />
+      )}
+
+      {/* Exclusions Panel */}
+      {exclusionsPanelConn !== null && (
+        <ConnectionExclusionsPanel
+          connection={exclusionsPanelConn}
+          onClose={() => setExclusionsPanelConn(null)}
+          onSaved={(updated: Connection) => {
+            setConnections(prev => prev.map(c => c.id === updated.id ? updated : c))
+            setExclusionsPanelConn(null)
+          }}
         />
       )}
 
