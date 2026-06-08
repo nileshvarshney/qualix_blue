@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from datetime import datetime, timezone
 from app.db.database import get_db
-from app.db.models import DQAlert, DQRule, DataAsset, Domain, Subdomain
+from app.db.models import DQAlert, DQRule, Asset, Domain, Subdomain
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
@@ -59,9 +59,9 @@ async def list_alerts_enriched(
 ):
     """Returns alerts joined with rule, asset, domain, and subdomain details."""
     q = (
-        select(DQAlert, DQRule, DataAsset, Domain, Subdomain)
+        select(DQAlert, DQRule, Asset, Domain, Subdomain)
         .join(DQRule,    DQAlert.rule_id      == DQRule.rule_id)
-        .join(DataAsset, DQAlert.asset_id     == DataAsset.asset_id)
+        .join(Asset, DQAlert.asset_id     == Asset.asset_id)
         .join(Domain,    DQAlert.domain_id    == Domain.domain_id)
         .join(Subdomain, DQAlert.subdomain_id == Subdomain.subdomain_id)
     )

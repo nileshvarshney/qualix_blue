@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_current_user
 from app.db.database import get_db
-from app.db.models import ColumnMetadata, DataAsset, SchemaBaseline, SchemaDriftEvent
+from app.db.models import ColumnMetadata, Asset, SchemaBaseline, SchemaDriftEvent
 from app.services.schema_drift_service import (
     approve_baseline as _approve_baseline,
     initialize_baseline as _initialize_baseline,
@@ -43,8 +43,8 @@ def _fmt_event(e: SchemaDriftEvent) -> dict:
     }
 
 
-async def _get_asset_or_404(asset_id: str, db: AsyncSession) -> DataAsset:
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+async def _get_asset_or_404(asset_id: str, db: AsyncSession) -> Asset:
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")

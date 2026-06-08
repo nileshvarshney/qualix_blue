@@ -20,6 +20,7 @@
 # cloudflare
 /.open-next/
 .dev.vars
+.wrangler/
 
 # production
 /build

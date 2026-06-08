@@ -78,24 +78,44 @@ export default function DataProductsPage() {
     return true
   })
 
-  function createProduct() {
+  async function createProduct() {
     if (!form.name.trim()) return
-    const np: DataProduct = {
-      id: `dp_${Date.now()}`, name: form.name, description: form.description,
-      domain: form.domain, owner: form.owner || 'Unassigned',
-      status: form.status, tier: form.tier,
-      qualityScore: form.status === 'certified' ? 95 : form.status === 'published' ? 85 : 70,
-      consumers: 0, datasets: 0, sla: form.sla, freshness: 'Just now',
-      lastUpdated: new Date().toISOString(),
-      tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+    const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
+    try {
+      const res = await fetch('/api/data-products', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: form.name, description: form.description,
+          status: form.status, owner_email: form.owner || null,
+          tags: tags.length ? tags : null,
+        }),
+      })
+      const created = await res.json()
+      const np: DataProduct = {
+        id: String(created.product_id ?? `dp_${Date.now()}`), name: form.name,
+        description: form.description, domain: form.domain,
+        owner: form.owner || 'Unassigned', status: form.status, tier: form.tier,
+        qualityScore: form.status === 'certified' ? 95 : form.status === 'published' ? 85 : 70,
+        consumers: 0, datasets: 0, sla: form.sla, freshness: 'Just now',
+        lastUpdated: new Date().toISOString(), tags,
+      }
+      setProducts(prev => [np, ...prev])
+    } catch {
+      setProducts(prev => [{
+        id: `dp_${Date.now()}`, name: form.name, description: form.description,
+        domain: form.domain, owner: form.owner || 'Unassigned',
+        status: form.status, tier: form.tier,
+        qualityScore: form.status === 'certified' ? 95 : form.status === 'published' ? 85 : 70,
+        consumers: 0, datasets: 0, sla: form.sla, freshness: 'Just now',
+        lastUpdated: new Date().toISOString(), tags,
+      }, ...prev])
     }
-    setProducts(prev => [np, ...prev])
     setShowCreate(false)
     setForm({ name: '', description: '', domain: 'Sales', owner: '', status: 'draft', tier: 'bronze', sla: '99.0%', tags: '' })
   }
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

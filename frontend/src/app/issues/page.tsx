@@ -93,6 +93,10 @@ export default function IssuesPage() {
       const entry: Activity = { by: 'You', action: `Status changed to ${newStatus}`, time: 'just now' }
       return { ...i, status: newStatus, activity: [...i.activity, entry] }
     }))
+    fetch('/api/issues', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: newStatus }),
+    }).catch(() => {})
   }
 
   function openEdit(issue: Issue) {
@@ -107,6 +111,10 @@ export default function IssuesPage() {
       const entry: Activity = { by: 'You', action: 'Issue details updated', time: 'just now' }
       return { ...i, ...editForm, activity: [...i.activity, entry] }
     }))
+    fetch('/api/issues', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editing.id, title: editForm.title, status: editForm.status }),
+    }).catch(() => {})
     setEditing(null)
   }
 
@@ -118,7 +126,7 @@ export default function IssuesPage() {
   ]
 
   return (
-    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>

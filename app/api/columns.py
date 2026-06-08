@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, insert, delete, and_
 
 from app.db.database import get_db
-from app.db.models import ColumnMetadata, ColumnProfileHistory, DataAsset
+from app.db.models import ColumnMetadata, ColumnProfileHistory, Asset
 from app.core.security import get_current_user
 from app.services import job_tracker
 
@@ -108,7 +108,7 @@ async def _run_column_profile(job_id: str, asset_id: str) -> None:
 
         async with AsyncSessionLocal() as db:
             asset = (
-                await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+                await db.execute(select(Asset).where(Asset.asset_id == asset_id))
             ).scalar_one_or_none()
             if not asset:
                 job_tracker.mark_failed(job_id, f"Asset {asset_id} not found")
@@ -333,7 +333,7 @@ async def start_column_profile(
 ):
     """Queue a background job to compute column statistics for an asset via Snowflake."""
     asset_result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id == asset_id)
+        select(Asset).where(Asset.asset_id == asset_id)
     )
     if not asset_result.scalar_one_or_none():
         raise HTTPException(404, "Asset not found")

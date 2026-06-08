@@ -20,13 +20,15 @@ export default function ShellWrapper({ children }: { children: ReactNode }) {
       <main style={{
         marginLeft: '72px',
         marginTop: '56px',
-        minHeight: 'calc(100vh - 56px)',
-        overflow: 'auto',
+        height: 'calc(100vh - 56px)',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
       }}>
         <SectionTabBar />
-        {children}
+        <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {children}
+        </div>
       </main>
       <AgentChat />
     </>

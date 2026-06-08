@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.db.models import DQRule, DataAsset, DQRuleRun, DQRuleRunSample, SnowflakeConnection
+from app.db.models import DQRule, Asset, DQRuleRun, DQRuleRunSample, SnowflakeConnection
 from app.services.sql_generator import sql_generator
 from app.services.scoring_service import calculate_rule_quality_score
 import uuid
@@ -39,7 +39,7 @@ def _gen_id() -> str:
     return str(uuid.uuid4())
 
 
-def _build_table_ref(asset: DataAsset) -> str:
+def _build_table_ref(asset: Asset) -> str:
     parts = []
     if asset.sf_database_name:
         parts.append(f'"{asset.sf_database_name}"')
@@ -130,7 +130,7 @@ class _DynamicExecutor:
         return int(rows[0]["cnt"]) if rows else 0
 
 
-async def _resolve_executor(asset: DataAsset, db: AsyncSession, database: Optional[str] = None):
+async def _resolve_executor(asset: Asset, db: AsyncSession, database: Optional[str] = None):
     """
     Returns a Snowflake executor by looking up:
       1. The connection saved on the asset (connection_id)
@@ -234,7 +234,7 @@ async def execute_rule(rule_id: str, db: AsyncSession, user_email: str = "system
     if not rule.is_active:
         raise ValueError(f"Rule {rule_id} is not active")
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == rule.asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == rule.asset_id))
     asset = asset_res.scalar_one_or_none()
     if not asset:
         raise ValueError(f"Asset {rule.asset_id} not found")
@@ -367,7 +367,7 @@ async def _volume_baseline_check(rule_id: str, current_count: int, db: AsyncSess
 
 
 async def _save_error_run(
-    db: AsyncSession, rule: DQRule, asset: DataAsset,
+    db: AsyncSession, rule: DQRule, asset: Asset,
     error_msg: str, start: Optional[datetime] = None, end: Optional[datetime] = None,
     sql: Optional[str] = None,
 ) -> DQRuleRun:

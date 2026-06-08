@@ -9,7 +9,7 @@ from sqlalchemy import select, func, desc, and_, or_, case, literal_column
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional
 from app.db.database import get_db
-from app.db.models import Domain, Subdomain, DataAsset, DQRule, DQRuleRun, DQAlert, DQQualityScore
+from app.db.models import Domain, Subdomain, Asset, DQRule, DQRuleRun, DQAlert, DQQualityScore
 from app.core.security import get_current_user, get_domain_filter, check_domain_access, apply_domain_filter
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -111,13 +111,13 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
     q = (
         select(
             DQRuleRun.asset_id,
-            DataAsset.sf_table_name,
-            DataAsset.sf_schema_name,
+            Asset.sf_table_name,
+            Asset.sf_schema_name,
             Domain.domain_name,
             func.date(DQRuleRun.created_at).label("run_date"),
             func.avg(DQRuleRun.quality_score).label("day_avg"),
         )
-        .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(
             func.date(DQRuleRun.created_at) >= cutoff,
@@ -126,8 +126,8 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
         )
         .group_by(
             DQRuleRun.asset_id,
-            DataAsset.sf_table_name,
-            DataAsset.sf_schema_name,
+            Asset.sf_table_name,
+            Asset.sf_schema_name,
             Domain.domain_name,
             func.date(DQRuleRun.created_at),
         )
@@ -206,15 +206,15 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
         select(
             DQRuleRun.asset_id,
             DQRuleRun.quality_score,
-            DataAsset.sf_table_name,
-            DataAsset.sf_schema_name,
+            Asset.sf_table_name,
+            Asset.sf_schema_name,
             Domain.domain_name,
         )
         .join(latest_sq, and_(
             DQRuleRun.asset_id == latest_sq.c.asset_id,
             DQRuleRun.created_at == latest_sq.c.latest_ts,
         ))
-        .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(DQRuleRun.quality_score.isnot(None))
         .order_by(DQRuleRun.quality_score.asc())
@@ -280,11 +280,11 @@ async def _get_recently_fixed(db: AsyncSession, domain_scope: Optional[str] = No
             DQRuleRun.quality_score,
             DQRuleRun.created_at,
             DQRule.rule_name,
-            DataAsset.sf_table_name,
+            Asset.sf_table_name,
             Domain.domain_name,
         )
         .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
-        .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(DQRuleRun.created_at >= since_24h)
         .order_by(DQRuleRun.rule_id, DQRuleRun.created_at)
@@ -331,12 +331,12 @@ async def global_dashboard(
     domain_scope = get_domain_filter(user)
 
     dq = select(func.count()).select_from(Domain).where(Domain.is_active == True)
-    aq = select(func.count()).select_from(DataAsset).where(DataAsset.is_active == True)
+    aq = select(func.count()).select_from(Asset).where(Asset.is_active == True)
     rq = select(func.count()).select_from(DQRule).where(DQRule.is_active == True)
     alrt_q = select(func.count()).select_from(DQAlert).where(DQAlert.alert_status == "open")
     if domain_scope:
         dq = dq.where(Domain.domain_id == domain_scope)
-        aq = aq.where(DataAsset.domain_id == domain_scope)
+        aq = aq.where(Asset.domain_id == domain_scope)
         rq = rq.where(DQRule.domain_id == domain_scope)
         alrt_q = alrt_q.where(DQAlert.domain_id == domain_scope)
 
@@ -424,9 +424,9 @@ async def domains_dashboard(
 
     # Asset counts per domain
     asset_cnt_res = await db.execute(
-        select(DataAsset.domain_id, func.count(DataAsset.asset_id).label("cnt"))
-        .where(DataAsset.domain_id.in_(domain_ids))
-        .group_by(DataAsset.domain_id)
+        select(Asset.domain_id, func.count(Asset.asset_id).label("cnt"))
+        .where(Asset.domain_id.in_(domain_ids))
+        .group_by(Asset.domain_id)
     )
     asset_cnt = {r.domain_id: r.cnt for r in asset_cnt_res}
 
@@ -491,9 +491,9 @@ async def domain_dashboard(
     if subs:
         sub_ids = [s.subdomain_id for s in subs]
         asset_cnt_res = await db.execute(
-            select(DataAsset.subdomain_id, func.count(DataAsset.asset_id).label("cnt"))
-            .where(DataAsset.subdomain_id.in_(sub_ids))
-            .group_by(DataAsset.subdomain_id)
+            select(Asset.subdomain_id, func.count(Asset.asset_id).label("cnt"))
+            .where(Asset.subdomain_id.in_(sub_ids))
+            .group_by(Asset.subdomain_id)
         )
         asset_cnt_by_sub = {r.subdomain_id: r.cnt for r in asset_cnt_res}
 
@@ -563,7 +563,7 @@ async def subdomain_dashboard(
     domain_result = await db.execute(select(Domain).where(Domain.domain_id == sub.domain_id))
     domain = domain_result.scalar_one_or_none()
 
-    assets_result = await db.execute(select(DataAsset).where(DataAsset.subdomain_id == subdomain_id))
+    assets_result = await db.execute(select(Asset).where(Asset.subdomain_id == subdomain_id))
     assets = assets_result.scalars().all()
 
     today_runs_result = await db.execute(
@@ -610,7 +610,7 @@ async def table_dashboard(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -694,7 +694,7 @@ async def table_history(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if asset:
         check_domain_access(user, asset.domain_id)
     trend = await _build_trend(db, days=days, asset_id=asset_id)
@@ -801,7 +801,7 @@ async def platform_summary(db: AsyncSession = Depends(get_db)):
     """High-level platform summary for executive reporting."""
     today = datetime.now(timezone.utc).replace(tzinfo=None).date()
     domains_count = (await db.execute(select(func.count()).select_from(Domain).where(Domain.is_active == True))).scalar() or 0
-    assets_count = (await db.execute(select(func.count()).select_from(DataAsset).where(DataAsset.is_active == True))).scalar() or 0
+    assets_count = (await db.execute(select(func.count()).select_from(Asset).where(Asset.is_active == True))).scalar() or 0
     rules_count = (await db.execute(select(func.count()).select_from(DQRule).where(DQRule.is_active == True))).scalar() or 0
     open_alerts = (await db.execute(select(func.count()).select_from(DQAlert).where(DQAlert.alert_status == "open"))).scalar() or 0
     critical_alerts = (await db.execute(select(func.count()).select_from(DQAlert).where(DQAlert.alert_status == "open", DQAlert.severity == "critical"))).scalar() or 0
@@ -836,9 +836,9 @@ async def export_runs_csv(
     """Export rule runs as CSV for the given filters."""
     since = datetime.now(timezone.utc).replace(tzinfo=None).date() - timedelta(days=days)
     q = (
-        select(DQRuleRun, DQRule, DataAsset, Domain)
+        select(DQRuleRun, DQRule, Asset, Domain)
         .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
-        .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(func.date(DQRuleRun.created_at) >= since)
         .order_by(desc(DQRuleRun.created_at))

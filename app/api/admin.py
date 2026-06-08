@@ -14,7 +14,7 @@ from sqlalchemy import select, delete
 
 from app.db.database import get_db
 from app.db.models import (
-    Domain, Subdomain, DataAsset, DQRule, DQSchedule,
+    Domain, Subdomain, Asset, DQRule, DQSchedule,
     DQRuleRun, DQRuleRunSample, DQQualityScore, DQAlert,
     AuditLog, RuleVersion, RuleTag,
     DataClassification, ColumnMetadata, GlossaryTermAsset,
@@ -42,7 +42,7 @@ async def _delete_domain_data(domain_id: str, db: AsyncSession) -> dict:
 
     # 1. Collect asset_ids so we can delete asset-level child records
     asset_res = await db.execute(
-        select(DataAsset.asset_id).where(DataAsset.domain_id == domain_id)
+        select(Asset.asset_id).where(Asset.domain_id == domain_id)
     )
     asset_ids = [r[0] for r in asset_res.all()]
 
@@ -109,7 +109,7 @@ async def _delete_domain_data(domain_id: str, db: AsyncSession) -> dict:
     counts["rules"]            = await _del(DQRule,            DQRule.domain_id == domain_id)
     counts["sharing_agreements"]= await _del(DataSharingAgreement,
                                              DataSharingAgreement.producer_domain_id == domain_id)
-    counts["data_assets"]      = await _del(DataAsset,  DataAsset.domain_id == domain_id)
+    counts["data_assets"]      = await _del(Asset,  Asset.domain_id == domain_id)
 
     return {k: v for k, v in counts.items() if v and v > 0}
 
@@ -129,7 +129,7 @@ async def list_domains_with_stats(
     result = []
     for d in domains:
         asset_count = (await db.execute(
-            select(func.count()).select_from(DataAsset).where(DataAsset.domain_id == d.domain_id)
+            select(func.count()).select_from(Asset).where(Asset.domain_id == d.domain_id)
         )).scalar() or 0
         rule_count = (await db.execute(
             select(func.count()).select_from(DQRule).where(DQRule.domain_id == d.domain_id)

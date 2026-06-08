@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from datetime import datetime, timezone, timedelta
 from app.db.database import get_db
-from app.db.models import DQQualityScore, DQRuleRun, DQRule, DataAsset
+from app.db.models import DQQualityScore, DQRuleRun, DQRule, Asset
 from app.core.security import get_current_user
 from typing import Any
 
@@ -29,7 +29,7 @@ async def evaluate_gate(
         raise HTTPException(400, "asset_id is required")
 
     # Verify asset exists
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")

@@ -51,15 +51,34 @@ export default function GlossaryPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const addTerm = () => {
+  const addTerm = async () => {
     if (!termForm.name) return
-    const newTerm: GlossaryTerm = {
-      id: `g${Date.now()}`, name: termForm.name, definition: termForm.definition,
-      domain: termForm.domain,
-      synonyms: termForm.synonyms.split(',').map(s => s.trim()).filter(Boolean),
-      owner: termForm.owner || 'Unassigned', linkedAssets: 0, status: termForm.status,
+    try {
+      const res = await fetch('/api/glossary', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          term_name: termForm.name, definition: termForm.definition,
+          synonyms: termForm.synonyms || null, status: termForm.status,
+          owner_email: termForm.owner || null,
+        }),
+      })
+      const created = await res.json()
+      const newTerm: GlossaryTerm = {
+        id: String(created.term_id ?? `g${Date.now()}`), name: termForm.name,
+        definition: termForm.definition, domain: termForm.domain,
+        synonyms: termForm.synonyms.split(',').map(s => s.trim()).filter(Boolean),
+        owner: termForm.owner || 'Unassigned', linkedAssets: 0, status: termForm.status,
+      }
+      setTerms(prev => [newTerm, ...prev])
+    } catch {
+      const newTerm: GlossaryTerm = {
+        id: `g${Date.now()}`, name: termForm.name, definition: termForm.definition,
+        domain: termForm.domain,
+        synonyms: termForm.synonyms.split(',').map(s => s.trim()).filter(Boolean),
+        owner: termForm.owner || 'Unassigned', linkedAssets: 0, status: termForm.status,
+      }
+      setTerms(prev => [newTerm, ...prev])
     }
-    setTerms(prev => [newTerm, ...prev])
     setShowAdd(false)
     setTermForm({ name: '', definition: '', domain: 'Finance', synonyms: '', owner: '', status: 'draft' })
   }
@@ -74,7 +93,7 @@ export default function GlossaryPage() {
   const draft = terms.filter(t => t.status === 'draft').length
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

@@ -128,7 +128,7 @@ At this point `data_assets` retains its old Snowflake columns. Code rename happe
 
 **Prefix:** `/asset-registry`  
 **Tag:** `"Asset Registry"`  
-**Old `/assets` routes:** return HTTP 308 redirects to `/asset-registry/...` for backward compat
+**Old `/assets` routes:** a second FastAPI router mounted at `/assets` that issues HTTP 308 permanent redirects to `/asset-registry/...`; no business logic duplicated
 
 **Endpoints (all under `/asset-registry`):**
 
@@ -147,7 +147,7 @@ At this point `data_assets` retains its old Snowflake columns. Code rename happe
 | GET | `/{id}/ancestors` | Ancestor chain root→parent |
 | GET | `/{id}/columns` | Column metadata (profiled or live) |
 | POST | `/{id}/certify` | Set certification status |
-| POST | `/{id}/refresh-stats` | Pull row_count/bytes from Snowflake |
+| POST | `/{id}/refresh-stats` | Pull row_count/bytes from Snowflake → writes to `asset_source_meta` |
 | POST | `/{id}/generate-description` | AI-generate description and save |
 | GET | `/{id}/effective-description` | Own description or inherited from ancestor |
 | POST | `/discovery` | Kick off auto-discovery job |

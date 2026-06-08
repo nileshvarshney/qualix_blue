@@ -7,7 +7,7 @@ from typing import Optional
 import uuid
 
 from app.db.database import get_db
-from app.db.models import GlossaryTerm, GlossaryTermAsset, DataAsset, Domain
+from app.db.models import GlossaryTerm, GlossaryTermAsset, Asset, Domain
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/glossary", tags=["Glossary"])
@@ -148,7 +148,7 @@ async def get_term(
     linked_assets = []
     for link in links:
         asset_result = await db.execute(
-            select(DataAsset).where(DataAsset.asset_id == link.asset_id)
+            select(Asset).where(Asset.asset_id == link.asset_id)
         )
         asset = asset_result.scalar_one_or_none()
         linked_assets.append({
@@ -223,7 +223,7 @@ async def link_asset(
     if not asset_id:
         raise HTTPException(422, "asset_id is required")
 
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     if not asset_result.scalar_one_or_none():
         raise HTTPException(404, "Data asset not found")
 

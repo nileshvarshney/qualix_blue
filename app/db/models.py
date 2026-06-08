@@ -86,7 +86,7 @@ class Domain(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     subdomains: Mapped[list["Subdomain"]] = relationship("Subdomain", back_populates="domain")
-    assets: Mapped[list["DataAsset"]] = relationship("DataAsset", back_populates="domain_obj")
+    assets: Mapped[list["Asset"]] = relationship("Asset", back_populates="domain_obj")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="domain")
 
 
@@ -107,12 +107,12 @@ class Subdomain(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
     domain: Mapped["Domain"] = relationship("Domain", back_populates="subdomains")
-    assets: Mapped[list["DataAsset"]] = relationship("DataAsset", back_populates="subdomain")
+    assets: Mapped[list["Asset"]] = relationship("Asset", back_populates="subdomain")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="subdomain")
 
 
-class DataAsset(Base):
-    __tablename__ = "data_assets"
+class Asset(Base):
+    __tablename__ = "data_assets"   # stays "data_assets" until Task 12
 
     asset_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=True)
@@ -160,15 +160,15 @@ class DataAsset(Base):
     subdomain: Mapped[Optional["Subdomain"]] = relationship("Subdomain", back_populates="assets")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="asset")
     rule_runs: Mapped[list["DQRuleRun"]] = relationship("DQRuleRun", back_populates="asset")
-    parent: Mapped[Optional["DataAsset"]] = relationship(
-        "DataAsset",
-        remote_side="DataAsset.asset_id",
-        foreign_keys="[DataAsset.parent_asset_id]",
+    parent: Mapped[Optional["Asset"]] = relationship(
+        "Asset",
+        remote_side="Asset.asset_id",
+        foreign_keys="[Asset.parent_asset_id]",
         back_populates="children",
     )
-    children: Mapped[list["DataAsset"]] = relationship(
-        "DataAsset",
-        foreign_keys="[DataAsset.parent_asset_id]",
+    children: Mapped[list["Asset"]] = relationship(
+        "Asset",
+        foreign_keys="[Asset.parent_asset_id]",
         back_populates="parent",
     )
     source_meta: Mapped[Optional["AssetSourceMeta"]] = relationship(
@@ -194,7 +194,7 @@ class AssetSourceMeta(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
-    asset: Mapped["DataAsset"] = relationship("DataAsset", back_populates="source_meta")
+    asset: Mapped["Asset"] = relationship("Asset", back_populates="source_meta")
 
 
 class RuleTag(Base):
@@ -254,7 +254,7 @@ class DQRule(Base):
 
     domain: Mapped["Domain"] = relationship("Domain", back_populates="rules")
     subdomain: Mapped["Subdomain"] = relationship("Subdomain", back_populates="rules")
-    asset: Mapped["DataAsset"] = relationship("DataAsset", back_populates="rules")
+    asset: Mapped["Asset"] = relationship("Asset", back_populates="rules")
     rule_runs: Mapped[list["DQRuleRun"]] = relationship("DQRuleRun", back_populates="rule")
     schedules: Mapped[list["DQSchedule"]] = relationship("DQSchedule", back_populates="rule")
     tags: Mapped[list["RuleTag"]] = relationship("RuleTag", back_populates="rule", cascade="all, delete-orphan")
@@ -328,7 +328,7 @@ class DQRuleRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
     rule: Mapped["DQRule"] = relationship("DQRule", back_populates="rule_runs")
-    asset: Mapped["DataAsset"] = relationship("DataAsset", back_populates="rule_runs")
+    asset: Mapped["Asset"] = relationship("Asset", back_populates="rule_runs")
     samples: Mapped[list["DQRuleRunSample"]] = relationship("DQRuleRunSample", back_populates="run")
 
 

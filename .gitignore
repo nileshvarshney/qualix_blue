@@ -28,3 +28,7 @@ frontend/out
 # OS
 .DS_Store
 Thumbs.db
+
+# Screenshots and Playwright MCP artifacts
+*.png
+.playwright-mcp/

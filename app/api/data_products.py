@@ -8,7 +8,7 @@ from typing import Optional
 import uuid
 
 from app.db.database import get_db
-from app.db.models import DataProduct, DataProductAsset, DataAsset, DQRuleRun
+from app.db.models import DataProduct, DataProductAsset, Asset, DQRuleRun
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/data-products", tags=["Data Products"])
@@ -103,7 +103,7 @@ async def get_data_product(
     asset_list = []
     for link in links:
         asset_result = await db.execute(
-            select(DataAsset).where(DataAsset.asset_id == link.asset_id)
+            select(Asset).where(Asset.asset_id == link.asset_id)
         )
         asset = asset_result.scalar_one_or_none()
         asset_list.append({
@@ -162,7 +162,7 @@ async def add_asset_to_product(
         raise HTTPException(422, "asset_id is required")
 
     asset_result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id == asset_id)
+        select(Asset).where(Asset.asset_id == asset_id)
     )
     if not asset_result.scalar_one_or_none():
         raise HTTPException(404, "Data asset not found")

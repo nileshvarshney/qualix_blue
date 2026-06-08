@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from app.db.models import DQAlert, DQRuleRun, DQRule, DataAsset, Domain
+from app.db.models import DQAlert, DQRuleRun, DQRule, Asset, Domain
 import asyncio
 
 logger = logging.getLogger("dq_platform.alerts")
@@ -89,7 +89,7 @@ async def _dispatch_notification(alert: DQAlert, rule: DQRule, run: DQRuleRun, d
                     extra_emails.append(domain.owner_email)
 
             asset_res = await session.execute(
-                select(DataAsset).where(DataAsset.asset_id == rule.asset_id)
+                select(Asset).where(Asset.asset_id == rule.asset_id)
             )
             asset = asset_res.scalar_one_or_none()
             if asset:

@@ -83,16 +83,38 @@ export default function ContractsPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const addContract = () => {
+  const addContract = async () => {
     if (!cForm.name) return
-    const nc: Contract = {
-      id: `ct${Date.now()}`, name: cForm.name, producer: cForm.producer, consumer: cForm.consumer,
-      owner: cForm.owner || 'Unassigned', status: 'active', compliance: 100,
-      checks: 0, failures: 0, created: new Date().toISOString().split('T')[0],
-      connection: cForm.connection, description: cForm.description, sla: cForm.sla,
-      terms: [], lastChecked: 'Never', trend: '— New',
+    const payload = {
+      contract_name: cForm.name, producer_team: cForm.producer || null,
+      consumer_team: cForm.consumer || null, sla_description: cForm.sla,
+      description: cForm.description, status: 'active',
+      asset_id: cForm.connection || null,
     }
-    setAllContracts(prev => [nc, ...prev])
+    try {
+      const res = await fetch('/api/slas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const created = await res.json()
+      const nc: Contract = {
+        id: String(created.contract_id ?? `ct${Date.now()}`), name: cForm.name,
+        producer: cForm.producer, consumer: cForm.consumer,
+        owner: cForm.owner || 'Unassigned', status: 'active', compliance: 100,
+        checks: 0, failures: 0, created: new Date().toISOString().split('T')[0],
+        connection: cForm.connection, description: cForm.description, sla: cForm.sla,
+        terms: [], lastChecked: 'Never', trend: '— New',
+      }
+      setAllContracts(prev => [nc, ...prev])
+    } catch {
+      setAllContracts(prev => [{
+        id: `ct${Date.now()}`, name: cForm.name, producer: cForm.producer, consumer: cForm.consumer,
+        owner: cForm.owner || 'Unassigned', status: 'active', compliance: 100,
+        checks: 0, failures: 0, created: new Date().toISOString().split('T')[0],
+        connection: cForm.connection, description: cForm.description, sla: cForm.sla,
+        terms: [], lastChecked: 'Never', trend: '— New',
+      }, ...prev])
+    }
     setShowAdd(false)
     setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
   }
@@ -115,7 +137,7 @@ export default function ContractsPage() {
   })
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

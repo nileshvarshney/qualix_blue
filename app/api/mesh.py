@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from app.db.database import get_db
-from app.db.models import DataSharingAgreement, Domain, DataAsset, DQQualityScore
+from app.db.models import DataSharingAgreement, Domain, Asset, DQQualityScore
 from app.core.security import get_current_user, require_admin
 import uuid
 from datetime import datetime, timezone, date

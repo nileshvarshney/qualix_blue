@@ -5,7 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, U
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.db.database import get_db
-from app.db.models import DQRule, Domain, Subdomain, DataAsset, AuditLog, RuleTag, RuleVersion
+from app.db.models import DQRule, Domain, Subdomain, Asset, AuditLog, RuleTag, RuleVersion
 from app.schemas.rule import (
     RuleCreate, RuleUpdate, RuleResponse, RuleImportPayload,
     RuleApproveRequest, RuleRejectRequest, RuleVersionResponse,
@@ -38,7 +38,7 @@ class PreviewSQLRequest(BaseModel):
 @router.post("/preview-sql")
 async def preview_sql(payload: PreviewSQLRequest, db: AsyncSession = Depends(get_db)):
     """Generate SQL for a rule without saving it."""
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == payload.asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == payload.asset_id))
     asset = asset_result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -72,8 +72,8 @@ async def list_rules_enriched(
     from sqlalchemy import func as sqlfunc
     # Row-level domain isolation: domain_owner can only see their own domain
     effective_domain = get_domain_filter(user) or domain_id
-    q = select(DQRule, DataAsset, Domain, Subdomain).join(
-        DataAsset, DQRule.asset_id == DataAsset.asset_id
+    q = select(DQRule, Asset, Domain, Subdomain).join(
+        Asset, DQRule.asset_id == Asset.asset_id
     ).join(
         Domain, DQRule.domain_id == Domain.domain_id
     ).join(
@@ -136,7 +136,7 @@ async def create_rule(payload: RuleCreate, db: AsyncSession = Depends(get_db), u
     rule.is_active = False
     rule.created_by = user.get("email")
     if not rule.rule_sql and rule.rule_type != "custom_sql_check":
-        asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == rule.asset_id))
+        asset_result = await db.execute(select(Asset).where(Asset.asset_id == rule.asset_id))
         asset = asset_result.scalar_one_or_none()
         if asset:
             try:
@@ -219,15 +219,15 @@ async def import_rules(payload: RuleImportPayload, db: AsyncSession = Depends(ge
         raise HTTPException(404, f"Subdomain '{payload.subdomain}' not found")
 
     asset_result = await db.execute(
-        select(DataAsset).where(
-            DataAsset.domain_id == domain.domain_id,
-            DataAsset.sf_schema_name.ilike(payload.asset.get("sf_schema_name", "")),
-            DataAsset.sf_table_name.ilike(payload.asset.get("sf_table_name", ""))
+        select(Asset).where(
+            Asset.domain_id == domain.domain_id,
+            Asset.sf_schema_name.ilike(payload.asset.get("sf_schema_name", "")),
+            Asset.sf_table_name.ilike(payload.asset.get("sf_table_name", ""))
         )
     )
     asset = asset_result.scalar_one_or_none()
     if not asset:
-        asset = DataAsset(
+        asset = Asset(
             asset_id=str(uuid.uuid4()),
             domain_id=domain.domain_id,
             subdomain_id=subdomain.subdomain_id,

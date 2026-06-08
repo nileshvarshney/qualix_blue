@@ -83,8 +83,20 @@ export default function AlertsPage() {
   function ack(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, ack: true } : a))
+    fetch('/api/alerts', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: 'acknowledge' }),
+    }).catch(() => {})
   }
-  function ackAll() { setAlerts(prev => prev.map(a => ({ ...a, ack: true }))) }
+  function ackAll() {
+    setAlerts(prev => prev.map(a => ({ ...a, ack: true })))
+    alerts.filter(a => !a.ack).forEach(a => {
+      fetch('/api/alerts', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: a.id, action: 'acknowledge' }),
+      }).catch(() => {})
+    })
+  }
 
   const filteredAlerts = alerts.filter(a => {
     if (alertFilter === 'unacked') return !a.ack
@@ -102,7 +114,7 @@ export default function AlertsPage() {
   const closePopup = () => { setPopupAlert(null); setPopupRule(null) }
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

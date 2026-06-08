@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.db.database import get_db
-from app.db.models import DQRuleRun, DQRuleRunSample, DQRule, DataAsset, Domain, Subdomain
+from app.db.models import DQRuleRun, DQRuleRunSample, DQRule, Asset, Domain, Subdomain
 from app.schemas.run import RunResponse, RunSampleResponse
 from app.services.execution_service import execute_rule, execute_asset_rules
 from app.core.security import get_current_user, check_domain_access, apply_domain_filter
@@ -40,7 +40,7 @@ async def test_rule(
     from app.services.sql_generator import sql_generator
     from app.services.scoring_service import calculate_rule_quality_score
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == req.asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == req.asset_id))
     asset = asset_res.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -184,7 +184,7 @@ async def run_table_rules_sync(
     user=Depends(get_current_user),
 ):
     """Execute all active rules for a table and return all run results."""
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
     check_domain_access(user, asset.domain_id)
@@ -257,7 +257,7 @@ async def run_table_rules_async(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
     check_domain_access(user, asset.domain_id)
@@ -336,9 +336,9 @@ async def list_runs_enriched(
 ):
     from datetime import timedelta
     q = (
-        select(DQRuleRun, DQRule, DataAsset, Domain, Subdomain)
+        select(DQRuleRun, DQRule, Asset, Domain, Subdomain)
         .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
-        .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .join(Subdomain, DQRuleRun.subdomain_id == Subdomain.subdomain_id)
     )

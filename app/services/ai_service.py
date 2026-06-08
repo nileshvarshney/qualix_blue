@@ -6,7 +6,7 @@ import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from app.db.models import (
-    DQRule, DQRuleRun, Domain, Subdomain, DataAsset,
+    DQRule, DQRuleRun, Domain, Subdomain, Asset,
     DQSchedule, DQAlert, GovernancePolicy, PolicyViolation,
 )
 from app.services.llm_providers import get_provider_from_db
@@ -114,8 +114,8 @@ async def gather_governance_context(db: AsyncSession) -> dict:
 
         # Rules pending approval (up to 20)
         pending_res = await db.execute(
-            select(DQRule, DataAsset, Domain)
-            .join(DataAsset, DQRule.asset_id == DataAsset.asset_id)
+            select(DQRule, Asset, Domain)
+            .join(Asset, DQRule.asset_id == Asset.asset_id)
             .join(Domain, DQRule.domain_id == Domain.domain_id)
             .where(DQRule.status == "pending_review", DQRule.is_active == True)
             .order_by(DQRule.severity)
@@ -127,7 +127,7 @@ async def gather_governance_context(db: AsyncSession) -> dict:
                 "rule_name": r.DQRule.rule_name,
                 "rule_type": r.DQRule.rule_type,
                 "severity": r.DQRule.severity,
-                "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+                "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
                 "domain": r.Domain.domain_name,
                 "created_by": r.DQRule.created_by,
             }
@@ -212,12 +212,12 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
 
         counts_res = await db.execute(
             select(
-                func.count(DataAsset.asset_id).label("assets"),
+                func.count(Asset.asset_id).label("assets"),
                 func.count(DQRule.rule_id).label("rules"),
             )
-            .select_from(DataAsset)
-            .join(DQRule, DQRule.asset_id == DataAsset.asset_id, isouter=True)
-            .where(DataAsset.is_active == True, DQRule.is_active == True)
+            .select_from(Asset)
+            .join(DQRule, DQRule.asset_id == Asset.asset_id, isouter=True)
+            .where(Asset.is_active == True, DQRule.is_active == True)
         )
         counts_row = counts_res.one_or_none()
         total_assets = counts_row.assets if counts_row else 0
@@ -290,9 +290,9 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
         diagnostic_intents = {'runs', 'global', 'domains', 'rules', 'assets'}
         if intent in diagnostic_intents:
             recent_runs = await db.execute(
-                select(DQRuleRun, DQRule, DataAsset, Domain)
+                select(DQRuleRun, DQRule, Asset, Domain)
                 .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
-                .join(DataAsset, DQRuleRun.asset_id == DataAsset.asset_id)
+                .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
                 .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
                 .order_by(desc(DQRuleRun.created_at))
                 .limit(20)
@@ -303,7 +303,7 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
                     "rule_name": r.DQRule.rule_name,
                     "rule_type": r.DQRule.rule_type,
                     "severity": r.DQRule.severity,
-                    "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+                    "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
                     "domain": r.Domain.domain_name,
                     "status": r.DQRuleRun.status,
                     "quality_score": r.DQRuleRun.quality_score,
@@ -335,8 +335,8 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
 
         if intent in ('rules', 'global'):
             rule_q = await db.execute(
-                select(DQRule, DataAsset, Domain)
-                .join(DataAsset, DQRule.asset_id == DataAsset.asset_id)
+                select(DQRule, Asset, Domain)
+                .join(Asset, DQRule.asset_id == Asset.asset_id)
                 .join(Domain, DQRule.domain_id == Domain.domain_id)
                 .where(DQRule.is_active == True)
                 .order_by(DQRule.severity)
@@ -349,7 +349,7 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
                     "severity": r.DQRule.severity,
                     "status": r.DQRule.status,
                     "target_column": r.DQRule.target_column,
-                    "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+                    "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
                     "domain": r.Domain.domain_name,
                 }
                 for r in rule_q.all()
@@ -372,20 +372,20 @@ async def gather_platform_context(message: str, db: AsyncSession) -> dict:
 
         if intent == 'assets':
             asset_q = await db.execute(
-                select(DataAsset, Domain, Subdomain)
-                .join(Domain, DataAsset.domain_id == Domain.domain_id)
-                .join(Subdomain, DataAsset.subdomain_id == Subdomain.subdomain_id)
-                .where(DataAsset.is_active == True)
+                select(Asset, Domain, Subdomain)
+                .join(Domain, Asset.domain_id == Domain.domain_id)
+                .join(Subdomain, Asset.subdomain_id == Subdomain.subdomain_id)
+                .where(Asset.is_active == True)
                 .limit(30)
             )
             ctx["assets"] = [
                 {
-                    "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+                    "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
                     "domain": r.Domain.domain_name,
                     "subdomain": r.Subdomain.subdomain_name,
-                    "criticality": r.DataAsset.criticality,
-                    "owner_name": r.DataAsset.owner_name,
-                    "owner_email": r.DataAsset.owner_email,
+                    "criticality": r.Asset.criticality,
+                    "owner_name": r.Asset.owner_name,
+                    "owner_email": r.Asset.owner_email,
                 }
                 for r in asset_q.all()
             ]
@@ -589,12 +589,12 @@ async def explain_incident(
         return "Incident not found."
 
     asset_res = await db.execute(
-        select(DataAsset, Domain)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
-        .where(DataAsset.asset_id == incident.asset_id)
+        select(Asset, Domain)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .where(Asset.asset_id == incident.asset_id)
     )
     asset_row = asset_res.one_or_none()
-    asset = asset_row.DataAsset if asset_row else None
+    asset = asset_row.Asset if asset_row else None
     domain = asset_row.Domain if asset_row else None
 
     related_runs: list[str] = []
@@ -661,15 +661,15 @@ async def generate_asset_description(
     from app.db.models import ColumnMetadata
 
     asset_res = await db.execute(
-        select(DataAsset, Domain, Subdomain)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
-        .join(Subdomain, DataAsset.subdomain_id == Subdomain.subdomain_id)
-        .where(DataAsset.asset_id == asset_id)
+        select(Asset, Domain, Subdomain)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .join(Subdomain, Asset.subdomain_id == Subdomain.subdomain_id)
+        .where(Asset.asset_id == asset_id)
     )
     row = asset_res.one_or_none()
     if not row:
         return "Asset not found."
-    asset, domain, subdomain = row.DataAsset, row.Domain, row.Subdomain
+    asset, domain, subdomain = row.Asset, row.Domain, row.Subdomain
 
     cols_res = await db.execute(
         select(ColumnMetadata).where(ColumnMetadata.asset_id == asset_id).limit(50)
@@ -714,7 +714,7 @@ async def generate_column_docs(
     from app.db.models import ColumnMetadata
     import json as _j
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_res.scalar_one_or_none()
     if not asset:
         return {"error": "Asset not found"}
@@ -774,14 +774,14 @@ async def suggest_glossary_terms(
     existing_res = await db.execute(select(GlossaryTerm.term_name).limit(100))
     existing = {r for r in existing_res.scalars().all()}
 
-    asset_q = select(DataAsset, Domain).join(Domain, DataAsset.domain_id == Domain.domain_id)
+    asset_q = select(Asset, Domain).join(Domain, Asset.domain_id == Domain.domain_id)
     if domain_id:
-        asset_q = asset_q.where(DataAsset.domain_id == domain_id)
+        asset_q = asset_q.where(Asset.domain_id == domain_id)
     asset_res = await db.execute(asset_q.limit(30))
     asset_rows = asset_res.all()
 
     asset_lines = [
-        f"- {r.DataAsset.sf_table_name} (domain: {r.Domain.domain_name})"
+        f"- {r.Asset.sf_table_name} (domain: {r.Domain.domain_name})"
         for r in asset_rows
     ]
     existing_text = ", ".join(sorted(existing)[:30]) if existing else "None"
@@ -833,8 +833,8 @@ async def get_steward_review_queue(
     ]
 
     pending_res = await db.execute(
-        select(DQRule, DataAsset, Domain)
-        .join(DataAsset, DQRule.asset_id == DataAsset.asset_id)
+        select(DQRule, Asset, Domain)
+        .join(Asset, DQRule.asset_id == Asset.asset_id)
         .join(Domain, DQRule.domain_id == Domain.domain_id)
         .where(DQRule.status == "pending_review", DQRule.is_active == True)
         .order_by(DQRule.severity.desc())
@@ -846,7 +846,7 @@ async def get_steward_review_queue(
             "rule_name": r.DQRule.rule_name,
             "rule_type": r.DQRule.rule_type,
             "severity": r.DQRule.severity,
-            "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+            "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
             "domain": r.Domain.domain_name,
             "created_by": r.DQRule.created_by,
             "description": r.DQRule.rule_description,
@@ -904,16 +904,16 @@ async def suggest_violation_resolution(
     entity_context = ""
     if violation.entity_type == "asset" and violation.entity_id:
         asset_res = await db.execute(
-            select(DataAsset, Domain)
-            .join(Domain, DataAsset.domain_id == Domain.domain_id)
-            .where(DataAsset.asset_id == violation.entity_id)
+            select(Asset, Domain)
+            .join(Domain, Asset.domain_id == Domain.domain_id)
+            .where(Asset.asset_id == violation.entity_id)
         )
         asset_row = asset_res.one_or_none()
         if asset_row:
             entity_context = (
-                f"Asset: {asset_row.DataAsset.sf_table_name} "
+                f"Asset: {asset_row.Asset.sf_table_name} "
                 f"(Domain: {asset_row.Domain.domain_name}, "
-                f"Owner: {asset_row.DataAsset.owner_email or 'unknown'})"
+                f"Owner: {asset_row.Asset.owner_email or 'unknown'})"
             )
 
     sys_res = (
@@ -946,14 +946,14 @@ async def predict_asset_quality(
     from datetime import datetime, timezone
 
     asset_res = await db.execute(
-        select(DataAsset, Domain)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
-        .where(DataAsset.asset_id == asset_id)
+        select(Asset, Domain)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .where(Asset.asset_id == asset_id)
     )
     row = asset_res.one_or_none()
     if not row:
         return {"error": "Asset not found"}
-    asset, domain = row.DataAsset, row.Domain
+    asset, domain = row.Asset, row.Domain
 
     runs_res = await db.execute(
         select(DQRuleRun, DQRule)
@@ -1100,14 +1100,14 @@ async def generate_remediation_plan(
     import json as _j
 
     asset_res = await db.execute(
-        select(DataAsset, Domain)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
-        .where(DataAsset.asset_id == asset_id)
+        select(Asset, Domain)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .where(Asset.asset_id == asset_id)
     )
     row = asset_res.one_or_none()
     if not row:
         return {"error": "Asset not found"}
-    asset, domain = row.DataAsset, row.Domain
+    asset, domain = row.Asset, row.Domain
 
     failed_res = await db.execute(
         select(DQRuleRun, DQRule)

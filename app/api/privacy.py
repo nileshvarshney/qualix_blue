@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import MaskingPolicy, DataAsset
+from app.db.models import MaskingPolicy, Asset
 from app.core.security import get_current_user, check_domain_access
 import uuid
 from datetime import datetime, timezone
@@ -37,7 +37,7 @@ async def list_masking_policies(
     """List masking policies, optionally filtered by asset."""
     q = select(MaskingPolicy)
     if asset_id:
-        asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+        asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
         if asset:
             check_domain_access(user, asset.domain_id)
         q = q.where(MaskingPolicy.asset_id == asset_id)
@@ -61,7 +61,7 @@ async def create_masking_policy(
     if masking_type not in MASKING_TYPES:
         raise HTTPException(400, f"masking_type must be one of {sorted(MASKING_TYPES)}")
 
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
     check_domain_access(user, asset.domain_id)
@@ -105,7 +105,7 @@ async def delete_masking_policy(
     policy = (await db.execute(select(MaskingPolicy).where(MaskingPolicy.policy_id == policy_id))).scalar_one_or_none()
     if not policy:
         raise HTTPException(404, "Policy not found")
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == policy.asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == policy.asset_id))).scalar_one_or_none()
     if asset:
         check_domain_access(user, asset.domain_id)
     await db.delete(policy)
@@ -119,7 +119,7 @@ async def masking_summary(
     user=Depends(get_current_user),
 ):
     """Return masking coverage for a table — which columns are masked and how."""
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
     check_domain_access(user, asset.domain_id)
@@ -161,7 +161,7 @@ async def pii_exposure_report(db: AsyncSession = Depends(get_db), user=Depends(g
 
     results = []
     for asset_id in unprotected:
-        asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+        asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
         if asset:
             results.append({
                 "asset_id": asset_id,

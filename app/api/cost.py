@@ -6,7 +6,7 @@ from sqlalchemy import select, func
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from app.db.database import get_db
-from app.db.models import QualityCostConfig, DQRuleRun, DataAsset, Domain, Subdomain, DQRule
+from app.db.models import QualityCostConfig, DQRuleRun, Asset, Domain, Subdomain, DQRule
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/cost", tags=["Cost Impact"])
@@ -43,11 +43,11 @@ async def _build_asset_cost_table(
     """
     cutoff = _cutoff(days)
 
-    asset_q = select(DataAsset).where(DataAsset.is_active == True)
+    asset_q = select(Asset).where(Asset.is_active == True)
     if domain_id:
-        asset_q = asset_q.where(DataAsset.domain_id == domain_id)
+        asset_q = asset_q.where(Asset.domain_id == domain_id)
     if subdomain_id:
-        asset_q = asset_q.where(DataAsset.subdomain_id == subdomain_id)
+        asset_q = asset_q.where(Asset.subdomain_id == subdomain_id)
     assets_result = await db.execute(asset_q)
     assets = {a.asset_id: a for a in assets_result.scalars().all()}
 
@@ -306,7 +306,7 @@ async def cost_by_table(asset_id: str, db: AsyncSession = Depends(get_db)):
     """Per-table cost analysis over last 30 days."""
     cutoff = _THIRTY_DAYS_AGO()
 
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")

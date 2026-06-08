@@ -5,13 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from datetime import datetime, timezone
 from app.db.database import get_db
-from app.db.models import DataContract, DataAsset, DQQualityScore, DQRule, DQRuleRun
+from app.db.models import DataContract, Asset, DQQualityScore, DQRule, DQRuleRun
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/contracts", tags=["Contracts"])
 
 
-def _fmt_contract(c: DataContract, asset: Optional[DataAsset] = None) -> dict:
+def _fmt_contract(c: DataContract, asset: Optional[Asset] = None) -> dict:
     asset_name = None
     if asset:
         asset_name = f"{asset.sf_schema_name}.{asset.sf_table_name}"
@@ -44,7 +44,7 @@ async def list_contracts(
     status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(DataContract, DataAsset).outerjoin(DataAsset, DataContract.asset_id == DataAsset.asset_id)
+    q = select(DataContract, Asset).outerjoin(Asset, DataContract.asset_id == Asset.asset_id)
     if asset_id:
         q = q.where(DataContract.asset_id == asset_id)
     if status:
@@ -178,7 +178,7 @@ async def validate_contract(
 
 @router.get("/assets/{asset_id}/contracts", tags=["Contracts"])
 async def get_asset_contracts(asset_id: str, db: AsyncSession = Depends(get_db)):
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_result.scalar_one_or_none()
     result = await db.execute(
         select(DataContract).where(DataContract.asset_id == asset_id).order_by(desc(DataContract.created_at))

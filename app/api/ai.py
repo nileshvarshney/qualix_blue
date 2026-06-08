@@ -242,10 +242,10 @@ async def discover_pii(
 ):
     """Scan column names and types to identify likely PII columns (§62.3)."""
     from sqlalchemy import select
-    from app.db.models import ColumnMetadata, DataAsset
+    from app.db.models import ColumnMetadata, Asset
     from app.services.llm_providers import get_provider_from_db
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_res.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -290,7 +290,7 @@ async def rule_from_natural_language(
     payload: {description, asset_id?, domain_context?, provider?, prior_result?, refinement?}
     """
     from sqlalchemy import select
-    from app.db.models import DataAsset
+    from app.db.models import Asset
     from app.services.llm_providers import get_provider_from_db
 
     description  = payload.get("description", "")
@@ -303,7 +303,7 @@ async def rule_from_natural_language(
 
     asset_name = ""
     if asset_id:
-        asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+        asset_res = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
         asset = asset_res.scalar_one_or_none()
         asset_name = f"{asset.sf_schema_name}.{asset.sf_table_name}" if asset else ""
 
@@ -357,7 +357,7 @@ async def trigger_rca(
 ):
     """Root Cause Analysis — enriched with 30-run trend, day/hour patterns, sibling failures."""
     from sqlalchemy import select, desc, func
-    from app.db.models import DQRuleRun, DQRule, DataAsset
+    from app.db.models import DQRuleRun, DQRule, Asset
     from app.services.llm_providers import get_provider_from_db
     import json as _j
     from collections import Counter
@@ -371,7 +371,7 @@ async def trigger_rca(
     rule_res = await db.execute(select(DQRule).where(DQRule.rule_id == run.rule_id))
     rule = rule_res.scalar_one_or_none()
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == run.asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == run.asset_id))
     asset = asset_res.scalar_one_or_none()
 
     # Last 30 runs for same rule
@@ -628,13 +628,13 @@ async def at_risk_assets(
 ):
     """Return assets with highest predicted quality risk from last nightly prediction run."""
     from sqlalchemy import select, desc
-    from app.db.models import AnomalyDetection, AnomalyDetector, DataAsset, Domain
+    from app.db.models import AnomalyDetection, AnomalyDetector, Asset, Domain
 
     det_res = await db.execute(
-        select(AnomalyDetection, AnomalyDetector, DataAsset, Domain)
+        select(AnomalyDetection, AnomalyDetector, Asset, Domain)
         .join(AnomalyDetector, AnomalyDetection.detector_id == AnomalyDetector.detector_id)
-        .join(DataAsset, AnomalyDetection.asset_id == DataAsset.asset_id)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
+        .join(Asset, AnomalyDetection.asset_id == Asset.asset_id)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
         .where(
             AnomalyDetector.detector_type == "llm_predictor",
             AnomalyDetection.anomaly_type == "quality_forecast",
@@ -654,7 +654,7 @@ async def at_risk_assets(
         seen.add(aid)
         results.append({
             "asset_id": aid,
-            "table": f"{r.DataAsset.sf_schema_name}.{r.DataAsset.sf_table_name}",
+            "table": f"{r.Asset.sf_schema_name}.{r.Asset.sf_table_name}",
             "domain": r.Domain.domain_name,
             "risk_level": r.AnomalyDetection.severity,
             "confidence": r.AnomalyDetection.confidence,
@@ -696,7 +696,7 @@ async def rule_remediation_playbook(
 ):
     """Generate a focused remediation playbook for a specific rule."""
     from sqlalchemy import select, desc
-    from app.db.models import DQRule, DQRuleRun, DataAsset
+    from app.db.models import DQRule, DQRuleRun, Asset
     from app.services.llm_providers import get_provider_from_db
     from app.services.ai_service import _REMEDIATION_HINTS
     import json as _j
@@ -706,7 +706,7 @@ async def rule_remediation_playbook(
     if not rule:
         raise HTTPException(404, "Rule not found")
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == rule.asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == rule.asset_id))
     asset = asset_res.scalar_one_or_none()
 
     runs_res = await db.execute(
@@ -900,7 +900,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
     from sqlalchemy import select, desc, func
     from app.db.models import (
         SnowflakeConnection, DQRule, DQRuleRun, DQAlert,
-        Domain, Subdomain, DataAsset, DQQualityScore
+        Domain, Subdomain, Asset, DQQualityScore
     )
 
     try:
@@ -952,7 +952,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
             active_rules = (await db.execute(
                 select(func.count(DQRule.rule_id)).where(DQRule.is_active == True)
             )).scalar() or 0
-            assets_count = (await db.execute(select(func.count(DataAsset.asset_id)))).scalar() or 0
+            assets_count = (await db.execute(select(func.count(Asset.asset_id)))).scalar() or 0
             domains_count = (await db.execute(select(func.count(Domain.domain_id)))).scalar() or 0
             open_alerts = (await db.execute(
                 select(func.count(DQAlert.alert_id)).where(DQAlert.status == "open")
@@ -1010,7 +1010,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
             domain_data = []
             for d in domains:
                 asset_count = (await db.execute(
-                    select(func.count(DataAsset.asset_id)).where(DataAsset.domain_id == d.domain_id)
+                    select(func.count(Asset.asset_id)).where(Asset.domain_id == d.domain_id)
                 )).scalar() or 0
                 rule_count = (await db.execute(
                     select(func.count(DQRule.rule_id)).where(DQRule.domain_id == d.domain_id)
@@ -1044,8 +1044,8 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
 
         elif tool_name == "search_assets":
             query = tool_input.get("query", "")
-            stmt = select(DataAsset).where(
-                DataAsset.sf_table_name.ilike(f"%{query}%")
+            stmt = select(Asset).where(
+                Asset.sf_table_name.ilike(f"%{query}%")
             ).limit(tool_input.get("limit", 10))
             result = await db.execute(stmt)
             assets = result.scalars().all()
@@ -1559,7 +1559,7 @@ async def generate_postmortem(
 ):
     """Auto-generate a post-mortem draft for a resolved incident (§67.3)."""
     from sqlalchemy import select
-    from app.db.models import QualityIncident, DataAsset
+    from app.db.models import QualityIncident, Asset
     from app.services.llm_providers import get_provider_from_db
 
     inc_res = await db.execute(select(QualityIncident).where(QualityIncident.incident_id == incident_id))
@@ -1567,7 +1567,7 @@ async def generate_postmortem(
     if not incident:
         raise HTTPException(404, "Incident not found")
 
-    asset_res = await db.execute(select(DataAsset).where(DataAsset.asset_id == incident.asset_id))
+    asset_res = await db.execute(select(Asset).where(Asset.asset_id == incident.asset_id))
     asset = asset_res.scalar_one_or_none()
 
     context = (

@@ -6,7 +6,7 @@ from sqlalchemy import select, func, desc
 from datetime import datetime, timezone
 from app.db.database import get_db
 from app.db.models import (
-    GovernancePolicy, PolicyViolation, DataAsset, DQRule,
+    GovernancePolicy, PolicyViolation, Asset, DQRule,
     DQQualityScore, Domain, DataClassification, Subdomain,
 )
 from app.core.security import get_current_user, require_admin
@@ -215,7 +215,7 @@ async def evaluate_policies_endpoint(
 
     # Count assets evaluated
     assets_result = await db.execute(
-        select(func.count(DataAsset.asset_id)).where(DataAsset.is_active == True)
+        select(func.count(Asset.asset_id)).where(Asset.is_active == True)
     )
     assets_evaluated = int(assets_result.scalar_one() or 0)
 
@@ -262,10 +262,10 @@ async def list_violations(
     asset_map: dict[str, dict] = {}
     if asset_ids:
         asset_result = await db.execute(
-            select(DataAsset, Domain, Subdomain)
-            .join(Domain, DataAsset.domain_id == Domain.domain_id)
-            .join(Subdomain, DataAsset.subdomain_id == Subdomain.subdomain_id)
-            .where(DataAsset.asset_id.in_(asset_ids))
+            select(Asset, Domain, Subdomain)
+            .join(Domain, Asset.domain_id == Domain.domain_id)
+            .join(Subdomain, Asset.subdomain_id == Subdomain.subdomain_id)
+            .where(Asset.asset_id.in_(asset_ids))
         )
         for row in asset_result.all():
             asset, domain, subdomain = row
@@ -311,7 +311,7 @@ async def _compute_domain_scorecard(domain_id: str, db: AsyncSession) -> Optiona
         return None
 
     assets_result = await db.execute(
-        select(DataAsset).where(DataAsset.domain_id == domain_id, DataAsset.is_active == True)
+        select(Asset).where(Asset.domain_id == domain_id, Asset.is_active == True)
     )
     assets = assets_result.scalars().all()
     total_assets = len(assets)
@@ -417,7 +417,7 @@ async def _compute_subdomain_scorecard(subdomain_id: str, db: AsyncSession) -> O
         return None
 
     assets_result = await db.execute(
-        select(DataAsset).where(DataAsset.subdomain_id == subdomain_id, DataAsset.is_active == True)
+        select(Asset).where(Asset.subdomain_id == subdomain_id, Asset.is_active == True)
     )
     assets = assets_result.scalars().all()
     total_assets = len(assets)

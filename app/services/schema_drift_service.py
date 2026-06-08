@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
-    ColumnMetadata, DataAsset, DQAlert, SchemaBaseline, SchemaDriftEvent,
+    ColumnMetadata, Asset, DQAlert, SchemaBaseline, SchemaDriftEvent,
 )
 
 logger = logging.getLogger("dq_platform.schema_drift")
@@ -179,7 +179,7 @@ async def detect_drift(asset_id: str, db: AsyncSession) -> list[SchemaDriftEvent
     )
     if not alert_exists.scalar_one_or_none():
         asset_res = await db.execute(
-            select(DataAsset).where(DataAsset.asset_id == asset_id)
+            select(Asset).where(Asset.asset_id == asset_id)
         )
         asset = asset_res.scalar_one_or_none()
 
@@ -256,7 +256,7 @@ async def approve_baseline(
 
 async def _dispatch_drift_notification(
     alert: DQAlert,
-    asset: Optional[DataAsset],
+    asset: Optional[Asset],
     diff: list[dict],
 ) -> None:
     """Fire-and-forget: send drift alert notifications via existing channels."""

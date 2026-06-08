@@ -81,27 +81,41 @@ export default function DomainsPage() {
     setShowModal(true)
   }
 
-  function save() {
+  async function save() {
     if (!form.name.trim()) return
     setSaving(true)
     const tables = form.tables.split(',').map(t => t.trim()).filter(Boolean)
-    if (editDomain) {
-      setDomains(prev => prev.map(d => d.id === editDomain.id ? { ...d, ...form, tables, datasets: tables.length || d.datasets } : d))
-      if (selected?.id === editDomain.id) setSelected(prev => prev ? { ...prev, ...form, tables, datasets: tables.length || prev.datasets } : null)
-    } else {
-      setDomains(prev => [...prev, {
-        id: `d${Date.now()}`, name: form.name, icon: form.icon, color: form.color,
-        owner: form.owner, datasets: tables.length, rules: 0, score: 100, issues: 0,
-        connection: form.connection, desc: form.desc, tables,
-      }])
-    }
+    try {
+      if (editDomain) {
+        await fetch('/api/domains-list', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editDomain.id, domain_name: form.name, description: form.desc, owner_name: form.owner }),
+        })
+        setDomains(prev => prev.map(d => d.id === editDomain.id ? { ...d, ...form, tables, datasets: tables.length || d.datasets } : d))
+        if (selected?.id === editDomain.id) setSelected(prev => prev ? { ...prev, ...form, tables, datasets: tables.length || prev.datasets } : null)
+      } else {
+        const res = await fetch('/api/domains-list', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ domain_name: form.name, description: form.desc, owner_name: form.owner }),
+        })
+        const created = await res.json()
+        setDomains(prev => [...prev, {
+          id: String(created.domain_id ?? `d${Date.now()}`), name: form.name, icon: form.icon, color: form.color,
+          owner: form.owner, datasets: tables.length, rules: 0, score: 100, issues: 0,
+          connection: form.connection, desc: form.desc, tables,
+        }])
+      }
+    } catch { /* keep local state on error */ }
     setSaving(false)
     setShowModal(false)
   }
 
-  function deleteDomain(id: string, e: React.MouseEvent) {
+  async function deleteDomain(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     if (!confirm('Delete this domain?')) return
+    try {
+      await fetch(`/api/domains-list?id=${id}`, { method: 'DELETE' })
+    } catch { /* proceed with local removal */ }
     setDomains(prev => prev.filter(d => d.id !== id))
     if (selected?.id === id) setSelected(null)
   }
@@ -115,7 +129,7 @@ export default function DomainsPage() {
   )
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

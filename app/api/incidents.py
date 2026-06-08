@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from datetime import datetime, timezone, timedelta
 from app.db.database import get_db
-from app.db.models import QualityIncident, OncallSchedule, IncidentRunbook, DataAsset
+from app.db.models import QualityIncident, OncallSchedule, IncidentRunbook, Asset
 from app.core.security import get_current_user
 
 router = APIRouter(tags=["Incidents"])
@@ -67,8 +67,8 @@ async def list_incidents(
     db: AsyncSession = Depends(get_db),
 ):
     q = (
-        select(QualityIncident, DataAsset.sf_table_name, DataAsset.sf_schema_name)
-        .outerjoin(DataAsset, QualityIncident.asset_id == DataAsset.asset_id)
+        select(QualityIncident, Asset.sf_table_name, Asset.sf_schema_name)
+        .outerjoin(Asset, QualityIncident.asset_id == Asset.asset_id)
     )
     if status:
         q = q.where(QualityIncident.status == status)
@@ -142,10 +142,10 @@ async def incident_stats(db: AsyncSession = Depends(get_db)):
 
     # Count by domain via asset join
     domain_result = await db.execute(
-        select(DataAsset.domain_id, func.count(QualityIncident.incident_id).label("count"))
-        .join(DataAsset, QualityIncident.asset_id == DataAsset.asset_id)
+        select(Asset.domain_id, func.count(QualityIncident.incident_id).label("count"))
+        .join(Asset, QualityIncident.asset_id == Asset.asset_id)
         .where(QualityIncident.created_at >= cutoff)
-        .group_by(DataAsset.domain_id)
+        .group_by(Asset.domain_id)
     )
     by_domain = [{"domain_id": row.domain_id, "count": row.count} for row in domain_result.all()]
 

@@ -21,7 +21,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.db.models import AuditLog, ColumnMetadata, DataAsset, DQRule
+from app.db.models import AuditLog, ColumnMetadata, Asset, DQRule
 from app.services.sql_generator import sql_generator
 
 logger = logging.getLogger("dq_platform.auto_rules")
@@ -42,13 +42,13 @@ async def _build_dedup_set(asset_id: str, db: AsyncSession) -> set[tuple[str, Op
     return {(row.rule_type, row.target_column) for row in result}
 
 
-def _table_ref(asset: DataAsset) -> str:
+def _table_ref(asset: Asset) -> str:
     db_prefix = f'"{asset.sf_database_name}".' if asset.sf_database_name else ""
     return f'{db_prefix}"{asset.sf_schema_name}"."{asset.sf_table_name}"'
 
 
 def _make_rule(
-    asset: DataAsset,
+    asset: Asset,
     rule_type: str,
     target_column: Optional[str],
     rule_config: dict,
@@ -80,7 +80,7 @@ def _make_rule(
     )
 
 
-def _phase1_candidates(asset: DataAsset, columns: list[dict]) -> list[DQRule]:
+def _phase1_candidates(asset: Asset, columns: list[dict]) -> list[DQRule]:
     """Generate priority-ordered Phase 1 rule candidates (no DB access)."""
     tref = _table_ref(asset)
     col_names = [c["column_name"] for c in columns]
@@ -138,7 +138,7 @@ def _phase1_candidates(asset: DataAsset, columns: list[dict]) -> list[DQRule]:
 
 
 async def create_phase1_rules(
-    asset: DataAsset, columns: list[dict], db: AsyncSession
+    asset: Asset, columns: list[dict], db: AsyncSession
 ) -> list[DQRule]:
     """Create Phase 1 schema-based rules after asset discovery.
 
@@ -187,7 +187,7 @@ async def create_phase1_rules(
 
 
 async def create_phase2_rules(
-    asset: DataAsset, col_profiles: list[ColumnMetadata], db: AsyncSession
+    asset: Asset, col_profiles: list[ColumnMetadata], db: AsyncSession
 ) -> list[DQRule]:
     """Create Phase 2 stats-driven + LLM rules after column profiling.
 
@@ -265,7 +265,7 @@ async def create_phase2_rules(
 
 
 def _phase2_candidates(
-    asset: DataAsset, col_profiles: list[ColumnMetadata], tref: str
+    asset: Asset, col_profiles: list[ColumnMetadata], tref: str
 ) -> list[DQRule]:
     """Build priority-ordered Phase 2 heuristic rule candidates."""
     candidates: list[DQRule] = []
@@ -316,7 +316,7 @@ def _phase2_candidates(
 
 
 async def _create_llm_rules(
-    asset: DataAsset,
+    asset: Asset,
     col_profiles: list[ColumnMetadata],
     n_rules: int,
     tref: str,

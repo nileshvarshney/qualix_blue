@@ -100,16 +100,25 @@ export default function SchedulesPage() {
   }
 
   function toggle(id: string) {
+    const current = scheduleList.find(s => s.id === id)
+    const action = current?.status === 'active' ? 'pause' : 'resume'
     setScheduleList(prev => prev.map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'paused' : 'active' } : s))
+    fetch('/api/schedules', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action }),
+    }).catch(() => {})
   }
 
   function runNow(id: string) {
     setRunningId(id)
-    setTimeout(() => {
+    fetch('/api/schedules', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).catch(() => {}).finally(() => {
       setRunningId(null)
       setScheduleList(prev => prev.map(s => s.id === id
         ? { ...s, lastRun: new Date().toISOString().slice(0, 16).replace('T', ' ') } : s))
-    }, 2000)
+    })
   }
 
   const CARDS = [
@@ -120,7 +129,7 @@ export default function SchedulesPage() {
   ] as const
 
   return (
-    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>

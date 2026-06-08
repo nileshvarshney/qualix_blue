@@ -6,7 +6,7 @@ from sqlalchemy import select, desc
 from app.db.database import get_db
 from app.db.models import (
     ComplianceFramework, ComplianceRequirement, ComplianceMapping,
-    DQRule, DQRuleRun, DataAsset,
+    DQRule, DQRuleRun, Asset,
 )
 from app.core.security import get_current_user, require_admin
 
@@ -113,7 +113,7 @@ async def assess_asset(
         raise HTTPException(404, "Framework not found")
 
     # Verify asset exists
-    asset_result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    asset_result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = asset_result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -207,7 +207,7 @@ async def list_gaps(db: AsyncSession = Depends(get_db)):
     asset_ids = [row[0] for row in result.all()]
 
     assets_result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id.in_(asset_ids))
+        select(Asset).where(Asset.asset_id.in_(asset_ids))
     )
     assets = assets_result.scalars().all()
 

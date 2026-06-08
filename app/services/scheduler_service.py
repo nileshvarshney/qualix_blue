@@ -201,13 +201,13 @@ async def _nightly_column_profile():
     """Re-profile all active assets nightly to keep column stats fresh."""
     import asyncio as _asyncio
     from app.db.database import AsyncSessionLocal
-    from app.db.models import DataAsset
+    from app.db.models import Asset
     from sqlalchemy import select as _select
     from app.api.columns import _run_column_profile
     from app.services import job_tracker
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(_select(DataAsset).where(DataAsset.is_active == True))
+        result = await db.execute(_select(Asset).where(Asset.is_active == True))
         assets = result.scalars().all()
 
     logger.info("Nightly column profiling: scheduling %d assets", len(assets))
@@ -223,12 +223,12 @@ async def _nightly_column_profile():
 async def _nightly_drift_detect():
     """Run schema drift detection for all active assets (04:00 UTC, after column profiling)."""
     from app.db.database import AsyncSessionLocal
-    from app.db.models import DataAsset
+    from app.db.models import Asset
     from sqlalchemy import select as _select
     from app.services.schema_drift_service import detect_drift, initialize_baseline, get_active_baseline
 
     async with AsyncSessionLocal() as db:
-        result = await db.execute(_select(DataAsset).where(DataAsset.is_active == True))
+        result = await db.execute(_select(Asset).where(Asset.is_active == True))
         assets = result.scalars().all()
 
     logger.info("Nightly drift detection: checking %d assets", len(assets))
@@ -380,13 +380,13 @@ async def _bg_predict_all_assets() -> None:
     _log = logging.getLogger("dq_platform.prediction")
     try:
         from app.db.database import AsyncSessionLocal
-        from app.db.models import DataAsset
+        from app.db.models import Asset
         from app.services.ai_service import predict_asset_quality
         from sqlalchemy import select
 
         async with AsyncSessionLocal() as db:
             assets_res = await db.execute(
-                select(DataAsset.asset_id).where(DataAsset.is_active == True).limit(200)
+                select(Asset.asset_id).where(Asset.is_active == True).limit(200)
             )
             asset_ids = assets_res.scalars().all()
 

@@ -8,7 +8,7 @@ from typing import Optional
 import uuid
 
 from app.db.database import get_db
-from app.db.models import AssetUsage, AssetRating, DataAsset, DQQualityScore
+from app.db.models import AssetUsage, AssetRating, Asset, DQQualityScore
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/assets", tags=["Usage & Ratings"])
@@ -191,7 +191,7 @@ async def most_used_assets(
     usage_map = {r.asset_id: r.usage_count for r in rows}
 
     assets_result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id.in_(asset_ids))
+        select(Asset).where(Asset.asset_id.in_(asset_ids))
     )
     assets_by_id = {a.asset_id: a for a in assets_result.scalars().all()}
 
@@ -245,7 +245,7 @@ async def most_trusted_assets(
 
     asset_ids = [s["asset_id"] for s in top10]
     assets_result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id.in_(asset_ids))
+        select(Asset).where(Asset.asset_id.in_(asset_ids))
     )
     assets_by_id = {a.asset_id: a for a in assets_result.scalars().all()}
 

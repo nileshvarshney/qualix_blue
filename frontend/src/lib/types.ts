@@ -144,3 +144,34 @@ export interface AgentMessage {
   timestamp: string
   toolsUsed?: string[]
 }
+
+export type AssetType =
+  | 'source' | 'database' | 'schema' | 'table'
+  | 'column' | 'file' | 'dataset' | 'logical_dataset';
+
+export type AssetStatus = 'active' | 'missing' | 'deprecated' | 'scan_failed' | 'disabled';
+
+export interface Asset {
+  asset_id: string;
+  asset_type: AssetType;
+  physical_name: string | null;
+  display_name: string | null;
+  qualified_name: string | null;
+  path: string | null;
+  status: AssetStatus;
+  parent_asset_id: string | null;
+  connection_id: string | null;
+  owner_user_id: string | null;
+  owner_team_id: string | null;
+  steward_user_id: string | null;
+  domain: string | null;
+  sensitivity: string | null;
+  discovered_at: string | null;
+  last_seen_at: string | null;
+  criticality: string | null;
+  description: string | null;
+}
+
+export interface AssetTreeNode extends Asset {
+  children: AssetTreeNode[];
+}

@@ -77,20 +77,44 @@ export default function SLAsPage() {
       .catch(() => setLoading(false))
   }, [])
 
-  const addSla = () => {
+  const addSla = async () => {
     if (!sForm.name) return
-    const ns: SLA = {
-      id: `s${Date.now()}`, name: sForm.name, dataset: sForm.dataset,
-      type: sForm.type, target: sForm.target, current: 'Pending',
-      adherence: 100, status: 'healthy', owner: sForm.owner || 'Unassigned',
-      connection: sForm.connection, domain: sForm.domain, breaches: 0,
-      trend: [100, 100, 100, 100, 100, 100, 100],
-      rootCause: 'No issues yet — newly created SLA.',
-      impact: 'No impact — monitoring has not started.',
-      recommendation: 'Configure monitoring and set up alerting thresholds.',
-      affectedPipelines: [], nextReview: '',
+    const payload = {
+      contract_name: sForm.name, sla_description: sForm.target,
+      producer_team: sForm.owner || null, status: 'active',
+      asset_id: sForm.dataset || null,
     }
-    setAllSlas(prev => [ns, ...prev])
+    try {
+      const res = await fetch('/api/slas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const created = await res.json()
+      const ns: SLA = {
+        id: String(created.contract_id ?? `s${Date.now()}`), name: sForm.name, dataset: sForm.dataset,
+        type: sForm.type, target: sForm.target, current: 'Pending',
+        adherence: 100, status: 'healthy', owner: sForm.owner || 'Unassigned',
+        connection: sForm.connection, domain: sForm.domain, breaches: 0,
+        trend: [100, 100, 100, 100, 100, 100, 100],
+        rootCause: 'No issues yet — newly created SLA.',
+        impact: 'No impact — monitoring has not started.',
+        recommendation: 'Configure monitoring and set up alerting thresholds.',
+        affectedPipelines: [], nextReview: '',
+      }
+      setAllSlas(prev => [ns, ...prev])
+    } catch {
+      setAllSlas(prev => [{
+        id: `s${Date.now()}`, name: sForm.name, dataset: sForm.dataset,
+        type: sForm.type, target: sForm.target, current: 'Pending',
+        adherence: 100, status: 'healthy', owner: sForm.owner || 'Unassigned',
+        connection: sForm.connection, domain: sForm.domain, breaches: 0,
+        trend: [100, 100, 100, 100, 100, 100, 100],
+        rootCause: 'No issues yet — newly created SLA.',
+        impact: 'No impact — monitoring has not started.',
+        recommendation: 'Configure monitoring and set up alerting thresholds.',
+        affectedPipelines: [], nextReview: '',
+      }, ...prev])
+    }
     setShowAdd(false)
     setSForm({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: '', connection: '' })
   }
@@ -102,7 +126,7 @@ export default function SLAsPage() {
   const filtered = allSlas.filter(s => filter === 'all' || s.status === filter)
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* Top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

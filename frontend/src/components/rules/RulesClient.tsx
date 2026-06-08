@@ -434,7 +434,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   /* ── Render ───────────────────────────────────────────────────── */
 
   return (
-    <div style={{ padding: '16px 24px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>

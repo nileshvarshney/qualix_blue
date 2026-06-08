@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.db.database import get_db
-from app.db.models import RuleTemplate, DQRule, DataAsset
+from app.db.models import RuleTemplate, DQRule, Asset
 from app.core.security import get_current_user
 import uuid
 from datetime import datetime, timezone
@@ -160,10 +160,10 @@ async def recommended_templates(
 ):
     """AI-powered template matching — recommend templates for a given asset (§65.4)."""
     from sqlalchemy import select
-    from app.db.models import DataAsset, ColumnMetadata
+    from app.db.models import Asset, ColumnMetadata
     from app.services.llm_providers import get_provider_from_db
 
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
 
@@ -239,7 +239,7 @@ async def import_template(template_id: str, payload: dict, db: AsyncSession = De
     asset_id = payload.get("asset_id")
     if not asset_id:
         raise HTTPException(400, "asset_id is required")
-    asset = (await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))).scalar_one_or_none()
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
 

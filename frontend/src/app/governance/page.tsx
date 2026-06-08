@@ -72,14 +72,32 @@ export default function GovernancePage() {
       .catch(() => setLoadingPolicies(false))
   }, [])
 
-  const createPolicy = () => {
+  const createPolicy = async () => {
     if (!policyForm.name) return
-    const newPolicy: PolicyItem = {
-      id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description,
-      domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement,
-      rulesCount: 0, lastEval: 'Never', rules: [],
+    try {
+      const res = await fetch('/api/governance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          policy_name: policyForm.name, description: policyForm.description,
+          policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory',
+          severity: 'medium', is_active: policyForm.status === 'active',
+        }),
+      })
+      const created = await res.json()
+      const newPolicy: PolicyItem = {
+        id: String(created.policy_id ?? `p${Date.now()}`), name: policyForm.name,
+        description: policyForm.description, domain: policyForm.domain,
+        status: policyForm.status, enforcement: policyForm.enforcement,
+        rulesCount: 0, lastEval: 'Never', rules: [],
+      }
+      setPolicies(prev => [...prev, newPolicy])
+    } catch {
+      setPolicies(prev => [...prev, {
+        id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description,
+        domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement,
+        rulesCount: 0, lastEval: 'Never', rules: [],
+      }])
     }
-    setPolicies(prev => [...prev, newPolicy])
     setShowCreatePolicy(false)
     setPolicyForm({ name: '', description: '', domain: 'All', enforcement: 'enforced', status: 'draft' })
   }
@@ -103,7 +121,7 @@ export default function GovernancePage() {
   const closePopups = () => { setSelectedDomain(null); setSelectedPolicy(null) }
 
   return (
-    <div style={{ padding: '10px 16px', height: '100vh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+    <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>

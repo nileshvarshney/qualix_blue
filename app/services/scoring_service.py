@@ -46,7 +46,7 @@ async def aggregate_quality_scores(db: AsyncSession, run_date: Optional[date] = 
     Compute and persist aggregated quality scores in dq_quality_scores for today.
     Called after each rule execution batch.
     """
-    from app.db.models import DQRuleRun, DQRule, DataAsset, Domain, Subdomain, DQQualityScore
+    from app.db.models import DQRuleRun, DQRule, Asset, Domain, Subdomain, DQQualityScore
 
     target_date = run_date or datetime.now(timezone.utc).replace(tzinfo=None).date()
 

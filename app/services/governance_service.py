@@ -18,7 +18,7 @@ async def evaluate_policies(db: AsyncSession) -> int:
     Returns total violation count.
     """
     from app.db.models import (
-        GovernancePolicy, PolicyViolation, DataAsset, DQRule,
+        GovernancePolicy, PolicyViolation, Asset, DQRule,
         DataClassification, ColumnMetadata
     )
     import uuid
@@ -29,7 +29,7 @@ async def evaluate_policies(db: AsyncSession) -> int:
     policies = policies_res.scalars().all()
 
     assets_res = await db.execute(
-        select(DataAsset).where(DataAsset.is_active == True)
+        select(Asset).where(Asset.is_active == True)
     )
     assets = assets_res.scalars().all()
 
@@ -111,12 +111,12 @@ async def evaluate_policies(db: AsyncSession) -> int:
 
 async def compute_domain_scorecard(domain_id: str, db: AsyncSession) -> dict:
     """Compute the 6-dimension governance scorecard for a domain (0-100 each)."""
-    from app.db.models import DataAsset, DQRule, DataClassification, DQQualityScore
+    from app.db.models import Asset, DQRule, DataClassification, DQQualityScore
     from sqlalchemy import func as sqlfunc
     from datetime import date, timedelta
 
     assets_res = await db.execute(
-        select(DataAsset).where(DataAsset.domain_id == domain_id, DataAsset.is_active == True)
+        select(Asset).where(Asset.domain_id == domain_id, Asset.is_active == True)
     )
     assets = assets_res.scalars().all()
     total = len(assets)

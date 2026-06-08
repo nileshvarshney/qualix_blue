@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import DQSchedule, DQRule, Domain, Subdomain, DataAsset
+from app.db.models import DQSchedule, DQRule, Domain, Subdomain, Asset
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 from app.services.scheduler_service import (
     register_schedule, remove_schedule, get_next_run, list_jobs,
@@ -221,7 +221,7 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
                 subdomain_name = subdom.subdomain_name
 
         if s.asset_id:
-            a = await db.execute(select(DataAsset).where(DataAsset.asset_id == s.asset_id))
+            a = await db.execute(select(Asset).where(Asset.asset_id == s.asset_id))
             asset = a.scalar_one_or_none()
             if asset:
                 asset_name = asset.sf_table_name

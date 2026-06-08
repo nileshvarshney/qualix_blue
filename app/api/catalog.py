@@ -12,7 +12,7 @@ from sqlalchemy import select, func, text, desc
 
 from app.db.database import get_db
 from app.db.models import (
-    DataAsset, GlossaryTerm, DataProduct, AssetUsage,
+    Asset, GlossaryTerm, DataProduct, AssetUsage,
     DQQualityScore, DataClassification, GlossaryTermAsset,
     Domain, AssetTag, Tag, SavedSearch,
 )
@@ -51,24 +51,24 @@ async def _search_via_ilike(
     pattern = f"%{q}%" if q else "%"
 
     if not effective_type or effective_type == "asset":
-        q_stmt = select(DataAsset)
+        q_stmt = select(Asset)
         if q:
             q_stmt = q_stmt.where(
-                DataAsset.sf_table_name.ilike(pattern)
-                | DataAsset.table_description.ilike(pattern)
-                | DataAsset.owner_name.ilike(pattern)
+                Asset.sf_table_name.ilike(pattern)
+                | Asset.table_description.ilike(pattern)
+                | Asset.owner_name.ilike(pattern)
             )
         if domain_id:
-            q_stmt = q_stmt.where(DataAsset.domain_id == domain_id)
+            q_stmt = q_stmt.where(Asset.domain_id == domain_id)
         if certification:
-            q_stmt = q_stmt.where(DataAsset.certification_status == certification)
+            q_stmt = q_stmt.where(Asset.certification_status == certification)
         if owner:
             q_stmt = q_stmt.where(
-                DataAsset.owner_name.ilike(f"%{owner}%")
-                | DataAsset.owner_email.ilike(f"%{owner}%")
+                Asset.owner_name.ilike(f"%{owner}%")
+                | Asset.owner_email.ilike(f"%{owner}%")
             )
         if restrict_asset_ids is not None:
-            q_stmt = q_stmt.where(DataAsset.asset_id.in_(restrict_asset_ids))
+            q_stmt = q_stmt.where(Asset.asset_id.in_(restrict_asset_ids))
         for a in (await db.execute(q_stmt)).scalars().all():
             results.append({
                 "entity_type": "asset", "id": a.asset_id,
@@ -217,9 +217,9 @@ async def catalog_facets(
 
     async def _domain_counts():
         stmt = (
-            select(Domain.domain_id, Domain.domain_name, func.count(DataAsset.asset_id).label("cnt"))
-            .join(DataAsset, DataAsset.domain_id == Domain.domain_id)
-            .where(DataAsset.is_active == True)  # noqa: E712
+            select(Domain.domain_id, Domain.domain_name, func.count(Asset.asset_id).label("cnt"))
+            .join(Asset, Asset.domain_id == Domain.domain_id)
+            .where(Asset.is_active == True)  # noqa: E712
             .group_by(Domain.domain_id, Domain.domain_name)
             .order_by(desc("cnt"))
         )
@@ -237,12 +237,12 @@ async def catalog_facets(
 
     async def _certification_counts():
         stmt = (
-            select(DataAsset.certification_status, func.count().label("cnt"))
+            select(Asset.certification_status, func.count().label("cnt"))
             .where(
-                DataAsset.is_active == True,  # noqa: E712
-                DataAsset.certification_status.isnot(None),
+                Asset.is_active == True,  # noqa: E712
+                Asset.certification_status.isnot(None),
             )
-            .group_by(DataAsset.certification_status)
+            .group_by(Asset.certification_status)
             .order_by(desc("cnt"))
         )
         res = await db.execute(stmt)
@@ -279,9 +279,9 @@ async def catalog_asset_detail(
 ):
     """Enriched single-asset detail for catalog view."""
     asset_result = await db.execute(
-        select(DataAsset, Domain.domain_name)
-        .join(Domain, DataAsset.domain_id == Domain.domain_id)
-        .where(DataAsset.asset_id == asset_id)
+        select(Asset, Domain.domain_name)
+        .join(Domain, Asset.domain_id == Domain.domain_id)
+        .where(Asset.asset_id == asset_id)
     )
     row = asset_result.first()
     if not row:
@@ -402,18 +402,18 @@ async def catalog_popular(
 
     if asset_ids:
         assets = (await db.execute(
-            select(DataAsset).where(DataAsset.asset_id.in_(asset_ids))
+            select(Asset).where(Asset.asset_id.in_(asset_ids))
         )).scalars().all()
     else:
         # No usage data yet — show recently updated certified assets first,
         # then fall back to assets with descriptions, capped at 6.
         assets = (await db.execute(
-            select(DataAsset)
-            .where(DataAsset.is_active == True)  # noqa: E712
+            select(Asset)
+            .where(Asset.is_active == True)  # noqa: E712
             .order_by(
-                DataAsset.certification_status.isnot(None).desc(),
-                DataAsset.table_description.isnot(None).desc(),
-                desc(DataAsset.updated_at),
+                Asset.certification_status.isnot(None).desc(),
+                Asset.table_description.isnot(None).desc(),
+                desc(Asset.updated_at),
             )
             .limit(6)
         )).scalars().all()
@@ -437,7 +437,7 @@ async def catalog_recent(
     user: dict = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(DataAsset).order_by(desc(DataAsset.updated_at)).limit(10)
+        select(Asset).order_by(desc(Asset.updated_at)).limit(10)
     )
     return [
         {
@@ -459,9 +459,9 @@ async def catalog_domain_assets(
     user: dict = Depends(get_current_user),
 ):
     assets = (await db.execute(
-        select(DataAsset)
-        .where(DataAsset.domain_id == domain_id, DataAsset.is_active == True)  # noqa: E712
-        .order_by(DataAsset.sf_table_name)
+        select(Asset)
+        .where(Asset.domain_id == domain_id, Asset.is_active == True)  # noqa: E712
+        .order_by(Asset.sf_table_name)
     )).scalars().all()
     if not assets:
         return []

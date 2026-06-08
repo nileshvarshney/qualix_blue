@@ -4,7 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import DataAsset, Domain, Subdomain, AuditLog, SnowflakeConnection
+from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnection
 from app.schemas.asset import DataAssetCreate, DataAssetUpdate, DataAssetResponse, DataAssetCertifyRequest, AssetStatusUpdate, DiscoveryRequest, AssetTreeNode
 from app.core.security import get_current_user, get_domain_filter
 import uuid
@@ -27,16 +27,16 @@ async def list_assets_enriched(
 ):
     """Returns assets joined with domain, subdomain, and connection names."""
     effective_domain = get_domain_filter(user) or domain_id
-    q = select(DataAsset, Domain, Subdomain).join(
-        Domain, DataAsset.domain_id == Domain.domain_id
+    q = select(Asset, Domain, Subdomain).join(
+        Domain, Asset.domain_id == Domain.domain_id
     ).join(
-        Subdomain, DataAsset.subdomain_id == Subdomain.subdomain_id
+        Subdomain, Asset.subdomain_id == Subdomain.subdomain_id
     )
     if effective_domain:
-        q = q.where(DataAsset.domain_id == effective_domain)
+        q = q.where(Asset.domain_id == effective_domain)
     if subdomain_id:
-        q = q.where(DataAsset.subdomain_id == subdomain_id)
-    result = await db.execute(q.order_by(DataAsset.sf_table_name))
+        q = q.where(Asset.subdomain_id == subdomain_id)
+    result = await db.execute(q.order_by(Asset.sf_table_name))
     rows = result.all()
 
     # Bulk-fetch connection names for assets that have one
@@ -80,7 +80,7 @@ async def list_assets_enriched(
 
 @router.post("", response_model=DataAssetResponse)
 async def create_asset(payload: DataAssetCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    asset = DataAsset(asset_id=str(uuid.uuid4()), **payload.model_dump())
+    asset = Asset(asset_id=str(uuid.uuid4()), **payload.model_dump())
     db.add(asset)
     db.add(AuditLog(audit_id=str(uuid.uuid4()), user_email=user.get("email"), action="CREATE",
                     entity_type="asset", entity_id=asset.asset_id, new_value=payload.model_dump()))
@@ -109,16 +109,16 @@ async def list_assets(
     db: AsyncSession = Depends(get_db)
 ):
     from sqlalchemy import func as sqlfunc
-    q = select(DataAsset)
+    q = select(Asset)
     if domain_id:
-        q = q.where(DataAsset.domain_id == domain_id)
+        q = q.where(Asset.domain_id == domain_id)
     if subdomain_id:
-        q = q.where(DataAsset.subdomain_id == subdomain_id)
+        q = q.where(Asset.subdomain_id == subdomain_id)
     if is_active is not None:
-        q = q.where(DataAsset.is_active == is_active)
+        q = q.where(Asset.is_active == is_active)
     total = (await db.execute(select(sqlfunc.count()).select_from(q.subquery()))).scalar() or 0
     result = await db.execute(
-        q.order_by(DataAsset.sf_database_name, DataAsset.sf_schema_name, DataAsset.sf_table_name)
+        q.order_by(Asset.sf_database_name, Asset.sf_schema_name, Asset.sf_table_name)
         .limit(limit).offset(offset)
     )
     assets = result.scalars().all()
@@ -157,19 +157,19 @@ async def search_assets(
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import or_
-    query = select(DataAsset)
+    query = select(Asset)
     if q:
         query = query.where(
             or_(
-                DataAsset.physical_name.ilike(f"%{q}%"),
-                DataAsset.display_name.ilike(f"%{q}%"),
-                DataAsset.qualified_name.ilike(f"%{q}%"),
+                Asset.physical_name.ilike(f"%{q}%"),
+                Asset.display_name.ilike(f"%{q}%"),
+                Asset.qualified_name.ilike(f"%{q}%"),
             )
         )
     if asset_type:
-        query = query.where(DataAsset.asset_type == asset_type)
+        query = query.where(Asset.asset_type == asset_type)
     if status:
-        query = query.where(DataAsset.status == status)
+        query = query.where(Asset.status == status)
     query = query.limit(limit)
     result = await db.execute(query)
     assets = result.scalars().all()
@@ -182,9 +182,9 @@ async def get_asset_tree(
     depth: int = 3,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(DataAsset).where(DataAsset.parent_asset_id == None)
+    query = select(Asset).where(Asset.parent_asset_id == None)
     if source_id:
-        query = query.where(DataAsset.connection_id == source_id)
+        query = query.where(Asset.connection_id == source_id)
     result = await db.execute(query)
     roots = result.scalars().all()
 
@@ -192,7 +192,7 @@ async def get_asset_tree(
         children_nodes = []
         if remaining_depth > 0:
             child_result = await db.execute(
-                select(DataAsset).where(DataAsset.parent_asset_id == asset.asset_id)
+                select(Asset).where(Asset.parent_asset_id == asset.asset_id)
             )
             children = child_result.scalars().all()
             children_nodes = [await build_tree(c, remaining_depth - 1) for c in children]
@@ -211,7 +211,7 @@ async def get_asset_tree(
 
 @router.get("/{asset_id}", response_model=DataAssetResponse)
 async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -224,7 +224,7 @@ async def get_asset_children(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(DataAsset).where(DataAsset.parent_asset_id == asset_id)
+        select(Asset).where(Asset.parent_asset_id == asset_id)
     )
     children = result.scalars().all()
     return [DataAssetResponse.model_validate(c) for c in children]
@@ -241,7 +241,7 @@ async def get_asset_ancestors(
     while current_id and current_id not in visited:
         visited.add(current_id)
         result = await db.execute(
-            select(DataAsset).where(DataAsset.asset_id == current_id)
+            select(Asset).where(Asset.asset_id == current_id)
         )
         asset = result.scalar_one_or_none()
         if not asset:
@@ -260,7 +260,7 @@ async def update_asset_status(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id == asset_id)
+        select(Asset).where(Asset.asset_id == asset_id)
     )
     asset = result.scalar_one_or_none()
     if not asset:
@@ -273,7 +273,7 @@ async def update_asset_status(
 
 @router.put("/{asset_id}", response_model=DataAssetResponse)
 async def update_asset(asset_id: str, payload: DataAssetUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -287,7 +287,7 @@ async def update_asset(asset_id: str, payload: DataAssetUpdate, db: AsyncSession
 
 @router.delete("/{asset_id}")
 async def delete_asset(asset_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -304,7 +304,7 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
     from app.db.models import ColumnMetadata, DataClassification
     import json as _json
 
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -458,7 +458,7 @@ async def refresh_asset_stats(asset_id: str, db: AsyncSession = Depends(get_db))
     import asyncio as _asyncio
     from app.services.discovery_service import _browse_tables_sync, _validate_ident
 
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
@@ -508,7 +508,7 @@ async def certify_asset(
     user=Depends(get_current_user),
 ):
     """Set the certification status of a table asset."""
-    result = await db.execute(select(DataAsset).where(DataAsset.asset_id == asset_id))
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")

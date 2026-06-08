@@ -4,7 +4,7 @@ from __future__ import annotations
 Auto Data Discovery background service.
 
 Scans selected Snowflake databases/schemas, deduplicates against existing
-DataAsset records, classifies each new table using the LLM, creates the
+Asset records, classifies each new table using the LLM, creates the
 asset, and triggers column profiling — all in a single background job.
 """
 import asyncio
@@ -17,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal
-from app.db.models import AuditLog, DataAsset, Domain, DQRule, Subdomain, SnowflakeConnection
+from app.db.models import AuditLog, Asset, Domain, DQRule, Subdomain, SnowflakeConnection
 from app.services import job_tracker
 from app.services.ai_service import classify_table
 from app.services.asset_registry import stable_asset_id
@@ -94,12 +94,12 @@ async def _get_existing_table_names(db, connection_id: str, database: str, schem
     if not table_names:
         return set()
     result = await db.execute(
-        select(DataAsset.sf_table_name).where(
-            DataAsset.connection_id == connection_id,
-            DataAsset.sf_database_name == database,
-            DataAsset.sf_schema_name == schema,
-            DataAsset.sf_table_name.in_(table_names),
-            DataAsset.is_active == True,
+        select(Asset.sf_table_name).where(
+            Asset.connection_id == connection_id,
+            Asset.sf_database_name == database,
+            Asset.sf_schema_name == schema,
+            Asset.sf_table_name.in_(table_names),
+            Asset.is_active == True,
         )
     )
     return {row[0] for row in result}
@@ -142,15 +142,15 @@ async def upsert_source_asset(
 ) -> str:
     """Ensure a source-type asset exists for this connection; return its asset_id."""
     from sqlalchemy import select
-    from app.db.models import DataAsset
+    from app.db.models import Asset
     src_id = stable_asset_id(f"source:{connection_id}")
     result = await db.execute(
-        select(DataAsset).where(DataAsset.asset_id == src_id)
+        select(Asset).where(Asset.asset_id == src_id)
     )
     asset = result.scalar_one_or_none()
     now = datetime.now(timezone.utc)
     if asset is None:
-        asset = DataAsset(
+        asset = Asset(
             asset_id=src_id,
             asset_type="source",
             physical_name=connection_id,
@@ -177,12 +177,12 @@ async def mark_missing_assets(
 ) -> None:
     """Mark assets for this connection that weren't in this scan as missing."""
     from sqlalchemy import select
-    from app.db.models import DataAsset
+    from app.db.models import Asset
     result = await db.execute(
-        select(DataAsset).where(
-            DataAsset.connection_id == connection_id,
-            DataAsset.status == "active",
-            DataAsset.asset_type == "table",
+        select(Asset).where(
+            Asset.connection_id == connection_id,
+            Asset.status == "active",
+            Asset.asset_type == "table",
         )
     )
     assets = result.scalars().all()
@@ -200,9 +200,9 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
     For each (database, schema) selection:
       1. Browse Snowflake tables
-      2. Dedup against existing DataAsset records for this connection
+      2. Dedup against existing Asset records for this connection
       3. For new tables: fetch columns, classify via LLM, resolve domain/subdomain
-      4. Create DataAsset + AuditLog, trigger column profiling
+      4. Create Asset + AuditLog, trigger column profiling
     """
     job_tracker.mark_running(job_id)
 
@@ -309,12 +309,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             from sqlalchemy import func as _func
 
                             existing_asset_res = await db.execute(
-                                select(DataAsset).where(
-                                    DataAsset.connection_id == payload["connection_id"],
-                                    DataAsset.sf_database_name == database,
-                                    DataAsset.sf_schema_name == schema,
-                                    DataAsset.sf_table_name == tname,
-                                    DataAsset.is_active == True,
+                                select(Asset).where(
+                                    Asset.connection_id == payload["connection_id"],
+                                    Asset.sf_database_name == database,
+                                    Asset.sf_schema_name == schema,
+                                    Asset.sf_table_name == tname,
+                                    Asset.is_active == True,
                                 )
                             )
                             existing_asset = existing_asset_res.scalar_one_or_none()
@@ -385,7 +385,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             classification, domain_map, sub_map, fallback_domain, fallback_sub_id
                         )
 
-                        asset = DataAsset(
+                        asset = Asset(
                             asset_id=str(uuid.uuid4()),
                             connection_id=payload["connection_id"],
                             sf_database_name=database,

@@ -10,7 +10,7 @@ from sqlalchemy import select, func, and_
 
 from app.db.database import get_db
 from app.db.models import (
-    DataAsset, ColumnMetadata, ColumnProfileHistory,
+    Asset, ColumnMetadata, ColumnProfileHistory,
     DataClassification, GlossaryTerm, GlossaryTermAsset,
     SnowflakeConnection,
 )
@@ -41,8 +41,8 @@ def extract_table_refs(view_sql: str) -> list[str]:
     return list(refs)
 
 
-async def _enrich(asset: DataAsset, db: AsyncSession) -> dict:
-    """Build the serialisable node dict for one DataAsset."""
+async def _enrich(asset: Asset, db: AsyncSession) -> dict:
+    """Build the serialisable node dict for one Asset."""
     col_result = await db.execute(
         select(func.count()).select_from(ColumnMetadata).where(
             ColumnMetadata.asset_id == asset.asset_id
@@ -88,7 +88,7 @@ async def _enrich(asset: DataAsset, db: AsyncSession) -> dict:
     }
 
 
-def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: DataAsset) -> Optional[str]:
+def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: Asset) -> Optional[str]:
     """Synchronous Snowflake call — run via asyncio.to_thread."""
     try:
         from app.api.connections import _open_connector
@@ -113,7 +113,7 @@ async def get_lineage(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    asset = await db.get(DataAsset, asset_id)
+    asset = await db.get(Asset, asset_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="Asset not found")
 
@@ -130,30 +130,30 @@ async def get_lineage(
                 await db.commit()
 
     # ── Upstream ──────────────────────────────────────────────────────────────
-    upstream_assets: list[DataAsset] = []
+    upstream_assets: list[Asset] = []
     if asset.view_definition and asset.connection_id:
         refs = extract_table_refs(asset.view_definition)
         if refs:
             result = await db.execute(
-                select(DataAsset).where(
+                select(Asset).where(
                     and_(
-                        func.upper(DataAsset.sf_table_name).in_(refs),
-                        DataAsset.connection_id == asset.connection_id,
-                        DataAsset.asset_id != asset_id,
+                        func.upper(Asset.sf_table_name).in_(refs),
+                        Asset.connection_id == asset.connection_id,
+                        Asset.asset_id != asset_id,
                     )
                 )
             )
             upstream_assets = list(result.scalars().all())
 
     # ── Downstream ────────────────────────────────────────────────────────────
-    downstream_assets: list[DataAsset] = []
+    downstream_assets: list[Asset] = []
     if asset.connection_id:
         candidate_result = await db.execute(
-            select(DataAsset).where(
+            select(Asset).where(
                 and_(
-                    DataAsset.view_definition.ilike(f"%{asset.sf_table_name}%"),
-                    DataAsset.connection_id == asset.connection_id,
-                    DataAsset.asset_id != asset_id,
+                    Asset.view_definition.ilike(f"%{asset.sf_table_name}%"),
+                    Asset.connection_id == asset.connection_id,
+                    Asset.asset_id != asset_id,
                 )
             )
         )
