@@ -176,17 +176,37 @@ async def mark_missing_assets(
     connection_id: str,
     scanned_asset_ids: set[str],
     db: AsyncSession,
+    scanned_databases: set[str] | None = None,
 ) -> None:
-    """Mark assets for this connection that weren't in this scan as missing."""
+    """Mark table assets as missing only within the databases that were actually scanned.
+
+    Assets in databases not included in this run are left untouched — a partial
+    scan (e.g. only DEMO_DB selected) must not flip other databases to 'missing'.
+    """
     from sqlalchemy import select
-    from app.db.models import Asset
-    result = await db.execute(
-        select(Asset).where(
-            Asset.connection_id == connection_id,
-            Asset.status == "active",
-            Asset.asset_type == "table",
+    from app.db.models import Asset, AssetSourceMeta
+
+    # Build query scoped to the scanned databases when provided
+    if scanned_databases:
+        result = await db.execute(
+            select(Asset)
+            .join(AssetSourceMeta, AssetSourceMeta.asset_id == Asset.asset_id, isouter=True)
+            .where(
+                Asset.connection_id == connection_id,
+                Asset.status == "active",
+                Asset.asset_type == "table",
+                AssetSourceMeta.sf_database_name.in_(scanned_databases),
+            )
         )
-    )
+    else:
+        result = await db.execute(
+            select(Asset).where(
+                Asset.connection_id == connection_id,
+                Asset.status == "active",
+                Asset.asset_type == "table",
+            )
+        )
+
     assets = result.scalars().all()
     now = datetime.now(timezone.utc)
     for asset in assets:
@@ -264,12 +284,14 @@ async def run_discovery(job_id: str, payload: dict) -> None:
             await upsert_source_asset(payload["connection_id"], conn.connection_name, db)
 
             scanned_ids: set[str] = set()
+            scanned_databases: set[str] = set()
             total_selections = len(payload.get("selections", []))
             all_failed = True
 
             for sel in payload.get("selections", []):
                 database = sel["database"]
                 schema = sel["schema"]
+                scanned_databases.add(database)
 
                 if filter_mode == "include":
                     # Skip if database not in the include list (when a list is configured)
@@ -404,6 +426,11 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
                             if existing_asset:
                                 scanned_ids.add(existing_asset.asset_id)
+                                # Restore previously-missing assets back to active
+                                if existing_asset.status == "missing":
+                                    existing_asset.status = "active"
+                                    existing_asset.last_seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                                    await db.commit()
                                 rule_count_res = await db.execute(
                                     select(_func.count()).select_from(DQRule).where(
                                         DQRule.asset_id == existing_asset.asset_id
@@ -585,7 +612,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             success=False,
                         )
 
-            await mark_missing_assets(payload["connection_id"], scanned_ids, db)
+            await mark_missing_assets(payload["connection_id"], scanned_ids, db, scanned_databases)
 
         if all_failed and total_selections > 0:
             job_tracker.mark_failed(job_id, "All database/schema selections failed")

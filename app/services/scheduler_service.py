@@ -360,6 +360,113 @@ async def load_all_schedules(db):
     logger.info(f"Loaded {loaded} schedule(s) from database into APScheduler")
 
 
+async def _nightly_auto_discovery() -> None:
+    """Nightly job: run asset discovery for every active Snowflake connection."""
+    import asyncio as _asyncio
+    from app.db.database import AsyncSessionLocal
+    from app.db.models import SnowflakeConnection
+    from sqlalchemy import select
+    from app.api.connections import _open_connector
+    from app.services.discovery_service import run_discovery
+    from app.services import job_tracker
+
+    logger.info("Nightly auto-discovery: starting")
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(SnowflakeConnection).where(SnowflakeConnection.is_active == True)
+        )
+        connections = result.scalars().all()
+
+    logger.info("Nightly auto-discovery: %d active connection(s)", len(connections))
+
+    for conn in connections:
+        try:
+            filter_mode = conn.filter_mode or "exclude"
+            excluded_db_set = set(conn.excluded_databases or [])
+            excluded_schema_set = {
+                (e["database"], e["schema"])
+                for e in (conn.excluded_schemas or [])
+            }
+            included_db_set = set(conn.included_databases or [])
+            included_schema_set = {
+                (e["database"], e["schema"])
+                for e in (conn.included_schemas or [])
+            }
+
+            def _browse_all_sync(
+                _conn=conn,
+                _filter_mode=filter_mode,
+                _excluded_db_set=excluded_db_set,
+                _excluded_schema_set=excluded_schema_set,
+                _included_db_set=included_db_set,
+                _included_schema_set=included_schema_set,
+            ):
+                sf = _open_connector(_conn)
+                selections = []
+                try:
+                    cur = sf.cursor()
+                    try:
+                        cur.execute("SHOW DATABASES")
+                        col_names = [d[0].lower() for d in cur.description]
+                        dbs = [dict(zip(col_names, r)) for r in cur.fetchall()]
+                        for db_info in dbs:
+                            db_name = db_info.get("name", "")
+                            if not db_name or db_name.upper() in ("SNOWFLAKE", "SNOWFLAKE_SAMPLE_DATA"):
+                                continue
+                            if _filter_mode == "include" and _included_db_set and db_name not in _included_db_set:
+                                continue
+                            if _filter_mode == "exclude" and db_name in _excluded_db_set:
+                                continue
+                            try:
+                                cur.execute(f'SHOW SCHEMAS IN DATABASE "{db_name}"')
+                                s_col_names = [d[0].lower() for d in cur.description]
+                                for s in [dict(zip(s_col_names, r)) for r in cur.fetchall()]:
+                                    schema_name = s.get("name", "")
+                                    if not schema_name or schema_name.upper() == "INFORMATION_SCHEMA":
+                                        continue
+                                    if _filter_mode == "include" and _included_schema_set and (db_name, schema_name) not in _included_schema_set:
+                                        continue
+                                    if _filter_mode == "exclude" and (db_name, schema_name) in _excluded_schema_set:
+                                        continue
+                                    selections.append({"database": db_name, "schema": schema_name})
+                            except Exception as schema_err:
+                                logger.warning(
+                                    "Auto-discovery: failed to list schemas for %s: %s", db_name, schema_err
+                                )
+                    finally:
+                        cur.close()
+                finally:
+                    sf.close()
+                return selections
+
+            selections = await _asyncio.to_thread(_browse_all_sync)
+
+            if not selections:
+                logger.info("Auto-discovery: no selections for connection %s", conn.connection_id)
+                continue
+
+            job_id = job_tracker.create_job(
+                job_type="discovery",
+                total=len(selections),
+                meta={"connection_id": conn.connection_id, "trigger": "nightly_auto_discovery"},
+            )
+            _asyncio.create_task(run_discovery(job_id, {
+                "connection_id": conn.connection_id,
+                "selections": selections,
+                "triggered_by": "nightly_auto_discovery",
+            }))
+            logger.info(
+                "Auto-discovery: job %s queued for connection %s (%d selections)",
+                job_id, conn.connection_id, len(selections),
+            )
+
+        except Exception as e:
+            logger.error("Auto-discovery failed for connection %s: %s", conn.connection_id, e)
+
+    logger.info("Nightly auto-discovery: all jobs queued")
+
+
 async def _refresh_catalog_index() -> None:
     """Nightly job: refresh catalog_search_index materialized view."""
     import logging
@@ -574,6 +681,12 @@ def start_scheduler():
             id="nightly_quality_prediction",
             replace_existing=True,
             misfire_grace_time=3600,
+        )
+        scheduler.add_job(
+            _nightly_auto_discovery,
+            trigger=CronTrigger(hour=1, minute=0, timezone=settings.default_timezone),
+            id="nightly_auto_discovery",
+            replace_existing=True,
         )
 
 
