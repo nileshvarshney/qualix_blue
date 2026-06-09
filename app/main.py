@@ -27,6 +27,8 @@ from app.api import (
     governance, contracts, compliance, cost, incidents,
     anomaly, marketplace, mesh, observability, cicd,
     privacy, admin,
+    # Metadata store
+    metadata,
 )
 from app.api.users import router as users_router
 from app.api.oauth import router as oauth_router
@@ -195,6 +197,7 @@ app.include_router(observability.router)
 app.include_router(cicd.router)
 app.include_router(privacy.router)
 app.include_router(admin.router)
+app.include_router(metadata.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 
