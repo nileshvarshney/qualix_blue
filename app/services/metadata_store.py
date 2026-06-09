@@ -28,13 +28,13 @@ def _now() -> datetime:
 
 
 async def _scalar(result) -> object:
-    """Compat helper: handle both real SQLAlchemy (sync) and AsyncMock (awaitable) returns."""
+    """Return scalar from a SQLAlchemy result, awaiting if running under AsyncMock in tests."""
     raw = result.scalar_one_or_none()
     return await raw if inspect.isawaitable(raw) else raw
 
 
 async def _scalars_all(result) -> list:
-    """Compat helper for result.scalars().all() where scalars() may be a coroutine."""
+    """Return all scalars, handling async attribute access in AsyncMock test contexts."""
     scalars = result.scalars()
     if inspect.isawaitable(scalars):
         scalars = await scalars
@@ -247,9 +247,11 @@ async def increment_rule_count(
     """Maintain attached_rule_count (+1 on rule create, -1 on rule delete). Never goes below 0."""
     asset_res = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = await _scalar(asset_res)
-    if asset:
-        asset.attached_rule_count = max(0, (asset.attached_rule_count or 0) + delta)
-        await db.commit()
+    if not asset:
+        logger.warning("increment_rule_count: asset '%s' not found", asset_id)
+        return
+    asset.attached_rule_count = max(0, (asset.attached_rule_count or 0) + delta)
+    await db.commit()
 
 
 async def get_current_state(
