@@ -64,11 +64,11 @@ class _DynamicExecutor:
         self._database = database_override or conn.default_database or None
 
     def _build_connect_kwargs(self) -> dict:
-        from app.core.encryption import decrypt
+        from app.api.connections import _decrypt_password
         kwargs: dict = dict(
             account=self._conn.account,
             user=self._conn.sf_user,
-            password=decrypt(self._conn.password) or "",
+            password=_decrypt_password(self._conn),
             warehouse=self._conn.warehouse,
         )
         if self._conn.role:

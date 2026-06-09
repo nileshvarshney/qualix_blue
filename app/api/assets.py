@@ -550,6 +550,7 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
     try:
         import re, snowflake.connector
         from app.core.encryption import decrypt
+        from app.api.connections import _decrypt_password
         _ident = re.compile(r'^[A-Za-z0-9_$]+$')
         schema_safe = asset.sf_schema_name if _ident.match(asset.sf_schema_name or "") else ""
         table_safe  = asset.sf_table_name  if _ident.match(asset.sf_table_name  or "") else ""
@@ -557,7 +558,7 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
             return {**base, "columns": [], "error": "Invalid schema or table name"}
 
         kwargs: dict = dict(account=conn.account, user=conn.sf_user,
-                            password=decrypt(conn.password) or "", warehouse=conn.warehouse)
+                            password=_decrypt_password(conn), warehouse=conn.warehouse)
         if conn.role:
             kwargs["role"] = conn.role
         database = asset.sf_database_name or conn.default_database

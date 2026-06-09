@@ -142,12 +142,24 @@ def _mask(conn: SnowflakeConnection) -> dict:
     }
 
 
+def _decrypt_password(conn: SnowflakeConnection) -> str:
+    """Decrypt conn.password and raise a clear error if the key is missing/changed."""
+    plain = decrypt(conn.password)
+    if plain is None and conn.password:
+        raise RuntimeError(
+            f"Cannot decrypt password for connection '{conn.connection_name}'. "
+            "ENCRYPTION_KEY may be missing or changed since the password was saved. "
+            "Re-enter the password in Settings → Connections."
+        )
+    return plain or ""
+
+
 def _open_connector(conn: SnowflakeConnection):
     import snowflake.connector
     kwargs = dict(
         account=conn.account,
         user=conn.sf_user,
-        password=decrypt(conn.password) or "",
+        password=_decrypt_password(conn),
         warehouse=conn.warehouse,
     )
     if conn.role:
@@ -575,7 +587,7 @@ async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)
         p = _Payload()
         p.account = conn.account
         p.sf_user = conn.sf_user
-        p.password = decrypt(conn.password) or ""
+        p.password = _decrypt_password(conn)
         p.warehouse = conn.warehouse
         p.role = conn.role
         p.default_database = conn.default_database
