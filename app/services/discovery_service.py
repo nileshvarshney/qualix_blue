@@ -22,6 +22,13 @@ from app.services import job_tracker
 from app.services.ai_service import classify_table
 from app.services.asset_registry import stable_asset_id
 
+import time
+
+from app.services import metadata_store as _meta_store
+from app.schemas.metadata import ColumnMetaIn as _ColumnMetaIn
+
+SCANNER_VERSION = "1.0.0"
+
 logger = logging.getLogger("dq_platform.discovery")
 
 _IDENT_RE = re.compile(r"^[A-Za-z0-9_$]+$")
@@ -451,6 +458,25 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         logger.exception(
                                             "Phase 1 backfill failed for %s: %s", tname, backfill_err
                                         )
+                                _existing_scan_start = time.monotonic()
+                                _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
+                                try:
+                                    await _meta_store.record_scan_result(
+                                        db, existing_asset.asset_id,
+                                        scan_status="success",
+                                        scan_version=SCANNER_VERSION,
+                                        scan_duration_ms=_elapsed_existing,
+                                        row_count=table.get("row_count"),
+                                        bytes=table.get("bytes"),
+                                        last_modified_at=table.get("last_altered"),
+                                        column_count=0,
+                                        schema_hash="",
+                                    )
+                                except Exception as _meta_err:
+                                    logger.warning(
+                                        "metadata_store.record_scan_result failed for existing asset %s: %s",
+                                        existing_asset.asset_id, _meta_err,
+                                    )
                         except Exception as skip_check_err:
                             logger.exception(
                                 "Error during rule check for skipped table %s: %s", tname, skip_check_err
@@ -470,6 +496,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         continue
 
                     try:
+                        _table_scan_start = time.monotonic()
                         table_safe = _validate_ident(tname, "table")
 
                         # Fetch column metadata for LLM classification
@@ -550,6 +577,36 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             )
                         )
                         await db.commit()
+
+                        # --- Metadata store: record column schema + operational snapshot ---
+                        _col_models = [
+                            _ColumnMetaIn(
+                                column_name=c["column_name"],
+                                data_type=c.get("data_type"),
+                                is_nullable=(
+                                    c.get("is_nullable") != "NO"
+                                    if isinstance(c.get("is_nullable"), str)
+                                    else c.get("is_nullable")
+                                ),
+                                ordinal_position=c.get("ordinal_position"),
+                                description=c.get("comment") or None,
+                            )
+                            for c in columns
+                        ]
+                        await _meta_store.upsert_column_metadata(db, asset_id_new, _col_models)
+                        _schema_hash = _meta_store.compute_schema_hash(_col_models)
+                        _elapsed_ms = int((time.monotonic() - _table_scan_start) * 1000)
+                        await _meta_store.record_scan_result(
+                            db, asset_id_new,
+                            scan_status="success",
+                            scan_version=SCANNER_VERSION,
+                            scan_duration_ms=_elapsed_ms,
+                            row_count=table.get("row_count"),
+                            bytes=table.get("bytes"),
+                            last_modified_at=table.get("last_altered"),
+                            column_count=len(columns),
+                            schema_hash=_schema_hash,
+                        )
 
                         # Auto-create Phase 1 data quality rules
                         try:

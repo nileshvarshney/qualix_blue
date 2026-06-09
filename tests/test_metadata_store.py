@@ -363,3 +363,20 @@ async def test_get_column_state_returns_ordered_columns():
     result = await get_column_state(db, "asset-1")
 
     assert result == [col1, col2]
+
+
+def test_metadata_store_module_exports_all_public_functions():
+    import app.services.metadata_store as ms
+    for fn in [
+        "compute_schema_hash",
+        "upsert_column_metadata",
+        "record_scan_result",
+        "update_quality_placeholders",
+        "set_critical_data_element",
+        "increment_rule_count",
+        "get_current_state",
+        "get_snapshot_history",
+        "get_column_state",
+        "SCANNER_VERSION",
+    ]:
+        assert hasattr(ms, fn), f"Missing: {fn}"
