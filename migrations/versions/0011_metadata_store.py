@@ -68,14 +68,14 @@ def upgrade() -> None:
                     ['asset_id', 'snapshot_date'])
 
     # 5. Backfill attached_rule_count from existing active rules
-    op.execute("""
+    op.execute(sa.text("""
         UPDATE assets
         SET attached_rule_count = (
             SELECT COUNT(*) FROM dq_rules
             WHERE dq_rules.asset_id = assets.asset_id
             AND dq_rules.is_active = TRUE
         )
-    """)
+    """))
 
 
 def downgrade() -> None:
