@@ -432,6 +432,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             existing_asset = existing_asset_res.scalar_one_or_none()
 
                             if existing_asset:
+                                _existing_scan_start = time.monotonic()
                                 scanned_ids.add(existing_asset.asset_id)
                                 # Restore previously-missing assets back to active
                                 if existing_asset.status == "missing":
@@ -458,7 +459,6 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         logger.exception(
                                             "Phase 1 backfill failed for %s: %s", tname, backfill_err
                                         )
-                                _existing_scan_start = time.monotonic()
                                 _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
                                 try:
                                     await _meta_store.record_scan_result(
