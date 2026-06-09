@@ -148,6 +148,17 @@ class Asset(Base):
     last_seen_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Operational metadata — written by discovery scanner
+    last_scanned_at:           Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    scan_status:               Mapped[Optional[str]]      = mapped_column(String(20), nullable=True)
+    scan_duration_ms:          Mapped[Optional[int]]      = mapped_column(Integer, nullable=True)
+    scan_version:              Mapped[Optional[str]]      = mapped_column(String(50), nullable=True)
+    # Quality placeholders — written by Phase 2 profiler; NULL until then
+    latest_profile_score:      Mapped[Optional[float]]    = mapped_column(Float, nullable=True)
+    latest_quality_status:     Mapped[Optional[str]]      = mapped_column(String(20), nullable=True)
+    is_critical_data_element:  Mapped[bool]               = mapped_column(Boolean, default=False)
+    attached_rule_count:       Mapped[int]                = mapped_column(Integer, default=0)
+
     domain_obj: Mapped[Optional["Domain"]] = relationship("Domain", back_populates="assets")
     subdomain: Mapped[Optional["Subdomain"]] = relationship("Subdomain", back_populates="assets")
     rules: Mapped[list["DQRule"]] = relationship("DQRule", back_populates="asset")
@@ -199,6 +210,9 @@ class AssetSourceMeta(Base):
     bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+    partition_info:    Mapped[Optional[dict]]     = mapped_column(JSONVariant, nullable=True)
+    last_modified_at:  Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    table_created_at:  Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     asset: Mapped["Asset"] = relationship("Asset", back_populates="source_meta")
 
@@ -579,6 +593,12 @@ class ColumnMetadata(Base):
     cardinality_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     top_values: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     last_profiled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    precision:             Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)
+    scale:                 Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)
+    character_max_length:  Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)
+    default_value:         Mapped[Optional[str]]  = mapped_column(Text, nullable=True)
+    is_partition_key:      Mapped[bool]           = mapped_column(Boolean, default=False)
+    partition_key_index:   Mapped[Optional[int]]  = mapped_column(Integer, nullable=True)
     updated_by: Mapped[Optional[str]] = mapped_column(String(200))
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
@@ -599,6 +619,32 @@ class ColumnProfileHistory(Base):
     cardinality_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     top_values: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, nullable=False)
+
+
+class AssetMetadataSnapshot(Base):
+    __tablename__ = "asset_metadata_snapshots"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "snapshot_date", name="uq_ams_asset_date"),
+    )
+
+    snapshot_id:           Mapped[str]             = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id:              Mapped[str]             = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    snapshot_date:         Mapped[date]            = mapped_column(Date, nullable=False)
+    scan_version:          Mapped[Optional[str]]   = mapped_column(String(50), nullable=True)
+    scan_status:           Mapped[Optional[str]]   = mapped_column(String(20), nullable=True)
+    scan_duration_ms:      Mapped[Optional[int]]   = mapped_column(Integer, nullable=True)
+    row_count:             Mapped[Optional[int]]   = mapped_column(BigInteger, nullable=True)
+    bytes:                 Mapped[Optional[int]]   = mapped_column(BigInteger, nullable=True)
+    last_modified_at:      Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    column_count:          Mapped[Optional[int]]   = mapped_column(Integer, nullable=True)
+    schema_hash:           Mapped[Optional[str]]   = mapped_column(String(64), nullable=True)
+    latest_profile_score:  Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    latest_quality_status: Mapped[Optional[str]]   = mapped_column(String(20), nullable=True)
+    attached_rule_count:   Mapped[Optional[int]]   = mapped_column(Integer, nullable=True)
+    created_at:            Mapped[datetime]        = mapped_column(DateTime, default=now)
+    updated_at:            Mapped[datetime]        = mapped_column(DateTime, default=now, onupdate=now)
 
 
 class DataProduct(Base):
