@@ -57,21 +57,38 @@ def encrypt(value: Optional[str]) -> Optional[str]:
 def decrypt(value: Optional[str]) -> Optional[str]:
     """Decrypt a Fernet-encrypted string.
 
-    Gracefully returns the original value if:
-    - The value is not encrypted (stored before encryption was enabled)
+    Returns the original value when:
+    - The value is plain-text (stored before encryption was enabled)
     - ENCRYPTION_KEY is not configured
-    - Decryption fails for any reason
+
+    Returns None (instead of the encrypted token) when the value looks
+    Fernet-encrypted but cannot be decrypted, to prevent passing the
+    ciphertext as a password to downstream services.
     """
     if not value:
         return value
     f = _get_fernet()
     if f is None:
+        if is_encrypted(value):
+            logger.error(
+                "Credential is Fernet-encrypted but ENCRYPTION_KEY is not set. "
+                "Set ENCRYPTION_KEY to the same value used when the credential was saved. "
+                "Returning None to avoid passing ciphertext as a password."
+            )
+            return None
         return value
     try:
-        from cryptography.fernet import InvalidToken
+        from cryptography.fernet import InvalidToken  # noqa: F401 (kept for clarity)
         return f.decrypt(value.encode()).decode()
-    except Exception:
-        # Value was stored before encryption was introduced — return as-is.
+    except Exception as exc:
+        if is_encrypted(value):
+            logger.error(
+                "Failed to decrypt Fernet-encrypted credential — ENCRYPTION_KEY may have "
+                "changed since this credential was saved. Returning None to avoid passing "
+                "ciphertext as a password. Original error: %s", exc
+            )
+            return None
+        # Value is plain-text (stored before encryption was introduced) — return as-is.
         return value
 
 
