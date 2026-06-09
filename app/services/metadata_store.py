@@ -15,7 +15,7 @@ from app.db.models import (
     gen_uuid,
 )
 from app.schemas.metadata import (
-    ColumnMetaIn, AssetMetaCurrentState, SnapshotResponse, ColumnMetaOut,
+    ColumnMetaIn, AssetMetaCurrentState,
 )
 
 logger = logging.getLogger("dq_platform.metadata_store")
