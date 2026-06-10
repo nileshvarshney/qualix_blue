@@ -17,8 +17,9 @@ from app.connectors.errors import (
     PERMANENT_ERRORS,
 )
 
-# Adapter imports are added in Task 11 (after all adapter files exist).
 # Each adapter calls register_adapter() at module bottom when imported.
+from app.connectors import postgresql_adapter, mysql_adapter, snowflake_adapter  # noqa: F401
+from app.connectors import bigquery_adapter, s3_adapter  # noqa: F401
 
 __all__ = [
     "get_connector",

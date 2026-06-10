@@ -143,3 +143,12 @@ async def test_mysql_list_databases_raises_not_implemented():
     )
     with pytest.raises(ConnectorNotImplementedError):
         await adapter.list_databases()
+
+
+def test_bigquery_adapter_registered():
+    from app.connectors.factory import _REGISTRY
+    assert "bigquery" in _REGISTRY
+
+def test_s3_adapter_registered():
+    from app.connectors.factory import _REGISTRY
+    assert "s3" in _REGISTRY
