@@ -124,3 +124,22 @@ def test_postgresql_adapter_registered():
     from app.connectors.factory import _REGISTRY
     assert "postgresql" in _REGISTRY
     assert "postgres" in _REGISTRY
+
+
+from app.connectors.mysql_adapter import MySQLAdapter
+
+
+def test_mysql_adapter_registered():
+    from app.connectors.factory import _REGISTRY
+    assert "mysql" in _REGISTRY
+    assert "mariadb" in _REGISTRY
+
+
+@pytest.mark.asyncio
+async def test_mysql_list_databases_raises_not_implemented():
+    from app.connectors.errors import ConnectorNotImplementedError
+    adapter = MySQLAdapter(
+        ConnectorConfig(connection_id="m1", database_type="mysql", host="localhost")
+    )
+    with pytest.raises(ConnectorNotImplementedError):
+        await adapter.list_databases()
