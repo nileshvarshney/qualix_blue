@@ -13,6 +13,8 @@ from app.db.database import get_db
 from app.db.models import SnowflakeConnection
 from app.core.security import get_current_user
 from app.core.encryption import encrypt, decrypt
+from app.connectors import get_connector, config_from_orm
+from app.schemas.connector_schemas import ConnectorHealth
 
 logger = logging.getLogger("dataguard.connections")
 router = APIRouter(prefix="/connections", tags=["Connections"])
@@ -616,6 +618,49 @@ async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)
     await db.commit()
 
     return test_result
+
+
+@router.get("/{connection_id}/health", tags=["Connections"])
+async def get_connection_health(
+    connection_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+) -> dict:
+    """Return connector health status and scan readiness for a source connection."""
+    result = await db.execute(
+        select(SnowflakeConnection).where(SnowflakeConnection.connection_id == connection_id)
+    )
+    conn = result.scalar_one_or_none()
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    _decrypt_password(conn)
+    cfg = config_from_orm(conn)
+
+    try:
+        connector = get_connector(cfg)
+        health = await connector.get_health()
+    except Exception:
+        health = ConnectorHealth(
+            connection_id=connection_id,
+            connection_name=conn.connection_name,
+            database_type=conn.database_type or "unknown",
+            status="unreachable",
+            scan_readiness_status="unavailable",
+            last_tested_at=conn.last_tested_at,
+            last_test_status=conn.last_test_status,
+            last_successful_scan_at=getattr(conn, "last_successful_scan_at", None),
+            environment=getattr(conn, "environment", None),
+        )
+
+    # Persist health probe result
+    conn.last_test_status = health.status
+    conn.last_tested_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    if hasattr(conn, "scan_readiness_status"):
+        conn.scan_readiness_status = health.scan_readiness_status
+    await db.commit()
+
+    return health.model_dump()
 
 
 # ── Browse (inline credentials — no DB lookup required) ──────────────────────
