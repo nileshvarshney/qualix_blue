@@ -258,6 +258,24 @@ def create_tables():
             "ALTER TABLE assets ADD COLUMN steward_user_id VARCHAR(36)",
             "ALTER TABLE assets ADD COLUMN discovered_at TIMESTAMP_NTZ",
             "ALTER TABLE assets ADD COLUMN last_seen_at TIMESTAMP_NTZ",
+            # metadata store columns (migration 0011)
+            "ALTER TABLE assets ADD COLUMN last_scanned_at TIMESTAMP_NTZ",
+            "ALTER TABLE assets ADD COLUMN scan_status VARCHAR(20)",
+            "ALTER TABLE assets ADD COLUMN scan_duration_ms INTEGER",
+            "ALTER TABLE assets ADD COLUMN scan_version VARCHAR(50)",
+            "ALTER TABLE assets ADD COLUMN latest_profile_score FLOAT",
+            "ALTER TABLE assets ADD COLUMN latest_quality_status VARCHAR(20)",
+            "ALTER TABLE assets ADD COLUMN is_critical_data_element BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE assets ADD COLUMN attached_rule_count INTEGER DEFAULT 0",
+            "ALTER TABLE asset_source_meta ADD COLUMN partition_info VARIANT",
+            "ALTER TABLE asset_source_meta ADD COLUMN last_modified_at TIMESTAMP_NTZ",
+            "ALTER TABLE asset_source_meta ADD COLUMN table_created_at TIMESTAMP_NTZ",
+            "ALTER TABLE column_metadata ADD COLUMN precision INTEGER",
+            "ALTER TABLE column_metadata ADD COLUMN scale INTEGER",
+            "ALTER TABLE column_metadata ADD COLUMN character_max_length INTEGER",
+            "ALTER TABLE column_metadata ADD COLUMN default_value TEXT",
+            "ALTER TABLE column_metadata ADD COLUMN is_partition_key BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE column_metadata ADD COLUMN partition_key_index INTEGER",
         ])
         conn.commit()
 

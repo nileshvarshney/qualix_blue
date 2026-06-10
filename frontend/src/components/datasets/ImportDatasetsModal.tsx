@@ -11,7 +11,7 @@ type CheckState = 'none' | 'partial' | 'all'
 interface TableNode  { type: string; rowCount: number | null; checked: boolean }
 interface SchemaNode { checked: CheckState; expanded: boolean; loading: boolean; loaded: boolean; error?: string; tables: Record<string, TableNode> }
 interface DbNode     { checked: CheckState; expanded: boolean; loading: boolean; loaded: boolean; error?: string; schemas: Record<string, SchemaNode> }
-interface JobResult  { database: string; schema: string; table_name: string; status: 'imported' | 'skipped' | 'error'; reason?: string | null }
+interface JobResult  { database: string; schema: string; table_name: string; status: 'imported' | 'skipped' | 'error' | 'excluded'; reason?: string | null }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -61,6 +61,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   imported: { bg: '#f0fdf4', color: '#16a34a' },
   skipped:  { bg: '#fefce8', color: '#ca8a04' },
   error:    { bg: '#fee2e2', color: '#dc2626' },
+  excluded: { bg: '#f8fafc', color: '#64748b' },
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -374,9 +375,18 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   // ── Render ────────────────────────────────────────────────────────────────────
 
   const selected = countSelected(tree)
-  const importedCount = jobResults.filter(r => r.status === 'imported').length
-  const skippedCount  = jobResults.filter(r => r.status === 'skipped').length
-  const errorCount    = jobResults.filter(r => r.status === 'error').length
+  const importedCount  = jobResults.filter(r => r.status === 'imported').length
+  const skippedCount   = jobResults.filter(r => r.status === 'skipped').length
+  const errorCount     = jobResults.filter(r => r.status === 'error').length
+  const excludedCount  = jobResults.filter(r => r.status === 'excluded').length
+
+  const allExcluded  = excludedCount > 0 && importedCount === 0 && skippedCount === 0 && errorCount === 0
+  const bannerFailed = jobStatus === 'failed' && importedCount === 0
+  const bannerIcon   = bannerFailed ? '❌' : allExcluded ? '⚠️' : '✅'
+  const bannerBg     = bannerFailed ? '#fee2e2' : allExcluded ? '#fefce8' : '#f0fdf4'
+  const bannerBorder = bannerFailed ? '#fca5a5' : allExcluded ? '#fde68a' : '#bbf7d0'
+  const excludedPart = excludedCount > 0 ? ` · ${excludedCount} excluded` : ''
+  const summaryLine  = `${importedCount} imported · ${skippedCount} skipped${excludedPart} · ${errorCount} errors`
 
   return (
     <>
@@ -454,11 +464,11 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
           {/* Done phase */}
           {importPhase === 'done' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: jobStatus === 'failed' && importedCount === 0 ? '#fee2e2' : '#f0fdf4', borderRadius: '8px', border: `1px solid ${jobStatus === 'failed' && importedCount === 0 ? '#fca5a5' : '#bbf7d0'}` }}>
-                <span style={{ fontSize: '22px' }}>{jobStatus === 'failed' && importedCount === 0 ? '❌' : '✅'}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: bannerBg, borderRadius: '8px', border: `1px solid ${bannerBorder}` }}>
+                <span style={{ fontSize: '22px' }}>{bannerIcon}</span>
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a' }}>Import Complete</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{importedCount} imported · {skippedCount} skipped · {errorCount} errors</div>
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{summaryLine}</div>
                 </div>
               </div>
               {jobResults.length > 0 && <ResultsTable results={jobResults} />}
@@ -686,7 +696,12 @@ function ResultsTable({ results }: { results: JobResult[] }) {
             const { bg, color } = STATUS_COLORS[r.status] ?? STATUS_COLORS.error
             return (
               <tr key={i} style={{ borderBottom: i < results.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#0f172a' }}>{r.schema}.{r.table_name}</td>
+                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#0f172a' }}>
+                  {r.table_name === '*'
+                    ? <span style={{ fontFamily: 'inherit', fontStyle: 'italic', color: '#94a3b8' }}>{r.schema} · all tables</span>
+                    : `${r.schema}.${r.table_name}`
+                  }
+                </td>
                 <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                   <span style={{ background: bg, color, padding: '2px 8px', borderRadius: '12px', fontWeight: 600, fontSize: '11px' }}>{r.status}</span>
                 </td>

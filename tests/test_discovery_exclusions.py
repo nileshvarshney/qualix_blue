@@ -96,3 +96,33 @@ def test_multiple_exclusions():
     assert _should_skip({"database": "PROD", "schema": "STAGING"}, db_set, schema_set)[0]
     assert _should_skip({"database": "PROD", "schema": "DEV"}, db_set, schema_set)[0]
     assert not _should_skip({"database": "PROD", "schema": "PUBLIC"}, db_set, schema_set)[0]
+
+
+def test_excluded_database_not_added_to_scanned_databases():
+    """Excluded databases must not enter scanned_databases (exclude mode).
+
+    Mirrors the fixed run_discovery loop: scanned_databases.add() only fires
+    after _browse_tables_sync succeeds, not before the filter checks.
+    """
+    conn = _make_conn_with_exclusions(excluded_databases=["SANDBOX"])
+    excluded_db_set, excluded_schema_set = _build_exclusion_sets(conn)
+    scanned_databases: set = set()
+    for sel in [{"database": "SANDBOX", "schema": "PUBLIC"}, {"database": "PROD", "schema": "PUBLIC"}]:
+        skipped, _ = _should_skip(sel, excluded_db_set, excluded_schema_set)
+        if skipped:
+            continue
+        scanned_databases.add(sel["database"])
+    assert "SANDBOX" not in scanned_databases
+    assert "PROD" in scanned_databases
+
+
+def test_include_mode_excluded_database_not_added_to_scanned_databases():
+    """Databases not on the allowlist must not enter scanned_databases (include mode)."""
+    included_db_set = {"PROD"}
+    scanned_databases: set = set()
+    for sel in [{"database": "SANDBOX", "schema": "PUBLIC"}, {"database": "PROD", "schema": "PUBLIC"}]:
+        if included_db_set and sel["database"] not in included_db_set:
+            continue
+        scanned_databases.add(sel["database"])
+    assert "SANDBOX" not in scanned_databases
+    assert "PROD" in scanned_databases

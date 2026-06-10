@@ -298,7 +298,6 @@ async def run_discovery(job_id: str, payload: dict) -> None:
             for sel in payload.get("selections", []):
                 database = sel["database"]
                 schema = sel["schema"]
-                scanned_databases.add(database)
 
                 if filter_mode == "include":
                     # Skip if database not in the include list (when a list is configured)
@@ -389,6 +388,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         selected = set(sel["tables"])
                         tables = [t for t in tables if t["table_name"] in selected]
                     all_failed = False
+                    scanned_databases.add(database)
                 except Exception as e:
                     logger.warning("Failed to browse tables for %s.%s: %s", database, schema, e)
                     job_tracker.append_result(
@@ -669,7 +669,11 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             success=False,
                         )
 
-            await mark_missing_assets(payload["connection_id"], scanned_ids, db, scanned_databases)
+            # Only mark assets missing when at least one database was actually browsed.
+            # Empty scanned_databases means every selection was excluded or errored before
+            # any table browse happened — we cannot know what is "missing" in that case.
+            if scanned_databases:
+                await mark_missing_assets(payload["connection_id"], scanned_ids, db, scanned_databases)
 
         if all_failed and total_selections > 0:
             job_tracker.mark_failed(job_id, "All database/schema selections failed")

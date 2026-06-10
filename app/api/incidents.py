@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from datetime import datetime, timezone, timedelta
 from app.db.database import get_db
-from app.db.models import QualityIncident, OncallSchedule, IncidentRunbook, Asset
+from app.db.models import QualityIncident, OncallSchedule, IncidentRunbook, Asset, AssetSourceMeta
 from app.core.security import get_current_user
 
 router = APIRouter(tags=["Incidents"])
@@ -67,8 +67,9 @@ async def list_incidents(
     db: AsyncSession = Depends(get_db),
 ):
     q = (
-        select(QualityIncident, Asset.sf_table_name, Asset.sf_schema_name)
+        select(QualityIncident, AssetSourceMeta.sf_table_name, AssetSourceMeta.sf_schema_name)
         .outerjoin(Asset, QualityIncident.asset_id == Asset.asset_id)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
     )
     if status:
         q = q.where(QualityIncident.status == status)
