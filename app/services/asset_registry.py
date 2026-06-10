@@ -8,6 +8,34 @@ from sqlalchemy import select
 
 _REGISTRY_NS = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')  # RFC 4122 DNS namespace
 
+VALID_ASSET_STATUSES: frozenset[str] = frozenset(
+    {'active', 'missing', 'deprecated', 'scan_failed', 'disabled'}
+)
+
+# (current_status, new_status) pairs that are explicitly forbidden
+_BLOCKED_TRANSITIONS: frozenset[tuple[str, str]] = frozenset({
+    ('disabled', 'active'),  # disabled assets require admin re-enable
+})
+
+
+def transition_status(current: str, new: str) -> str:
+    """Validate and apply an asset lifecycle status transition.
+
+    Returns new_status on success. Raises ValueError when:
+    - new_status is not in VALID_ASSET_STATUSES
+    - the (current -> new) pair is explicitly blocked
+    """
+    if new not in VALID_ASSET_STATUSES:
+        raise ValueError(
+            f"Invalid status '{new}'. Must be one of: {sorted(VALID_ASSET_STATUSES)}"
+        )
+    if (current, new) in _BLOCKED_TRANSITIONS:
+        raise ValueError(
+            f"Transition '{current}' to '{new}' is blocked. "
+            "A disabled asset must be re-enabled by an administrator."
+        )
+    return new
+
 
 def stable_asset_id(qualified_path: str) -> str:
     """Return a deterministic UUID v5 for a given qualified path string.

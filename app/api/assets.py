@@ -463,13 +463,17 @@ async def update_asset_status(
     body: AssetStatusUpdate,
     db: AsyncSession = Depends(get_db),
 ):
+    from app.services.asset_registry import transition_status as _transition_status
     result = await db.execute(
         select(Asset).where(Asset.asset_id == asset_id)
     )
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
-    asset.status = body.status
+    try:
+        asset.status = _transition_status(asset.status, body.status)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     await db.commit()
     await db.refresh(asset)
     return AssetResponse.model_validate(asset)
