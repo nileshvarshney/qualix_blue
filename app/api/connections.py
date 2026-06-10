@@ -72,6 +72,7 @@ class ConnectionCreate(BaseModel):
     delimiter: Optional[str] = None
     base_url: Optional[str] = None
     auth_type: Optional[str] = None
+    environment: Optional[str] = None   # dev, stage, prod, test
 
 
 class ConnectionUpdate(BaseModel):
@@ -102,6 +103,7 @@ class ConnectionUpdate(BaseModel):
     delimiter: Optional[str] = None
     base_url: Optional[str] = None
     auth_type: Optional[str] = None
+    environment: Optional[str] = None   # dev, stage, prod, test
 
 
 def _mask(conn: SnowflakeConnection) -> dict:
@@ -139,6 +141,9 @@ def _mask(conn: SnowflakeConnection) -> dict:
         "last_tested_at": conn.last_tested_at.isoformat() if conn.last_tested_at else None,
         "created_at": conn.created_at.isoformat(),
         "updated_at": conn.updated_at.isoformat(),
+        "environment": conn.environment,
+        "last_successful_scan_at": conn.last_successful_scan_at.isoformat() if conn.last_successful_scan_at else None,
+        "scan_readiness_status": conn.scan_readiness_status,
     }
 
 

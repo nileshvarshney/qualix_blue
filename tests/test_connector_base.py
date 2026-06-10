@@ -160,3 +160,57 @@ def test_factory_register_and_retrieve():
     cfg = make_config("testdb_xyz")
     connector = get_connector(cfg)
     assert isinstance(connector, DummyConnector)
+
+
+from app.db.models import SnowflakeConnection
+
+
+def test_snowflake_connection_has_new_fields():
+    required = {"environment", "last_successful_scan_at", "scan_readiness_status"}
+    model_columns = {c.name for c in SnowflakeConnection.__table__.columns}
+    assert required.issubset(model_columns)
+
+
+def test_mask_includes_new_fields():
+    from app.api.connections import _mask
+    conn = MagicMock(spec=SnowflakeConnection)
+    conn.connection_id = "c1"
+    conn.connection_name = "Test"
+    conn.database_type = "postgresql"
+    conn.account = None
+    conn.sf_user = "u"
+    conn.password = None
+    conn.has_password = False
+    conn.warehouse = None
+    conn.role = None
+    conn.default_database = None
+    conn.default_schema = None
+    conn.description = None
+    conn.is_active = True
+    conn.connection_type = "named"
+    conn.is_primary_target = False
+    conn.excluded_databases = None
+    conn.excluded_schemas = None
+    conn.filter_mode = "exclude"
+    conn.included_databases = None
+    conn.included_schemas = None
+    conn.host = None
+    conn.port = None
+    conn.project = None
+    conn.connection_string = None
+    conn.file_path = None
+    conn.delimiter = None
+    conn.base_url = None
+    conn.auth_type = None
+    conn.last_test_status = None
+    conn.last_tested_at = None
+    conn.created_at = MagicMock(isoformat=lambda: "2026-01-01")
+    conn.updated_at = MagicMock(isoformat=lambda: "2026-01-01")
+    conn.environment = "dev"
+    conn.last_successful_scan_at = None
+    conn.scan_readiness_status = "not_tested"
+
+    result = _mask(conn)
+    assert result["environment"] == "dev"
+    assert result["scan_readiness_status"] == "not_tested"
+    assert "last_successful_scan_at" in result
