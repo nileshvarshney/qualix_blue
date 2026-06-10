@@ -123,3 +123,40 @@ def test_base_connector_cannot_be_instantiated():
     cfg = ConnectorConfig(connection_id="c1", database_type="test")
     with pytest.raises(TypeError):
         BaseConnector(cfg)
+
+
+from app.connectors.factory import get_connector, register_adapter
+from app.connectors.errors import ConnectorNotImplementedError
+
+
+def make_config(db_type: str = "postgresql") -> ConnectorConfig:
+    return ConnectorConfig(
+        connection_id="test-1",
+        connection_name="Test",
+        database_type=db_type,
+    )
+
+
+def test_factory_raises_for_unknown_type():
+    cfg = make_config("oracle")
+    with pytest.raises(ConnectorNotImplementedError) as exc_info:
+        get_connector(cfg)
+    assert "oracle" in str(exc_info.value).lower()
+
+
+def test_factory_register_and_retrieve():
+    class DummyConnector(BaseConnector):
+        async def test_connection(self): return {}
+        async def list_databases(self): return []
+        async def list_schemas(self, database): return []
+        async def list_tables(self, database, schema): return []
+        async def list_columns(self, database, schema, table): return []
+        async def get_table_metadata(self, database, schema, table): ...
+        async def sample_rows(self, database, schema, table, limit=100): return []
+        async def run_metadata_scan(self, database, schema=None): ...
+        async def get_health(self): ...
+
+    register_adapter("testdb_xyz", DummyConnector)
+    cfg = make_config("testdb_xyz")
+    connector = get_connector(cfg)
+    assert isinstance(connector, DummyConnector)
