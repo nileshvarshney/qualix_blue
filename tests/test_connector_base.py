@@ -58,3 +58,44 @@ def test_connector_health_defaults():
     )
     assert health.environment is None
     assert isinstance(health.detail, ConnectorHealthDetail)
+
+
+from app.connectors.config import ConnectorConfig, from_orm
+from unittest.mock import MagicMock
+
+
+def test_connector_config_defaults():
+    cfg = ConnectorConfig(connection_id="c1", database_type="postgresql")
+    assert cfg.host is None
+    assert cfg.port is None
+    assert cfg.connect_timeout == 30
+    assert cfg.query_timeout == 300
+
+
+def test_from_orm_maps_fields():
+    conn = MagicMock()
+    conn.connection_id = "c1"
+    conn.connection_name = "Test"
+    conn.database_type = "postgresql"
+    conn.account = None
+    conn.sf_user = "dbuser"
+    conn.password = "decrypted_pass"
+    conn.warehouse = None
+    conn.role = None
+    conn.host = "localhost"
+    conn.port = "5432"
+    conn.default_database = "mydb"
+    conn.project = None
+    conn.key_file = None
+    conn.file_path = None
+    conn.base_url = None
+    conn.auth_type = None
+    conn.connection_string = None
+    conn.environment = "dev"
+
+    cfg = from_orm(conn)
+    assert cfg.connection_id == "c1"
+    assert cfg.username == "dbuser"
+    assert cfg.password == "decrypted_pass"
+    assert cfg.port == 5432
+    assert cfg.environment == "dev"
