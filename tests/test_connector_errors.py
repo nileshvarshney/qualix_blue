@@ -1,5 +1,4 @@
 # tests/test_connector_errors.py
-import pytest
 from app.connectors.errors import (
     ConnectorError, AuthenticationError, ConnectionTimeoutError,
     DatabaseNotFoundError, PermissionDeniedError, QueryError,
