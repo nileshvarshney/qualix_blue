@@ -4,6 +4,7 @@ import { Connection } from '@/lib/types'
 
 type CheckState = 'none' | 'partial' | 'all'
 type FilterMode = 'include' | 'exclude'
+type ModeSnap = { dbs: Set<string>; schemas: Set<string> }
 
 interface SchemaNode {
   name: string
@@ -32,6 +33,16 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
   const [dbsError, setDbsError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [modeSelections, setModeSelections] = useState<Record<FilterMode, ModeSnap>>(() => ({
+    exclude: {
+      dbs: new Set<string>(connection.excludedDatabases ?? []),
+      schemas: new Set<string>((connection.excludedSchemas ?? []).map(s => `${s.database}|${s.schema}`)),
+    },
+    include: {
+      dbs: new Set<string>(connection.includedDatabases ?? []),
+      schemas: new Set<string>((connection.includedSchemas ?? []).map(s => `${s.database}|${s.schema}`)),
+    },
+  }))
 
   useEffect(() => {
     if (!connection.id) {
@@ -73,14 +84,49 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
       .finally(() => setDbsLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When mode changes, reset all selections
   function handleModeChange(newMode: FilterMode) {
+    // Save current selections for the outgoing mode
+    const currentDbs     = new Set(dbs.filter(d => d.checked === 'all').map(d => d.name))
+    const currentSchemas = new Set(
+      dbs.flatMap(db => db.schemas.filter(s => s.checked).map(s => `${db.name}|${s.name}`))
+    )
+    const updatedSelections: Record<FilterMode, ModeSnap> = {
+      ...modeSelections,
+      [filterMode]: { dbs: currentDbs, schemas: currentSchemas },
+    }
+
+    // Resolve the target mode's selections
+    let target = updatedSelections[newMode]
+
+    // First-time switch from exclude → include with no prior include data:
+    // pre-check the complement (all dbs except the excluded ones)
+    if (newMode === 'include' && target.dbs.size === 0 && target.schemas.size === 0
+        && updatedSelections.exclude.dbs.size > 0) {
+      const complementDbs = new Set(
+        dbs.map(d => d.name).filter(n => !updatedSelections.exclude.dbs.has(n))
+      )
+      target = { dbs: complementDbs, schemas: new Set() }
+      updatedSelections.include = target
+    }
+
+    setModeSelections(updatedSelections)
+
+    // Apply target selections to dbs (preserves expanded/schemasLoaded/loading state)
+    setDbs(prev => prev.map(db => {
+      const dbChecked      = target.dbs.has(db.name)
+      const partialSchemas = db.schemas.some(s => target.schemas.has(`${db.name}|${s.name}`))
+      const newChecked: CheckState = dbChecked ? 'all' : partialSchemas ? 'partial' : 'none'
+      return {
+        ...db,
+        checked: newChecked,
+        schemas: db.schemas.map(s => ({
+          ...s,
+          checked: dbChecked || target.schemas.has(`${db.name}|${s.name}`),
+        })),
+      }
+    }))
+
     setFilterMode(newMode)
-    setDbs(prev => prev.map(db => ({
-      ...db,
-      checked: 'none',
-      schemas: db.schemas.map(s => ({ ...s, checked: false })),
-    })))
   }
 
   function toggleDb(dbName: string) {
@@ -115,15 +161,11 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
       const data = await res.json()
       const schemaNames: string[] = (data.schemas ?? []).map((x: { name: string }) => x.name)
 
-      // Pre-select schemas based on current filter mode
+      // Pre-select schemas from the live per-mode selections (not the stale connection snapshot)
       const checkedSchemaSet = new Set(
-        filterMode === 'include'
-          ? (connection.includedSchemas ?? [])
-              .filter(e => e.database === dbName)
-              .map(e => e.schema)
-          : (connection.excludedSchemas ?? [])
-              .filter(e => e.database === dbName)
-              .map(e => e.schema)
+        [...modeSelections[filterMode].schemas]
+          .filter(key => key.startsWith(`${dbName}|`))
+          .map(key => key.split('|')[1])
       )
 
       setDbs(prev => prev.map(d => {
