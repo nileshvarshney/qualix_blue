@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, computed_field
 from typing import Optional, Literal
 from datetime import datetime
 
@@ -46,6 +46,11 @@ class AssetSourceMetaResponse(BaseModel):
     row_count: Optional[int] = None
     bytes: Optional[int] = None
     updated_at: Optional[datetime] = None
+    # Provider-agnostic fields (PostgreSQL, MySQL, BigQuery, S3)
+    generic_database_name: Optional[str] = None
+    generic_schema_name:   Optional[str] = None
+    generic_object_name:   Optional[str] = None
+    generic_object_type:   Optional[str] = None
 
 
 class AssetCreate(BaseModel):
@@ -112,6 +117,15 @@ class AssetCertifyRequest(BaseModel):
     certified_by: Optional[str] = None
 
 
+class LogicalDatasetCreate(BaseModel):
+    slug: str           # URL-safe unique identifier, will be lowercased
+    display_name: str
+    description: Optional[str] = None
+    parent_asset_id: Optional[str] = None
+    owner_user_id: Optional[str] = None
+    domain_id: Optional[str] = None
+
+
 class AssetResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,6 +156,13 @@ class AssetResponse(BaseModel):
     updated_at: datetime
     discovered_at: Optional[datetime] = None
     last_seen_at: Optional[datetime] = None
+
+    @computed_field
+    @property
+    def source_id(self) -> Optional[str]:
+        """Alias for connection_id per spec field source_id."""
+        return self.connection_id
+
     source_meta: Optional[AssetSourceMetaResponse] = None
 
 
