@@ -21,6 +21,7 @@ interface Asset {
   discovered_at?: string
   last_seen_at?: string
   connection_id?: string
+  connection_name?: string
   source_meta?: { sf_table_name?: string; sf_schema_name?: string; sf_database_name?: string; row_count?: number }
 }
 
@@ -28,6 +29,7 @@ export default function AssetRegistryPage() {
   const [selected, setSelected] = useState<Asset | null>(null)
   const [loading, setLoading] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(true)
   const treePanelRef = useRef<AssetTreePanelHandle | null>(null)
 
   const handleSelect = useCallback(async (assetId: string) => {
@@ -51,7 +53,23 @@ export default function AssetRegistryPage() {
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
-      <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} />
+      <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+        <div style={{ width: panelOpen ? '280px' : '0px', overflow: 'hidden', transition: 'width 0.2s ease', display: 'flex', flexShrink: 0 }}>
+          <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} />
+        </div>
+        <button
+          onClick={() => setPanelOpen(p => !p)}
+          style={{
+            position: 'absolute', right: '-12px', top: '10px', zIndex: 10,
+            width: '22px', height: '22px', borderRadius: '50%',
+            border: '1px solid var(--border)', background: 'var(--surface)',
+            cursor: 'pointer', fontSize: '11px', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)',
+          }}
+        >
+          {panelOpen ? '‹' : '›'}
+        </button>
+      </div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0, background: 'var(--surface)' }}>
           <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Asset Registry</span>

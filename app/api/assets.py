@@ -284,13 +284,51 @@ async def get_asset_tree(
     return tree
 
 
-@router.get("/{asset_id}", response_model=AssetResponse)
+@router.get("/{asset_id}")
 async def get_asset(asset_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
-    asset = result.scalar_one_or_none()
-    if not asset:
+    if asset_id.startswith("db|"):
+        parts = asset_id.split("|", 2)
+        if len(parts) == 3:
+            _, conn_id, db_name = parts
+            conn = (await db.execute(
+                select(SnowflakeConnection).where(SnowflakeConnection.connection_id == conn_id)
+            )).scalar_one_or_none()
+            return {
+                "asset_id": asset_id, "asset_type": "database",
+                "display_name": db_name, "physical_name": db_name,
+                "status": "active", "criticality": "medium",
+                "connection_id": conn_id,
+                "connection_name": conn.connection_name if conn else None,
+            }
+
+    if asset_id.startswith("sc|"):
+        parts = asset_id.split("|", 3)
+        if len(parts) == 4:
+            _, conn_id, db_name, schema_name = parts
+            conn = (await db.execute(
+                select(SnowflakeConnection).where(SnowflakeConnection.connection_id == conn_id)
+            )).scalar_one_or_none()
+            return {
+                "asset_id": asset_id, "asset_type": "schema",
+                "display_name": schema_name, "physical_name": schema_name,
+                "status": "active", "criticality": "medium",
+                "connection_id": conn_id,
+                "connection_name": conn.connection_name if conn else None,
+                "qualified_name": f"{db_name}.{schema_name}",
+            }
+
+    result = await db.execute(
+        select(Asset, SnowflakeConnection)
+        .outerjoin(SnowflakeConnection, Asset.connection_id == SnowflakeConnection.connection_id)
+        .where(Asset.asset_id == asset_id)
+    )
+    row = result.one_or_none()
+    if not row:
         raise HTTPException(404, "Asset not found")
-    return asset
+    asset, conn = row
+    data = AssetResponse.model_validate(asset).model_dump()
+    data['connection_name'] = conn.connection_name if conn else None
+    return data
 
 
 @router.get("/{asset_id}/children")
@@ -336,13 +374,13 @@ async def get_asset_children(
         if len(parts) == 4:
             _, conn_id, db_name, schema_name = parts
             result = await db.execute(
-                select(Asset)
+                select(Asset, _ASM)
                 .join(_ASM, Asset.asset_id == _ASM.asset_id)
                 .where(
                     Asset.connection_id == conn_id,
                     _ASM.sf_database_name == db_name,
                     _ASM.sf_schema_name == schema_name,
-                    Asset.asset_type == "table",
+                    Asset.asset_type.in_(["table", "view"]),
                     Asset.is_active == True,
                 )
                 .order_by(Asset.physical_name)
@@ -352,11 +390,11 @@ async def get_asset_children(
                     asset_id=a.asset_id,
                     display_name=a.display_name or a.physical_name,
                     physical_name=a.physical_name,
-                    asset_type=a.asset_type,
+                    asset_type="view" if meta and meta.sf_table_type in ("VIEW", "MATERIALIZED_VIEW") else "table",
                     status=a.status,
                     qualified_name=a.qualified_name,
                 )
-                for a in result.scalars().all()
+                for a, meta in result.all()
             ]
 
     # Real asset: check if it's a source asset and build DB hierarchy

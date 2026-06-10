@@ -8,7 +8,7 @@ Criticality = Literal["critical", "high", "medium", "low"]
 CertificationStatus = Literal["certified", "warning", "failed", "uncertified"]
 
 AssetType = Literal[
-    'source', 'database', 'schema', 'table',
+    'source', 'database', 'schema', 'table', 'view',
     'column', 'file', 'dataset', 'logical_dataset'
 ]
 
@@ -118,6 +118,7 @@ class AssetResponse(BaseModel):
     asset_id: str
     parent_asset_id: Optional[str] = None
     connection_id: Optional[str] = None
+    connection_name: Optional[str] = None
     asset_type: str = 'table'
     physical_name: Optional[str] = None
     display_name: Optional[str] = None

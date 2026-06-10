@@ -14,7 +14,7 @@ interface TreeNode {
 }
 
 const TYPE_ICON: Record<string, string> = {
-  source: 'S', database: 'D', schema: 'Sc', table: 'T',
+  source: 'S', database: 'D', schema: 'Sc', table: 'T', view: 'V',
   column: 'C', file: 'F', dataset: 'Ds', logical_dataset: 'L',
 }
 const STATUS_DOT: Record<string, string> = {
