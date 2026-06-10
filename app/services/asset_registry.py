@@ -2,6 +2,7 @@
 from __future__ import annotations
 import inspect
 import uuid
+from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -75,3 +76,152 @@ async def generate_description(
     """AI-generate a description for the given asset and persist it."""
     from app.services.ai_service import generate_asset_description
     return await generate_asset_description(asset_id, provider_name, db)
+
+
+async def ensure_hierarchy_assets(
+    connection_id: str,
+    connection_name: str,
+    database_name: str,
+    schema_name: str,
+    provider: str,
+    db: AsyncSession,
+) -> tuple[str, str, str]:
+    """Ensure source, database, and schema Asset records exist.
+
+    Creates missing nodes and refreshes last_seen_at/status on existing ones.
+    Does NOT commit — caller must commit after creating the table asset so all
+    nodes land in the same transaction.
+
+    Returns (source_asset_id, database_asset_id, schema_asset_id).
+    """
+    from app.db.models import Asset, AssetSourceMeta
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    db_lower = database_name.lower()
+    schema_lower = schema_name.lower()
+
+    source_id    = stable_asset_id(f"source:{connection_id}")
+    database_id  = stable_asset_id(f"database:{connection_id}:{db_lower}")
+    schema_id    = stable_asset_id(f"schema:{connection_id}:{db_lower}:{schema_lower}")
+
+    nodes = [
+        dict(
+            asset_id=source_id, parent_asset_id=None,
+            asset_type="source",
+            physical_name=connection_name, display_name=connection_name,
+            qualified_name=connection_name,
+            path=f"/sources/{connection_id}",
+            connection_id=connection_id,
+            generic_database_name=None, generic_schema_name=None,
+            generic_object_name=connection_name, generic_object_type="source",
+        ),
+        dict(
+            asset_id=database_id, parent_asset_id=source_id,
+            asset_type="database",
+            physical_name=database_name, display_name=database_name,
+            qualified_name=database_name,
+            path=f"/sources/{connection_id}/{database_name}",
+            connection_id=connection_id,
+            generic_database_name=database_name, generic_schema_name=None,
+            generic_object_name=database_name, generic_object_type="database",
+        ),
+        dict(
+            asset_id=schema_id, parent_asset_id=database_id,
+            asset_type="schema",
+            physical_name=schema_name, display_name=schema_name,
+            qualified_name=f"{database_name}.{schema_name}",
+            path=f"/sources/{connection_id}/{database_name}/{schema_name}",
+            connection_id=connection_id,
+            generic_database_name=database_name, generic_schema_name=schema_name,
+            generic_object_name=schema_name, generic_object_type="schema",
+        ),
+    ]
+
+    for node in nodes:
+        result = await db.execute(
+            select(Asset).where(Asset.asset_id == node["asset_id"])
+        )
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            db.add(Asset(
+                status="active", discovered_at=now, last_seen_at=now,
+                is_active=True,
+                asset_id=node["asset_id"],
+                parent_asset_id=node["parent_asset_id"],
+                asset_type=node["asset_type"],
+                physical_name=node["physical_name"],
+                display_name=node["display_name"],
+                qualified_name=node["qualified_name"],
+                path=node["path"],
+                connection_id=node["connection_id"],
+            ))
+            db.add(AssetSourceMeta(
+                asset_id=node["asset_id"],
+                provider=provider,
+                generic_database_name=node["generic_database_name"],
+                generic_schema_name=node["generic_schema_name"],
+                generic_object_name=node["generic_object_name"],
+                generic_object_type=node["generic_object_type"],
+            ))
+        else:
+            existing.last_seen_at = now
+            existing.status = "active"
+
+    return source_id, database_id, schema_id
+
+
+async def register_column_assets(
+    table_asset_id: str,
+    connection_id: str,
+    columns: list,          # list[ColumnMetaIn] from app.schemas.metadata
+    db: AsyncSession,
+    table_qualified_name: str = "",
+) -> list[str]:
+    """Create or refresh thin Asset records for each column.
+
+    Uses a single bulk SELECT to find existing column assets, then batch-inserts
+    only new ones. Does NOT commit — caller commits.
+
+    Returns column asset_ids in the same order as columns.
+    """
+    from app.db.models import Asset
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Build all stable IDs up front
+    col_ids = [
+        stable_asset_id(f"column:{table_asset_id}:{col.column_name.lower()}")
+        for col in columns
+    ]
+
+    if not col_ids:
+        return col_ids
+
+    # Bulk check which already exist
+    result = await db.execute(
+        select(Asset.asset_id).where(Asset.asset_id.in_(col_ids))
+    )
+    existing_ids: set[str] = {row[0] for row in result}
+
+    for col, col_asset_id in zip(columns, col_ids):
+        if col_asset_id not in existing_ids:
+            db.add(Asset(
+                asset_id=col_asset_id,
+                parent_asset_id=table_asset_id,
+                asset_type="column",
+                physical_name=col.column_name,
+                display_name=col.column_name,
+                qualified_name=(
+                    f"{table_qualified_name}.{col.column_name}"
+                    if table_qualified_name else col.column_name
+                ),
+                path=None,
+                status="active",
+                connection_id=connection_id,
+                discovered_at=now,
+                last_seen_at=now,
+                description=col.description,
+                is_active=True,
+            ))
+
+    return col_ids

@@ -54,3 +54,83 @@ def test_asset_source_meta_response_has_generic_fields():
     )
     assert meta.generic_database_name == "sales_db"
     assert meta.generic_object_type == "table"
+
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock
+
+
+@pytest.mark.asyncio
+async def test_ensure_hierarchy_returns_three_stable_ids():
+    from app.services.asset_registry import ensure_hierarchy_assets, stable_asset_id
+
+    db = AsyncMock()
+    no_row = MagicMock()
+    no_row.scalar_one_or_none.return_value = None
+    db.execute.return_value = no_row
+
+    source_id, db_id, schema_id = await ensure_hierarchy_assets(
+        connection_id="conn-001",
+        connection_name="Prod PG",
+        database_name="SALES_DB",
+        schema_name="PUBLIC",
+        provider="postgresql",
+        db=db,
+    )
+
+    assert source_id == stable_asset_id("source:conn-001")
+    assert db_id    == stable_asset_id("database:conn-001:sales_db")
+    assert schema_id == stable_asset_id("schema:conn-001:sales_db:public")
+
+
+@pytest.mark.asyncio
+async def test_ensure_hierarchy_updates_existing_node():
+    from app.services.asset_registry import ensure_hierarchy_assets
+
+    db = AsyncMock()
+    existing = MagicMock()
+    existing.status = "missing"
+    existing.last_seen_at = None
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = existing
+    db.execute.return_value = result_mock
+
+    await ensure_hierarchy_assets(
+        connection_id="conn-001",
+        connection_name="Prod PG",
+        database_name="sales_db",
+        schema_name="public",
+        provider="postgresql",
+        db=db,
+    )
+
+    assert existing.status == "active"
+    assert existing.last_seen_at is not None
+
+
+@pytest.mark.asyncio
+async def test_register_column_assets_creates_stable_ids():
+    from app.services.asset_registry import register_column_assets, stable_asset_id
+    from app.schemas.metadata import ColumnMetaIn
+
+    db = AsyncMock()
+    # Simulate bulk SELECT returning empty set (no existing columns)
+    empty_result = MagicMock()
+    empty_result.__iter__ = MagicMock(return_value=iter([]))
+    db.execute.return_value = empty_result
+
+    cols = [
+        ColumnMetaIn(column_name="order_id", data_type="int", ordinal_position=1),
+        ColumnMetaIn(column_name="total",    data_type="float", ordinal_position=2),
+    ]
+    table_id = "table-uuid-abc"
+
+    ids = await register_column_assets(
+        table_asset_id=table_id,
+        connection_id="conn-001",
+        columns=cols,
+        db=db,
+    )
+
+    assert ids[0] == stable_asset_id(f"column:{table_id}:order_id")
+    assert ids[1] == stable_asset_id(f"column:{table_id}:total")
