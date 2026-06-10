@@ -20,7 +20,11 @@ from app.db.database import AsyncSessionLocal
 from app.db.models import AuditLog, Asset, AssetSourceMeta, Domain, DQRule, Subdomain, SnowflakeConnection
 from app.services import job_tracker
 from app.services.ai_service import classify_table
-from app.services.asset_registry import stable_asset_id
+from app.services.asset_registry import (
+    stable_asset_id,
+    ensure_hierarchy_assets,
+    register_column_assets,
+)
 
 import time
 
@@ -409,6 +413,16 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                     db, payload["connection_id"], database, schema, table_names
                 )
 
+                # Ensure source/database/schema nodes exist as real Asset records
+                _source_id, _database_id, _schema_id = await ensure_hierarchy_assets(
+                    connection_id=payload["connection_id"],
+                    connection_name=conn.connection_name,
+                    database_name=database,
+                    schema_name=schema,
+                    provider=conn.database_type or "snowflake",
+                    db=db,
+                )
+
                 for table in tables:
                     tname = table["table_name"]
 
@@ -522,11 +536,14 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             classification, domain_map, sub_map, fallback_domain, fallback_sub_id
                         )
 
-                        asset_id_new = str(uuid.uuid4())
+                        asset_id_new = stable_asset_id(
+                            f"table:{payload['connection_id']}:{database.lower()}:{schema.lower()}:{tname.lower()}"
+                        )
                         qualified_name = f"{database}.{schema}.{tname}"
                         now = datetime.now(timezone.utc).replace(tzinfo=None)
                         asset = Asset(
                             asset_id=asset_id_new,
+                            parent_asset_id=_schema_id,
                             connection_id=payload["connection_id"],
                             asset_type="table",
                             physical_name=tname,
@@ -594,6 +611,13 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             for c in columns
                         ]
                         await _meta_store.upsert_column_metadata(db, asset_id_new, _col_models)
+                        await register_column_assets(
+                            table_asset_id=asset_id_new,
+                            connection_id=payload["connection_id"],
+                            columns=_col_models,
+                            db=db,
+                            table_qualified_name=qualified_name,
+                        )
                         _schema_hash = _meta_store.compute_schema_hash(_col_models)
                         _elapsed_ms = int((time.monotonic() - _table_scan_start) * 1000)
                         await _meta_store.record_scan_result(

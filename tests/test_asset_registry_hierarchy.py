@@ -156,6 +156,22 @@ async def test_register_file_asset_returns_stable_id():
     assert asset_id == expected
 
 
+def test_stable_table_id_is_deterministic():
+    from app.services.asset_registry import stable_asset_id
+    id1 = stable_asset_id("table:conn-001:sales_db:public:orders")
+    id2 = stable_asset_id("table:conn-001:sales_db:public:orders")
+    assert id1 == id2
+    assert len(id1) == 36
+
+
+def test_column_asset_id_depends_on_table_asset_id():
+    from app.services.asset_registry import stable_asset_id
+    table_id = stable_asset_id("table:conn-001:sales_db:public:orders")
+    col_id = stable_asset_id(f"column:{table_id}:order_id")
+    assert len(col_id) == 36
+    assert col_id != table_id
+
+
 @pytest.mark.asyncio
 async def test_register_logical_dataset_returns_stable_id():
     from app.services.asset_registry import register_logical_dataset, stable_asset_id
