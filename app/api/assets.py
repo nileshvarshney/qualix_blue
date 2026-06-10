@@ -8,8 +8,9 @@ from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnectio
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
     AssetStatusUpdate, AssetRegistryDiscoveryRequest, AssetTreeNode,
-    AssetSourceMetaResponse,
+    AssetSourceMetaResponse, LogicalDatasetCreate,
 )
+from app.services.asset_registry import register_logical_dataset
 from app.core.security import get_current_user, get_domain_filter
 import uuid
 from datetime import datetime, timezone
@@ -282,6 +283,29 @@ async def get_asset_tree(
         ))
 
     return tree
+
+
+@router.post("/logical-datasets", response_model=AssetResponse, status_code=201)
+async def create_logical_dataset(
+    payload: LogicalDatasetCreate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Create a user-defined logical dataset placeholder asset."""
+    from sqlalchemy import select as _select
+    from app.db.models import Asset as _Asset
+    asset_id = await register_logical_dataset(
+        slug=payload.slug,
+        display_name=payload.display_name,
+        description=payload.description,
+        owner_user_id=payload.owner_user_id,
+        domain_id=payload.domain_id,
+        parent_asset_id=payload.parent_asset_id,
+        db=db,
+    )
+    result = await db.execute(_select(_Asset).where(_Asset.asset_id == asset_id))
+    asset = result.scalar_one_or_none()
+    return AssetResponse.model_validate(asset)
 
 
 @router.get("/{asset_id}")

@@ -195,7 +195,7 @@ async def register_column_assets(
     ]
 
     if not col_ids:
-        return col_ids
+        return col_ids  # noqa: early-return
 
     # Bulk check which already exist
     result = await db.execute(
@@ -225,3 +225,105 @@ async def register_column_assets(
             ))
 
     return col_ids
+
+
+async def register_file_asset(
+    connection_id: str,
+    path: str,
+    display_name: str,
+    db: AsyncSession,
+    size_bytes: Optional[int] = None,
+    last_modified_at: Optional[datetime] = None,
+    parent_asset_id: Optional[str] = None,
+) -> str:
+    """Create or upsert an Asset record with asset_type='file'.
+
+    Path is stored as-is; the identity key lowercases path to avoid
+    case-sensitivity duplicates. S3 paths are case-sensitive — the stored
+    Asset.path retains the original case, but the UUID is derived from
+    the lowercased form.
+    """
+    from app.db.models import Asset, AssetSourceMeta
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    # Identity key lowercases path (see comment above)
+    asset_id = stable_asset_id(f"file:{connection_id}:{path.lower()}")
+    fallback_parent = stable_asset_id(f"source:{connection_id}")
+
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    existing = result.scalar_one_or_none()
+
+    if existing is None:
+        db.add(Asset(
+            asset_id=asset_id,
+            parent_asset_id=parent_asset_id or fallback_parent,
+            asset_type="file",
+            physical_name=path.split("/")[-1],
+            display_name=display_name,
+            qualified_name=path,
+            path=path,
+            status="active",
+            connection_id=connection_id,
+            discovered_at=now,
+            last_seen_at=now,
+            is_active=True,
+        ))
+        db.add(AssetSourceMeta(
+            asset_id=asset_id,
+            provider="s3",
+            generic_object_name=path.split("/")[-1],
+            generic_object_type="file",
+        ))
+    else:
+        existing.last_seen_at = now
+        existing.status = "active"
+
+    await db.commit()
+    return asset_id
+
+
+async def register_logical_dataset(
+    slug: str,
+    display_name: str,
+    db: AsyncSession,
+    description: Optional[str] = None,
+    owner_user_id: Optional[str] = None,
+    domain_id: Optional[str] = None,
+    parent_asset_id: Optional[str] = None,
+) -> str:
+    """Create or upsert a user-defined logical dataset Asset.
+
+    Slug is normalized to lowercase. Has no connection_id (source-agnostic).
+    Logical datasets are excluded from mark_missing_assets() since they have
+    no backing source scan.
+    """
+    from app.db.models import Asset
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    slug_lower = slug.lower()
+    asset_id = stable_asset_id(f"logical_dataset:{slug_lower}")
+
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    existing = result.scalar_one_or_none()
+
+    if existing is None:
+        db.add(Asset(
+            asset_id=asset_id,
+            parent_asset_id=parent_asset_id,
+            asset_type="logical_dataset",
+            physical_name=slug,
+            display_name=display_name,
+            qualified_name=slug_lower,
+            path=f"/logical/{slug_lower}",
+            status="active",
+            connection_id=None,
+            discovered_at=now,
+            last_seen_at=now,
+            description=description,
+            owner_user_id=owner_user_id,
+            domain_id=domain_id,
+            is_active=True,
+        ))
+
+    await db.commit()
+    return asset_id

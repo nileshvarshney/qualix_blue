@@ -134,3 +134,42 @@ async def test_register_column_assets_creates_stable_ids():
 
     assert ids[0] == stable_asset_id(f"column:{table_id}:order_id")
     assert ids[1] == stable_asset_id(f"column:{table_id}:total")
+
+
+@pytest.mark.asyncio
+async def test_register_file_asset_returns_stable_id():
+    from app.services.asset_registry import register_file_asset, stable_asset_id
+
+    db = AsyncMock()
+    no_row = MagicMock()
+    no_row.scalar_one_or_none.return_value = None
+    db.execute.return_value = no_row
+
+    asset_id = await register_file_asset(
+        connection_id="s3-conn-1",
+        path="s3://my-bucket/data/users.parquet",
+        display_name="Users Parquet",
+        db=db,
+    )
+
+    expected = stable_asset_id("file:s3-conn-1:s3://my-bucket/data/users.parquet")
+    assert asset_id == expected
+
+
+@pytest.mark.asyncio
+async def test_register_logical_dataset_returns_stable_id():
+    from app.services.asset_registry import register_logical_dataset, stable_asset_id
+
+    db = AsyncMock()
+    no_row = MagicMock()
+    no_row.scalar_one_or_none.return_value = None
+    db.execute.return_value = no_row
+
+    asset_id = await register_logical_dataset(
+        slug="customer-360",
+        display_name="Customer 360",
+        db=db,
+    )
+
+    expected = stable_asset_id("logical_dataset:customer-360")
+    assert asset_id == expected
