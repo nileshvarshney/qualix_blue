@@ -422,6 +422,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                     provider=conn.database_type or "snowflake",
                     db=db,
                 )
+                await db.commit()  # guarantee hierarchy nodes persist regardless of table scan outcomes
 
                 for table in tables:
                     tname = table["table_name"]
