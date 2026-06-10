@@ -214,3 +214,30 @@ def test_mask_includes_new_fields():
     assert result["environment"] == "dev"
     assert result["scan_readiness_status"] == "not_tested"
     assert "last_successful_scan_at" in result
+
+
+from app.connectors.snowflake_adapter import SnowflakeAdapter, _normalize_sf_type
+
+
+def test_normalize_sf_type_varchar():
+    assert _normalize_sf_type("VARCHAR") == "varchar"
+    assert _normalize_sf_type("TEXT") == "varchar"
+
+def test_normalize_sf_type_numeric():
+    assert _normalize_sf_type("NUMBER") == "int"
+    assert _normalize_sf_type("BIGINT") == "int"
+
+def test_normalize_sf_type_float():
+    assert _normalize_sf_type("FLOAT") == "float"
+    assert _normalize_sf_type("DOUBLE") == "float"
+
+def test_normalize_sf_type_json():
+    assert _normalize_sf_type("VARIANT") == "json"
+    assert _normalize_sf_type("OBJECT") == "json"
+
+def test_normalize_sf_type_unknown_passthrough():
+    assert _normalize_sf_type("CUSTOM_SF_TYPE") == "custom_sf_type"
+
+def test_snowflake_adapter_registered():
+    from app.connectors.factory import _REGISTRY
+    assert "snowflake" in _REGISTRY
