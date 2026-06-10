@@ -2,7 +2,7 @@
 import { useState, useCallback, useRef } from 'react'
 import AssetTreePanel, { AssetTreePanelHandle } from '@/components/asset-registry/AssetTreePanel'
 import AssetDetailPanel from '@/components/asset-registry/AssetDetailPanel'
-import ImportDatasetsModal from '@/components/datasets/ImportDatasetsModal'
+import AdhocDiscoveryModal from '@/components/datasets/AdhocDiscoveryModal'
 
 interface Asset {
   asset_id: string
@@ -64,7 +64,7 @@ export default function AssetRegistryPage() {
               fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer',
             }}
           >
-            + Discover Assets
+            Adhoc Discovery
           </button>
         </div>
         {loading ? (
@@ -74,7 +74,7 @@ export default function AssetRegistryPage() {
         )}
       </div>
       {showImport && (
-        <ImportDatasetsModal
+        <AdhocDiscoveryModal
           onClose={() => setShowImport(false)}
           onComplete={handleDiscoveryComplete}
         />
