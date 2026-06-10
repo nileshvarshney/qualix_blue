@@ -99,3 +99,27 @@ def test_from_orm_maps_fields():
     assert cfg.password == "decrypted_pass"
     assert cfg.port == 5432
     assert cfg.environment == "dev"
+
+
+from app.connectors.base import BaseConnector
+import inspect
+
+
+def test_base_connector_is_abstract():
+    assert inspect.isabstract(BaseConnector)
+
+
+def test_base_connector_required_methods():
+    required = {
+        "test_connection", "list_databases", "list_schemas",
+        "list_tables", "list_columns", "get_table_metadata",
+        "sample_rows", "run_metadata_scan", "get_health",
+    }
+    abstract_methods = BaseConnector.__abstractmethods__
+    assert required == abstract_methods
+
+
+def test_base_connector_cannot_be_instantiated():
+    cfg = ConnectorConfig(connection_id="c1", database_type="test")
+    with pytest.raises(TypeError):
+        BaseConnector(cfg)
