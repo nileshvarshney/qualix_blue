@@ -305,6 +305,8 @@ async def create_logical_dataset(
     )
     result = await db.execute(_select(_Asset).where(_Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
+    if asset is None:
+        raise HTTPException(status_code=500, detail="Logical dataset creation failed")
     return AssetResponse.model_validate(asset)
 
 
