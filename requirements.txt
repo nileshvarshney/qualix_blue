@@ -10,6 +10,11 @@ httpx>=0.28.1
 apscheduler==3.10.4
 snowflake-connector-python==3.12.4
 snowflake-sqlalchemy==1.7.3
+psycopg2-binary==2.9.9
+# Optional connector drivers (install as needed):
+# pymysql==1.1.1
+# google-cloud-bigquery==3.26.0
+# boto3==1.35.0
 openai==1.57.2
 anthropic==0.40.0
 google-genai>=1.0.0
