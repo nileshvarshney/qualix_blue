@@ -59,6 +59,9 @@ export interface Rule {
   status: RuleStatus
   severity: 'critical' | 'high' | 'medium' | 'low'
   scope: 'generic' | 'object-specific'
+  assetId?: string
+  domainId?: string
+  subdomainId?: string
   createdAt: string
   createdBy?: string
   approvedBy?: string
