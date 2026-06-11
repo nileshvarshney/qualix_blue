@@ -396,3 +396,16 @@ def test_my_permissions_route_exists():
     from app.api.users import router
     paths = {r.path for r in router.routes}
     assert "/auth/my-permissions" in paths
+
+
+def test_teams_router_registered_in_main():
+    from app.main import app
+    paths = [r.path for r in app.routes]
+    assert any("/teams" in p for p in paths), "teams router not registered in main.py"
+
+
+def test_ownership_router_registered_in_main():
+    from app.main import app
+    paths = [r.path for r in app.routes]
+    assert any("ownership" in p or "/assets/" in p and "ownership" in p for p in paths), \
+        "ownership router not registered — check /assets/{asset_id}/ownership"
