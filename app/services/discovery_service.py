@@ -275,6 +275,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                 return
 
             conn = await _fetch_connection(payload["connection_id"], db)
+            scan_run_id = payload.get("scan_run_id")
 
             filter_mode = conn.filter_mode or "exclude"
 
@@ -512,6 +513,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         last_modified_at=table.get("last_altered"),
                                         column_count=len(columns),
                                         schema_hash=_existing_schema_hash,
+                                        scan_run_id=scan_run_id,
                                     )
                                 except Exception as _meta_err:
                                     logger.warning(
@@ -663,6 +665,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             last_modified_at=table.get("last_altered"),
                             column_count=len(columns),
                             schema_hash=_schema_hash,
+                            scan_run_id=scan_run_id,
                         )
 
                         # Auto-create Phase 1 data quality rules

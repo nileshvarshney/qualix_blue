@@ -339,7 +339,7 @@ async def _run_metadata_discovery(
     await append_log(run_id, "INFO", "Starting metadata discovery")
     tmp_job_id = _jt.create_job("metadata_discovery", total=0, meta={"scan_run_id": run_id})
 
-    payload = {"connection_id": connection_id, "triggered_by": "scan_orchestrator", **params}
+    payload = {"connection_id": connection_id, "triggered_by": "scan_orchestrator", "scan_run_id": run_id, **params}
     await run_discovery(tmp_job_id, payload)
 
     jt_job = _jt.get_job(tmp_job_id)
