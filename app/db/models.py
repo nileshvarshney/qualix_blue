@@ -1115,3 +1115,217 @@ class ScanJobRunLog(Base):
     def __init__(self, **kwargs):
         kwargs.setdefault("log_id", gen_uuid())
         super().__init__(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# §M5  Results Storage
+# ---------------------------------------------------------------------------
+
+class ScanRunSummary(Base):
+    """Enriched summary for a completed scan run. One row per ScanJobRun."""
+    __tablename__ = "scan_run_summaries"
+
+    summary_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"),
+        nullable=False, unique=True,
+    )
+    job_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    connection_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    scan_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    new_assets_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_assets_count: Mapped[int] = mapped_column(Integer, default=0)
+    removed_assets_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_assets_count: Mapped[int] = mapped_column(Integer, default=0)
+    schema_changes_count: Mapped[int] = mapped_column(Integer, default=0)
+    quality_score_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    scan_parameters: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    run: Mapped["ScanJobRun"] = relationship("ScanJobRun")
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("summary_id", gen_uuid())
+        kwargs.setdefault("new_assets_count", 0)
+        kwargs.setdefault("updated_assets_count", 0)
+        kwargs.setdefault("removed_assets_count", 0)
+        kwargs.setdefault("failed_assets_count", 0)
+        kwargs.setdefault("schema_changes_count", 0)
+        super().__init__(**kwargs)
+
+
+class AssetScanSummary(Base):
+    """Per-asset outcome for a specific run. Written by metadata_store.record_scan_result."""
+    __tablename__ = "asset_scan_summaries"
+
+    asset_summary_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    scan_status: Mapped[str] = mapped_column(String(20), nullable=False, default="succeeded")
+    scan_duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    bytes: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    column_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    schema_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    columns_added: Mapped[int] = mapped_column(Integer, default=0)
+    columns_removed: Mapped[int] = mapped_column(Integer, default=0)
+    columns_changed: Mapped[int] = mapped_column(Integer, default=0)
+    schema_drift_detected: Mapped[bool] = mapped_column(Boolean, default=False)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Phase 2 placeholders — NULL until profiling/rule engines run
+    quality_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    null_ratio_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    distinct_ratio_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    volume_change_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    freshness_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("asset_summary_id", gen_uuid())
+        kwargs.setdefault("scan_status", "succeeded")
+        kwargs.setdefault("columns_added", 0)
+        kwargs.setdefault("columns_removed", 0)
+        kwargs.setdefault("columns_changed", 0)
+        kwargs.setdefault("schema_drift_detected", False)
+        super().__init__(**kwargs)
+
+
+class ScanMetricsHistory(Base):
+    """One row per (asset, run, metric_name). Supports trend queries."""
+    __tablename__ = "scan_metrics_history"
+
+    metric_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+    )
+    run_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="SET NULL"), nullable=True
+    )
+    metric_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    metric_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    metric_value_num: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    metric_value_str: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("metric_id", gen_uuid())
+        super().__init__(**kwargs)
+
+
+class ScanEvidenceLog(Base):
+    """Structured diagnostics and evidence attached to a run or asset."""
+    __tablename__ = "scan_evidence_logs"
+
+    evidence_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="SET NULL"), nullable=True
+    )
+    evidence_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    payload: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    retention_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("evidence_id", gen_uuid())
+        kwargs.setdefault("severity", "info")
+        super().__init__(**kwargs)
+
+
+class ProfilingResultPlaceholder(Base):
+    """Per-column profiling result. Populated by Phase 2 profiling engine."""
+    __tablename__ = "profiling_result_placeholders"
+
+    profiling_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+    )
+    column_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    null_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    null_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    distinct_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    distinct_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    min_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    max_value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    avg_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    std_dev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    top_values: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    pattern_frequency: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=True)
+    profiled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("profiling_id", gen_uuid())
+        kwargs.setdefault("is_placeholder", True)
+        super().__init__(**kwargs)
+
+
+class RuleResultPlaceholder(Base):
+    """Per-rule evaluation result linked to a scan run. Populated by Phase 2 rule engine."""
+    __tablename__ = "rule_result_placeholders"
+
+    result_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+    )
+    rule_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("dq_rules.rule_id", ondelete="SET NULL"), nullable=True
+    )
+    rule_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    rows_scanned: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    rows_failed: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    failure_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("result_id", gen_uuid())
+        kwargs.setdefault("status", "pending")
+        kwargs.setdefault("is_placeholder", True)
+        super().__init__(**kwargs)
+
+
+class FailedSampleRecordPlaceholder(Base):
+    """Evidence record for a failed row. Populated by Phase 2. Has retention TTL."""
+    __tablename__ = "failed_sample_record_placeholders"
+
+    sample_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+    )
+    rule_result_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("rule_result_placeholders.result_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    failed_record: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    retention_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    def __init__(self, **kwargs):
+        kwargs.setdefault("sample_id", gen_uuid())
+        kwargs.setdefault("is_placeholder", True)
+        super().__init__(**kwargs)
