@@ -33,6 +33,7 @@ from app.api import (
     # Results storage
     scan_results,
     profile_results,
+    quality_scores,
 )
 # §M6 User/Role/Team
 from app.api import teams as teams_module
@@ -173,6 +174,7 @@ app.include_router(rules.router)
 app.include_router(schedules.router)
 app.include_router(executions.router)
 app.include_router(dashboard.router)
+app.include_router(quality_scores.router)
 app.include_router(ai.router)
 app.include_router(alerts.router)
 app.include_router(audit.router)
