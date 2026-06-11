@@ -1,18 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { store } from '@/lib/store'
-import { generateId } from '@/lib/utils'
 import { Rule } from '@/lib/types'
 
+export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/rules/enriched?limit=500`, { cache: 'no-store' })
+    const { searchParams } = req.nextUrl
+    const assetId = searchParams.get('asset_id')
+    const domainId = searchParams.get('domain_id')
+    let url = `${BACKEND}/rules/enriched?limit=500`
+    if (assetId) url += `&asset_id=${assetId}`
+    if (domainId) url += `&domain_id=${domainId}`
+
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json()
     const items: Record<string, unknown>[] = data.items ?? []
 
-    // Fetch connections once to map asset_id → connection_id
     const connRes = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
     const connData = connRes.ok ? await connRes.json() : []
     const connections: Record<string, unknown>[] = Array.isArray(connData) ? connData : (connData.items ?? [])
@@ -47,34 +52,115 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
-  // Every newly created rule must be reviewed by the data stewards group before it
-  // can run. It enters the review queue as pending_review and stays inactive until approved.
-  const rule: Rule = {
-    ...body,
-    id: generateId('rule'),
-    enabled: false,
-    status: 'pending_review',
-    scope: body.scope ?? 'generic',
-    createdAt: new Date().toISOString(),
-    createdBy: body.createdBy || undefined,
+  try {
+    const body = await req.json()
+    const { name, description, category, type, connectionId, tableName, columnName, severity, parameters } = body
+
+    // Resolve asset_id + domain_id + subdomain_id from connectionId + tableName
+    const assetRes = await fetch(
+      `${BACKEND}/assets?connection_id=${encodeURIComponent(connectionId ?? '')}&sf_table_name=${encodeURIComponent(tableName ?? '')}&limit=1`,
+      { cache: 'no-store' }
+    )
+    const assetData = assetRes.ok ? await assetRes.json() : {}
+    const assetItems: Record<string, unknown>[] = Array.isArray(assetData) ? assetData : (assetData.items ?? [])
+    const asset = assetItems[0]
+
+    if (!asset) {
+      return NextResponse.json({ error: `Asset not found for table '${tableName}'` }, { status: 422 })
+    }
+
+    const createBody = {
+      rule_name: name,
+      rule_description: description || null,
+      domain_id: asset.domain_id,
+      subdomain_id: asset.subdomain_id,
+      asset_id: asset.asset_id,
+      rule_type: type,
+      rule_category: category,
+      target_column: columnName || null,
+      rule_config: parameters || null,
+      severity: severity || 'medium',
+      status: 'draft',
+    }
+
+    const res = await fetch(`${BACKEND}/rules`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(createBody),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      return NextResponse.json(err, { status: res.status })
+    }
+    const created = await res.json()
+    const rule: Rule = {
+      id: created.rule_id as string,
+      name: created.rule_name as string,
+      description: (created.rule_description as string) ?? '',
+      category: (created.rule_category as Rule['category']) ?? category,
+      type: created.rule_type as Rule['type'],
+      connectionId: connectionId as string,
+      tableName: (asset.sf_table_name as string) ?? tableName,
+      columnName: (created.target_column as string) ?? undefined,
+      parameters: (created.rule_config as Record<string, unknown>) ?? parameters ?? {},
+      enabled: created.is_active as boolean,
+      status: created.status as Rule['status'],
+      severity: created.severity as Rule['severity'],
+      scope: 'generic',
+      assetId: created.asset_id as string | undefined,
+      domainId: created.domain_id as string | undefined,
+      subdomainId: created.subdomain_id as string | undefined,
+      createdAt: created.created_at as string,
+      createdBy: (created.created_by as string) ?? undefined,
+    }
+    return NextResponse.json(rule, { status: 201 })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
   }
-  store.rules.create(rule)
-  return NextResponse.json(rule, { status: 201 })
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json()
-  const { id, ...updates } = body
-  const updated = store.rules.update(id, updates)
-  if (!updated) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(updated)
+  try {
+    const body = await req.json()
+    const { id, name, description, category, type, severity, status, columnName, parameters } = body
+
+    const updateBody = {
+      rule_name: name,
+      rule_description: description || null,
+      rule_type: type,
+      rule_category: category,
+      target_column: columnName || null,
+      rule_config: parameters || null,
+      severity,
+      status,
+      is_active: status === 'active',
+    }
+
+    const res = await fetch(`${BACKEND}/rules/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updateBody),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      return NextResponse.json(err, { status: res.status })
+    }
+    return NextResponse.json(await res.json())
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
 }
 
 export async function DELETE(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const id = searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
-  store.rules.delete(id)
-  return NextResponse.json({ success: true })
+  try {
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
+
+    const res = await fetch(`${BACKEND}/rules/${id}`, { method: 'DELETE' })
+    if (!res.ok) return NextResponse.json({ error: 'Delete failed' }, { status: res.status })
+    return NextResponse.json({ success: true })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
 }
