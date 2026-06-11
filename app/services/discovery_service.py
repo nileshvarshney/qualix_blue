@@ -459,12 +459,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         DQRule.asset_id == existing_asset.asset_id
                                     )
                                 )
+                                table_safe = _validate_ident(tname, "table")
+                                columns = await asyncio.to_thread(
+                                    _browse_columns_sync, conn, db_safe, schema_safe, table_safe
+                                )
                                 if (rule_count_res.scalar() or 0) == 0:
                                     try:
-                                        table_safe = _validate_ident(tname, "table")
-                                        columns = await asyncio.to_thread(
-                                            _browse_columns_sync, conn, db_safe, schema_safe, table_safe
-                                        )
                                         await create_phase1_rules(existing_asset, columns, db)
                                         logger.info(
                                             "Backfilled Phase 1 rules for existing asset %s (%s)",
@@ -474,6 +474,23 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         logger.exception(
                                             "Phase 1 backfill failed for %s: %s", tname, backfill_err
                                         )
+                                # Refresh column metadata for existing asset
+                                _existing_col_models = [
+                                    _ColumnMetaIn(
+                                        column_name=c["column_name"],
+                                        data_type=c.get("data_type"),
+                                        is_nullable=(
+                                            c.get("is_nullable") != "NO"
+                                            if isinstance(c.get("is_nullable"), str)
+                                            else c.get("is_nullable")
+                                        ),
+                                        ordinal_position=c.get("ordinal_position"),
+                                        description=c.get("comment") or None,
+                                    )
+                                    for c in columns
+                                ]
+                                await _meta_store.upsert_column_metadata(db, existing_asset.asset_id, _existing_col_models)
+                                _existing_schema_hash = _meta_store.compute_schema_hash(_existing_col_models)
                                 _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
                                 try:
                                     await _meta_store.record_scan_result(
@@ -484,8 +501,8 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                         row_count=table.get("row_count"),
                                         bytes=table.get("bytes"),
                                         last_modified_at=table.get("last_altered"),
-                                        column_count=0,
-                                        schema_hash="",
+                                        column_count=len(columns),
+                                        schema_hash=_existing_schema_hash,
                                     )
                                 except Exception as _meta_err:
                                     logger.warning(
