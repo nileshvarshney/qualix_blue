@@ -1060,14 +1060,9 @@ class ScanJob(Base):
         "ScanJobRun", back_populates="job", cascade="all, delete-orphan"
     )
 
-    def __init__(self, **kw):
-        kw.setdefault("job_id", gen_uuid())
-        kw.setdefault("is_active", True)
-        kw.setdefault("schedule_frequency", "on_demand")
-        kw.setdefault("timezone", "UTC")
-        kw.setdefault("max_retries", 2)
-        kw.setdefault("timeout_seconds", 300)
-        super().__init__(**kw)
+    def __init__(self, **kwargs):
+        kwargs.setdefault("job_id", gen_uuid())
+        super().__init__(**kwargs)
 
 
 class ScanJobRun(Base):
@@ -1098,15 +1093,9 @@ class ScanJobRun(Base):
         "ScanJobRunLog", back_populates="run", cascade="all, delete-orphan"
     )
 
-    def __init__(self, **kw):
-        kw.setdefault("run_id", gen_uuid())
-        kw.setdefault("status", "queued")
-        kw.setdefault("trigger_type", "manual")
-        kw.setdefault("attempt", 1)
-        kw.setdefault("assets_scanned", 0)
-        kw.setdefault("errors_count", 0)
-        kw.setdefault("warnings_count", 0)
-        super().__init__(**kw)
+    def __init__(self, **kwargs):
+        kwargs.setdefault("run_id", gen_uuid())
+        super().__init__(**kwargs)
 
 
 class ScanJobRunLog(Base):
@@ -1123,7 +1112,6 @@ class ScanJobRunLog(Base):
 
     run: Mapped["ScanJobRun"] = relationship("ScanJobRun", back_populates="logs")
 
-    def __init__(self, **kw):
-        kw.setdefault("log_id", gen_uuid())
-        kw.setdefault("level", "INFO")
-        super().__init__(**kw)
+    def __init__(self, **kwargs):
+        kwargs.setdefault("log_id", gen_uuid())
+        super().__init__(**kwargs)
