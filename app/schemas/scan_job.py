@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, model_validator
 
 _JOB_TYPE_RE = (
     "^(connection_test|metadata_discovery|asset_refresh"
-    "|profile_scan_placeholder|rule_scan_placeholder|source_health_check)$"
+    "|profile_scan|profile_scan_placeholder|rule_scan_placeholder|source_health_check)$"
 )
 _FREQ_RE = "^(on_demand|hourly|daily|weekly|monthly|cron)$"
 

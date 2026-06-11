@@ -626,6 +626,9 @@ class ColumnProfileHistory(Base):
     row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     cardinality_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     top_values: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    run_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now, nullable=False)
 
 
@@ -1279,6 +1282,8 @@ class ProfilingResultPlaceholder(Base):
     std_dev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     top_values: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
     pattern_frequency: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    data_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     is_placeholder: Mapped[bool] = mapped_column(Boolean, default=True)
     profiled_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
