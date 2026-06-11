@@ -331,7 +331,11 @@ async def test_get_current_state_maps_asset_and_meta_fields():
     meta.partition_info = None
     asset.source_meta = meta
 
-    db.execute.return_value.scalar_one_or_none.return_value = asset
+    # First execute: asset+selectinload query; second: tags query (no tags)
+    results = [MagicMock(), MagicMock()]
+    results[0].scalar_one_or_none.return_value = asset
+    results[1].all.return_value = []
+    db.execute.side_effect = results
 
     result = await get_current_state(db, "asset-1")
 
@@ -339,6 +343,7 @@ async def test_get_current_state_maps_asset_and_meta_fields():
     assert result.row_count == 8000000
     assert result.scan_status == "success"
     assert result.attached_rule_count == 3
+    assert result.tags == []
 
 
 @pytest.mark.asyncio
@@ -363,6 +368,44 @@ async def test_get_column_state_returns_ordered_columns():
     result = await get_column_state(db, "asset-1")
 
     assert result == [col1, col2]
+
+
+@pytest.mark.asyncio
+async def test_get_current_state_includes_tags():
+    from app.services.metadata_store import get_current_state
+    db = AsyncMock()
+
+    asset = MagicMock()
+    asset.asset_id = "asset-1"
+    asset.asset_type = "table"
+    asset.qualified_name = "PROD.SALES.ORDERS"
+    asset.physical_name = "ORDERS"
+    asset.display_name = "ORDERS"
+    asset.status = "active"
+    asset.scan_status = "success"
+    asset.last_scanned_at = None
+    asset.scan_duration_ms = 100
+    asset.scan_version = "1.0.0"
+    asset.latest_profile_score = None
+    asset.latest_quality_status = None
+    asset.is_critical_data_element = False
+    asset.attached_rule_count = 0
+    asset.owner_user_id = None
+    asset.owner_team_id = None
+    asset.steward_user_id = None
+    asset.source_meta = None
+
+    tag_row = MagicMock()
+    tag_row.tag_name = "pii"
+
+    # First execute: the asset+selectinload query; second: the tags query
+    results = [MagicMock(), MagicMock()]
+    results[0].scalar_one_or_none.return_value = asset
+    results[1].all.return_value = [tag_row]
+    db.execute.side_effect = results
+
+    result = await get_current_state(db, "asset-1")
+    assert result.tags == ["pii"]
 
 
 def test_metadata_store_module_exports_all_public_functions():

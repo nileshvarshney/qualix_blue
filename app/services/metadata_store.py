@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     Asset, AssetSourceMeta, AssetMetadataSnapshot, ColumnMetadata,
+    AssetTag, Tag,
     gen_uuid,
 )
 from app.schemas.metadata import (
@@ -269,6 +270,19 @@ async def get_current_state(
     if not asset:
         return None
     meta = asset.source_meta
+
+    # Fetch tag names for this asset
+    tags_result = await db.execute(
+        select(Tag.tag_name)
+        .join(AssetTag, AssetTag.tag_id == Tag.tag_id)
+        .where(
+            AssetTag.entity_id == asset_id,
+            AssetTag.entity_type == "asset",
+        )
+    )
+    raw_tags = tags_result.all()
+    tag_names = [row.tag_name for row in raw_tags]
+
     return AssetMetaCurrentState(
         asset_id=asset.asset_id,
         asset_type=asset.asset_type,
@@ -292,6 +306,7 @@ async def get_current_state(
         owner_user_id=asset.owner_user_id,
         owner_team_id=asset.owner_team_id,
         steward_user_id=asset.steward_user_id,
+        tags=tag_names,
     )
 
 

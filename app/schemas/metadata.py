@@ -74,6 +74,8 @@ class AssetMetaCurrentState(BaseModel):
     owner_user_id: Optional[str] = None
     owner_team_id: Optional[str] = None
     steward_user_id: Optional[str] = None
+    # Tags
+    tags: list[str] = []
 
 
 class SnapshotResponse(BaseModel):
