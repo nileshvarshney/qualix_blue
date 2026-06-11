@@ -18,6 +18,7 @@ from app.db.models import (
 from app.schemas.metadata import (
     ColumnMetaIn, AssetMetaCurrentState,
 )
+from app.services import results_store
 
 logger = logging.getLogger("dq_platform.metadata_store")
 
@@ -115,6 +116,7 @@ async def record_scan_result(
     last_modified_at: Optional[datetime],
     column_count: int,
     schema_hash: str,
+    scan_run_id: Optional[str] = None,
 ) -> None:
     """
     1. Update Asset: last_scanned_at, scan_status, scan_duration_ms, scan_version
@@ -187,6 +189,30 @@ async def record_scan_result(
             created_at=now_dt,
             updated_at=now_dt,
         ))
+
+    if scan_run_id:
+        await results_store.write_asset_summary(
+            db=db,
+            run_id=scan_run_id,
+            asset_id=asset_id,
+            scan_status=scan_status,
+            scan_duration_ms=scan_duration_ms,
+            row_count=row_count,
+            bytes=bytes,
+            column_count=column_count,
+            schema_hash=schema_hash,
+        )
+        today = _now().date()
+        await results_store.record_metrics(
+            db=db,
+            asset_id=asset_id,
+            run_id=scan_run_id,
+            metric_date=today,
+            metrics={
+                "row_count": float(row_count) if row_count is not None else None,
+                "column_count": float(column_count) if column_count is not None else None,
+            },
+        )
 
     await db.commit()
 

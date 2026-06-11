@@ -381,3 +381,61 @@ async def test_get_run_evidence_returns_filtered_list():
     result = await get_run_evidence(db, "run-001", severity="warning")
 
     assert len(result) == 2
+
+
+@pytest.mark.asyncio
+async def test_record_scan_result_calls_write_asset_summary_when_run_id_given():
+    from app.services.metadata_store import record_scan_result
+
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    with patch("app.services.metadata_store.results_store") as mock_rs:
+        mock_rs.write_asset_summary = AsyncMock()
+        mock_rs.record_metrics = AsyncMock()
+
+        await record_scan_result(
+            db=db,
+            asset_id="asset-001",
+            scan_status="success",
+            scan_version="1.0.0",
+            scan_duration_ms=300,
+            row_count=1000,
+            bytes=204800,
+            last_modified_at=None,
+            column_count=10,
+            schema_hash="abc123",
+            scan_run_id="run-001",
+        )
+
+    mock_rs.write_asset_summary.assert_called_once()
+    call_kwargs = mock_rs.write_asset_summary.call_args.kwargs
+    assert call_kwargs["run_id"] == "run-001"
+    assert call_kwargs["asset_id"] == "asset-001"
+    assert call_kwargs["scan_duration_ms"] == 300
+
+
+@pytest.mark.asyncio
+async def test_record_scan_result_no_run_id_skips_write_asset_summary():
+    from app.services.metadata_store import record_scan_result
+
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    with patch("app.services.metadata_store.results_store") as mock_rs:
+        mock_rs.write_asset_summary = AsyncMock()
+
+        await record_scan_result(
+            db=db,
+            asset_id="asset-001",
+            scan_status="success",
+            scan_version="1.0.0",
+            scan_duration_ms=200,
+            row_count=500,
+            bytes=102400,
+            last_modified_at=None,
+            column_count=8,
+            schema_hash="def456",
+        )
+
+    mock_rs.write_asset_summary.assert_not_called()
