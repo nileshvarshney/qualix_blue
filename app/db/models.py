@@ -1371,8 +1371,8 @@ class TeamMembership(Base):
     )
 
     membership_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
     role_in_team: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
@@ -1386,8 +1386,8 @@ class UserRole(Base):
     )
 
     user_role_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
     granted_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
@@ -1400,8 +1400,8 @@ class TeamRole(Base):
     )
 
     team_role_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
-    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
-    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(30), nullable=False)
     granted_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
@@ -1409,6 +1409,9 @@ class TeamRole(Base):
 class NotificationTarget(Base):
     """Per-user or per-team notification channel configuration."""
     __tablename__ = "notification_targets"
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_id", "channel", name="uq_notification_target_entity_channel"),
+    )
 
     target_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     entity_type: Mapped[str] = mapped_column(String(20), nullable=False)   # "user" or "team"
