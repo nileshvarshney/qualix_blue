@@ -439,3 +439,41 @@ async def test_record_scan_result_no_run_id_skips_write_asset_summary():
         )
 
     mock_rs.write_asset_summary.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_execute_run_calls_write_run_summary_on_success():
+    from app.services import scan_orchestrator
+
+    with patch("app.services.scan_orchestrator._dispatch_handler", new_callable=AsyncMock) as mock_dispatch:
+        mock_dispatch.return_value = {
+            "assets_scanned": 5,
+            "errors_count": 0,
+            "warnings_count": 0,
+            "result_summary": None,
+        }
+        with patch("app.services.scan_orchestrator.AsyncSessionLocal") as mock_ctx:
+            mock_db = AsyncMock()
+            mock_run_first = MagicMock()
+            mock_run_first.status = "queued"
+            mock_run_first.job_id = "job-001"
+            mock_run_second = MagicMock()
+            mock_run_second.status = "running"
+            mock_job = MagicMock()
+            mock_job.job_type = "metadata_discovery"
+            mock_job.connection_id = "conn-001"
+            mock_job.timeout_seconds = 300
+            mock_job.max_retries = 2
+            mock_db.get.side_effect = [
+                mock_run_first,  # first context — run fetch
+                mock_job,        # first context — job fetch
+                mock_run_second, # second context — run update fetch
+                mock_job,        # second context — job update fetch
+            ]
+            mock_ctx.return_value.__aenter__.return_value = mock_db
+
+            with patch("app.services.scan_orchestrator.results_store") as mock_rs:
+                mock_rs.write_run_summary = AsyncMock()
+                result = await scan_orchestrator._execute_run("run-001")
+
+        mock_rs.write_run_summary.assert_called_once_with(mock_db, "run-001")

@@ -17,6 +17,7 @@ from sqlalchemy import desc, select
 
 from app.db.database import AsyncSessionLocal
 from app.db.models import ScanJob, ScanJobRun, ScanJobRunLog
+from app.services import results_store
 
 logger = logging.getLogger("dq_platform.scan_orchestrator")
 
@@ -219,6 +220,7 @@ async def _execute_run(run_id: str) -> bool:
                 job.last_run_status = final_status
 
         await db.commit()
+        await results_store.write_run_summary(db, run_id)
 
     return final_status in ("succeeded", "partial_success")
 
