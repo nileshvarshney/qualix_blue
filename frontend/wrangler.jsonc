@@ -9,6 +9,9 @@
 		"directory": ".open-next/assets",
 		"binding": "ASSETS"
 	},
+	"vars": {
+		"BACKEND_URL": "https://qualix-backend-7ly5.onrender.com"
+	},
 	"services": [
 		{
 			"binding": "WORKER_SELF_REFERENCE",

@@ -575,49 +575,66 @@ async def set_primary_target(
 
 @router.post("/{connection_id}/test")
 async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(SnowflakeConnection).where(SnowflakeConnection.connection_id == connection_id)
-    )
-    conn = result.scalar_one_or_none()
-    if not conn:
-        raise HTTPException(404, "Connection not found")
+    try:
+        result = await db.execute(
+            select(SnowflakeConnection).where(SnowflakeConnection.connection_id == connection_id)
+        )
+        conn = result.scalar_one_or_none()
+        if not conn:
+            raise HTTPException(404, "Connection not found")
 
-    db_type = conn.database_type or "snowflake"
+        db_type = conn.database_type or "snowflake"
 
-    if db_type == "snowflake":
-        if not conn.password:
-            return {"success": False, "status": "error", "steps": [{"label": "Password", "status": "fail", "detail": "No password saved"}]}
+        if db_type == "snowflake":
+            if not conn.password:
+                return {"success": False, "status": "error", "steps": [{"label": "Password", "status": "fail", "detail": "No password saved"}]}
 
-        class _Payload:
-            pass
+            class _Payload:
+                pass
 
-        p = _Payload()
-        p.account = conn.account
-        p.sf_user = conn.sf_user
-        p.password = _decrypt_password(conn)
-        p.warehouse = conn.warehouse
-        p.role = conn.role
-        p.default_database = conn.default_database
-        p.default_schema = conn.default_schema
-        test_result = await asyncio.to_thread(_test_snowflake_sync, p)
-    else:
-        class _Payload:
-            pass
+            p = _Payload()
+            p.account = conn.account
+            p.sf_user = conn.sf_user
+            p.password = _decrypt_password(conn)
+            p.warehouse = conn.warehouse
+            p.role = conn.role
+            p.default_database = conn.default_database
+            p.default_schema = conn.default_schema
+            test_result = await asyncio.to_thread(_test_snowflake_sync, p)
+        else:
+            class _Payload:
+                pass
 
-        p = _Payload()
-        for attr in ("host", "port", "sf_user", "default_database", "project",
-                     "file_path", "base_url", "connection_string"):
-            setattr(p, attr, getattr(conn, attr, None))
-        if conn.connection_string:
-            p.connection_string = decrypt(conn.connection_string)
-        test_result = await asyncio.to_thread(_test_generic_sync, p, db_type)
+            p = _Payload()
+            for attr in ("host", "port", "sf_user", "default_database", "project",
+                         "file_path", "base_url", "connection_string"):
+                setattr(p, attr, getattr(conn, attr, None))
+            if conn.connection_string:
+                p.connection_string = decrypt(conn.connection_string)
+            test_result = await asyncio.to_thread(_test_generic_sync, p, db_type)
 
-    # Update connection status
-    conn.last_test_status = "active" if test_result.get("success") else "error"
-    conn.last_tested_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    await db.commit()
+        # Persist test status — non-fatal: a stale session after the long Snowflake
+        # test should not discard the result we already computed.
+        try:
+            conn.last_test_status = "active" if test_result.get("success") else "error"
+            conn.last_tested_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            await db.commit()
+        except Exception as commit_err:
+            logger.warning("Could not persist test status for connection %s: %s", connection_id, commit_err)
 
-    return test_result
+        return test_result
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("test_connection %s raised unexpectedly: %s", connection_id, exc, exc_info=True)
+        return {
+            "success": False, "status": "error",
+            "steps": [{"label": "Server error", "status": "fail", "detail": str(exc)[:300]}],
+            "error_code": type(exc).__name__,
+            "error_message": str(exc)[:400],
+            "suggestion": "Check Render logs for the full traceback.",
+        }
 
 
 @router.get("/{connection_id}/health", tags=["Connections"])

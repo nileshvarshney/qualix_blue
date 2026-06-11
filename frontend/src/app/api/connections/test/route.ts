@@ -536,6 +536,28 @@ export async function POST(req: NextRequest) {
         cache: 'no-store',
       })
       const backendResult = await backendRes.json()
+
+      // 404 means the connection record doesn't exist in the backend DB (e.g. was
+      // only stored in localStorage and never persisted server-side).
+      if (backendRes.status === 404) {
+        return NextResponse.json({
+          success: false, status: 'error', steps: [],
+          errorCode: 'CONNECTION_NOT_FOUND',
+          errorMessage: 'This connection record was not found in the server database.',
+          suggestion: 'This connection may only exist in your browser\'s local storage. Delete it and re-add it so it is saved to the server.',
+        } as TestResult)
+      }
+
+      // 500 — surface the backend detail so the user can act on it.
+      if (!backendRes.ok && !backendResult.steps) {
+        return NextResponse.json({
+          success: false, status: 'error', steps: [],
+          errorCode: 'BACKEND_ERROR',
+          errorMessage: backendResult.detail ?? `Server error (HTTP ${backendRes.status})`,
+          suggestion: 'Check the server logs for details. If the error mentions ENCRYPTION_KEY, re-enter the connection password in Settings → Connections.',
+        } as TestResult)
+      }
+
       // Normalise backend snake_case keys to the camelCase shape the UI expects
       const result: TestResult = {
         success:      backendResult.success ?? false,
@@ -546,7 +568,7 @@ export async function POST(req: NextRequest) {
           detail: s.detail ?? s.message ?? '',
         })),
         errorCode:    backendResult.error_code    ?? backendResult.errorCode,
-        errorMessage: backendResult.error_message ?? backendResult.errorMessage,
+        errorMessage: backendResult.error_message ?? backendResult.errorMessage ?? backendResult.detail,
         suggestion:   backendResult.suggestion,
         latencyMs:    backendResult.latency_ms    ?? backendResult.latencyMs,
       }
