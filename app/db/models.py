@@ -478,7 +478,7 @@ class SnowflakeConnection(Base):
     # Test diagnostics
     last_test_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
     last_tested_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    environment: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    environment: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, deferred=True)
     last_successful_scan_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     scan_readiness_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True, default="not_tested")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
