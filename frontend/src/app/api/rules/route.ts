@@ -10,8 +10,8 @@ export async function GET(req: NextRequest) {
     const assetId = searchParams.get('asset_id')
     const domainId = searchParams.get('domain_id')
     let url = `${BACKEND}/rules/enriched?limit=500`
-    if (assetId) url += `&asset_id=${assetId}`
-    if (domainId) url += `&domain_id=${domainId}`
+    if (assetId) url += `&asset_id=${encodeURIComponent(assetId)}`
+    if (domainId) url += `&domain_id=${encodeURIComponent(domainId)}`
 
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`Backend ${res.status}`)
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
     const connRes = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
     const connData = connRes.ok ? await connRes.json() : []
-    const connections: Record<string, unknown>[] = Array.isArray(connData) ? connData : (connData.items ?? [])
+    const connections: Record<string, unknown>[] = Array.isArray(connData) ? connData : (connData?.items ?? [])
     const defaultConnId = connections[0]?.connection_id as string ?? ''
 
     const rules: Rule[] = items.map((r) => ({
@@ -157,7 +157,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    const res = await fetch(`${BACKEND}/rules/${id}`, { method: 'DELETE' })
+    const res = await fetch(`${BACKEND}/rules/${id}`, { method: 'DELETE', cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ error: 'Delete failed' }, { status: res.status })
     return NextResponse.json({ success: true })
   } catch (e) {
