@@ -202,7 +202,6 @@ async def record_scan_result(
             column_count=column_count,
             schema_hash=schema_hash,
         )
-        today = _now().date()
         await results_store.record_metrics(
             db=db,
             asset_id=asset_id,
