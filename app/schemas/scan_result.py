@@ -81,3 +81,5 @@ class RunComparisonOut(BaseModel):
     run_a: ScanRunSummaryOut
     run_b: ScanRunSummaryOut
     delta: dict[str, Any]
+
+    model_config = {"from_attributes": True}
