@@ -719,9 +719,6 @@ def schedule_scan_job(job) -> None:
         return
 
     apscheduler_id = f"scan_job:{job.job_id}"
-    if scheduler.get_job(apscheduler_id):
-        scheduler.remove_job(apscheduler_id)
-
     scheduler.add_job(
         _make_scan_runner(job.job_id),
         trigger=trigger,
