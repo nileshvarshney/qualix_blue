@@ -303,3 +303,85 @@ async def list_team_roles(
         "team_id": team_id,
         "roles": [{"team_role_id": r.team_role_id, "role": r.role, "granted_by": r.granted_by} for r in roles],
     }
+
+
+# ── Notification Targets ──────────────────────────────────────────────────────
+
+@router.post("/notification-targets", status_code=201)
+async def create_notification_target(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    from app.db.models import NotificationTarget
+    VALID_CHANNELS = {"email", "slack", "pagerduty", "webhook", "ms_teams"}
+    VALID_ENTITY_TYPES = {"user", "team"}
+
+    entity_type = payload.get("entity_type", "")
+    if entity_type not in VALID_ENTITY_TYPES:
+        raise HTTPException(400, f"entity_type must be one of {sorted(VALID_ENTITY_TYPES)}")
+    channel = payload.get("channel", "")
+    if channel not in VALID_CHANNELS:
+        raise HTTPException(400, f"channel must be one of {sorted(VALID_CHANNELS)}")
+    address = (payload.get("address") or "").strip()
+    if not address:
+        raise HTTPException(400, "address is required")
+
+    target = NotificationTarget(
+        target_id=str(uuid.uuid4()),
+        entity_type=entity_type,
+        entity_id=payload.get("entity_id", ""),
+        channel=channel,
+        address=address,
+        label=payload.get("label"),
+    )
+    db.add(target)
+    await db.commit()
+    return {"target_id": target.target_id, "channel": target.channel, "address": target.address}
+
+
+@router.get("/notification-targets")
+async def list_notification_targets(
+    entity_type: Optional[str] = None,
+    entity_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    _: dict = Depends(get_current_user),
+):
+    from app.db.models import NotificationTarget
+    q = select(NotificationTarget).where(NotificationTarget.is_active == True)
+    if entity_type:
+        q = q.where(NotificationTarget.entity_type == entity_type)
+    if entity_id:
+        q = q.where(NotificationTarget.entity_id == entity_id)
+    result = await db.execute(q)
+    return [
+        {
+            "target_id": t.target_id,
+            "entity_type": t.entity_type,
+            "entity_id": t.entity_id,
+            "channel": t.channel,
+            "address": t.address,
+            "label": t.label,
+            "is_active": t.is_active,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+        }
+        for t in result.scalars().all()
+    ]
+
+
+@router.delete("/notification-targets/{target_id}")
+async def delete_notification_target(
+    target_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    from app.db.models import NotificationTarget
+    result = await db.execute(
+        select(NotificationTarget).where(NotificationTarget.target_id == target_id)
+    )
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(404, "Notification target not found")
+    target.is_active = False
+    await db.commit()
+    return {"message": "Notification target deleted"}

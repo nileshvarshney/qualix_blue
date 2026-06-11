@@ -319,3 +319,80 @@ async def test_set_ownership_updates_asset_fields():
     assert result["asset_id"] == "asset-001"
     assert mock_asset.owner_user_id == "user-001"
     assert mock_asset.steward_user_id == "user-002"
+
+
+def test_notification_target_routes_exist():
+    from app.api.teams import router
+    paths = {r.path for r in router.routes}
+    assert "/teams/notification-targets" in paths
+    assert "/teams/notification-targets/{target_id}" in paths
+
+
+@pytest.mark.asyncio
+async def test_create_notification_target_returns_target_id():
+    from app.api.teams import create_notification_target
+
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+
+    result = await create_notification_target(
+        {
+            "entity_type": "user",
+            "entity_id": "user-001",
+            "channel": "slack",
+            "address": "#data-alerts",
+            "label": "My Slack",
+        },
+        db=db,
+        user={"email": "admin@example.com", "role": "admin"},
+    )
+    assert "target_id" in result
+    assert result["channel"] == "slack"
+
+
+@pytest.mark.asyncio
+async def test_create_notification_target_400_bad_channel():
+    from app.api.teams import create_notification_target
+    from fastapi import HTTPException
+
+    db = AsyncMock()
+    with pytest.raises(HTTPException) as exc_info:
+        await create_notification_target(
+            {"entity_type": "user", "entity_id": "u1", "channel": "carrier_pigeon", "address": "x"},
+            db=db,
+            user={},
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_notification_targets_filters_by_entity():
+    from app.api.teams import list_notification_targets
+    from app.db.models import NotificationTarget
+
+    nt = MagicMock(spec=NotificationTarget)
+    nt.target_id = "nt-001"
+    nt.entity_type = "user"
+    nt.entity_id = "user-001"
+    nt.channel = "email"
+    nt.address = "alice@example.com"
+    nt.label = None
+    nt.is_active = True
+    nt.created_at = MagicMock()
+    nt.created_at.isoformat.return_value = "2026-06-11T10:00:00"
+
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [nt]
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+
+    result = await list_notification_targets(entity_type="user", entity_id="user-001", db=db, _={"role": "admin"})
+    assert len(result) == 1
+    assert result[0]["channel"] == "email"
+
+
+def test_my_permissions_route_exists():
+    from app.api.users import router
+    paths = {r.path for r in router.routes}
+    assert "/auth/my-permissions" in paths

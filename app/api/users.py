@@ -124,6 +124,16 @@ async def get_me(db: AsyncSession = Depends(get_db), current_user: dict = Depend
     return current_user
 
 
+@router.get("/auth/my-permissions")
+async def get_my_permissions(current_user: dict = Depends(get_current_user)):
+    from app.core.security import ROLE_PERMISSIONS
+    role = current_user.get("role", "")
+    return {
+        "role": role,
+        "permissions": sorted(ROLE_PERMISSIONS.get(role, set())),
+    }
+
+
 # ── User management (admin only) ──────────────────────────────────────────────
 
 @router.post("/users", status_code=201)
