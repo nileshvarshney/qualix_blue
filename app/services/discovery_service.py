@@ -489,10 +489,10 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                     )
                                     for c in columns
                                 ]
-                                await _meta_store.upsert_column_metadata(db, existing_asset.asset_id, _existing_col_models)
-                                _existing_schema_hash = _meta_store.compute_schema_hash(_existing_col_models)
-                                _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
                                 try:
+                                    await _meta_store.upsert_column_metadata(db, existing_asset.asset_id, _existing_col_models)
+                                    _existing_schema_hash = _meta_store.compute_schema_hash(_existing_col_models)
+                                    _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
                                     await _meta_store.record_scan_result(
                                         db, existing_asset.asset_id,
                                         scan_status="success",
@@ -506,7 +506,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                     )
                                 except Exception as _meta_err:
                                     logger.warning(
-                                        "metadata_store.record_scan_result failed for existing asset %s: %s",
+                                        "metadata_store operations failed for existing asset %s: %s",
                                         existing_asset.asset_id, _meta_err,
                                     )
                         except Exception as skip_check_err:
