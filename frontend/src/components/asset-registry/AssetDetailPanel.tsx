@@ -1,6 +1,8 @@
 'use client'
+import { useState } from 'react'
 import AssetDescriptionField from './AssetDescriptionField'
 import AssetColumnsSection from './AssetColumnsSection'
+import AssetProfilingTab from './AssetProfilingTab'
 
 interface AssetMeta {
   sf_table_name?: string
@@ -30,6 +32,8 @@ interface Asset {
   connection_name?: string
   source_meta?: AssetMeta
 }
+
+type Tab = 'overview' | 'profiling'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -62,6 +66,8 @@ export default function AssetDetailPanel({
   asset: Asset | null
   onDescriptionSaved: (desc: string) => void
 }) {
+  const [activeTab, setActiveTab] = useState<Tab>('overview')
+
   if (!asset) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
@@ -76,7 +82,9 @@ export default function AssetDetailPanel({
   const isLeaf = asset.asset_type === 'table' || asset.asset_type === 'view'
 
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+      {/* Asset header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
         <span style={{ background: typeBg, color: '#fff', fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           {asset.asset_type}
@@ -87,54 +95,93 @@ export default function AssetDetailPanel({
         </span>
       </div>
 
-      {isLeaf ? (
-        <>
-          <AssetDescriptionField
-            assetId={asset.asset_id}
-            description={asset.description ?? null}
-            inheritedFrom={null}
-            onSave={onDescriptionSaved}
-          />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 16px' }}>
-            <Field label="Criticality" value={asset.criticality} />
-            <Field label="Sensitivity" value={asset.sensitivity} />
-            <Field label="Domain" value={asset.domain} />
-            <Field label="Owner" value={asset.owner_user_id} />
-            <Field label="Team" value={asset.owner_team_id} />
-            <Field label="Steward" value={asset.steward_user_id} />
-            <Field label="Discovered" value={asset.discovered_at ? new Date(asset.discovered_at).toLocaleDateString() : null} />
-            <Field label="Last Seen" value={asset.last_seen_at ? new Date(asset.last_seen_at).toLocaleDateString() : null} />
-            <Field label="Connection" value={asset.connection_name} />
-          </div>
-        </>
-      ) : null}
-
-      {asset.source_meta && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-          <Field label="Database" value={asset.source_meta.sf_database_name} />
-          <Field label="Schema" value={asset.source_meta.sf_schema_name} />
-          <Field label="Table" value={asset.source_meta.sf_table_name} />
-          {asset.source_meta.row_count != null && (
-            <Field label="Rows" value={asset.source_meta.row_count.toLocaleString()} />
-          )}
+      {/* Tab bar — only for table/view assets */}
+      {isLeaf && (
+        <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
+          {(['overview', 'profiling'] as Tab[]).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              style={{
+                padding: '6px 14px',
+                fontSize: '12px',
+                fontWeight: activeTab === tab ? 600 : 400,
+                color: activeTab === tab ? 'var(--foreground)' : 'var(--text-muted)',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: activeTab === tab ? '2px solid var(--primary)' : '2px solid transparent',
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                marginBottom: '-1px',
+              }}
+            >
+              {tab}
+            </button>
+          ))}
         </div>
       )}
 
-      {(asset.asset_type === 'table' || asset.asset_type === 'view') && (
-        <AssetColumnsSection
+      {/* Overview tab content — non-leaf always visible; leaf only when activeTab === 'overview' */}
+      {(!isLeaf || activeTab === 'overview') && (
+        <>
+          {isLeaf ? (
+            <>
+              <AssetDescriptionField
+                assetId={asset.asset_id}
+                description={asset.description ?? null}
+                inheritedFrom={null}
+                onSave={onDescriptionSaved}
+              />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 16px' }}>
+                <Field label="Criticality" value={asset.criticality} />
+                <Field label="Sensitivity" value={asset.sensitivity} />
+                <Field label="Domain" value={asset.domain} />
+                <Field label="Owner" value={asset.owner_user_id} />
+                <Field label="Team" value={asset.owner_team_id} />
+                <Field label="Steward" value={asset.steward_user_id} />
+                <Field label="Discovered" value={asset.discovered_at ? new Date(asset.discovered_at).toLocaleDateString() : null} />
+                <Field label="Last Seen" value={asset.last_seen_at ? new Date(asset.last_seen_at).toLocaleDateString() : null} />
+                <Field label="Connection" value={asset.connection_name} />
+              </div>
+            </>
+          ) : null}
+
+          {asset.source_meta && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px 16px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <Field label="Database" value={asset.source_meta.sf_database_name} />
+              <Field label="Schema" value={asset.source_meta.sf_schema_name} />
+              <Field label="Table" value={asset.source_meta.sf_table_name} />
+              {asset.source_meta.row_count != null && (
+                <Field label="Rows" value={asset.source_meta.row_count.toLocaleString()} />
+              )}
+            </div>
+          )}
+
+          {(asset.asset_type === 'table' || asset.asset_type === 'view') && (
+            <AssetColumnsSection
+              assetId={asset.asset_id}
+              connectionId={asset.connection_id}
+              sourceMeta={asset.source_meta}
+            />
+          )}
+
+          {isLeaf && (
+            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              <a href={`/rules?asset_id=${asset.asset_id}`}
+                style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '5px', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none', background: 'var(--surface)' }}>
+                Run Rules
+              </a>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Profiling tab content */}
+      {isLeaf && activeTab === 'profiling' && (
+        <AssetProfilingTab
           assetId={asset.asset_id}
           connectionId={asset.connection_id}
-          sourceMeta={asset.source_meta}
         />
-      )}
-
-      {isLeaf && (
-        <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-          <a href={`/rules?asset_id=${asset.asset_id}`}
-            style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '5px', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none', background: 'var(--surface)' }}>
-            Run Rules
-          </a>
-        </div>
       )}
     </div>
   )
