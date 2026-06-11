@@ -131,18 +131,29 @@ async def record_metrics(
     metrics: dict[str, Optional[float]],
     run_id: Optional[str] = None,
 ) -> None:
-    """Append metric points for an asset. Skips None values.
-    Caller must commit. Duplicate (asset_id, metric_name, metric_date) rows will raise IntegrityError — ensure uniqueness before calling."""
+    """Upsert metric points for an asset. Skips None values. Caller must commit."""
     for name, value in metrics.items():
         if value is None:
             continue
-        db.add(ScanMetricsHistory(
-            asset_id=asset_id,
-            run_id=run_id,
-            metric_date=metric_date,
-            metric_name=name,
-            metric_value_num=float(value),
-        ))
+        result = await db.execute(
+            select(ScanMetricsHistory).where(
+                ScanMetricsHistory.asset_id == asset_id,
+                ScanMetricsHistory.metric_name == name,
+                ScanMetricsHistory.metric_date == metric_date,
+            )
+        )
+        existing = await _scalar(result)
+        if existing:
+            existing.metric_value_num = float(value)
+            existing.run_id = run_id
+        else:
+            db.add(ScanMetricsHistory(
+                asset_id=asset_id,
+                run_id=run_id,
+                metric_date=metric_date,
+                metric_name=name,
+                metric_value_num=float(value),
+            ))
 
 
 # ─── Write: evidence ──────────────────────────────────────────────────────────

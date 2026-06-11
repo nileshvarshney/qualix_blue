@@ -178,6 +178,7 @@ async def test_record_metrics_writes_rows():
     from datetime import date
 
     db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
     await record_metrics(
         db=db,
         asset_id="asset-001",
@@ -199,6 +200,7 @@ async def test_record_metrics_skips_none_values():
     from datetime import date
 
     db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
     await record_metrics(
         db=db,
         asset_id="asset-001",
@@ -477,3 +479,31 @@ async def test_execute_run_calls_write_run_summary_on_success():
                 result = await scan_orchestrator._execute_run("run-001")
 
         mock_rs.write_run_summary.assert_called_once_with(mock_db, "run-001")
+
+
+@pytest.mark.asyncio
+async def test_record_metrics_upserts_on_duplicate_date():
+    """Calling record_metrics twice on the same (asset, metric, date) must update, not raise."""
+    from app.services.results_store import record_metrics
+    from datetime import date
+
+    today = date(2026, 6, 11)
+
+    existing_metric = MagicMock()
+    existing_metric.metric_value_num = 100.0
+    existing_metric.run_id = "run-001"
+
+    db = AsyncMock()
+
+    # First call: no existing row → insert
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+    await record_metrics(db, "asset-001", today, {"row_count": 100.0}, run_id="run-001")
+    assert db.add.call_count == 1
+
+    # Second call (same day): existing row → update, no second add
+    db.add.reset_mock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=existing_metric)
+    await record_metrics(db, "asset-001", today, {"row_count": 200.0}, run_id="run-002")
+    db.add.assert_not_called()
+    assert existing_metric.metric_value_num == 200.0
+    assert existing_metric.run_id == "run-002"
