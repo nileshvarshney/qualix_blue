@@ -387,6 +387,30 @@ class DQQualityScore(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class DQDimensionScore(Base):
+    __tablename__ = "dq_dimension_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "score_date", "score_level", "domain_id", "subdomain_id", "asset_id", "dimension",
+            name="uq_dimension_score",
+        ),
+    )
+
+    score_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    score_date: Mapped[date] = mapped_column(Date, nullable=False)
+    score_level: Mapped[str] = mapped_column(String(20), nullable=False)  # table|subdomain|domain|global
+    domain_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    subdomain_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    dimension: Mapped[str] = mapped_column(String(20), nullable=False)
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="none")  # rules|profiling|rollup|none
+    total_rules: Mapped[int] = mapped_column(Integer, default=0)
+    passed_rules: Mapped[int] = mapped_column(Integer, default=0)
+    failed_rules: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class DQAlert(Base):
     __tablename__ = "dq_alerts"
 
