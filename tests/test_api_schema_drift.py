@@ -165,3 +165,58 @@ async def test_approve_baseline_asset_not_found():
     finally:
         app.dependency_overrides.pop(get_db, None)
         app.dependency_overrides.pop(get_current_user, None)
+
+
+@pytest.mark.asyncio
+async def test_get_schema_drift_calls_detect_drift_when_baseline_exists():
+    """GET /schema-drift must run detect_drift when a baseline already exists."""
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.security import get_current_user
+    from unittest.mock import MagicMock, patch, AsyncMock
+    from datetime import datetime
+
+    asset = MagicMock()
+    asset.asset_id = "asset-1"
+
+    baseline = MagicMock()
+    baseline.baseline_id = "bl-1"
+    baseline.asset_id = "asset-1"
+    baseline.status = "active"
+    baseline.columns_snapshot = []
+    baseline.approved_by = None
+    baseline.approved_at = None
+    baseline.created_at = datetime(2026, 5, 1)
+
+    call_no = [0]
+
+    async def mock_db():
+        db = AsyncMock()
+
+        async def execute(stmt, *a, **kw):
+            call_no[0] += 1
+            r = MagicMock()
+            if call_no[0] == 1:
+                r.scalar_one_or_none.return_value = asset
+            elif call_no[0] == 2:
+                r.scalar_one_or_none.return_value = baseline
+            else:
+                r.scalars.return_value.all.return_value = []
+                r.scalar_one_or_none.return_value = None
+            return r
+
+        db.execute = execute
+        yield db
+
+    app.dependency_overrides[get_db] = mock_db
+    app.dependency_overrides[get_current_user] = _mock_current_user
+    try:
+        with patch("app.api.schema_drift._detect_drift_service", new_callable=AsyncMock) as mock_detect:
+            from httpx import AsyncClient, ASGITransport
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get("/api/v1/assets/asset-1/schema-drift")
+            assert resp.status_code == 200
+            mock_detect.assert_called_once()
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_current_user, None)

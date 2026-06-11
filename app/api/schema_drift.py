@@ -10,6 +10,7 @@ from app.db.models import ColumnMetadata, Asset, SchemaBaseline, SchemaDriftEven
 from app.services.schema_drift_service import (
     approve_baseline as _approve_baseline,
     initialize_baseline as _initialize_baseline,
+    detect_drift as _detect_drift_service,
 )
 
 router = APIRouter(prefix="/api/v1/assets", tags=["Schema Drift"])
@@ -67,13 +68,19 @@ async def get_schema_drift(
     )
     baseline = baseline_result.scalar_one_or_none()
 
-    # Auto-initialize baseline on first visit if column profiling has already run
+    # Auto-initialize baseline on first visit if columns already exist
     if baseline is None:
         has_columns = await db.execute(
             select(ColumnMetadata).where(ColumnMetadata.asset_id == asset_id).limit(1)
         )
         if has_columns.scalar_one_or_none():
             baseline = await _initialize_baseline(asset_id, db)
+    else:
+        # Baseline exists — run drift detection to generate any new events
+        try:
+            await _detect_drift_service(asset_id, db)
+        except Exception:
+            pass  # Drift detection is best-effort; never fail the read endpoint
 
     events_result = await db.execute(
         select(SchemaDriftEvent)
