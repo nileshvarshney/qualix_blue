@@ -20,6 +20,7 @@ from app.db.models import ScanJob, ScanJobRun, ScanJobRunLog
 from app.services import results_store
 from app.services import job_tracker as _jt
 from app.services.discovery_service import run_discovery
+from app.services import profiling_service
 
 logger = logging.getLogger("dq_platform.scan_orchestrator")
 
@@ -244,7 +245,9 @@ async def _dispatch_handler(
         return await _run_asset_refresh(connection_id, run_id, params)
     if job_type == "source_health_check":
         return await _run_source_health_check(connection_id, run_id)
-    if job_type in ("profile_scan_placeholder", "rule_scan_placeholder"):
+    if job_type in ("profile_scan", "profile_scan_placeholder"):
+        return await _run_profile_scan(connection_id, run_id, params)
+    if job_type == "rule_scan_placeholder":
         return await _run_placeholder(job_type, run_id)
     raise ValueError(f"Unknown job_type: {job_type}")
 
@@ -387,6 +390,39 @@ async def _run_placeholder(job_type: str, run_id: str) -> dict:
         "errors_count": 0,
         "warnings_count": 1,
         "result_summary": {"note": msg},
+    }
+
+
+async def _run_profile_scan(
+    connection_id: Optional[str], run_id: str, params: dict
+) -> dict:
+    if not connection_id:
+        raise ValueError("connection_id is required for profile_scan")
+
+    await append_log(run_id, "INFO", "Starting profile scan")
+    try:
+        metrics = await profiling_service.profile_all_assets(
+            connection_id=connection_id,
+            run_id=run_id,
+        )
+    except Exception as exc:
+        await append_log(run_id, "ERROR", f"Profile scan failed: {str(exc)[:500]}")
+        raise
+
+    profiled = metrics.get("assets_profiled", 0)
+    failed = metrics.get("assets_failed", 0)
+    await append_log(
+        run_id, "INFO",
+        f"Profile scan complete: {profiled} profiled, {failed} failed",
+    )
+    return {
+        "assets_scanned": profiled,
+        "errors_count": failed,
+        "warnings_count": 0,
+        "result_summary": {
+            "tables_profiled": profiled,
+            "tables_failed": failed,
+        },
     }
 
 

@@ -48,6 +48,25 @@ def test_profile_column_null_ratio():
     assert stats["row_count"] == 4
 
 
+@pytest.mark.asyncio
+async def test_dispatch_profile_scan_calls_profile_all_assets():
+    from unittest.mock import AsyncMock, patch
+    from app.services.scan_orchestrator import _dispatch_handler
+
+    with patch("app.services.scan_orchestrator.profiling_service") as mock_ps, \
+         patch("app.services.scan_orchestrator.append_log", new=AsyncMock()):
+        mock_ps.profile_all_assets = AsyncMock(
+            return_value={"assets_profiled": 3, "assets_failed": 0}
+        )
+        result = await _dispatch_handler("profile_scan", "job-1", "run-1", "conn-1", {})
+
+    assert result["assets_scanned"] == 3
+    assert result["errors_count"] == 0
+    mock_ps.profile_all_assets.assert_called_once_with(
+        connection_id="conn-1", run_id="run-1"
+    )
+
+
 def test_profile_column_all_nulls():
     stats = _profile_column("col", [None, None], 2)
     assert stats["null_ratio"] == 1.0
