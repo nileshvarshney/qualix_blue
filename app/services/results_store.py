@@ -7,6 +7,7 @@ from datetime import datetime, timezone, date as date_t
 from typing import Optional
 
 from sqlalchemy import desc, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -28,7 +29,7 @@ def _now() -> datetime:
 async def _scalar(result):
     """Return a single scalar, handling async attribute access in AsyncMock test contexts."""
     val = result.scalar_one_or_none()
-    if hasattr(val, "__await__"):
+    if inspect.isawaitable(val):
         val = await val
     return val
 
@@ -131,7 +132,8 @@ async def record_metrics(
     metrics: dict[str, Optional[float]],
     run_id: Optional[str] = None,
 ) -> None:
-    """Upsert metric points for an asset. Skips None values. Caller must commit."""
+    """Upsert metric points for an asset. Skips None values. Caller must commit.
+    Safe for concurrent calls — IntegrityError on concurrent insert is handled via re-fetch."""
     for name, value in metrics.items():
         if value is None:
             continue
@@ -147,13 +149,28 @@ async def record_metrics(
             existing.metric_value_num = float(value)
             existing.run_id = run_id
         else:
-            db.add(ScanMetricsHistory(
-                asset_id=asset_id,
-                run_id=run_id,
-                metric_date=metric_date,
-                metric_name=name,
-                metric_value_num=float(value),
-            ))
+            try:
+                db.add(ScanMetricsHistory(
+                    asset_id=asset_id,
+                    run_id=run_id,
+                    metric_date=metric_date,
+                    metric_name=name,
+                    metric_value_num=float(value),
+                ))
+                await db.flush()
+            except IntegrityError:
+                await db.rollback()
+                retry = await db.execute(
+                    select(ScanMetricsHistory).where(
+                        ScanMetricsHistory.asset_id == asset_id,
+                        ScanMetricsHistory.metric_name == name,
+                        ScanMetricsHistory.metric_date == metric_date,
+                    )
+                )
+                row = await _scalar(retry)
+                if row:
+                    row.metric_value_num = float(value)
+                    row.run_id = run_id
 
 
 # ─── Write: evidence ──────────────────────────────────────────────────────────
