@@ -10,7 +10,50 @@ from app.core.config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
 
-ROLES = ["admin", "domain_owner", "data_owner", "viewer", "auditor"]
+# All recognised role names — Phase 1 roles + legacy roles for backward compat
+ROLES = [
+    "admin",
+    "data_steward",
+    "data_engineer",
+    "analyst",
+    "viewer",
+    # Legacy roles (kept for backward compat with existing tokens/records)
+    "domain_owner",
+    "data_owner",
+    "auditor",
+]
+
+# Maps each role to the set of permissions it grants
+ROLE_PERMISSIONS: dict[str, set[str]] = {
+    "admin": {
+        "manage_sources", "run_scans", "view_results",
+        "manage_assets", "manage_users", "edit_metadata",
+    },
+    "data_steward": {
+        "run_scans", "view_results", "manage_assets", "edit_metadata",
+    },
+    "data_engineer": {
+        "manage_sources", "run_scans", "view_results",
+        "manage_assets", "edit_metadata",
+    },
+    "analyst": {"view_results"},
+    "viewer": {"view_results"},
+    # Legacy role mappings
+    "domain_owner": {
+        "run_scans", "view_results", "manage_assets", "edit_metadata",
+    },
+    "data_owner": {
+        "manage_sources", "run_scans", "view_results",
+        "manage_assets", "edit_metadata",
+    },
+    "auditor": {"view_results"},
+}
+
+
+def has_permission(user: dict, permission: str) -> bool:
+    """Return True if the user's primary role grants the given permission."""
+    role = user.get("role", "")
+    return permission in ROLE_PERMISSIONS.get(role, set())
 
 # API key format: sa_<8-char-prefix>_<32-char-secret>
 _API_KEY_PREFIX = "sa_"
@@ -125,6 +168,18 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
 
+def require_permission(permission: str):
+    """FastAPI dependency factory — raises HTTP 403 if user lacks the permission."""
+    async def checker(user: dict = Depends(get_current_user)) -> dict:
+        if not has_permission(user, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Permission '{permission}' required.",
+            )
+        return user
+    return checker
+
+
 def require_roles(*roles: str):
     """Dependency factory that enforces role membership."""
     async def checker(user: dict = Depends(get_current_user)) -> dict:
@@ -138,8 +193,14 @@ def require_roles(*roles: str):
 
 
 require_admin = require_roles("admin")
-require_write = require_roles("admin", "domain_owner", "data_owner")
-require_read = require_roles("admin", "domain_owner", "data_owner", "viewer", "auditor")
+require_write = require_roles(
+    "admin", "data_steward", "data_engineer",
+    "domain_owner", "data_owner",  # legacy
+)
+require_read = require_roles(
+    "admin", "data_steward", "data_engineer", "analyst", "viewer",
+    "domain_owner", "data_owner", "auditor",  # legacy
+)
 
 
 def get_domain_filter(user: dict) -> Optional[str]:
