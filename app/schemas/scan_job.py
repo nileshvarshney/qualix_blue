@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 _JOB_TYPE_RE = (
     "^(connection_test|metadata_discovery|asset_refresh"
@@ -20,6 +20,12 @@ class ScanJobCreate(BaseModel):
     max_retries: int = Field(2, ge=0, le=5)
     timeout_seconds: int = Field(300, ge=30, le=3600)
     parameters: Optional[dict[str, Any]] = None
+
+    @model_validator(mode="after")
+    def cron_expr_required(self) -> "ScanJobCreate":
+        if self.schedule_frequency == "cron" and not self.cron_expr:
+            raise ValueError("cron_expr is required when schedule_frequency is 'cron'")
+        return self
 
 
 class ScanJobUpdate(BaseModel):

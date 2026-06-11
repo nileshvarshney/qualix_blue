@@ -96,10 +96,11 @@ async def test_create_run_returns_run_id():
     db.get.return_value = _make_job()
     db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
 
-    run_id = await create_run("job-001", "manual", "user@test.com", None, None, db)
+    run_id, is_new = await create_run("job-001", "manual", "user@test.com", None, None, db)
 
     db.add.assert_called_once()
     assert isinstance(run_id, str)
+    assert is_new is True
 
 
 @pytest.mark.asyncio
@@ -110,9 +111,10 @@ async def test_create_run_idempotency_returns_existing_run():
     existing = _make_run(run_id="existing-001", status="running")
     db.execute.return_value.scalar_one_or_none = MagicMock(return_value=existing)
 
-    run_id = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
+    run_id, is_new = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
 
     assert run_id == "existing-001"
+    assert is_new is False
     db.add.assert_not_called()
 
 
@@ -124,10 +126,11 @@ async def test_create_run_idempotency_creates_new_after_failure():
     failed = _make_run(run_id="failed-001", status="failed")
     db.execute.return_value.scalar_one_or_none = MagicMock(return_value=failed)
 
-    run_id = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
+    run_id, is_new = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
 
     db.add.assert_called_once()
     assert run_id != "failed-001"
+    assert is_new is True
 
 
 @pytest.mark.asyncio
@@ -232,3 +235,43 @@ async def test_create_run_merges_parameters():
     added_run = db.add.call_args[0][0]
     assert added_run.parameters["base_key"] == "base_val"
     assert added_run.parameters["override_key"] == "override_val"
+
+
+@pytest.mark.asyncio
+async def test_execute_run_with_retries_skips_retry_when_cancelled():
+    """C-1: explicit cancel before background task fires should not spawn retry runs."""
+    from app.services import scan_orchestrator
+
+    with patch("app.services.scan_orchestrator._execute_run", new_callable=AsyncMock, return_value=False):
+        with patch("app.services.scan_orchestrator.AsyncSessionLocal") as mock_ctx:
+            mock_db = AsyncMock()
+            mock_db.get.side_effect = [
+                _make_run(status="cancelled"),  # run lookup
+            ]
+            mock_ctx.return_value.__aenter__.return_value = mock_db
+
+            await scan_orchestrator.execute_run_with_retries("run-001")
+
+    # cancelled run → no retry ScanJobRun added
+    mock_db.add.assert_not_called()
+
+
+def test_scan_job_create_cron_requires_cron_expr():
+    """I-2: schedule_frequency=cron with no cron_expr must be rejected."""
+    from pydantic import ValidationError
+    from app.schemas.scan_job import ScanJobCreate
+
+    with pytest.raises(ValidationError, match="cron_expr"):
+        ScanJobCreate(
+            job_name="Cron Job",
+            job_type="metadata_discovery",
+            schedule_frequency="cron",
+        )
+
+    valid = ScanJobCreate(
+        job_name="Cron Job",
+        job_type="metadata_discovery",
+        schedule_frequency="cron",
+        cron_expr="0 6 * * *",
+    )
+    assert valid.cron_expr == "0 6 * * *"

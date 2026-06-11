@@ -30,8 +30,12 @@ async def create_run(
     idempotency_key: Optional[str],
     parameters_override: Optional[dict],
     db,
-) -> str:
-    """Create a queued ScanJobRun record. Returns run_id. Enforces idempotency."""
+) -> tuple[str, bool]:
+    """Create a queued ScanJobRun record. Returns (run_id, is_new).
+
+    is_new is False when an idempotency key matched a live run — caller should
+    not enqueue a second executor in that case.
+    """
     job = await db.get(ScanJob, job_id)
     if not job:
         raise ValueError(f"Scan job {job_id} not found")
@@ -41,7 +45,7 @@ async def create_run(
     if idempotency_key:
         existing = await _find_run_by_idempotency_key(job_id, idempotency_key, db)
         if existing and existing.status not in ("failed", "cancelled", "timed_out"):
-            return existing.run_id
+            return existing.run_id, False
 
     merged = {**(job.parameters or {}), **(parameters_override or {})}
 
@@ -56,7 +60,7 @@ async def create_run(
     )
     db.add(run)
     await db.commit()
-    return run.run_id
+    return run.run_id, True
 
 
 async def create_run_for_scheduler(job_id: str, db) -> str:
@@ -88,6 +92,8 @@ async def execute_run_with_retries(run_id: str) -> None:
     async with AsyncSessionLocal() as db:
         run = await db.get(ScanJobRun, run_id)
         if not run:
+            return
+        if run.status == "cancelled":
             return
         job = await db.get(ScanJob, run.job_id)
         if not job:
@@ -207,10 +213,10 @@ async def _execute_run(run_id: str) -> bool:
             run.error_message = error_msg
             run.result_summary = metrics.get("result_summary") or None
 
-        job = await db.get(ScanJob, job_id)
-        if job:
-            job.last_run_at = ended
-            job.last_run_status = final_status
+            job = await db.get(ScanJob, job_id)
+            if job:
+                job.last_run_at = ended
+                job.last_run_status = final_status
 
         await db.commit()
 

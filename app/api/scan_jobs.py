@@ -132,7 +132,7 @@ async def trigger_scan_job(
     if not job.is_active:
         raise HTTPException(409, "Scan job is inactive")
 
-    run_id = await scan_orchestrator.create_run(
+    run_id, is_new = await scan_orchestrator.create_run(
         job_id=job_id,
         trigger_type="manual",
         triggered_by=user.get("email") or user.get("user_id"),
@@ -140,7 +140,8 @@ async def trigger_scan_job(
         parameters_override=req.parameters_override,
         db=db,
     )
-    background_tasks.add_task(scan_orchestrator.execute_run_with_retries, run_id)
+    if is_new:
+        background_tasks.add_task(scan_orchestrator.execute_run_with_retries, run_id)
     return {"job_id": job_id, "run_id": run_id, "status": "queued"}
 
 
