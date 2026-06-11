@@ -156,8 +156,17 @@ def upgrade() -> None:
         sa.Column('created_at', sa.DateTime(), nullable=False),
     )
 
+    op.create_index('ix_asset_scan_summaries_run_id', 'asset_scan_summaries', ['run_id'])
+    op.create_index('ix_asset_scan_summaries_asset_id', 'asset_scan_summaries', ['asset_id'])
+    op.create_index('ix_scan_metrics_history_asset_id', 'scan_metrics_history', ['asset_id'])
+    op.create_index('ix_scan_evidence_logs_run_id', 'scan_evidence_logs', ['run_id'])
+
 
 def downgrade() -> None:
+    op.drop_index('ix_scan_evidence_logs_run_id', table_name='scan_evidence_logs')
+    op.drop_index('ix_scan_metrics_history_asset_id', table_name='scan_metrics_history')
+    op.drop_index('ix_asset_scan_summaries_asset_id', table_name='asset_scan_summaries')
+    op.drop_index('ix_asset_scan_summaries_run_id', table_name='asset_scan_summaries')
     op.drop_table('failed_sample_record_placeholders')
     op.drop_table('rule_result_placeholders')
     op.drop_table('profiling_result_placeholders')
