@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import AsyncMock, MagicMock
 from fastapi import HTTPException
 
 from app.core.security import ROLES, ROLE_PERMISSIONS, has_permission
@@ -95,9 +96,6 @@ def test_notification_target_has_required_columns():
         assert col in cols, f"NotificationTarget missing column: {col}"
 
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock
-
 @pytest.mark.asyncio
 async def test_get_user_effective_roles_primary_only():
     from app.services.rbac import get_user_effective_roles
@@ -147,3 +145,36 @@ def test_get_effective_permissions_merges_multiple_roles():
 def test_get_effective_permissions_empty_roles():
     from app.services.rbac import get_effective_permissions
     assert get_effective_permissions([]) == set()
+
+
+@pytest.mark.asyncio
+async def test_get_user_effective_roles_inherits_team_roles():
+    from app.services.rbac import get_user_effective_roles
+    from app.db.models import TeamMembership, TeamRole
+
+    mock_membership = MagicMock(spec=TeamMembership)
+    mock_membership.team_id = "team-001"
+
+    mock_team_role = MagicMock(spec=TeamRole)
+    mock_team_role.role = "data_engineer"
+
+    def make_result(items):
+        r = MagicMock()
+        r.scalars.return_value.all.return_value = items
+        return r
+
+    db = AsyncMock()
+    # Call 1: user_roles query → empty
+    # Call 2: team memberships → one team
+    # Call 3: team_roles for those teams → data_engineer role
+    db.execute.side_effect = [
+        make_result([]),               # user_roles: no direct extra roles
+        make_result([mock_membership]),  # team_memberships: one team
+        make_result([mock_team_role]),   # team_roles: data_engineer inherited
+    ]
+
+    roles = await get_user_effective_roles("user-123", "viewer", db)
+    assert "viewer" in roles
+    assert "data_engineer" in roles
+    # Should have called execute 3 times (user_roles, memberships, team_roles)
+    assert db.execute.call_count == 3

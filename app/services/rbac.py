@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,7 +42,7 @@ async def get_user_effective_roles(
     return roles
 
 
-def get_effective_permissions(roles: list[str]) -> set[str]:
+def get_effective_permissions(roles: "Iterable[str]") -> set[str]:
     """Return the union of all permissions granted by the given roles."""
     permissions: set[str] = set()
     for role in roles:
