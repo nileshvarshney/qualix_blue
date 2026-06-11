@@ -35,3 +35,41 @@ def test_scan_job_create_accepts_profile_scan_job_type():
         schedule_frequency="on_demand",
     )
     assert job.job_type == "profile_scan"
+
+
+from app.services.profiling_service import _profile_column
+
+
+def test_profile_column_null_ratio():
+    stats = _profile_column("col", [1, None, 3, None], 4)
+    assert stats["null_count"] == 2
+    assert stats["null_ratio"] == 0.5
+    assert stats["distinct_count"] == 2
+    assert stats["row_count"] == 4
+
+
+def test_profile_column_all_nulls():
+    stats = _profile_column("col", [None, None], 2)
+    assert stats["null_ratio"] == 1.0
+    assert stats["distinct_count"] == 0
+    assert stats["min_value"] is None
+    assert stats["avg_value"] is None
+
+
+def test_profile_column_numeric_avg():
+    stats = _profile_column("amount", [10, 20, 30], 3)
+    assert stats["avg_value"] == 20.0
+    assert stats["null_ratio"] == 0.0
+    assert stats["min_value"] == "10"
+    assert stats["max_value"] == "30"
+
+
+def test_profile_column_top_values():
+    stats = _profile_column("status", ["a", "b", "a", "a", "b"], 5)
+    assert stats["top_values"]["a"] == 3
+    assert stats["top_values"]["b"] == 2
+
+
+def test_profile_column_distinct_ratio():
+    stats = _profile_column("id", [1, 2, 3, 4], 4)
+    assert stats["distinct_ratio"] == 1.0
