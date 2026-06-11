@@ -223,6 +223,14 @@ const sections: Section[] = [
     key: 'settings', label: 'Settings', defaultHref: '/settings',
     railIconD: 'M10.3 3.5l-.4 1.7a7.5 7.5 0 00-1.6.7L6.6 5l-1.6 1.6 1 1.7c-.3.5-.5 1-.7 1.6l-1.7.4v2.3l1.7.4c.2.6.4 1.1.7 1.6l-1 1.7L6.6 19l1.7-.9c.5.3 1 .5 1.6.7l.4 1.7h2.3l.4-1.7c.6-.2 1.1-.4 1.6-.7l1.7.9 1.6-1.6-.9-1.7c.3-.5.5-1 .7-1.6l1.7-.4v-2.3l-1.7-.4c-.2-.6-.4-1.1-.7-1.6l.9-1.7-1.6-1.6-1.7.9c-.5-.3-1-.5-1.6-.7l-.4-1.7h-2.3zm1.2 5.5a3 3 0 110 6 3 3 0 010-6z',
   },
+  {
+    key: 'operations', label: 'Operations', defaultHref: '/scan-jobs',
+    railIconD: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
+  },
+  {
+    key: 'admin', label: 'Admin', defaultHref: '/users',
+    railIconD: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 7a4 4 0 100 8 4 4 0 000-8z',
+  },
 ]
 
 /* Maps every known route to its parent section key */
@@ -236,6 +244,8 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/executive': 'explore', '/data-products': 'explore',
   '/ai-assistant': 'settings', '/settings': 'settings',
   '/compliance': 'settings', '/architecture': 'settings',
+  '/scan-jobs': 'operations', '/run-history': 'operations',
+  '/users': 'admin', '/teams': 'admin', '/roles': 'admin',
 }
 
 /* ─── Constants ─── */
@@ -245,7 +255,10 @@ const TOP_H  = 56
 /* ─── Component ─── */
 export default function Sidebar() {
   const pathname = usePathname()
-  const activeSectionKey = SECTION_KEY_MAP[pathname] ?? 'quality'
+  const activeSectionKey =
+    SECTION_KEY_MAP[pathname] ??
+    (pathname.startsWith('/scan-jobs/') ? 'operations' : null) ??
+    'quality'
 
   return (
     <>

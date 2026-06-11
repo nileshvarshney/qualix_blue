@@ -1,0 +1,227 @@
+'use client'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+
+type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+type FilterType = 'all' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+interface Run {
+  run_id: string
+  job_id: string
+  job_name: string
+  connection_name: string | null
+  status: RunStatus
+  trigger_type: string
+  triggered_by: string | null
+  started_at: string | null
+  ended_at: string | null
+  duration_seconds: number | null
+  assets_scanned: number
+  errors_count: number
+  warnings_count: number
+  error_message: string | null
+}
+
+const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
+  completed: { background: '#f0fdf4', color: '#16a34a' },
+  failed:    { background: '#fee2e2', color: '#dc2626' },
+  running:   { background: '#eff6ff', color: '#2563eb' },
+  queued:    { background: '#fef3c7', color: '#d97706' },
+  cancelled: { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+}
+
+const STATUS_ICON: Record<RunStatus, string> = {
+  completed: '✓', failed: '✕', running: '⏳', queued: '○', cancelled: '—',
+}
+
+function fmtDuration(secs: number | null): string {
+  if (secs == null) return '—'
+  if (secs < 60) return `${Math.round(secs)}s`
+  return `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`
+}
+
+function fmtTs(ts: string | null): string {
+  if (!ts) return '—'
+  return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+const GRID = '1fr 120px 80px 110px 110px 70px 60px auto'
+
+function RunHistoryInner() {
+  const searchParams = useSearchParams()
+  const jobFilter    = searchParams.get('job')
+
+  const [runs, setRuns]       = useState<Run[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter]   = useState<FilterType>('all')
+  const [expanded, setExpanded] = useState<string | null>(null)
+
+  useEffect(() => {
+    const url = jobFilter
+      ? `/api/scan-jobs/${jobFilter}/runs`
+      : '/api/run-history'
+    fetch(url)
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        const items: Run[] = (Array.isArray(data) ? data : []).map((r, i) => ({
+          run_id:           String(r.run_id ?? r.id ?? i),
+          job_id:           String(r.job_id ?? ''),
+          job_name:         String(r.job_name ?? r.scan_job_name ?? r.job_id ?? '—'),
+          connection_name:  r.connection_name as string | null ?? null,
+          status:           (r.status as RunStatus) ?? 'queued',
+          trigger_type:     String(r.trigger_type ?? 'manual'),
+          triggered_by:     r.triggered_by as string | null ?? null,
+          started_at:       r.started_at as string | null ?? null,
+          ended_at:         r.ended_at as string | null ?? null,
+          duration_seconds: r.duration_seconds as number | null ?? null,
+          assets_scanned:   Number(r.assets_scanned ?? 0),
+          errors_count:     Number(r.errors_count ?? 0),
+          warnings_count:   Number(r.warnings_count ?? 0),
+          error_message:    r.error_message as string | null ?? null,
+        }))
+        setRuns(items.sort((a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? '')))
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [jobFilter])
+
+  const totalRunning   = runs.filter(r => r.status === 'running').length
+  const totalCompleted = runs.filter(r => r.status === 'completed').length
+  const totalFailed    = runs.filter(r => r.status === 'failed').length
+
+  const filtered = runs.filter(r => filter === 'all' || r.status === filter)
+
+  const CARDS = [
+    { key: 'all',       label: 'Total',     value: runs.length,    color: 'var(--accent)' },
+    { key: 'running',   label: 'Running',   value: totalRunning,   color: '#2563eb' },
+    { key: 'completed', label: 'Completed', value: totalCompleted, color: 'var(--status-ok-text)' },
+    { key: 'failed',    label: 'Failed',    value: totalFailed,    color: 'var(--status-error-text)' },
+  ] as const
+
+  return (
+    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+
+      {/* top bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div>
+          <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>
+            Run History {jobFilter && <span style={{ fontWeight: 400, color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>— filtered by job</span>}
+          </div>
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
+            {loading ? 'Loading…' : `${runs.length} run${runs.length !== 1 ? 's' : ''}${totalRunning > 0 ? ` · ${totalRunning} in progress` : ''}`}
+          </div>
+        </div>
+        {jobFilter && (
+          <Link href="/run-history" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none' }}>
+            ← All jobs
+          </Link>
+        )}
+      </div>
+
+      {/* stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px', flexShrink: 0 }}>
+        {CARDS.map(c => {
+          const on = filter === c.key
+          return (
+            <div key={c.key} onClick={() => setFilter(p => p === c.key ? 'all' : c.key as FilterType)}
+              style={{ background: on ? c.color : 'var(--surface)', border: `1px solid ${on ? c.color : 'var(--border)'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ fontSize: '18px', fontWeight: 700, color: on ? '#fff' : c.color, lineHeight: 1 }}>{loading ? '…' : c.value}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: on ? 'rgba(255,255,255,0.85)' : 'var(--text-muted)' }}>{c.label}</div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* filter chips */}
+      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+        {(['all', 'running', 'completed', 'failed', 'cancelled'] as FilterType[]).map(f => (
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '4px 12px', borderRadius: '20px', border: '1px solid', fontSize: 'var(--text-xs)', cursor: 'pointer',
+            fontWeight: filter === f ? 600 : 400,
+            borderColor: filter === f ? 'var(--foreground)' : 'var(--border)',
+            background: filter === f ? 'var(--foreground)' : 'var(--surface)',
+            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
+          }}>
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* column header */}
+      {!loading && filtered.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', padding: '0 12px', flexShrink: 0, borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
+          {['Job', 'Status', 'Trigger', 'Started', 'Ended', 'Duration', 'Assets', 'Detail'].map((h, i) => (
+            <span key={i} style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+          ))}
+        </div>
+      )}
+
+      {/* scrollable run list */}
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {loading && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Loading…</div>}
+        {!loading && runs.length === 0 && (
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '8px', border: '1px dashed var(--border)' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📋</div>
+            <div style={{ fontWeight: 600, marginBottom: '4px' }}>No runs yet</div>
+            <div style={{ fontSize: 'var(--text-xs)' }}>Trigger a scan job to see run history here</div>
+          </div>
+        )}
+        {!loading && runs.length > 0 && filtered.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No runs match the selected filter</div>
+        )}
+
+        {!loading && filtered.map(run => {
+          const ss        = STATUS_STYLE[run.status] ?? STATUS_STYLE.queued
+          const isExpanded = expanded === run.run_id
+          const hasError  = !!run.error_message
+
+          return (
+            <div key={run.run_id}>
+              <div
+                onClick={() => hasError && setExpanded(isExpanded ? null : run.run_id)}
+                style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '5px 12px', background: isExpanded ? 'var(--surface-muted)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', minHeight: '32px', cursor: hasError ? 'pointer' : 'default' }}>
+
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{run.job_name}</div>
+                  {run.connection_name && <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{run.connection_name}</div>}
+                </div>
+
+                <span style={{ ...ss, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block', width: 'fit-content' }}>
+                  {STATUS_ICON[run.status]} {run.status}
+                </span>
+
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{run.trigger_type}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTs(run.started_at)}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTs(run.ended_at)}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{fmtDuration(run.duration_seconds)}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{run.assets_scanned}</span>
+
+                <Link href={`/scan-jobs/${run.job_id}/runs/${run.run_id}`}
+                  onClick={e => e.stopPropagation()}
+                  style={{ fontSize: '10px', color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  Detail →
+                </Link>
+              </div>
+
+              {isExpanded && run.error_message && (
+                <div style={{ background: '#fee2e2', borderBottom: '1px solid #fca5a5', padding: '10px 16px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>Error</div>
+                  <pre style={{ margin: 0, fontSize: '10px', color: '#7f1d1d', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{run.error_message}</pre>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export default function RunHistoryPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <RunHistoryInner />
+    </Suspense>
+  )
+}

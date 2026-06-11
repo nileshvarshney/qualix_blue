@@ -57,11 +57,31 @@ const SECTIONS: Section[] = [
       { href: '/architecture', label: 'User Guide' },
     ],
   },
+  {
+    key: 'operations',
+    tabs: [
+      { href: '/scan-jobs',   label: 'Scan Jobs' },
+      { href: '/run-history', label: 'Run History' },
+    ],
+  },
+  {
+    key: 'admin',
+    tabs: [
+      { href: '/users',  label: 'Users' },
+      { href: '/teams',  label: 'Teams' },
+      { href: '/roles',  label: 'Roles' },
+    ],
+  },
 ]
+
+function tabMatches(tabHref: string, pathname: string): boolean {
+  if (tabHref === '/') return pathname === '/'
+  return pathname === tabHref || pathname.startsWith(tabHref + '/')
+}
 
 export default function SectionTabBar() {
   const pathname = usePathname()
-  const section = SECTIONS.find(s => s.tabs.some(t => t.href === pathname))
+  const section = SECTIONS.find(s => s.tabs.some(t => tabMatches(t.href, pathname)))
   if (!section) return null
 
   return (
@@ -75,7 +95,7 @@ export default function SectionTabBar() {
       flexShrink: 0,
     }}>
       {section.tabs.map(tab => {
-        const isActive = pathname === tab.href
+        const isActive = tabMatches(tab.href, pathname)
         return (
           <Link key={tab.href} href={tab.href} style={{ textDecoration: 'none' }}>
             <div style={{
