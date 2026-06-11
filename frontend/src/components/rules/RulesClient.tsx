@@ -224,35 +224,41 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   /* ── Actions ──────────────────────────────────────────────────── */
 
-  async function updateRuleStatus(id: string, status: RuleStatus) {
-    const enabled = status === 'active'
-    await fetch('/api/rules', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, enabled, status })
+  async function updateRuleStatus(id: string, newStatus: RuleStatus) {
+    await fetch(`/api/rules/${id}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
     })
-    setRules(prev => prev.map(r => r.id === id ? { ...r, enabled, status } : r))
+    setRules(prev => prev.map(r => r.id === id
+      ? { ...r, status: newStatus, enabled: newStatus === 'active' }
+      : r
+    ))
   }
 
   // Data stewards approval workflow
   async function approveRule(id: string) {
-    const approvedBy = 'data-steward'
-    const approvedAt = new Date().toISOString()
-    await fetch('/api/rules', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status: 'active', enabled: true, approvedBy, approvedAt, rejectedBy: null, rejectionReason: null })
+    const res = await fetch(`/api/rules/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     })
-    setRules(prev => prev.map(r => r.id === id ? { ...r, status: 'active', enabled: true, approvedBy, approvedAt, rejectedBy: undefined, rejectionReason: undefined } : r))
+    if (res.ok) {
+      setRules(prev => prev.map(r => r.id === id ? { ...r, status: 'active', enabled: true } : r))
+    }
   }
 
   async function rejectRule(id: string) {
     const reason = prompt('Reason for rejecting this rule?')
     if (reason === null) return
-    const rejectedBy = 'data-steward'
-    await fetch('/api/rules', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status: 'draft', enabled: false, rejectedBy, rejectionReason: reason })
+    const res = await fetch(`/api/rules/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejection_reason: reason }),
     })
-    setRules(prev => prev.map(r => r.id === id ? { ...r, status: 'draft', enabled: false, rejectedBy, rejectionReason: reason } : r))
+    if (res.ok) {
+      setRules(prev => prev.map(r => r.id === id ? { ...r, status: 'draft' } : r))
+    }
   }
 
   async function deleteRule(id: string) {
@@ -265,12 +271,21 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   async function testRule(id: string) {
     setTesting(id)
-    // Simulate a test run against the connection
-    await new Promise(r => setTimeout(r, 1200 + Math.random() * 800))
-    const passed = Math.random() > 0.3
-    const score = passed ? 95 + Math.floor(Math.random() * 5) : 60 + Math.floor(Math.random() * 25)
-    setTestResults(prev => ({ ...prev, [id]: { status: passed ? 'passed' : 'failed', score } }))
-    setRules(prev => prev.map(r => r.id === id ? { ...r, lastRunAt: new Date().toISOString(), lastRunStatus: passed ? 'passed' : 'failed', lastRunScore: score } : r))
+    try {
+      const res = await fetch(`/api/rules/${id}/run`, { method: 'POST' })
+      if (res.ok) {
+        const run = await res.json() as Record<string, unknown>
+        const passed = run.status === 'passed'
+        const score = typeof run.quality_score === 'number' ? Math.round(run.quality_score) : (passed ? 100 : 0)
+        setTestResults(prev => ({ ...prev, [id]: { status: passed ? 'passed' : 'failed', score } }))
+        setRules(prev => prev.map(r => r.id === id
+          ? { ...r, lastRunAt: new Date().toISOString(), lastRunStatus: passed ? 'passed' : 'failed', lastRunScore: score }
+          : r
+        ))
+      }
+    } catch {
+      // silently ignore — rule remains unchanged in UI
+    }
     setTesting(null)
   }
 
