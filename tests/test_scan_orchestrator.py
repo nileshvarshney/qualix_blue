@@ -94,7 +94,7 @@ async def test_create_run_returns_run_id():
     from app.services.scan_orchestrator import create_run
     db = AsyncMock()
     db.get.return_value = _make_job()
-    db.execute.return_value.scalar_one_or_none.return_value = None
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
 
     run_id = await create_run("job-001", "manual", "user@test.com", None, None, db)
 
@@ -108,7 +108,7 @@ async def test_create_run_idempotency_returns_existing_run():
     db = AsyncMock()
     db.get.return_value = _make_job()
     existing = _make_run(run_id="existing-001", status="running")
-    db.execute.return_value.scalar_one_or_none.return_value = existing
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=existing)
 
     run_id = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
 
@@ -122,7 +122,7 @@ async def test_create_run_idempotency_creates_new_after_failure():
     db = AsyncMock()
     db.get.return_value = _make_job()
     failed = _make_run(run_id="failed-001", status="failed")
-    db.execute.return_value.scalar_one_or_none.return_value = failed
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=failed)
 
     run_id = await create_run("job-001", "manual", "user@test.com", "key-abc", None, db)
 
@@ -225,7 +225,7 @@ async def test_create_run_merges_parameters():
     db = AsyncMock()
     job = _make_job(parameters={"base_key": "base_val"})
     db.get.return_value = job
-    db.execute.return_value.scalar_one_or_none.return_value = None
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
 
     await create_run("job-001", "manual", "u@t.com", None, {"override_key": "override_val"}, db)
 

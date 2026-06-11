@@ -378,10 +378,7 @@ async def _find_run_by_idempotency_key(job_id: str, key: str, db) -> Optional[Sc
         .order_by(desc(ScanJobRun.created_at))
         .limit(1)
     )
-    scalar = result.scalar_one_or_none
-    if asyncio.iscoroutinefunction(scalar):
-        return await scalar()
-    return scalar()
+    return result.scalar_one_or_none()
 
 
 def _now() -> datetime:
