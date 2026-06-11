@@ -1,6 +1,7 @@
 # app/services/profiling_service.py
 from __future__ import annotations
 
+import json
 import statistics
 from collections import Counter
 from datetime import datetime, timezone
@@ -172,6 +173,7 @@ async def profile_table(
                     cm.avg_value = stats["avg_value"]
                 if stats["std_dev"] is not None:
                     cm.std_dev = stats["std_dev"]
+                cm.last_profiled_at = profile_time
 
         for col, data_type, stats in col_results:
             hist_res = await db.execute(
@@ -182,7 +184,6 @@ async def profile_table(
                 )
             )
             hist = hist_res.scalar_one_or_none()
-            import json
             top_str = json.dumps(stats["top_values"])
             if hist:
                 hist.null_count = stats["null_count"]
