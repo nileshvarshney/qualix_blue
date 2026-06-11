@@ -235,6 +235,8 @@ def create_tables():
             "ALTER TABLE snowflake_connections ADD COLUMN included_databases VARIANT",
             "ALTER TABLE snowflake_connections ADD COLUMN included_schemas VARIANT",
             'ALTER TABLE snowflake_connections ADD COLUMN "environment" VARCHAR(20)',
+            "ALTER TABLE snowflake_connections ADD COLUMN last_successful_scan_at TIMESTAMP_NTZ",
+            "ALTER TABLE snowflake_connections ADD COLUMN scan_readiness_status VARCHAR(20) DEFAULT 'not_tested'",
             # dq_rules additions (governance upgrade)
             "ALTER TABLE dq_rules ADD COLUMN rule_category VARCHAR(50)",
             "ALTER TABLE dq_rules ADD COLUMN version INTEGER DEFAULT 1",
