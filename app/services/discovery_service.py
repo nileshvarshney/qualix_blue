@@ -491,6 +491,15 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                 ]
                                 try:
                                     await _meta_store.upsert_column_metadata(db, existing_asset.asset_id, _existing_col_models)
+                                    # Detect schema drift against baseline
+                                    try:
+                                        from app.services.schema_drift_service import detect_drift as _detect_drift
+                                        await _detect_drift(existing_asset.asset_id, db)
+                                    except Exception as _drift_err:
+                                        logger.warning(
+                                            "Schema drift detection failed for existing asset %s: %s",
+                                            existing_asset.asset_id, _drift_err,
+                                        )
                                     _existing_schema_hash = _meta_store.compute_schema_hash(_existing_col_models)
                                     _elapsed_existing = int((time.monotonic() - _existing_scan_start) * 1000)
                                     await _meta_store.record_scan_result(
@@ -629,6 +638,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             for c in columns
                         ]
                         await _meta_store.upsert_column_metadata(db, asset_id_new, _col_models)
+                        # Detect schema drift against baseline (no-op if no baseline exists yet)
+                        try:
+                            from app.services.schema_drift_service import detect_drift as _detect_drift
+                            await _detect_drift(asset_id_new, db)
+                        except Exception as _drift_err:
+                            logger.warning("Schema drift detection failed for asset %s: %s", asset_id_new, _drift_err)
                         await register_column_assets(
                             table_asset_id=asset_id_new,
                             connection_id=payload["connection_id"],

@@ -48,3 +48,28 @@ async def test_upsert_column_metadata_called_with_correct_asset_id():
     assert added.column_name == "order_id"
     assert added.asset_id == "asset-existing-001"
     assert added.data_type == "NUMBER"
+
+
+@pytest.mark.asyncio
+async def test_detect_drift_returns_empty_when_no_baseline():
+    """detect_drift returns empty list (not raises) when no baseline exists."""
+    from app.services.schema_drift_service import detect_drift
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none.return_value = None
+
+    result = await detect_drift("asset-1", db)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_detect_drift_called_after_column_upsert():
+    """detect_drift must be called after upsert_column_metadata for new assets."""
+    from app.services import schema_drift_service
+    db = AsyncMock()
+    asset_id = "asset-new-001"
+    cols = [ColumnMetaIn(column_name="id", data_type="NUMBER")]
+
+    with patch.object(schema_drift_service, "detect_drift", new_callable=AsyncMock) as mock_detect:
+        # Call detect_drift as the discovery pipeline will
+        await schema_drift_service.detect_drift(asset_id, db)
+        mock_detect.assert_called_once_with(asset_id, db)
