@@ -29,6 +29,7 @@ from app.api import (
     privacy, admin,
     # Metadata store
     metadata,
+    scan_jobs,
 )
 from app.api.users import router as users_router
 from app.api.oauth import router as oauth_router
@@ -90,6 +91,9 @@ async def lifespan(app: FastAPI):
         from app.services.scheduler_service import load_all_schedules
         async with AsyncSessionLocal() as db:
             await load_all_schedules(db)
+        from app.services.scheduler_service import load_all_scan_schedules
+        async with AsyncSessionLocal() as db:
+            await load_all_scan_schedules(db)
 
     try:
         await asyncio.wait_for(_init_db(), timeout=120)
@@ -198,6 +202,7 @@ app.include_router(cicd.router)
 app.include_router(privacy.router)
 app.include_router(admin.router)
 app.include_router(metadata.router)
+app.include_router(scan_jobs.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 

@@ -704,3 +704,77 @@ def schedule_rule(rule_id: str, frequency: str, cron_expr: Optional[str] = None)
 
 def remove_rule_job(rule_id: str):
     remove_schedule(rule_id)
+
+
+# ── Scan Job scheduling ───────────────────────────────────────────────────────
+
+def schedule_scan_job(job) -> None:
+    """Register a scan job with APScheduler using its schedule_frequency."""
+    trigger = build_trigger(
+        frequency=job.schedule_frequency,
+        cron_expr=job.cron_expr,
+        timezone=job.timezone,
+    )
+    if trigger is None:
+        return
+
+    apscheduler_id = f"scan_job:{job.job_id}"
+    if scheduler.get_job(apscheduler_id):
+        scheduler.remove_job(apscheduler_id)
+
+    scheduler.add_job(
+        _make_scan_runner(job.job_id),
+        trigger=trigger,
+        id=apscheduler_id,
+        replace_existing=True,
+    )
+    logger.info(
+        "Scheduled scan job %s (%s) freq=%s", job.job_id, job.job_name, job.schedule_frequency
+    )
+
+
+def unschedule_scan_job(job_id: str) -> None:
+    """Remove a scan job from APScheduler."""
+    apscheduler_id = f"scan_job:{job_id}"
+    if scheduler.get_job(apscheduler_id):
+        scheduler.remove_job(apscheduler_id)
+        logger.info("Unscheduled scan job %s", job_id)
+
+
+def _make_scan_runner(job_id: str):
+    async def run():
+        from app.db.database import AsyncSessionLocal
+        from app.services.scan_orchestrator import (
+            create_run_for_scheduler,
+            execute_run_with_retries,
+        )
+        async with AsyncSessionLocal() as db:
+            try:
+                run_id = await create_run_for_scheduler(job_id=job_id, db=db)
+            except Exception as exc:
+                logger.error(
+                    "Could not create scheduled run for scan job %s: %s", job_id, exc
+                )
+                return
+        await execute_run_with_retries(run_id)
+    return run
+
+
+async def load_all_scan_schedules(db) -> None:
+    """Called at startup: register all active scheduled scan jobs with APScheduler."""
+    from app.db.models import ScanJob
+    from sqlalchemy import select
+
+    result = await db.execute(
+        select(ScanJob).where(
+            ScanJob.is_active == True,
+            ScanJob.schedule_frequency != "on_demand",
+        )
+    )
+    jobs = result.scalars().all()
+    for job in jobs:
+        try:
+            schedule_scan_job(job)
+        except Exception as exc:
+            logger.error("Failed to schedule scan job %s at startup: %s", job.job_id, exc)
+    logger.info("Loaded %d scan job schedules at startup", len(jobs))
