@@ -65,3 +65,277 @@ def test_failed_sample_placeholder_model():
 def test_migration_0016_exists():
     import os
     assert os.path.exists("migrations/versions/0016_results_storage.py")
+
+
+import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
+
+# ─── write_run_summary ─────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_write_run_summary_creates_record():
+    from app.services.results_store import write_run_summary
+
+    mock_run = MagicMock()
+    mock_run.run_id = "run-001"
+    mock_run.job_id = "job-001"
+    mock_run.status = "succeeded"
+    mock_run.assets_scanned = 10
+    mock_run.errors_count = 0
+    mock_run.result_summary = {"tables_scanned": 10, "tables_failed": 0}
+
+    mock_job = MagicMock()
+    mock_job.connection_id = "conn-001"
+    mock_job.job_type = "metadata_discovery"
+
+    db = AsyncMock()
+    db.get.side_effect = [mock_run, mock_job]
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    await write_run_summary("run-001", db)
+
+    db.add.assert_called_once()
+    added = db.add.call_args[0][0]
+    from app.db.models import ScanRunSummary
+    assert isinstance(added, ScanRunSummary)
+    assert added.run_id == "run-001"
+    assert added.scan_type == "metadata_discovery"
+
+
+@pytest.mark.asyncio
+async def test_write_run_summary_skips_when_run_missing():
+    from app.services.results_store import write_run_summary
+
+    db = AsyncMock()
+    db.get.return_value = None
+
+    await write_run_summary("ghost-run", db)
+
+    db.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_write_run_summary_skips_duplicate():
+    from app.services.results_store import write_run_summary
+
+    mock_run = MagicMock()
+    mock_run.run_id = "run-001"
+    mock_run.job_id = "job-001"
+    mock_run.status = "succeeded"
+    mock_run.assets_scanned = 5
+    mock_run.errors_count = 0
+    mock_run.result_summary = None
+
+    mock_job = MagicMock()
+    mock_job.connection_id = "conn-001"
+    mock_job.job_type = "metadata_discovery"
+
+    existing_summary = MagicMock()
+    db = AsyncMock()
+    db.get.side_effect = [mock_run, mock_job]
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=existing_summary)
+
+    await write_run_summary("run-001", db)
+
+    db.add.assert_not_called()
+
+
+# ─── write_asset_summary ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_write_asset_summary_creates_record():
+    from app.services.results_store import write_asset_summary
+
+    db = AsyncMock()
+    await write_asset_summary(
+        db=db,
+        run_id="run-001",
+        asset_id="asset-001",
+        job_id="job-001",
+        scan_status="succeeded",
+        scan_duration_ms=250,
+        row_count=5000,
+        bytes=102400,
+        column_count=12,
+        schema_hash="abc123",
+    )
+
+    db.add.assert_called_once()
+    from app.db.models import AssetScanSummary
+    added = db.add.call_args[0][0]
+    assert isinstance(added, AssetScanSummary)
+    assert added.run_id == "run-001"
+    assert added.scan_status == "succeeded"
+    assert added.row_count == 5000
+
+
+# ─── record_metrics ────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_record_metrics_writes_rows():
+    from app.services.results_store import record_metrics
+    from datetime import date
+
+    db = AsyncMock()
+    await record_metrics(
+        db=db,
+        asset_id="asset-001",
+        run_id="run-001",
+        metric_date=date(2026, 6, 10),
+        metrics={"row_count": 1000.0, "column_count": 15.0},
+    )
+
+    assert db.add.call_count == 2
+    from app.db.models import ScanMetricsHistory
+    calls = [c[0][0] for c in db.add.call_args_list]
+    names = {m.metric_name for m in calls}
+    assert names == {"row_count", "column_count"}
+
+
+@pytest.mark.asyncio
+async def test_record_metrics_skips_none_values():
+    from app.services.results_store import record_metrics
+    from datetime import date
+
+    db = AsyncMock()
+    await record_metrics(
+        db=db,
+        asset_id="asset-001",
+        run_id="run-001",
+        metric_date=date(2026, 6, 10),
+        metrics={"row_count": 500.0, "quality_score": None},
+    )
+
+    assert db.add.call_count == 1
+
+
+# ─── append_evidence ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_append_evidence_creates_log():
+    from app.services.results_store import append_evidence
+
+    db = AsyncMock()
+    await append_evidence(
+        db=db,
+        run_id="run-001",
+        evidence_type="schema_drift",
+        severity="warning",
+        message="Column 'email' was dropped",
+        asset_id="asset-001",
+        payload={"column": "email", "change": "dropped"},
+    )
+
+    db.add.assert_called_once()
+    from app.db.models import ScanEvidenceLog
+    added = db.add.call_args[0][0]
+    assert isinstance(added, ScanEvidenceLog)
+    assert added.severity == "warning"
+    assert added.asset_id == "asset-001"
+
+
+# ─── get_run_summary ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_run_summary_returns_record():
+    from app.services.results_store import get_run_summary
+
+    mock_summary = MagicMock()
+    mock_summary.run_id = "run-001"
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=mock_summary)
+
+    result = await get_run_summary(db, "run-001")
+
+    assert result is mock_summary
+
+
+@pytest.mark.asyncio
+async def test_get_run_summary_returns_none_when_missing():
+    from app.services.results_store import get_run_summary
+
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    result = await get_run_summary(db, "ghost-run")
+
+    assert result is None
+
+
+# ─── get_asset_latest ──────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_asset_latest_returns_most_recent():
+    from app.services.results_store import get_asset_latest
+
+    mock_summary = MagicMock()
+    mock_summary.asset_id = "asset-001"
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=mock_summary)
+
+    result = await get_asset_latest(db, "asset-001")
+
+    assert result.asset_id == "asset-001"
+
+
+# ─── get_asset_trend ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_get_asset_trend_returns_list():
+    from app.services.results_store import get_asset_trend
+
+    mock_points = [MagicMock(), MagicMock()]
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = mock_points
+
+    result = await get_asset_trend(db, "asset-001", "row_count")
+
+    assert len(result) == 2
+
+
+# ─── compare_runs ──────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_compare_runs_computes_delta():
+    from app.services.results_store import compare_runs
+
+    def _make_summary(run_id, new_assets, updated_assets, failed_assets, schema_changes):
+        s = MagicMock()
+        s.run_id = run_id
+        s.job_id = "job-001"
+        s.summary_id = f"sum-{run_id}"
+        s.connection_id = None
+        s.scan_type = "metadata_discovery"
+        s.new_assets_count = new_assets
+        s.updated_assets_count = updated_assets
+        s.removed_assets_count = 0
+        s.failed_assets_count = failed_assets
+        s.schema_changes_count = schema_changes
+        s.quality_score_avg = None
+        s.scan_parameters = None
+        s.created_at = "2026-06-10T10:00:00"
+        return s
+
+    run_a = _make_summary("run-001", new_assets=5, updated_assets=10, failed_assets=0, schema_changes=1)
+    run_b = _make_summary("run-002", new_assets=8, updated_assets=12, failed_assets=2, schema_changes=3)
+
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(side_effect=[run_a, run_b])
+
+    result = await compare_runs(db, "run-001", "run-002")
+
+    assert result["delta"]["new_assets_delta"] == 3
+    assert result["delta"]["failed_assets_delta"] == 2
+    assert result["delta"]["schema_changes_delta"] == 2
+
+
+@pytest.mark.asyncio
+async def test_compare_runs_raises_when_run_missing():
+    from app.services.results_store import compare_runs
+
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    with pytest.raises(ValueError, match="not found"):
+        await compare_runs(db, "ghost-a", "ghost-b")
