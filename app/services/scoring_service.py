@@ -41,6 +41,74 @@ def calculate_score_from_counts(
     return round(score, 2)
 
 
+DIMENSION_RULE_TYPE_MAP: dict[str, list[str]] = {
+    "completeness": ["null_check", "volume_check"],
+    "validity": ["range_check", "accepted_values_check", "regex_check"],
+    "uniqueness": ["uniqueness_check", "duplicate_check"],
+    "timeliness": ["freshness_check"],
+    "consistency": [
+        "referential_integrity_check", "referential_sanity_check",
+        "semantic_consistency_check", "distribution_consistency_check",
+        "schema_drift_check",
+    ],
+    "integrity": [
+        "business_rule_check", "custom_sql_check",
+        "business_metric_check", "llm_semantic_check",
+    ],
+}
+
+DIMENSIONS: list[str] = list(DIMENSION_RULE_TYPE_MAP.keys())
+
+
+def score_dimension(rule_rows: list[tuple[str, str]], dimension: str) -> dict:
+    """Compute a pass-rate score for one dimension from (rule_type, status) rows."""
+    rule_types = DIMENSION_RULE_TYPE_MAP[dimension]
+    relevant = [status for (rtype, status) in rule_rows if rtype in rule_types]
+    total = len(relevant)
+    if total == 0:
+        return {"score": None, "source": "none", "total": 0, "passed": 0, "failed": 0}
+    passed = sum(1 for s in relevant if s == "passed")
+    failed = total - passed
+    return {
+        "score": round(passed / total * 100, 2),
+        "source": "rules",
+        "total": total,
+        "passed": passed,
+        "failed": failed,
+    }
+
+
+def calculate_dimension_scores_for_asset(
+    rule_rows: list[tuple[str, str]],
+    profile_score: Optional[float] = None,
+) -> dict:
+    """
+    Compute all 6 dimension scores plus an overall score for one asset.
+
+    rule_rows: list of (rule_type, status) for the asset on the target date.
+    profile_score: Asset.latest_profile_score (0-1 scale), used as a fallback
+        for the 'completeness' dimension when no completeness rules have run.
+    """
+    result: dict[str, dict] = {}
+    for dimension in DIMENSIONS:
+        scored = score_dimension(rule_rows, dimension)
+        if dimension == "completeness" and scored["score"] is None and profile_score is not None:
+            scored = {
+                "score": round(profile_score * 100, 2),
+                "source": "profiling",
+                "total": 0, "passed": 0, "failed": 0,
+            }
+        result[dimension] = scored
+
+    non_null = [v["score"] for v in result.values() if v["score"] is not None]
+    overall_score = round(sum(non_null) / len(non_null), 2) if non_null else None
+    result["overall"] = {
+        "score": overall_score, "source": "computed",
+        "total": 0, "passed": 0, "failed": 0,
+    }
+    return result
+
+
 async def aggregate_quality_scores(db: AsyncSession, run_date: Optional[date] = None) -> None:
     """
     Compute and persist aggregated quality scores in dq_quality_scores for today.
