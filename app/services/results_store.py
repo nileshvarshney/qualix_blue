@@ -7,12 +7,10 @@ from datetime import datetime, timezone, date as date_t
 from typing import Optional
 
 from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     AssetScanSummary,
-    FailedSampleRecordPlaceholder,
-    ProfilingResultPlaceholder,
-    RuleResultPlaceholder,
     ScanEvidenceLog,
     ScanJobRun,
     ScanMetricsHistory,
@@ -25,6 +23,14 @@ logger = logging.getLogger("dq_platform.results_store")
 
 def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def _scalar(result):
+    """Return a single scalar, handling async attribute access in AsyncMock test contexts."""
+    val = result.scalar_one_or_none()
+    if hasattr(val, "__await__"):
+        val = await val
+    return val
 
 
 async def _scalars_all(result) -> list:
@@ -40,16 +46,17 @@ async def _scalars_all(result) -> list:
 
 # ─── Write: run-level ─────────────────────────────────────────────────────────
 
-async def write_run_summary(run_id: str, db) -> None:
-    """Create ScanRunSummary for a completed run. Idempotent — skips if one exists."""
+async def write_run_summary(db: AsyncSession, run_id: str) -> None:
+    """Create ScanRunSummary for a completed run. Idempotent — skips if one exists. Caller must commit."""
     run = await db.get(ScanJobRun, run_id)
     if not run:
         logger.warning("write_run_summary: run %s not found", run_id)
         return
 
-    existing = (await db.execute(
+    result = await db.execute(
         select(ScanRunSummary).where(ScanRunSummary.run_id == run_id)
-    )).scalar_one_or_none()
+    )
+    existing = await _scalar(result)
     if existing:
         return
 
@@ -67,20 +74,19 @@ async def write_run_summary(run_id: str, db) -> None:
         connection_id=connection_id,
         scan_type=scan_type,
         new_assets_count=result_summary.get("new_assets", 0),
-        updated_assets_count=result_summary.get("updated_assets", run.assets_scanned - failed),
+        updated_assets_count=result_summary.get("updated_assets", max(0, run.assets_scanned - failed)),
         removed_assets_count=result_summary.get("removed_assets", 0),
         failed_assets_count=failed,
         schema_changes_count=result_summary.get("schema_changes", 0),
         scan_parameters=run.parameters,
     )
     db.add(summary)
-    await db.commit()
 
 
 # ─── Write: asset-level ───────────────────────────────────────────────────────
 
 async def write_asset_summary(
-    db,
+    db: AsyncSession,
     run_id: str,
     asset_id: str,
     job_id: Optional[str] = None,
@@ -96,7 +102,7 @@ async def write_asset_summary(
     schema_drift_detected: bool = False,
     error_message: Optional[str] = None,
 ) -> None:
-    """Insert one AssetScanSummary row. Does not upsert — each run gets its own row."""
+    """Insert one AssetScanSummary row. Does not upsert — each run gets its own row. Caller must commit."""
     summary = AssetScanSummary(
         run_id=run_id,
         asset_id=asset_id,
@@ -119,13 +125,14 @@ async def write_asset_summary(
 # ─── Write: metrics history ───────────────────────────────────────────────────
 
 async def record_metrics(
-    db,
+    db: AsyncSession,
     asset_id: str,
     metric_date: date_t,
     metrics: dict[str, Optional[float]],
     run_id: Optional[str] = None,
 ) -> None:
-    """Append metric points for an asset. Skips None values."""
+    """Append metric points for an asset. Skips None values.
+    Caller must commit. Duplicate (asset_id, metric_name, metric_date) rows will raise IntegrityError — ensure uniqueness before calling."""
     for name, value in metrics.items():
         if value is None:
             continue
@@ -141,7 +148,7 @@ async def record_metrics(
 # ─── Write: evidence ──────────────────────────────────────────────────────────
 
 async def append_evidence(
-    db,
+    db: AsyncSession,
     run_id: str,
     evidence_type: str,
     severity: str,
@@ -150,7 +157,7 @@ async def append_evidence(
     payload: Optional[dict] = None,
     retention_days: Optional[int] = None,
 ) -> None:
-    """Append one structured evidence/diagnostic entry for a run."""
+    """Append one structured evidence/diagnostic entry for a run. Caller must commit."""
     from datetime import timedelta
     expires = None
     if retention_days is not None:
@@ -169,17 +176,17 @@ async def append_evidence(
 
 # ─── Read: run-level ──────────────────────────────────────────────────────────
 
-async def get_run_summary(db, run_id: str) -> Optional[ScanRunSummary]:
+async def get_run_summary(db: AsyncSession, run_id: str) -> Optional[ScanRunSummary]:
     """Return ScanRunSummary for a run, or None if not yet written."""
     result = await db.execute(
         select(ScanRunSummary).where(ScanRunSummary.run_id == run_id)
     )
-    return result.scalar_one_or_none()
+    return await _scalar(result)
 
 
 # ─── Read: asset-level ────────────────────────────────────────────────────────
 
-async def get_asset_latest(db, asset_id: str) -> Optional[AssetScanSummary]:
+async def get_asset_latest(db: AsyncSession, asset_id: str) -> Optional[AssetScanSummary]:
     """Return the most recent AssetScanSummary for an asset."""
     result = await db.execute(
         select(AssetScanSummary)
@@ -187,11 +194,11 @@ async def get_asset_latest(db, asset_id: str) -> Optional[AssetScanSummary]:
         .order_by(desc(AssetScanSummary.created_at))
         .limit(1)
     )
-    return result.scalar_one_or_none()
+    return await _scalar(result)
 
 
 async def get_run_asset_summaries(
-    db, run_id: str, limit: int = 200
+    db: AsyncSession, run_id: str, limit: int = 200
 ) -> list[AssetScanSummary]:
     """All AssetScanSummary rows for a given run."""
     result = await db.execute(
@@ -204,7 +211,7 @@ async def get_run_asset_summaries(
 
 
 async def get_asset_run_summary(
-    db, run_id: str, asset_id: str
+    db: AsyncSession, run_id: str, asset_id: str
 ) -> Optional[AssetScanSummary]:
     """AssetScanSummary for a specific (run, asset) pair — most recent if multiple."""
     result = await db.execute(
@@ -216,13 +223,13 @@ async def get_asset_run_summary(
         .order_by(desc(AssetScanSummary.created_at))
         .limit(1)
     )
-    return result.scalar_one_or_none()
+    return await _scalar(result)
 
 
 # ─── Read: trend ──────────────────────────────────────────────────────────────
 
 async def get_asset_trend(
-    db,
+    db: AsyncSession,
     asset_id: str,
     metric_name: str,
     since: Optional[date_t] = None,
@@ -253,13 +260,13 @@ async def get_asset_trend(
 
 # ─── Read: comparison ─────────────────────────────────────────────────────────
 
-async def compare_runs(db, run_id_a: str, run_id_b: str) -> dict:
+async def compare_runs(db: AsyncSession, run_id_a: str, run_id_b: str) -> dict:
     """Compare two scan run summaries. Returns both summaries + a delta dict."""
     async def _fetch(run_id: str) -> Optional[ScanRunSummary]:
         res = await db.execute(
             select(ScanRunSummary).where(ScanRunSummary.run_id == run_id)
         )
-        return res.scalar_one_or_none()
+        return await _scalar(res)
 
     summary_a = await _fetch(run_id_a)
     if not summary_a:
@@ -291,7 +298,7 @@ async def compare_runs(db, run_id_a: str, run_id_b: str) -> dict:
 # ─── Read: evidence ───────────────────────────────────────────────────────────
 
 async def get_run_evidence(
-    db,
+    db: AsyncSession,
     run_id: str,
     asset_id: Optional[str] = None,
     severity: Optional[str] = None,

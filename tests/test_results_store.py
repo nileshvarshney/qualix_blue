@@ -93,7 +93,7 @@ async def test_write_run_summary_creates_record():
     db.get.side_effect = [mock_run, mock_job]
     db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
 
-    await write_run_summary("run-001", db)
+    await write_run_summary(db, "run-001")
 
     db.add.assert_called_once()
     added = db.add.call_args[0][0]
@@ -110,7 +110,7 @@ async def test_write_run_summary_skips_when_run_missing():
     db = AsyncMock()
     db.get.return_value = None
 
-    await write_run_summary("ghost-run", db)
+    await write_run_summary(db, "ghost-run")
 
     db.add.assert_not_called()
 
@@ -136,7 +136,7 @@ async def test_write_run_summary_skips_duplicate():
     db.get.side_effect = [mock_run, mock_job]
     db.execute.return_value.scalar_one_or_none = MagicMock(return_value=existing_summary)
 
-    await write_run_summary("run-001", db)
+    await write_run_summary(db, "run-001")
 
     db.add.assert_not_called()
 
