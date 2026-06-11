@@ -60,3 +60,8 @@ def test_failed_sample_placeholder_model():
     f = FailedSampleRecordPlaceholder(run_id="run-001", asset_id="asset-001")
     assert f.sample_id is not None
     assert f.is_placeholder is True
+
+
+def test_migration_0016_exists():
+    import os
+    assert os.path.exists("migrations/versions/0016_results_storage.py")
