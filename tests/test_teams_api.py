@@ -241,3 +241,81 @@ async def test_revoke_user_role_returns_message():
 
     result = await revoke_user_role("user-001", "analyst", db=db, admin={"email": "admin@example.com"})
     assert result["message"] == "Role revoked"
+
+
+def test_ownership_router_routes_exist():
+    from app.api.ownership import router
+    paths = {r.path for r in router.routes}
+    assert "/assets/{asset_id}/ownership" in paths
+
+
+@pytest.mark.asyncio
+async def test_get_ownership_returns_owner_fields():
+    from app.api.ownership import get_asset_ownership
+
+    mock_asset = MagicMock()
+    mock_asset.asset_id = "asset-001"
+    mock_asset.owner_user_id = "user-001"
+    mock_asset.owner_team_id = "team-001"
+    mock_asset.steward_user_id = "user-002"
+    mock_asset.owner_name = "Alice"
+    mock_asset.owner_email = "alice@example.com"
+    mock_asset.technical_owner_name = None
+    mock_asset.technical_owner_email = None
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_asset
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+
+    result = await get_asset_ownership("asset-001", db=db, _={"role": "admin"})
+    assert result["asset_id"] == "asset-001"
+    assert result["owner_user_id"] == "user-001"
+    assert result["steward_user_id"] == "user-002"
+
+
+@pytest.mark.asyncio
+async def test_get_ownership_returns_404_when_missing():
+    from app.api.ownership import get_asset_ownership
+    from fastapi import HTTPException
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    db = AsyncMock()
+    db.execute.return_value = mock_result
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_asset_ownership("ghost-asset", db=db, _={"role": "admin"})
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_set_ownership_updates_asset_fields():
+    from app.api.ownership import set_asset_ownership
+
+    mock_asset = MagicMock()
+    mock_asset.asset_id = "asset-001"
+    mock_asset.owner_user_id = None
+    mock_asset.owner_team_id = None
+    mock_asset.steward_user_id = None
+    mock_asset.owner_name = None
+    mock_asset.owner_email = None
+    mock_asset.technical_owner_name = None
+    mock_asset.technical_owner_email = None
+
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = mock_asset
+    db = AsyncMock()
+    db.add = MagicMock()
+    db.execute.return_value = mock_result
+    db.commit = AsyncMock()
+
+    result = await set_asset_ownership(
+        "asset-001",
+        {"owner_user_id": "user-001", "steward_user_id": "user-002"},
+        db=db,
+        user={"email": "admin@example.com", "role": "admin"},
+    )
+    assert result["asset_id"] == "asset-001"
+    assert mock_asset.owner_user_id == "user-001"
+    assert mock_asset.steward_user_id == "user-002"
