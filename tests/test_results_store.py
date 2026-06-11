@@ -9,6 +9,7 @@ def test_scan_run_summary_model():
     assert len(s.summary_id) == 36
     assert s.new_assets_count == 0
     assert s.updated_assets_count == 0
+    assert s.removed_assets_count == 0
     assert s.failed_assets_count == 0
     assert s.schema_changes_count == 0
 
@@ -18,6 +19,10 @@ def test_asset_scan_summary_model():
     a = AssetScanSummary(run_id="run-001", asset_id="asset-001", job_id="job-001")
     assert a.asset_summary_id is not None
     assert a.scan_status == "succeeded"
+    assert a.schema_drift_detected is False
+    assert a.columns_added == 0
+    assert a.columns_removed == 0
+    assert a.columns_changed == 0
 
 
 def test_scan_metrics_history_model():
@@ -32,6 +37,8 @@ def test_scan_evidence_log_model():
     e = ScanEvidenceLog(run_id="run-001", evidence_type="schema_drift", severity="warning", message="col dropped")
     assert e.evidence_id is not None
     assert e.severity == "warning"
+    e_default = ScanEvidenceLog(run_id="run-001", evidence_type="diagnostic", message="test")
+    assert e_default.severity == "info"
 
 
 def test_profiling_result_placeholder_model():

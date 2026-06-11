@@ -1092,6 +1092,9 @@ class ScanJobRun(Base):
     logs: Mapped[list["ScanJobRunLog"]] = relationship(
         "ScanJobRunLog", back_populates="run", cascade="all, delete-orphan"
     )
+    summary: Mapped[Optional["ScanRunSummary"]] = relationship(
+        "ScanRunSummary", back_populates="run", uselist=False, cascade="all, delete-orphan"
+    )
 
     def __init__(self, **kwargs):
         kwargs.setdefault("run_id", gen_uuid())
@@ -1130,7 +1133,9 @@ class ScanRunSummary(Base):
         String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"),
         nullable=False, unique=True,
     )
-    job_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    job_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("scan_jobs.job_id", ondelete="SET NULL"), nullable=True
+    )
     connection_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
     scan_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     new_assets_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -1142,7 +1147,7 @@ class ScanRunSummary(Base):
     scan_parameters: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
-    run: Mapped["ScanJobRun"] = relationship("ScanJobRun")
+    run: Mapped["ScanJobRun"] = relationship("ScanJobRun", back_populates="summary")
 
     def __init__(self, **kwargs):
         kwargs.setdefault("summary_id", gen_uuid())
@@ -1157,15 +1162,20 @@ class ScanRunSummary(Base):
 class AssetScanSummary(Base):
     """Per-asset outcome for a specific run. Written by metadata_store.record_scan_result."""
     __tablename__ = "asset_scan_summaries"
+    __table_args__ = (
+        UniqueConstraint("run_id", "asset_id", name="uq_asset_scan_summary_run_asset"),
+    )
 
     asset_summary_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     run_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
     )
     asset_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False, index=True
     )
-    job_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    job_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("scan_jobs.job_id", ondelete="SET NULL"), nullable=True
+    )
     scan_status: Mapped[str] = mapped_column(String(20), nullable=False, default="succeeded")
     scan_duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -1198,10 +1208,13 @@ class AssetScanSummary(Base):
 class ScanMetricsHistory(Base):
     """One row per (asset, run, metric_name). Supports trend queries."""
     __tablename__ = "scan_metrics_history"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "metric_name", "metric_date", name="uq_scan_metrics_asset_metric_date"),
+    )
 
     metric_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     asset_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False, index=True
     )
     run_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("scan_job_runs.run_id", ondelete="SET NULL"), nullable=True
@@ -1223,7 +1236,7 @@ class ScanEvidenceLog(Base):
 
     evidence_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     run_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False, index=True
     )
     asset_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("assets.asset_id", ondelete="SET NULL"), nullable=True
@@ -1244,6 +1257,9 @@ class ScanEvidenceLog(Base):
 class ProfilingResultPlaceholder(Base):
     """Per-column profiling result. Populated by Phase 2 profiling engine."""
     __tablename__ = "profiling_result_placeholders"
+    __table_args__ = (
+        UniqueConstraint("run_id", "asset_id", "column_name", name="uq_profiling_result_run_asset_col"),
+    )
 
     profiling_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     run_id: Mapped[str] = mapped_column(
