@@ -203,6 +203,114 @@ async def aggregate_quality_scores(db: AsyncSession, run_date: Optional[date] = 
     logger.info(f"Aggregated {len(score_records)} quality score records for {target_date}")
 
 
+async def aggregate_dimension_scores(db: AsyncSession, run_date: Optional[date] = None) -> None:
+    """
+    Compute and persist per-dimension quality scores in dq_dimension_scores for
+    the target date, at table/subdomain/domain/global levels.
+    """
+    from app.db.models import DQRuleRun, DQRule, Asset, DQDimensionScore
+
+    target_date = run_date or datetime.now(timezone.utc).replace(tzinfo=None).date()
+
+    runs_result = await db.execute(
+        select(DQRuleRun, DQRule)
+        .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
+        .where(func.date(DQRuleRun.created_at) == target_date)
+    )
+    rows = runs_result.all()
+
+    rule_rows_by_asset: dict[str, list[tuple[str, str]]] = {}
+    asset_scope: dict[str, dict] = {}
+    for run, rule in rows:
+        rule_rows_by_asset.setdefault(run.asset_id, []).append((rule.rule_type, run.status))
+        asset_scope[run.asset_id] = {"domain_id": run.domain_id, "subdomain_id": run.subdomain_id}
+
+    asset_ids = set(rule_rows_by_asset.keys())
+
+    profile_res = await db.execute(
+        select(Asset.asset_id, Asset.latest_profile_score, Asset.domain_id, Asset.subdomain_id)
+        .where(Asset.latest_profile_score.isnot(None))
+    )
+    profile_scores: dict[str, float] = {}
+    for asset_id, profile_score, domain_id, subdomain_id in profile_res.all():
+        profile_scores[asset_id] = profile_score
+        asset_ids.add(asset_id)
+        asset_scope.setdefault(asset_id, {"domain_id": domain_id, "subdomain_id": subdomain_id})
+
+    if not asset_ids:
+        return
+
+    await db.execute(sa_delete(DQDimensionScore).where(DQDimensionScore.score_date == target_date))
+
+    all_dims = DIMENSIONS + ["overall"]
+    rollup_by_subdomain: dict[str, dict[str, list[float]]] = {}
+    rollup_by_domain: dict[str, dict[str, list[float]]] = {}
+    rollup_global: dict[str, list[float]] = {dim: [] for dim in all_dims}
+
+    records: list[DQDimensionScore] = []
+    now_ts = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    for asset_id in asset_ids:
+        rule_rows = rule_rows_by_asset.get(asset_id, [])
+        profile_score = profile_scores.get(asset_id)
+        scores = calculate_dimension_scores_for_asset(rule_rows, profile_score)
+        scope = asset_scope.get(asset_id, {})
+        domain_id = scope.get("domain_id")
+        subdomain_id = scope.get("subdomain_id")
+
+        for dimension, data in scores.items():
+            records.append(DQDimensionScore(
+                score_id=str(uuid.uuid4()), score_date=target_date, score_level="table",
+                asset_id=asset_id, domain_id=domain_id, subdomain_id=subdomain_id,
+                dimension=dimension, score=data["score"], source=data["source"],
+                total_rules=data["total"], passed_rules=data["passed"], failed_rules=data["failed"],
+                created_at=now_ts,
+            ))
+            if data["score"] is None:
+                continue
+            if subdomain_id:
+                rollup_by_subdomain.setdefault(subdomain_id, {d: [] for d in all_dims})[dimension].append(data["score"])
+            if domain_id:
+                rollup_by_domain.setdefault(domain_id, {d: [] for d in all_dims})[dimension].append(data["score"])
+            rollup_global[dimension].append(data["score"])
+
+    for subdomain_id, dims in rollup_by_subdomain.items():
+        for dimension, values in dims.items():
+            if not values:
+                continue
+            records.append(DQDimensionScore(
+                score_id=str(uuid.uuid4()), score_date=target_date, score_level="subdomain",
+                subdomain_id=subdomain_id, dimension=dimension,
+                score=round(sum(values) / len(values), 2), source="rollup",
+                created_at=now_ts,
+            ))
+
+    for domain_id, dims in rollup_by_domain.items():
+        for dimension, values in dims.items():
+            if not values:
+                continue
+            records.append(DQDimensionScore(
+                score_id=str(uuid.uuid4()), score_date=target_date, score_level="domain",
+                domain_id=domain_id, dimension=dimension,
+                score=round(sum(values) / len(values), 2), source="rollup",
+                created_at=now_ts,
+            ))
+
+    for dimension, values in rollup_global.items():
+        if not values:
+            continue
+        records.append(DQDimensionScore(
+            score_id=str(uuid.uuid4()), score_date=target_date, score_level="global",
+            dimension=dimension, score=round(sum(values) / len(values), 2), source="rollup",
+            created_at=now_ts,
+        ))
+
+    for record in records:
+        db.add(record)
+    await db.commit()
+    logger.info(f"Aggregated {len(records)} dimension score records for {target_date}")
+
+
 async def check_sla_breaches(db: AsyncSession, run_date: Optional[date] = None) -> list[dict]:
     """Check dq_quality_scores against SLA configs and return breaches."""
     from app.db.models import DQQualityScore, SLAConfig

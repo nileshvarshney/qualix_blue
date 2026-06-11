@@ -181,10 +181,11 @@ def _rule_ids_from_db(raw: Optional[str]) -> Optional[list[str]]:
 async def _nightly_aggregate():
     """Aggregate quality scores nightly so historical trends stay populated."""
     from app.db.database import AsyncSessionLocal
-    from app.services.scoring_service import aggregate_quality_scores
+    from app.services.scoring_service import aggregate_quality_scores, aggregate_dimension_scores
     async with AsyncSessionLocal() as db:
         try:
             await aggregate_quality_scores(db)
+            await aggregate_dimension_scores(db)
             logger.info("Nightly quality score aggregation completed")
         except Exception as e:
             logger.error(f"Nightly aggregation failed: {e}")
