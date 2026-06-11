@@ -125,12 +125,17 @@ async def get_me(db: AsyncSession = Depends(get_db), current_user: dict = Depend
 
 
 @router.get("/auth/my-permissions")
-async def get_my_permissions(current_user: dict = Depends(get_current_user)):
-    from app.core.security import ROLE_PERMISSIONS
-    role = current_user.get("role", "")
+async def get_my_permissions(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    from app.services.rbac import get_user_effective_roles, get_effective_permissions
+    roles = await get_user_effective_roles(current_user["user_id"], current_user.get("role", ""), db)
+    permissions = get_effective_permissions(roles)
     return {
-        "role": role,
-        "permissions": sorted(ROLE_PERMISSIONS.get(role, set())),
+        "role": current_user.get("role", ""),
+        "roles": sorted(roles),
+        "permissions": sorted(permissions),
     }
 
 

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.db.database import get_db
-from app.db.models import Asset
+from app.db.models import Asset, AuditLog
 from app.core.security import get_current_user, require_permission
 
 router = APIRouter(tags=["Ownership"])
@@ -59,6 +60,14 @@ async def set_asset_ownership(
     for field, value in payload.items():
         if field in _OWNERSHIP_FIELDS:
             setattr(asset, field, value)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=user.get("email"),
+        action="UPDATE",
+        entity_type="ownership",
+        entity_id=asset_id,
+        new_value={k: v for k, v in payload.items() if k in _OWNERSHIP_FIELDS},
+    ))
     await db.commit()
     logger.info(f"Ownership updated for asset {asset_id} by {user.get('email')}")
     return _ownership_dict(asset)

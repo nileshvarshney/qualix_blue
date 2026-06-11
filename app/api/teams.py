@@ -311,7 +311,7 @@ async def list_team_roles(
 async def create_notification_target(
     payload: dict,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
 ):
     from app.db.models import NotificationTarget
     VALID_CHANNELS = {"email", "slack", "pagerduty", "webhook", "ms_teams"}
@@ -336,6 +336,14 @@ async def create_notification_target(
         label=payload.get("label"),
     )
     db.add(target)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="CREATE",
+        entity_type="notification_target",
+        entity_id=target.target_id,
+        new_value={"channel": target.channel, "address": target.address},
+    ))
     await db.commit()
     return {"target_id": target.target_id, "channel": target.channel, "address": target.address}
 
@@ -373,7 +381,7 @@ async def list_notification_targets(
 async def delete_notification_target(
     target_id: str,
     db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
+    admin: dict = Depends(require_admin),
 ):
     from app.db.models import NotificationTarget
     result = await db.execute(
@@ -383,5 +391,12 @@ async def delete_notification_target(
     if not target:
         raise HTTPException(404, "Notification target not found")
     target.is_active = False
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="DELETE",
+        entity_type="notification_target",
+        entity_id=target_id,
+    ))
     await db.commit()
     return {"message": "Notification target deleted"}

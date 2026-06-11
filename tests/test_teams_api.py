@@ -345,7 +345,7 @@ async def test_create_notification_target_returns_target_id():
             "label": "My Slack",
         },
         db=db,
-        user={"email": "admin@example.com", "role": "admin"},
+        admin={"email": "admin@example.com", "role": "admin"},
     )
     assert "target_id" in result
     assert result["channel"] == "slack"
@@ -361,7 +361,7 @@ async def test_create_notification_target_400_bad_channel():
         await create_notification_target(
             {"entity_type": "user", "entity_id": "u1", "channel": "carrier_pigeon", "address": "x"},
             db=db,
-            user={},
+            admin={},
         )
     assert exc_info.value.status_code == 400
 
