@@ -349,6 +349,7 @@ async def _run_metadata_discovery(
 
     results = jt_job.get("results", []) if jt_job else []
     new_assets = sum(1 for r in results if r.get("status") == "imported")
+    # "skipped" means already-in-catalog — discovery still refreshed its metadata
     updated_assets = sum(1 for r in results if r.get("status") == "skipped")
 
     await append_log(
