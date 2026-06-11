@@ -30,6 +30,8 @@ from app.api import (
     # Metadata store
     metadata,
     scan_jobs,
+    # Results storage
+    scan_results,
 )
 from app.api.users import router as users_router
 from app.api.oauth import router as oauth_router
@@ -203,6 +205,7 @@ app.include_router(privacy.router)
 app.include_router(admin.router)
 app.include_router(metadata.router)
 app.include_router(scan_jobs.router)
+app.include_router(scan_results.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 

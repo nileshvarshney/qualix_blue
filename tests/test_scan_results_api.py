@@ -217,3 +217,12 @@ async def test_compare_runs_returns_404_when_run_missing():
         with pytest.raises(HTTPException) as exc_info:
             await compare_runs_endpoint(run_id_a="ghost-a", run_id_b="ghost-b", db=db, user={})
         assert exc_info.value.status_code == 404
+
+
+def test_scan_results_router_is_registered_in_main():
+    from app.api import scan_results
+    from app.main import app
+    paths = [r.path for r in app.routes]
+    assert any("/scan-results" in p for p in paths), (
+        "scan_results router not registered — check app/main.py"
+    )
