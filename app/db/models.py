@@ -1345,3 +1345,77 @@ class FailedSampleRecordPlaceholder(Base):
         kwargs.setdefault("sample_id", gen_uuid())
         kwargs.setdefault("is_placeholder", True)
         super().__init__(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# §M6  User / Role / Team / Ownership
+# ---------------------------------------------------------------------------
+
+class Team(Base):
+    __tablename__ = "teams"
+
+    team_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    team_name: Mapped[str] = mapped_column(String(200), unique=True, nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class TeamMembership(Base):
+    """Many-to-many join between users and teams."""
+    __tablename__ = "team_memberships"
+    __table_args__ = (
+        UniqueConstraint("team_id", "user_id", name="uq_team_membership"),
+    )
+
+    membership_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    role_in_team: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class UserRole(Base):
+    """Additional roles beyond the primary User.role field. Supports multi-role."""
+    __tablename__ = "user_roles"
+    __table_args__ = (
+        UniqueConstraint("user_id", "role", name="uq_user_role"),
+    )
+
+    user_role_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.user_id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    granted_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class TeamRole(Base):
+    """Roles assigned to an entire team — all members inherit them."""
+    __tablename__ = "team_roles"
+    __table_args__ = (
+        UniqueConstraint("team_id", "role", name="uq_team_role"),
+    )
+
+    team_role_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    team_id: Mapped[str] = mapped_column(String(36), ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False)
+    granted_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class NotificationTarget(Base):
+    """Per-user or per-team notification channel configuration."""
+    __tablename__ = "notification_targets"
+
+    target_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    entity_type: Mapped[str] = mapped_column(String(20), nullable=False)   # "user" or "team"
+    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    channel: Mapped[str] = mapped_column(String(30), nullable=False)        # "email", "slack", "pagerduty", "webhook"
+    address: Mapped[str] = mapped_column(String(500), nullable=False)       # email addr, Slack channel, URL, etc.
+    label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)

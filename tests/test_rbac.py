@@ -66,3 +66,30 @@ async def test_require_permission_only_admin_has_manage_users():
     assert roles_with_manage_users == ["admin"]
     for role in ("data_steward", "data_engineer", "analyst", "viewer", "domain_owner", "data_owner", "auditor"):
         assert not has_permission({"role": role}, "manage_users")
+
+
+def test_team_model_importable():
+    from app.db.models import Team, TeamMembership, UserRole, TeamRole, NotificationTarget
+    assert Team.__tablename__ == "teams"
+    assert TeamMembership.__tablename__ == "team_memberships"
+    assert UserRole.__tablename__ == "user_roles"
+    assert TeamRole.__tablename__ == "team_roles"
+    assert NotificationTarget.__tablename__ == "notification_targets"
+
+def test_team_has_required_columns():
+    from app.db.models import Team
+    cols = {c.key for c in Team.__table__.columns}
+    for col in ("team_id", "team_name", "is_active", "created_by", "created_at", "updated_at"):
+        assert col in cols, f"Team missing column: {col}"
+
+def test_user_role_has_required_columns():
+    from app.db.models import UserRole
+    cols = {c.key for c in UserRole.__table__.columns}
+    for col in ("user_role_id", "user_id", "role", "granted_by", "created_at"):
+        assert col in cols, f"UserRole missing column: {col}"
+
+def test_notification_target_has_required_columns():
+    from app.db.models import NotificationTarget
+    cols = {c.key for c in NotificationTarget.__table__.columns}
+    for col in ("target_id", "entity_type", "entity_id", "channel", "address", "is_active"):
+        assert col in cols, f"NotificationTarget missing column: {col}"
