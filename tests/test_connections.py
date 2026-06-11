@@ -106,19 +106,26 @@ def test_snowflake_connection_has_exclusion_columns():
     assert "excluded_schemas" in cols
 
 
-def test_platform_info_returns_expected_keys():
+@pytest.mark.asyncio
+async def test_platform_info_returns_expected_keys():
     """GET /config/platform-info response shape must match the spec."""
     from app.api.config import get_platform_info
-    import asyncio
-    result = asyncio.run(get_platform_info())
-    assert "account" in result
-    assert "user" in result
-    assert "warehouse" in result
-    assert "role" in result
-    assert "app_database" in result
-    assert "app_schema" in result
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock_db = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    result = await get_platform_info(db=mock_db)
+    assert "sf_platform_account" in result
+    assert "sf_platform_user" in result
+    assert "sf_platform_warehouse" in result
+    assert "sf_platform_role" in result
+    assert "snowflake_app_database" in result
+    assert "snowflake_app_schema" in result
     assert "has_password" in result
-    assert "password" not in result
+    assert "sf_platform_password" not in result
 
 
 import pytest

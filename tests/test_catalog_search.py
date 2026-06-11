@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 @pytest.mark.asyncio
 async def test_refresh_search_index_returns_duration():
-    """refresh_search_index executes REFRESH and returns ms elapsed."""
+    """refresh_search_index returns a non-negative int (no-op on Snowflake)."""
     mock_db = AsyncMock()
     mock_db.execute = AsyncMock()
     mock_db.commit = AsyncMock()
@@ -14,7 +14,6 @@ async def test_refresh_search_index_returns_duration():
     ms = await refresh_search_index(mock_db)
     assert isinstance(ms, int)
     assert ms >= 0
-    mock_db.execute.assert_called_once()
 
 
 @pytest.mark.asyncio
