@@ -68,14 +68,16 @@ async def write_run_summary(db: AsyncSession, run_id: str) -> None:
 
     result_summary = run.result_summary or {}
     failed = result_summary.get("tables_failed", run.errors_count)
+    new_assets = result_summary.get("new_assets", 0)
+    updated_assets = result_summary.get("updated_assets", max(0, run.assets_scanned - failed - new_assets))
 
     summary = ScanRunSummary(
         run_id=run_id,
         job_id=run.job_id,
         connection_id=connection_id,
         scan_type=scan_type,
-        new_assets_count=result_summary.get("new_assets", 0),
-        updated_assets_count=result_summary.get("updated_assets", max(0, run.assets_scanned - failed)),
+        new_assets_count=new_assets,
+        updated_assets_count=updated_assets,
         removed_assets_count=result_summary.get("removed_assets", 0),
         failed_assets_count=failed,
         schema_changes_count=result_summary.get("schema_changes", 0),

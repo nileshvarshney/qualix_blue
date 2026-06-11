@@ -275,3 +275,35 @@ def test_scan_job_create_cron_requires_cron_expr():
         cron_expr="0 6 * * *",
     )
     assert valid.cron_expr == "0 6 * * *"
+
+
+@pytest.mark.asyncio
+async def test_run_metadata_discovery_surfaces_new_assets_count():
+    """_run_metadata_discovery must include new_assets/updated_assets in result_summary."""
+    from app.services import scan_orchestrator
+    from unittest.mock import AsyncMock, patch
+
+    mock_jt = MagicMock()
+    mock_jt.create_job.return_value = "tmp-job-id"
+    mock_jt.get_job.return_value = {
+        "completed": 3,
+        "failed": 1,
+        "total": 4,
+        "results": [
+            {"status": "imported", "table_name": "T1"},
+            {"status": "imported", "table_name": "T2"},
+            {"status": "skipped", "table_name": "T3"},
+            {"status": "error", "table_name": "T4"},
+        ],
+    }
+
+    with patch("app.services.scan_orchestrator.append_log", new_callable=AsyncMock), \
+         patch("app.services.scan_orchestrator.AsyncSessionLocal"), \
+         patch("app.services.scan_orchestrator._jt", mock_jt), \
+         patch("app.services.scan_orchestrator.run_discovery", new_callable=AsyncMock):
+
+        result = await scan_orchestrator._run_metadata_discovery("conn-001", "run-001", {})
+
+    summary = result["result_summary"]
+    assert summary["new_assets"] == 2
+    assert summary["updated_assets"] == 1

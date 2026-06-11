@@ -507,3 +507,41 @@ async def test_record_metrics_upserts_on_duplicate_date():
     db.add.assert_not_called()
     assert existing_metric.metric_value_num == 200.0
     assert existing_metric.run_id == "run-002"
+
+
+@pytest.mark.asyncio
+async def test_write_run_summary_maps_new_assets_count():
+    """write_run_summary must read new_assets from result_summary, not default to 0."""
+    from app.services.results_store import write_run_summary
+
+    mock_run = MagicMock()
+    mock_run.run_id = "run-001"
+    mock_run.job_id = "job-001"
+    mock_run.assets_scanned = 5
+    mock_run.errors_count = 1
+    mock_run.warnings_count = 0
+    mock_run.error_message = None
+    mock_run.result_summary = {
+        "tables_scanned": 4,
+        "tables_failed": 1,
+        "tables_total": 5,
+        "new_assets": 3,
+        "updated_assets": 1,
+        "removed_assets": 0,
+    }
+    mock_run.parameters = None
+
+    mock_job = MagicMock()
+    mock_job.connection_id = "conn-001"
+    mock_job.job_type = "metadata_discovery"
+
+    db = AsyncMock()
+    db.get.side_effect = [mock_run, mock_job]
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=None)
+
+    await write_run_summary(db, "run-001")
+
+    added = db.add.call_args[0][0]
+    assert added.new_assets_count == 3
+    assert added.updated_assets_count == 1
+    assert added.failed_assets_count == 1

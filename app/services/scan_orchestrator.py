@@ -18,6 +18,8 @@ from sqlalchemy import desc, select
 from app.db.database import AsyncSessionLocal
 from app.db.models import ScanJob, ScanJobRun, ScanJobRunLog
 from app.services import results_store
+from app.services import job_tracker as _jt
+from app.services.discovery_service import run_discovery
 
 logger = logging.getLogger("dq_platform.scan_orchestrator")
 
@@ -335,9 +337,6 @@ async def _run_metadata_discovery(
     if not connection_id:
         raise ValueError("connection_id is required for metadata_discovery")
 
-    from app.services import job_tracker as _jt
-    from app.services.discovery_service import run_discovery
-
     await append_log(run_id, "INFO", "Starting metadata discovery")
     tmp_job_id = _jt.create_job("metadata_discovery", total=0, meta={"scan_run_id": run_id})
 
@@ -348,7 +347,15 @@ async def _run_metadata_discovery(
     completed = jt_job.get("completed", 0) if jt_job else 0
     failed = jt_job.get("failed", 0) if jt_job else 0
 
-    await append_log(run_id, "INFO", f"Discovery done: {completed} succeeded, {failed} failed")
+    results = jt_job.get("results", []) if jt_job else []
+    new_assets = sum(1 for r in results if r.get("status") == "imported")
+    updated_assets = sum(1 for r in results if r.get("status") == "skipped")
+
+    await append_log(
+        run_id, "INFO",
+        f"Discovery done: {completed} succeeded, {failed} failed, "
+        f"{new_assets} new, {updated_assets} updated",
+    )
     return {
         "assets_scanned": completed,
         "errors_count": failed,
@@ -357,6 +364,9 @@ async def _run_metadata_discovery(
             "tables_scanned": completed,
             "tables_failed": failed,
             "tables_total": jt_job.get("total", 0) if jt_job else 0,
+            "new_assets": new_assets,
+            "updated_assets": updated_assets,
+            "removed_assets": 0,
         },
     }
 
