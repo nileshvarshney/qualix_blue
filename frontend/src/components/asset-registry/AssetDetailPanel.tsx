@@ -3,6 +3,7 @@ import { useState } from 'react'
 import AssetDescriptionField from './AssetDescriptionField'
 import AssetColumnsSection from './AssetColumnsSection'
 import AssetProfilingTab from './AssetProfilingTab'
+import AssetRulesTab from './AssetRulesTab'
 
 interface AssetMeta {
   sf_table_name?: string
@@ -33,7 +34,7 @@ interface Asset {
   source_meta?: AssetMeta
 }
 
-type Tab = 'overview' | 'profiling'
+type Tab = 'overview' | 'profiling' | 'rules'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -98,7 +99,7 @@ export default function AssetDetailPanel({
       {/* Tab bar — only for table/view assets */}
       {isLeaf && (
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
-          {(['overview', 'profiling'] as Tab[]).map(tab => (
+          {(['overview', 'profiling', 'rules'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -164,15 +165,6 @@ export default function AssetDetailPanel({
               sourceMeta={asset.source_meta}
             />
           )}
-
-          {isLeaf && (
-            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-              <a href={`/rules?asset_id=${asset.asset_id}`}
-                style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '5px', border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none', background: 'var(--surface)' }}>
-                Run Rules
-              </a>
-            </div>
-          )}
         </>
       )}
 
@@ -182,6 +174,11 @@ export default function AssetDetailPanel({
           assetId={asset.asset_id}
           connectionId={asset.connection_id}
         />
+      )}
+
+      {/* Rules tab content */}
+      {isLeaf && activeTab === 'rules' && (
+        <AssetRulesTab assetId={asset.asset_id} />
       )}
     </div>
   )
