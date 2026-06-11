@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Optional
 import uuid
-import inspect
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -311,13 +310,7 @@ async def list_user_roles(
 ):
     from app.db.models import UserRole
     result = await db.execute(select(UserRole).where(UserRole.user_id == user_id))
-    scalars = result.scalars()
-    if inspect.isawaitable(scalars):
-        scalars = await scalars
-    all_items = scalars.all()
-    if inspect.isawaitable(all_items):
-        all_items = await all_items
-    roles = list(all_items)
+    roles = result.scalars().all()
     return {
         "user_id": user_id,
         "roles": [

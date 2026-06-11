@@ -208,8 +208,12 @@ async def test_list_user_roles_returns_list():
     r1.created_at = MagicMock()
     r1.created_at.isoformat.return_value = "2026-06-11T10:00:00"
 
+    # Use MagicMock for the execute result, not AsyncMock
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [r1]
+
     db = AsyncMock()
-    db.execute.return_value.scalars.return_value.all.return_value = [r1]
+    db.execute.return_value = mock_result
 
     result = await list_user_roles("user-001", db=db, _={"role": "admin"})
     assert result["user_id"] == "user-001"
@@ -230,6 +234,7 @@ async def test_revoke_user_role_returns_message():
         return r
 
     db = AsyncMock()
+    db.add = MagicMock()  # db.add is synchronous in SQLAlchemy
     db.execute.return_value = make_result(mock_ur)
     db.delete = AsyncMock()
     db.commit = AsyncMock()
