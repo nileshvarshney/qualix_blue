@@ -1030,3 +1030,100 @@ class SavedSearch(Base):
     query: Mapped[Optional[str]] = mapped_column(String(500))
     filters: Mapped[Optional[dict]] = mapped_column(JSONVariant)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class ScanJob(Base):
+    __tablename__ = "scan_jobs"
+
+    job_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    connection_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("snowflake_connections.connection_id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    job_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    job_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    schedule_frequency: Mapped[str] = mapped_column(String(20), nullable=False, default="on_demand")
+    cron_expr: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="UTC")
+    max_retries: Mapped[int] = mapped_column(Integer, default=2)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, default=300)
+    parameters: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_run_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    runs: Mapped[list["ScanJobRun"]] = relationship(
+        "ScanJobRun", back_populates="job", cascade="all, delete-orphan"
+    )
+
+    def __init__(self, **kw):
+        kw.setdefault("job_id", gen_uuid())
+        kw.setdefault("is_active", True)
+        kw.setdefault("schedule_frequency", "on_demand")
+        kw.setdefault("timezone", "UTC")
+        kw.setdefault("max_retries", 2)
+        kw.setdefault("timeout_seconds", 300)
+        super().__init__(**kw)
+
+
+class ScanJobRun(Base):
+    __tablename__ = "scan_job_runs"
+
+    run_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    job_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_jobs.job_id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued")
+    trigger_type: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    triggered_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    ended_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    duration_seconds: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    assets_scanned: Mapped[int] = mapped_column(Integer, default=0)
+    errors_count: Mapped[int] = mapped_column(Integer, default=0)
+    warnings_count: Mapped[int] = mapped_column(Integer, default=0)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    result_summary: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    parameters: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    job: Mapped["ScanJob"] = relationship("ScanJob", back_populates="runs")
+    logs: Mapped[list["ScanJobRunLog"]] = relationship(
+        "ScanJobRunLog", back_populates="run", cascade="all, delete-orphan"
+    )
+
+    def __init__(self, **kw):
+        kw.setdefault("run_id", gen_uuid())
+        kw.setdefault("status", "queued")
+        kw.setdefault("trigger_type", "manual")
+        kw.setdefault("attempt", 1)
+        kw.setdefault("assets_scanned", 0)
+        kw.setdefault("errors_count", 0)
+        kw.setdefault("warnings_count", 0)
+        super().__init__(**kw)
+
+
+class ScanJobRunLog(Base):
+    __tablename__ = "scan_job_run_logs"
+
+    log_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("scan_job_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    level: Mapped[str] = mapped_column(String(10), nullable=False, default="INFO")
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    context: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    logged_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    run: Mapped["ScanJobRun"] = relationship("ScanJobRun", back_populates="logs")
+
+    def __init__(self, **kw):
+        kw.setdefault("log_id", gen_uuid())
+        kw.setdefault("level", "INFO")
+        super().__init__(**kw)
