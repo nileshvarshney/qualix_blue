@@ -115,6 +115,40 @@ export interface DimensionScores {
   consistency:  number | null
 }
 
+export type QualityDimension =
+  | 'completeness'
+  | 'validity'
+  | 'uniqueness'
+  | 'timeliness'
+  | 'consistency'
+  | 'integrity'
+
+export interface QualityDimensionDetail {
+  score: number | null
+  source: 'rules' | 'profiling' | 'rollup' | 'none'
+  total_rules: number
+  passed_rules: number
+  failed_rules: number
+}
+
+export interface AssetQualityScore {
+  asset_id: string
+  score_date: string | null
+  overall_score: number | null
+  dimensions: Record<QualityDimension, QualityDimensionDetail>
+}
+
+export interface AssetQualityHistoryPoint {
+  date: string
+  overall_score: number | null
+  dimensions: Record<QualityDimension, number | null>
+}
+
+export interface AssetQualityHistory {
+  asset_id: string
+  history: AssetQualityHistoryPoint[]
+}
+
 export interface FailingRule {
   rule_name:  string
   asset_name: string
