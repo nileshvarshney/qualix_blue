@@ -42,8 +42,10 @@ def test_teams_router_has_expected_routes():
 @pytest.mark.asyncio
 async def test_create_team_returns_team_id():
     from app.api.teams import create_team, TeamCreate
+    no_existing = MagicMock()
+    no_existing.scalar_one_or_none.return_value = None
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = None  # no existing team
+    db.execute.return_value = no_existing
     db.add = MagicMock()
     db.commit = AsyncMock()
     admin = {"email": "admin@example.com", "role": "admin"}
@@ -60,8 +62,10 @@ async def test_create_team_returns_team_id():
 async def test_create_team_409_on_duplicate():
     from app.api.teams import create_team, TeamCreate
     from fastapi import HTTPException
+    existing = MagicMock()
+    existing.scalar_one_or_none.return_value = _make_mock_team()
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = _make_mock_team()
+    db.execute.return_value = existing
     with pytest.raises(HTTPException) as exc_info:
         await create_team(
             TeamCreate(team_name="Analytics"),
@@ -90,8 +94,10 @@ async def test_list_teams_returns_items():
 async def test_get_team_returns_404_when_missing():
     from app.api.teams import get_team
     from fastapi import HTTPException
+    not_found = MagicMock()
+    not_found.scalar_one_or_none.return_value = None
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = None
+    db.execute.return_value = not_found
     with pytest.raises(HTTPException) as exc_info:
         await get_team("ghost-team", db=db, _={"role": "admin"})
     assert exc_info.value.status_code == 404
@@ -128,8 +134,11 @@ async def test_add_member_returns_membership_id():
 async def test_remove_member_returns_message():
     from app.api.teams import remove_member
     mock_membership = _make_mock_membership()
+    found = MagicMock()
+    found.scalar_one_or_none.return_value = mock_membership
     db = AsyncMock()
-    db.execute.return_value.scalar_one_or_none.return_value = mock_membership
+    db.execute.return_value = found
+    db.add = MagicMock()
     db.delete = AsyncMock()
     db.commit = AsyncMock()
     result = await remove_member("team-001", "user-001", db=db, admin={"email": "admin@example.com"})

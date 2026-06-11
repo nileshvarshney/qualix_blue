@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import inspect
 import uuid
 import logging
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.db.database import get_db
 from app.db.models import Team, TeamMembership, TeamRole, User, AuditLog
@@ -17,14 +16,8 @@ router = APIRouter(prefix="/teams", tags=["Teams"])
 logger = logging.getLogger("dq_platform.teams")
 
 
-async def _scalar(result) -> object:
-    """Return scalar_one_or_none(), awaiting the result if it is a coroutine (test mocks)."""
-    raw = result.scalar_one_or_none()
-    return await raw if inspect.isawaitable(raw) else raw
-
-
 class TeamCreate(BaseModel):
-    team_name: str
+    team_name: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
 
 
@@ -73,7 +66,7 @@ async def create_team(
     admin: dict = Depends(require_admin),
 ):
     existing = await db.execute(select(Team).where(Team.team_name == payload.team_name))
-    if await _scalar(existing):
+    if existing.scalar_one_or_none():
         raise HTTPException(409, f"Team '{payload.team_name}' already exists")
     team = Team(
         team_id=str(uuid.uuid4()),
@@ -102,7 +95,9 @@ async def list_teams(
     db: AsyncSession = Depends(get_db),
     _: dict = Depends(get_current_user),
 ):
-    total = (await db.execute(select(func.count()).select_from(Team))).scalar() or 0
+    total = (await db.execute(
+        select(func.count()).select_from(Team).where(Team.is_active == True)
+    )).scalar() or 0
     result = await db.execute(
         select(Team).where(Team.is_active == True)
         .order_by(Team.team_name).limit(limit).offset(offset)
@@ -122,7 +117,7 @@ async def get_team(
     _: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Team).where(Team.team_id == team_id))
-    team = await _scalar(result)
+    team = result.scalar_one_or_none()
     if not team:
         raise HTTPException(404, "Team not found")
     return _team_dict(team)
@@ -136,7 +131,7 @@ async def update_team(
     admin: dict = Depends(require_admin),
 ):
     result = await db.execute(select(Team).where(Team.team_id == team_id))
-    team = await _scalar(result)
+    team = result.scalar_one_or_none()
     if not team:
         raise HTTPException(404, "Team not found")
     for field, value in payload.model_dump(exclude_none=True).items():
@@ -160,7 +155,7 @@ async def deactivate_team(
     admin: dict = Depends(require_admin),
 ):
     result = await db.execute(select(Team).where(Team.team_id == team_id))
-    team = await _scalar(result)
+    team = result.scalar_one_or_none()
     if not team:
         raise HTTPException(404, "Team not found")
     team.is_active = False
@@ -183,10 +178,10 @@ async def add_member(
     admin: dict = Depends(require_admin),
 ):
     team_result = await db.execute(select(Team).where(Team.team_id == team_id))
-    if not await _scalar(team_result):
+    if not team_result.scalar_one_or_none():
         raise HTTPException(404, "Team not found")
     user_result = await db.execute(select(User).where(User.user_id == payload.user_id))
-    if not await _scalar(user_result):
+    if not user_result.scalar_one_or_none():
         raise HTTPException(404, "User not found")
     existing = await db.execute(
         select(TeamMembership).where(
@@ -194,7 +189,7 @@ async def add_member(
             TeamMembership.user_id == payload.user_id,
         )
     )
-    if await _scalar(existing):
+    if existing.scalar_one_or_none():
         raise HTTPException(409, "User is already a member of this team")
     membership = TeamMembership(
         membership_id=str(uuid.uuid4()),
@@ -204,6 +199,14 @@ async def add_member(
         created_by=admin.get("email"),
     )
     db.add(membership)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="ADD_MEMBER",
+        entity_type="team",
+        entity_id=team_id,
+        new_value={"user_id": payload.user_id, "role_in_team": payload.role_in_team},
+    ))
     await db.commit()
     return {"membership_id": membership.membership_id, "team_id": team_id, "user_id": payload.user_id}
 
@@ -215,7 +218,7 @@ async def list_members(
     _: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Team).where(Team.team_id == team_id))
-    if not await _scalar(result):
+    if not result.scalar_one_or_none():
         raise HTTPException(404, "Team not found")
     members = await db.execute(
         select(TeamMembership).where(TeamMembership.team_id == team_id)
@@ -236,9 +239,17 @@ async def remove_member(
             TeamMembership.user_id == user_id,
         )
     )
-    membership = await _scalar(result)
+    membership = result.scalar_one_or_none()
     if not membership:
         raise HTTPException(404, "Membership not found")
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="REMOVE_MEMBER",
+        entity_type="team",
+        entity_id=team_id,
+        new_value={"user_id": user_id},
+    ))
     await db.delete(membership)
     await db.commit()
     return {"message": "Member removed"}
@@ -254,12 +265,12 @@ async def assign_role_to_team(
     if payload.role not in ROLES:
         raise HTTPException(400, f"Invalid role. Valid: {ROLES}")
     team_result = await db.execute(select(Team).where(Team.team_id == team_id))
-    if not await _scalar(team_result):
+    if not team_result.scalar_one_or_none():
         raise HTTPException(404, "Team not found")
     existing = await db.execute(
         select(TeamRole).where(TeamRole.team_id == team_id, TeamRole.role == payload.role)
     )
-    if await _scalar(existing):
+    if existing.scalar_one_or_none():
         raise HTTPException(409, f"Team already has role '{payload.role}'")
     team_role = TeamRole(
         team_role_id=str(uuid.uuid4()),
@@ -268,6 +279,14 @@ async def assign_role_to_team(
         granted_by=admin.get("email"),
     )
     db.add(team_role)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="ASSIGN_TEAM_ROLE",
+        entity_type="team",
+        entity_id=team_id,
+        new_value={"role": payload.role},
+    ))
     await db.commit()
     return {"team_role_id": team_role.team_role_id, "team_id": team_id, "role": payload.role}
 
