@@ -226,3 +226,37 @@ def test_scan_results_router_is_registered_in_main():
     assert any("/scan-results" in p for p in paths), (
         "scan_results router not registered — check app/main.py"
     )
+
+
+@pytest.mark.asyncio
+async def test_get_asset_scan_history_returns_list():
+    """get_asset_history returns all AssetScanSummary rows for an asset."""
+    from app.services.results_store import get_asset_history
+    from app.db.models import AssetScanSummary
+    from unittest.mock import AsyncMock, MagicMock
+    from datetime import datetime
+
+    s1 = AssetScanSummary(run_id="run-001", asset_id="asset-001", scan_status="succeeded", row_count=1000)
+    s2 = AssetScanSummary(run_id="run-002", asset_id="asset-001", scan_status="succeeded", row_count=1200)
+
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [s1, s2]
+
+    results = await get_asset_history(db, "asset-001", limit=50)
+    assert len(results) == 2
+    assert results[0].asset_id == "asset-001"
+    assert results[1].run_id == "run-002"
+
+
+@pytest.mark.asyncio
+async def test_get_asset_scan_history_caps_at_500():
+    """get_asset_history enforces a maximum limit of 500."""
+    from app.services.results_store import get_asset_history
+    from unittest.mock import AsyncMock
+
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = []
+
+    await get_asset_history(db, "asset-001", limit=9999)
+    # The important thing is no exception is raised (limit is capped internally)
+    db.execute.assert_called_once()

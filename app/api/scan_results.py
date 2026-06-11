@@ -97,6 +97,17 @@ async def get_asset_latest_endpoint(
     return _asset_summary_dict(summary)
 
 
+@router.get("/assets/{asset_id}/history")
+async def get_asset_scan_history_endpoint(
+    asset_id: str,
+    limit: int = Query(50, ge=1, le=500),
+    db=Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    summaries = await results_store.get_asset_history(db, asset_id, limit=limit)
+    return [_asset_summary_dict(s) for s in summaries]
+
+
 @router.get("/assets/{asset_id}/trend")
 async def get_asset_trend_endpoint(
     asset_id: str,

@@ -227,6 +227,22 @@ async def get_asset_latest(db: AsyncSession, asset_id: str) -> Optional[AssetSca
     return await _scalar(result)
 
 
+async def get_asset_history(
+    db: AsyncSession,
+    asset_id: str,
+    limit: int = 50,
+) -> list[AssetScanSummary]:
+    """Return all AssetScanSummary rows for an asset, newest-first. Max 500."""
+    limit = min(limit, 500)
+    result = await db.execute(
+        select(AssetScanSummary)
+        .where(AssetScanSummary.asset_id == asset_id)
+        .order_by(desc(AssetScanSummary.created_at))
+        .limit(limit)
+    )
+    return await _scalars_all(result)
+
+
 async def get_run_asset_summaries(
     db: AsyncSession, run_id: str, limit: int = 200
 ) -> list[AssetScanSummary]:
