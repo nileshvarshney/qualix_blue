@@ -339,3 +339,45 @@ async def test_compare_runs_raises_when_run_missing():
 
     with pytest.raises(ValueError, match="not found"):
         await compare_runs(db, "ghost-a", "ghost-b")
+
+
+@pytest.mark.asyncio
+async def test_get_run_asset_summaries_returns_list():
+    from app.services.results_store import get_run_asset_summaries
+
+    mock_rows = [MagicMock(), MagicMock(), MagicMock()]
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = mock_rows
+
+    result = await get_run_asset_summaries(db, "run-001")
+
+    assert len(result) == 3
+
+
+@pytest.mark.asyncio
+async def test_get_asset_run_summary_returns_single_record():
+    from app.services.results_store import get_asset_run_summary
+
+    mock_summary = MagicMock()
+    mock_summary.run_id = "run-001"
+    mock_summary.asset_id = "asset-001"
+    db = AsyncMock()
+    db.execute.return_value.scalar_one_or_none = MagicMock(return_value=mock_summary)
+
+    result = await get_asset_run_summary(db, "run-001", "asset-001")
+
+    assert result.run_id == "run-001"
+    assert result.asset_id == "asset-001"
+
+
+@pytest.mark.asyncio
+async def test_get_run_evidence_returns_filtered_list():
+    from app.services.results_store import get_run_evidence
+
+    mock_logs = [MagicMock(), MagicMock()]
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = mock_logs
+
+    result = await get_run_evidence(db, "run-001", severity="warning")
+
+    assert len(result) == 2
