@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 import uuid
+import inspect
 import logging
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -260,6 +261,102 @@ async def change_password(
     user.updated_at = _utcnow()
     await db.commit()
     return {"message": "Password updated successfully"}
+
+
+# ── User Role Assignment ──────────────────────────────────────────────────────
+
+@router.post("/users/{user_id}/roles", status_code=201)
+async def assign_user_role(
+    user_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    from app.db.models import UserRole
+    role = payload.get("role", "")
+    if role not in ROLES:
+        raise HTTPException(400, f"Invalid role. Valid roles: {ROLES}")
+    user_result = await db.execute(select(User).where(User.user_id == user_id))
+    if not user_result.scalar_one_or_none():
+        raise HTTPException(404, "User not found")
+    existing = await db.execute(
+        select(UserRole).where(UserRole.user_id == user_id, UserRole.role == role)
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(409, f"User already has role '{role}'")
+    user_role = UserRole(
+        user_role_id=str(uuid.uuid4()),
+        user_id=user_id,
+        role=role,
+        granted_by=admin.get("email"),
+    )
+    db.add(user_role)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="ASSIGN_ROLE",
+        entity_type="user",
+        entity_id=user_id,
+        new_value={"role": role},
+    ))
+    await db.commit()
+    return {"user_role_id": user_role.user_role_id, "user_id": user_id, "role": role}
+
+
+@router.get("/users/{user_id}/roles")
+async def list_user_roles(
+    user_id: str,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    from app.db.models import UserRole
+    result = await db.execute(select(UserRole).where(UserRole.user_id == user_id))
+    scalars = result.scalars()
+    if inspect.isawaitable(scalars):
+        scalars = await scalars
+    all_items = scalars.all()
+    if inspect.isawaitable(all_items):
+        all_items = await all_items
+    roles = list(all_items)
+    return {
+        "user_id": user_id,
+        "roles": [
+            {
+                "user_role_id": r.user_role_id,
+                "role": r.role,
+                "granted_by": r.granted_by,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in roles
+        ],
+    }
+
+
+@router.delete("/users/{user_id}/roles/{role}")
+async def revoke_user_role(
+    user_id: str,
+    role: str,
+    db: AsyncSession = Depends(get_db),
+    admin=Depends(require_admin),
+):
+    from app.db.models import UserRole
+    result = await db.execute(
+        select(UserRole).where(UserRole.user_id == user_id, UserRole.role == role)
+    )
+    user_role = result.scalar_one_or_none()
+    if not user_role:
+        raise HTTPException(404, "Role assignment not found")
+    await db.delete(user_role)
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_email=admin.get("email"),
+        action="REVOKE_ROLE",
+        entity_type="user",
+        entity_id=user_id,
+        new_value={"role": role},
+    ))
+    await db.commit()
+    return {"message": "Role revoked"}
 
 
 # ── SLA Config endpoints ──────────────────────────────────────────────────────

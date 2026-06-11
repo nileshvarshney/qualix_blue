@@ -143,3 +143,96 @@ async def test_remove_member_returns_message():
     db.commit = AsyncMock()
     result = await remove_member("team-001", "user-001", db=db, admin={"email": "admin@example.com"})
     assert result["message"] == "Member removed"
+
+
+def test_user_roles_routes_exist():
+    from app.api.users import router
+    paths = {r.path for r in router.routes}
+    assert "/users/{user_id}/roles" in paths
+
+
+@pytest.mark.asyncio
+async def test_assign_role_to_user_returns_user_role_id():
+    from app.api.users import assign_user_role
+
+    mock_user = MagicMock()
+    mock_user.user_id = "user-001"
+
+    def make_result(val):
+        r = MagicMock()
+        r.scalar_one_or_none.return_value = val
+        return r
+
+    db = AsyncMock()
+    db.execute.side_effect = [
+        make_result(mock_user),   # user lookup
+        make_result(None),        # existing role check (not already assigned)
+    ]
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+
+    result = await assign_user_role(
+        "user-001",
+        {"role": "data_steward"},
+        db=db,
+        admin={"email": "admin@example.com"},
+    )
+    assert "user_role_id" in result
+    assert result["role"] == "data_steward"
+
+
+@pytest.mark.asyncio
+async def test_assign_role_to_user_400_on_invalid_role():
+    from app.api.users import assign_user_role
+    from fastapi import HTTPException
+    db = AsyncMock()
+    with pytest.raises(HTTPException) as exc_info:
+        await assign_user_role(
+            "user-001",
+            {"role": "bogus_role"},
+            db=db,
+            admin={"email": "admin@example.com"},
+        )
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_list_user_roles_returns_list():
+    from app.api.users import list_user_roles
+    from app.db.models import UserRole
+
+    r1 = MagicMock(spec=UserRole)
+    r1.user_role_id = "ur-001"
+    r1.role = "analyst"
+    r1.granted_by = "admin@example.com"
+    r1.created_at = MagicMock()
+    r1.created_at.isoformat.return_value = "2026-06-11T10:00:00"
+
+    db = AsyncMock()
+    db.execute.return_value.scalars.return_value.all.return_value = [r1]
+
+    result = await list_user_roles("user-001", db=db, _={"role": "admin"})
+    assert result["user_id"] == "user-001"
+    assert len(result["roles"]) == 1
+    assert result["roles"][0]["role"] == "analyst"
+
+
+@pytest.mark.asyncio
+async def test_revoke_user_role_returns_message():
+    from app.api.users import revoke_user_role
+    from app.db.models import UserRole
+
+    mock_ur = MagicMock(spec=UserRole)
+
+    def make_result(val):
+        r = MagicMock()
+        r.scalar_one_or_none.return_value = val
+        return r
+
+    db = AsyncMock()
+    db.execute.return_value = make_result(mock_ur)
+    db.delete = AsyncMock()
+    db.commit = AsyncMock()
+
+    result = await revoke_user_role("user-001", "analyst", db=db, admin={"email": "admin@example.com"})
+    assert result["message"] == "Role revoked"
