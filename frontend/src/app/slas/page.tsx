@@ -35,7 +35,7 @@ function MiniTrend({ data, color, h = 28 }: { data: number[]; color: string; h?:
   )
 }
 
-const COLS = '1fr 110px 72px 88px 62px 68px 40px 78px 80px'
+const COLS = '1fr 110px 72px 88px 62px 68px 40px 78px 80px auto'
 
 export default function SLAsPage() {
   const [filter, setFilter]   = useState<FilterType>('all')
@@ -45,6 +45,10 @@ export default function SLAsPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [hoverId, setHoverId] = useState<string | null>(null)
   const [sForm, setSForm]     = useState({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: '', connection: '' })
+  const [editSla, setEditSla] = useState<SLA | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', dataset: '', type: '', target: '', owner: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/slas')
@@ -119,6 +123,41 @@ export default function SLAsPage() {
     setSForm({ name: '', dataset: '', type: 'Freshness', target: '', owner: '', domain: '', connection: '' })
   }
 
+  const updateSla = async () => {
+    if (!editSla || !editForm.name) return
+    setEditSaving(true)
+    try {
+      const res = await fetch('/api/slas', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editSla.id, contract_name: editForm.name, sla_description: editForm.target, producer_team: editForm.owner || null }),
+      })
+      if (!res.ok) throw new Error(`Update failed: ${res.status}`)
+      setAllSlas(prev => prev.map(s => s.id === editSla.id
+        ? { ...s, name: editForm.name, dataset: editForm.dataset, type: editForm.type, target: editForm.target, owner: editForm.owner || 'Unassigned' } : s))
+      setEditSla(null)
+      if (selected?.id === editSla.id) setSelected(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const deleteSla = async (sla: SLA) => {
+    if (!confirm(`Delete SLA "${sla.name}"?`)) return
+    setDeletingId(sla.id)
+    try {
+      const res = await fetch(`/api/slas?id=${sla.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+      setAllSlas(prev => prev.filter(s => s.id !== sla.id))
+      if (selected?.id === sla.id) setSelected(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const overall  = allSlas.length ? Math.round(allSlas.reduce((acc, s) => acc + s.adherence, 0) / allSlas.length) : 0
   const healthy  = allSlas.filter(s => s.status === 'healthy').length
   const atRisk   = allSlas.filter(s => s.status === 'at-risk').length
@@ -170,7 +209,7 @@ export default function SLAsPage() {
 
       {/* Column headers */}
       <div style={{ display: 'grid', gridTemplateColumns: COLS, gap: '0 6px', padding: '0 8px 3px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-        {['SLA Name', 'Dataset', 'Type', 'Target', 'Adherence', 'Trend', 'Brch', 'Status', 'Owner'].map(h => (
+        {['SLA Name', 'Dataset', 'Type', 'Target', 'Adherence', 'Trend', 'Brch', 'Status', 'Owner', 'Actions'].map(h => (
           <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
@@ -203,6 +242,14 @@ export default function SLAsPage() {
               <span style={{ fontSize: '11px', fontWeight: 700, color: s.breaches > 0 ? 'var(--status-error-text)' : 'var(--foreground)', textAlign: 'center' }}>{s.breaches}</span>
               <span style={{ background: statusBg(s.status), color: statusColor(s.status), padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 700, textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.status}</span>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.owner}</span>
+              <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                <button onClick={() => { setEditSla(s); setEditForm({ name: s.name, dataset: s.dataset ?? '', type: s.type ?? '', target: s.target ?? '', owner: s.owner ?? '' }) }}
+                  style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: 'pointer', color: 'var(--text-secondary)' }}>Edit</button>
+                <button onClick={() => deleteSla(s)} disabled={deletingId === s.id}
+                  style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: deletingId === s.id ? 'not-allowed' : 'pointer', color: 'var(--status-error-text)', opacity: deletingId === s.id ? 0.6 : 1 }}>
+                  {deletingId === s.id ? '…' : 'Delete'}
+                </button>
+              </div>
             </div>
           )
         })}
@@ -294,6 +341,35 @@ export default function SLAsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Edit SLA Modal */}
+      {editSla && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Edit SLA</div>
+            {[
+              { label: 'SLA Name *', key: 'name', placeholder: '' },
+              { label: 'Dataset', key: 'dataset', placeholder: '' },
+              { label: 'Target', key: 'target', placeholder: 'e.g. 99.9% freshness within 2h' },
+              { label: 'Owner', key: 'owner', placeholder: '' },
+            ].map(({ label, key, placeholder }) => (
+              <div key={key}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{label}</label>
+                <input value={(editForm as Record<string, string>)[key]} onChange={e => setEditForm(p => ({ ...p, [key]: e.target.value }))} placeholder={placeholder}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+            ))}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditSla(null)}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={updateSla} disabled={editSaving || !editForm.name}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editSaving || !editForm.name) ? 'not-allowed' : 'pointer', opacity: (editSaving || !editForm.name) ? 0.6 : 1 }}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* New SLA Modal — unchanged from original */}
