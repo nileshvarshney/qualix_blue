@@ -28,6 +28,16 @@ export async function PATCH(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
+    if (body.create) {
+      const { create: _, ...payload } = body
+      const res = await fetch(`${BACKEND}/schedules`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      return NextResponse.json(data, { status: res.status })
+    }
+    // existing run-now path
     const { id } = body
     const res = await fetch(`${BACKEND}/schedules/${id}/run-now`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

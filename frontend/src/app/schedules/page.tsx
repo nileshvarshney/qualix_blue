@@ -47,6 +47,10 @@ export default function SchedulesPage() {
   const [expandedId, setExpandedId]     = useState<string | null>(null)
   const [filter, setFilter]             = useState<FilterType>('all')
   const [collapsedConns, setCollapsedConns] = useState<Set<string>>(new Set())
+  const [showCreate, setShowCreate] = useState(false)
+  const [schedForm, setSchedForm] = useState({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
+  const [schedSaving, setSchedSaving] = useState(false)
+  const [connOptions, setConnOptions] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     fetch('/api/schedules')
@@ -75,6 +79,18 @@ export default function SchedulesPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/connections')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        setConnOptions((Array.isArray(data) ? data : []).map(c => ({
+          id: String(c.connection_id ?? c.id ?? ''),
+          name: String(c.connection_name ?? c.name ?? ''),
+        })))
+      })
+      .catch(() => {})
   }, [])
 
   const active  = scheduleList.filter(s => s.status === 'active').length
@@ -121,6 +137,55 @@ export default function SchedulesPage() {
     })
   }
 
+  async function createSchedule() {
+    if (!schedForm.name || !schedForm.cron) return
+    setSchedSaving(true)
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          create: true,
+          schedule_name: schedForm.name,
+          asset_name: schedForm.dataset,
+          cron_expression: schedForm.cron,
+          connection_name: schedForm.connection,
+          is_active: true,
+        }),
+      })
+      if (!res.ok) throw new Error(`Failed to create schedule: ${res.status}`)
+      // Re-fetch schedules list after successful create
+      const listRes = await fetch('/api/schedules')
+      if (!listRes.ok) throw new Error('Failed to reload schedules')
+      const data: Record<string, unknown>[] = await listRes.json()
+      const items: Schedule[] = (Array.isArray(data) ? data : []).map((s, i) => ({
+        id: String(s.schedule_id ?? s.id ?? i),
+        name: String(s.schedule_name ?? s.name ?? ''),
+        dataset: String(s.asset_name ?? s.dataset ?? ''),
+        cron: String(s.cron_expression ?? s.cron ?? ''),
+        human: String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
+        rules: Number(s.rule_count ?? s.rules ?? 0),
+        lastRun: String(s.last_run_at ?? s.lastRun ?? '—'),
+        nextRun: String(s.next_run_at ?? s.nextRun ?? '—'),
+        status: (s.is_active ? 'active' : 'paused') as ScheduleStatus,
+        lastRunStatus: (s.last_run_status as LastRunStatus) ?? 'passed',
+        lastDuration: String(s.last_duration ?? s.lastDuration ?? '—'),
+        connection: String(s.connection_name ?? s.connection ?? '(no connection)'),
+        owner: String(s.owner ?? ''),
+        failedRules: Number(s.failed_rules ?? s.failedRules ?? 0),
+        checkedRows: String(s.checked_rows ?? s.checkedRows ?? '0'),
+        failedRows: String(s.failed_rows ?? s.failedRows ?? '0'),
+        issues: Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
+      }))
+      setScheduleList(items)
+      setShowCreate(false)
+      setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setSchedSaving(false)
+    }
+  }
+
   const CARDS = [
     { key: 'all',    label: 'Total',          value: scheduleList.length, color: 'var(--accent)'            },
     { key: 'active', label: 'Active',          value: active,              color: 'var(--status-ok-text)'    },
@@ -139,7 +204,7 @@ export default function SchedulesPage() {
             {loading ? 'Loading…' : `${active} of ${scheduleList.length} active · ${conns.length} connection${conns.length !== 1 ? 's' : ''}${(failed + warning) > 0 ? ` · ${failed + warning} need attention` : ''}`}
           </div>
         </div>
-        <button style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => setShowCreate(true)} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + New Schedule
         </button>
       </div>
@@ -311,6 +376,48 @@ export default function SchedulesPage() {
           )
         })}
       </div>
+
+      {showCreate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>New Schedule</div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Schedule Name *</label>
+              <input value={schedForm.name} onChange={e => setSchedForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. Daily Orders Check"
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Dataset / Asset</label>
+              <input value={schedForm.dataset} onChange={e => setSchedForm(p => ({ ...p, dataset: e.target.value }))}
+                placeholder="e.g. ORDERS table"
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Cron Expression *</label>
+              <input value={schedForm.cron} onChange={e => setSchedForm(p => ({ ...p, cron: e.target.value }))}
+                placeholder="0 2 * * * (daily at 2am)"
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Connection</label>
+              <select value={schedForm.connection} onChange={e => setSchedForm(p => ({ ...p, connection: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                <option value="">— None —</option>
+                {connOptions.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowCreate(false); setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' }) }}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={createSchedule} disabled={schedSaving || !schedForm.name || !schedForm.cron}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (schedSaving || !schedForm.name || !schedForm.cron) ? 'not-allowed' : 'pointer', opacity: (schedSaving || !schedForm.name || !schedForm.cron) ? 0.6 : 1 }}>
+                {schedSaving ? 'Creating…' : 'Create Schedule'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
