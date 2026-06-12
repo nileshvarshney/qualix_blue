@@ -109,7 +109,9 @@ export default function TeamsPage() {
         body: JSON.stringify({ team_name: createForm.team_name, description: createForm.description || null }),
       })
       if (!res.ok) throw new Error(`Failed to create team: ${res.status}`)
-      const data: Record<string, unknown>[] = await fetch('/api/teams').then(r => r.json())
+      const listRes = await fetch('/api/teams')
+      if (!listRes.ok) throw new Error('Failed to reload teams')
+      const data: Record<string, unknown>[] = await listRes.json()
       setTeams((Array.isArray(data) ? data : []).map((t, i) => mapTeam(t, i)))
       setShowCreate(false)
       setCreateForm({ team_name: '', description: '' })
@@ -150,7 +152,9 @@ export default function TeamsPage() {
         body: JSON.stringify({ add_member: { email: memberEmail, role: memberRole } }),
       })
       if (!res.ok) throw new Error(`Failed to add member: ${res.status}`)
-      const data: Record<string, unknown> = await fetch(`/api/teams/${addMemberTeam.team_id}`).then(r => r.json())
+      const memberRes = await fetch(`/api/teams/${addMemberTeam.team_id}`)
+      if (!memberRes.ok) throw new Error('Failed to reload members')
+      const data: Record<string, unknown> = await memberRes.json()
       const members = mapMembers(data)
       setTeams(prev => prev.map(t => t.team_id === addMemberTeam.team_id
         ? { ...t, members, membersLoaded: true, member_count: members.length } : t))
@@ -372,7 +376,7 @@ export default function TeamsPage() {
               />
             </div>
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setEditTeamData(null)} style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={() => { setEditTeamData(null); setEditForm({ team_name: '', description: '' }) }} style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={saveEdit} disabled={editSaving || !editForm.team_name} style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editSaving || !editForm.team_name) ? 'not-allowed' : 'pointer', opacity: (editSaving || !editForm.team_name) ? 0.6 : 1 }}>{editSaving ? 'Saving…' : 'Save'}</button>
             </div>
           </div>
