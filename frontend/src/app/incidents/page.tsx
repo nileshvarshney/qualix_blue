@@ -25,6 +25,9 @@ export default function IncidentsPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'open' | 'investigating' | 'resolved'>('all')
   const [popup, setPopup] = useState<Incident | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [incForm, setIncForm] = useState({ title: '', severity: 'medium', asset: '', description: '' })
+  const [incSaving, setIncSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/incidents')
@@ -48,6 +51,44 @@ export default function IncidentsPage() {
       .catch(() => setLoading(false))
   }, [])
 
+  async function createIncident() {
+    if (!incForm.title) return
+    setIncSaving(true)
+    try {
+      const res = await fetch('/api/incidents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: incForm.title,
+          severity: incForm.severity,
+          asset: incForm.asset,
+          description: incForm.description,
+          status: 'open',
+        }),
+      })
+      if (!res.ok) throw new Error(`Failed to create incident: ${res.status}`)
+      const data: Record<string, unknown> = await res.json()
+      const newInc: Incident = {
+        id: String(data.incident_id ?? data.id ?? `inc${Date.now()}`),
+        title: incForm.title,
+        severity: (['critical','high','medium','low'] as const).includes(incForm.severity as 'critical') ? (incForm.severity as Incident['severity']) : 'medium',
+        asset: incForm.asset,
+        description: incForm.description,
+        status: 'open',
+        createdAt: new Date().toISOString(),
+        resolvedAt: null,
+        owner: '',
+        ttrMinutes: null,
+      }
+      setIncidents((prev: Incident[]) => [newInc, ...prev])
+      setShowCreate(false)
+      setIncForm({ title: '', severity: 'medium', asset: '', description: '' })
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIncSaving(false)
+    }
+  }
+
   const openCount          = incidents.filter(i => i.status === 'open').length
   const investigatingCount = incidents.filter(i => i.status === 'investigating').length
   const resolvedCount      = incidents.filter(i => i.status === 'resolved').length
@@ -68,7 +109,7 @@ export default function IncidentsPage() {
         {investigatingCount > 0 && <span style={{ background: '#fef3c7', color: '#d97706', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{investigatingCount} investigating</span>}
         {resolvedCount > 0 && <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{resolvedCount} resolved</span>}
         {avgTTR != null && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>avg {avgTTR}m TTR</span>}
-        <button style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Report</button>
+        <button onClick={() => setShowCreate(true)} style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Report</button>
       </div>
 
       {/* filter pills */}
@@ -114,6 +155,47 @@ export default function IncidentsPage() {
           )
         })}
       </div>
+
+      {/* create incident modal */}
+      {showCreate && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Report Incident</div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Title *</label>
+              <input value={incForm.title} onChange={e => setIncForm(p => ({ ...p, title: e.target.value }))}
+                placeholder="Brief description of the incident"
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Severity</label>
+              <select value={incForm.severity} onChange={e => setIncForm(p => ({ ...p, severity: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                {['critical','high','medium','low'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Affected Asset</label>
+              <input value={incForm.asset} onChange={e => setIncForm(p => ({ ...p, asset: e.target.value }))}
+                placeholder="e.g. ORDERS table or pipeline name"
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Description</label>
+              <textarea value={incForm.description} onChange={e => setIncForm(p => ({ ...p, description: e.target.value }))} rows={3}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowCreate(false); setIncForm({ title: '', severity: 'medium', asset: '', description: '' }) }}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={createIncident} disabled={incSaving || !incForm.title}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (incSaving || !incForm.title) ? 'not-allowed' : 'pointer', opacity: (incSaving || !incForm.title) ? 0.6 : 1 }}>
+                {incSaving ? 'Reporting…' : 'Report Incident'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* popup */}
       {popup && (
