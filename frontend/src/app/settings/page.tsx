@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ConnectionsClient from '@/components/connections/ConnectionsClient'
 import LLMSettingsTab from '@/components/settings/LLMSettingsTab'
 
@@ -25,6 +25,25 @@ export default function SettingsPage() {
   const [newKeyExpiry, setNewKeyExpiry] = useState('never')
   const [justCreated, setJustCreated] = useState<{ name: string; key: string } | null>(null)
   const [copied, setCopied] = useState(false)
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    try {
+      const p = localStorage.getItem('dg_settings_profile')
+      if (p) setProfile(JSON.parse(p))
+      const n = localStorage.getItem('dg_settings_notifs')
+      if (n) setNotifs(JSON.parse(n))
+      const k = localStorage.getItem('dg_settings_apikeys')
+      if (k) setApiKeys(JSON.parse(k))
+    } catch { }
+  }, [])
+
+  // Sync API keys to localStorage whenever they change
+  useEffect(() => {
+    if (apiKeys.length > 0 || localStorage.getItem('dg_settings_apikeys')) {
+      localStorage.setItem('dg_settings_apikeys', JSON.stringify(apiKeys))
+    }
+  }, [apiKeys])
 
   function generateKey(prefix = 'dg_live_') {
     const chars = 'abcdef0123456789'
@@ -56,7 +75,9 @@ export default function SettingsPage() {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function save() {
+  function save(tab?: string) {
+    if (tab === 'profile') localStorage.setItem('dg_settings_profile', JSON.stringify(profile))
+    if (tab === 'notifications') localStorage.setItem('dg_settings_notifs', JSON.stringify(notifs))
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -154,7 +175,7 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={save} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => save('profile')} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {saved ? '✓ Saved!' : 'Save Changes'}
               </button>
             </div>
@@ -328,7 +349,7 @@ export default function SettingsPage() {
                   ))}
                 </div>
               ))}
-              <button onClick={save} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => save('notifications')} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {saved ? '✓ Saved!' : 'Save Preferences'}
               </button>
             </div>
