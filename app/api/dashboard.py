@@ -796,6 +796,7 @@ async def day_detail(
     """Return failed runs, alerts, and anomalies for a single date + scope, for trend drilldowns."""
     if domain_id:
         check_domain_access(user, domain_id)
+    domain_scope = domain_id or get_domain_filter(user)
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     except ValueError:
@@ -815,8 +816,8 @@ async def day_detail(
         rq = rq.where(DQRuleRun.asset_id == asset_id)
     elif subdomain_id:
         rq = rq.where(DQRuleRun.subdomain_id == subdomain_id)
-    elif domain_id:
-        rq = rq.where(DQRuleRun.domain_id == domain_id)
+    elif domain_scope:
+        rq = rq.where(DQRuleRun.domain_id == domain_scope)
     rq = rq.order_by(desc(DQRuleRun.created_at)).limit(50)
     run_rows = (await db.execute(rq)).all()
     failed_runs = [
@@ -834,8 +835,8 @@ async def day_detail(
         aq = aq.where(DQAlert.asset_id == asset_id)
     elif subdomain_id:
         aq = aq.where(DQAlert.subdomain_id == subdomain_id)
-    elif domain_id:
-        aq = aq.where(DQAlert.domain_id == domain_id)
+    elif domain_scope:
+        aq = aq.where(DQAlert.domain_id == domain_scope)
     aq = aq.order_by(desc(DQAlert.created_at)).limit(50)
     alert_rows = (await db.execute(aq)).scalars().all()
     alerts = [
@@ -850,12 +851,12 @@ async def day_detail(
     anq = select(AnomalyDetection).where(func.date(AnomalyDetection.detected_at) == target_date)
     if asset_id:
         anq = anq.where(AnomalyDetection.asset_id == asset_id)
-    elif subdomain_id or domain_id:
+    elif subdomain_id or domain_scope:
         anq = anq.join(Asset, AnomalyDetection.asset_id == Asset.asset_id)
         if subdomain_id:
             anq = anq.where(Asset.subdomain_id == subdomain_id)
         else:
-            anq = anq.where(Asset.domain_id == domain_id)
+            anq = anq.where(Asset.domain_id == domain_scope)
     anq = anq.order_by(desc(AnomalyDetection.detected_at)).limit(50)
     anomaly_rows = (await db.execute(anq)).scalars().all()
     anomalies = [
