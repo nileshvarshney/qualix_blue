@@ -217,3 +217,51 @@ export interface Asset {
 export interface AssetTreeNode extends Asset {
   children: AssetTreeNode[];
 }
+
+export interface TrendPoint {
+  date: string
+  score: number | null
+  failed: number
+  alert_count?: number
+  anomaly_count?: number
+}
+
+export interface TrendScope {
+  domainId?: string
+  subdomainId?: string
+  assetId?: string
+}
+
+export interface DayDetailFailedRun {
+  run_id: string
+  rule_id: string
+  rule_name: string
+  asset_id: string
+  table_name: string
+  status: string
+  failed_rows_count: number | null
+}
+
+export interface DayDetailAlert {
+  alert_id: string
+  severity: string
+  alert_type: string
+  alert_status: string
+  asset_id: string
+  rule_id: string | null
+}
+
+export interface DayDetailAnomaly {
+  detection_id: string
+  asset_id: string
+  anomaly_type: string | null
+  severity: string | null
+  confidence: number | null
+}
+
+export interface DayDetail {
+  date: string
+  failed_runs: DayDetailFailedRun[]
+  alerts: DayDetailAlert[]
+  anomalies: DayDetailAnomaly[]
+}
