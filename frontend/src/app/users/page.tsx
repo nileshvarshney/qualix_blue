@@ -42,12 +42,37 @@ function RoleChip({ role }: { role: string }) {
   )
 }
 
+const inputStyle: React.CSSProperties = {
+  width: '100%', padding: '7px 10px', borderRadius: '6px',
+  border: '1px solid var(--border)', background: 'var(--surface)',
+  color: 'var(--foreground)', fontSize: 'var(--text-xs)',
+  outline: 'none', boxSizing: 'border-box',
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)',
+  display: 'block', marginBottom: '4px',
+}
+
 export default function UsersPage() {
   const [users, setUsers]       = useState<AppUser[]>([])
   const [loading, setLoading]   = useState(true)
   const [filter, setFilter]     = useState<FilterType>('all')
   const [search, setSearch]     = useState('')
   const [deactivating, setDeactivating] = useState<string | null>(null)
+
+  // Invite modal state
+  const [showInvite, setShowInvite]   = useState(false)
+  const [inviteForm, setInviteForm]   = useState<{ email: string; full_name: string; role: UserRole }>({ email: '', full_name: '', role: 'viewer' })
+  const [inviteSaving, setInviteSaving] = useState(false)
+
+  // Edit modal state
+  const [editUser, setEditUser]     = useState<AppUser | null>(null)
+  const [editForm, setEditForm]     = useState<{ full_name: string; role: UserRole }>({ full_name: '', role: 'viewer' })
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Reactivate state
+  const [reactivating, setReactivating] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/users')
@@ -93,12 +118,73 @@ export default function UsersPage() {
       .finally(() => setDeactivating(null))
   }
 
+  async function inviteUser() {
+    setInviteSaving(true)
+    try {
+      const res = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteForm.email, full_name: inviteForm.full_name, role: inviteForm.role, is_active: true }),
+      })
+      const data = await res.json()
+      const newUser: AppUser = {
+        user_id:    String(data.user_id ?? Date.now()),
+        email:      inviteForm.email,
+        full_name:  inviteForm.full_name,
+        role:       inviteForm.role,
+        is_active:  true,
+        created_at: new Date().toISOString(),
+        last_login: null,
+        domain_id:  null,
+      }
+      setUsers(prev => [newUser, ...prev])
+      setShowInvite(false)
+      setInviteForm({ email: '', full_name: '', role: 'viewer' })
+    } catch {
+      // swallow error — modal stays open so user can retry
+    } finally {
+      setInviteSaving(false)
+    }
+  }
+
+  async function saveEdit() {
+    if (!editUser) return
+    setEditSaving(true)
+    try {
+      await fetch(`/api/users/${editUser.user_id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role }),
+      })
+      setUsers(prev => prev.map(u => u.user_id === editUser.user_id ? { ...u, full_name: editForm.full_name, role: editForm.role } : u))
+      setEditUser(null)
+    } catch {
+      // swallow error
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  function reactivate(user: AppUser) {
+    setReactivating(user.user_id)
+    fetch(`/api/users/${user.user_id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: true }),
+    })
+      .then(() => setUsers(prev => prev.map(u => u.user_id === user.user_id ? { ...u, is_active: true } : u)))
+      .catch(() => {})
+      .finally(() => setReactivating(null))
+  }
+
   const CARDS = [
     { key: 'all',      label: 'Total',    value: users.length,    color: 'var(--accent)' },
     { key: 'active',   label: 'Active',   value: totalActive,     color: 'var(--status-ok-text)' },
     { key: 'admin',    label: 'Admins',   value: totalAdmins,     color: '#7e22ce' },
     { key: 'inactive', label: 'Inactive', value: totalInactive,   color: 'var(--text-muted)' },
   ] as const
+
+  const roleOptions: UserRole[] = ['admin', 'data_steward', 'data_engineer', 'analyst', 'viewer']
 
   return (
     <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
@@ -111,7 +197,7 @@ export default function UsersPage() {
             {loading ? 'Loading…' : `${users.length} user${users.length !== 1 ? 's' : ''} · ${totalActive} active · ${totalAdmins} admin${totalAdmins !== 1 ? 's' : ''}`}
           </div>
         </div>
-        <button style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => setShowInvite(true)} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + Invite User
         </button>
       </div>
@@ -201,10 +287,22 @@ export default function UsersPage() {
               </span>
 
               <div style={{ display: 'flex', gap: '4px' }}>
-                {user.is_active && (
+                {/* Edit button — always visible */}
+                <button
+                  onClick={() => { setEditUser(user); setEditForm({ full_name: user.full_name, role: user.role }) }}
+                  style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
+                  Edit
+                </button>
+
+                {user.is_active ? (
                   <button onClick={() => deactivate(user)} disabled={deactivating === user.user_id}
                     style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '10px', cursor: 'pointer' }}>
                     {deactivating === user.user_id ? '…' : 'Deactivate'}
+                  </button>
+                ) : (
+                  <button onClick={() => reactivate(user)} disabled={reactivating === user.user_id}
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-ok-text)', fontSize: '10px', cursor: 'pointer' }}>
+                    {reactivating === user.user_id ? '…' : 'Reactivate'}
                   </button>
                 )}
               </div>
@@ -212,6 +310,106 @@ export default function UsersPage() {
           )
         })}
       </div>
+
+      {/* Invite User modal */}
+      {showInvite && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Invite User</div>
+
+            <div>
+              <label style={labelStyle}>Email *</label>
+              <input
+                type="email"
+                value={inviteForm.email}
+                onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="user@example.com"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Full Name</label>
+              <input
+                type="text"
+                value={inviteForm.full_name}
+                onChange={e => setInviteForm(f => ({ ...f, full_name: e.target.value }))}
+                placeholder="Jane Smith"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Role</label>
+              <select
+                value={inviteForm.role}
+                onChange={e => setInviteForm(f => ({ ...f, role: e.target.value as UserRole }))}
+                style={inputStyle}
+              >
+                {roleOptions.map(r => (
+                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setShowInvite(false); setInviteForm({ email: '', full_name: '', role: 'viewer' }) }}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={inviteUser} disabled={!inviteForm.email || inviteSaving}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: !inviteForm.email || inviteSaving ? 'not-allowed' : 'pointer', opacity: !inviteForm.email || inviteSaving ? 0.6 : 1 }}>
+                {inviteSaving ? 'Saving…' : 'Invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User modal */}
+      {editUser && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Edit User</div>
+            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>{editUser.email}</div>
+
+            <div>
+              <label style={labelStyle}>Full Name</label>
+              <input
+                type="text"
+                value={editForm.full_name}
+                onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))}
+                placeholder="Jane Smith"
+                style={inputStyle}
+              />
+            </div>
+
+            <div>
+              <label style={labelStyle}>Role</label>
+              <select
+                value={editForm.role}
+                onChange={e => setEditForm(f => ({ ...f, role: e.target.value as UserRole }))}
+                style={inputStyle}
+              >
+                {roleOptions.map(r => (
+                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditUser(null)}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button onClick={saveEdit} disabled={editSaving}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1 }}>
+                {editSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
