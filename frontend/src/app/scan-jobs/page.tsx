@@ -44,6 +44,29 @@ const FREQ_LABEL: Record<string, string> = {
 
 const GRID = '1fr 140px 90px 90px 100px 90px auto'
 
+function mapJob(j: Record<string, unknown>, i: number): ScanJob {
+  return {
+    job_id:             String(j.job_id ?? j.id ?? i),
+    job_name:           String(j.job_name ?? j.name ?? ''),
+    job_type:           String(j.job_type ?? ''),
+    schedule_frequency: String(j.schedule_frequency ?? 'on_demand'),
+    cron_expr:          typeof j.cron_expr === 'string' ? j.cron_expr : null,
+    connection_id:      typeof j.connection_id === 'string' ? j.connection_id : null,
+    connection_name:    typeof j.connection_name === 'string'
+                          ? j.connection_name
+                          : typeof j.connection_id === 'string'
+                            ? j.connection_id
+                            : '(no connection)',
+    is_active:          Boolean(j.is_active ?? true),
+    last_run_status:    (['completed','failed','running','queued','cancelled'] as const)
+                          .includes(j.last_run_status as LastRunStatus)
+                          ? (j.last_run_status as LastRunStatus)
+                          : null,
+    last_run_at:        typeof j.last_run_at === 'string' ? j.last_run_at : null,
+    created_at:         String(j.created_at ?? ''),
+  }
+}
+
 export default function ScanJobsPage() {
   const [jobs, setJobs]                   = useState<ScanJob[]>([])
   const [loading, setLoading]             = useState(true)
@@ -56,25 +79,14 @@ export default function ScanJobsPage() {
     schedule_frequency: 'daily', cron_expr: '',
   })
   const [jobSaving, setJobSaving]         = useState(false)
+  const [createError, setCreateError]     = useState<string | null>(null)
   const [connOptions, setConnOptions]     = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     fetch('/api/scan-jobs')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
-        const items: ScanJob[] = (Array.isArray(data) ? data : []).map(j => ({
-          job_id:            String(j.job_id ?? j.id ?? ''),
-          job_name:          String(j.job_name ?? j.name ?? ''),
-          job_type:          String(j.job_type ?? ''),
-          schedule_frequency: String(j.schedule_frequency ?? 'on_demand'),
-          cron_expr:         j.cron_expr as string | null ?? null,
-          connection_id:     j.connection_id as string | null ?? null,
-          connection_name:   j.connection_name as string | null ?? String(j.connection_id ?? '(no connection)'),
-          is_active:         Boolean(j.is_active ?? true),
-          last_run_status:   (j.last_run_status as LastRunStatus) ?? null,
-          last_run_at:       j.last_run_at as string | null ?? null,
-          created_at:        String(j.created_at ?? ''),
-        }))
+        const items: ScanJob[] = (Array.isArray(data) ? data : []).map(mapJob)
         setJobs(items)
         setLoading(false)
       })
@@ -131,24 +143,13 @@ export default function ScanJobsPage() {
       const listRes = await fetch('/api/scan-jobs')
       if (!listRes.ok) throw new Error('Failed to reload jobs')
       const data: Record<string, unknown>[] = await listRes.json()
-      const items: ScanJob[] = (Array.isArray(data) ? data : []).map(j => ({
-        job_id:            String(j.job_id ?? j.id ?? ''),
-        job_name:          String(j.job_name ?? j.name ?? ''),
-        job_type:          String(j.job_type ?? ''),
-        schedule_frequency: String(j.schedule_frequency ?? 'on_demand'),
-        cron_expr:         j.cron_expr as string | null ?? null,
-        connection_id:     j.connection_id as string | null ?? null,
-        connection_name:   j.connection_name as string | null ?? String(j.connection_id ?? '(no connection)'),
-        is_active:         Boolean(j.is_active ?? true),
-        last_run_status:   (j.last_run_status as LastRunStatus) ?? null,
-        last_run_at:       j.last_run_at as string | null ?? null,
-        created_at:        String(j.created_at ?? ''),
-      }))
+      const items: ScanJob[] = (Array.isArray(data) ? data : []).map(mapJob)
       setJobs(items)
       setShowCreate(false)
       setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' })
     } catch (err) {
       console.error(err)
+      setCreateError('Failed to create job. Please try again.')
     } finally {
       setJobSaving(false)
     }
@@ -198,7 +199,7 @@ export default function ScanJobsPage() {
             {loading ? 'Loading…' : `${jobs.length} job${jobs.length !== 1 ? 's' : ''} · ${totalActive} active${totalFailed > 0 ? ` · ${totalFailed} failing` : ''}`}
           </div>
         </div>
-        <button onClick={() => setShowCreate(true)} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => { setShowCreate(true); setCreateError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + New Job
         </button>
       </div>
@@ -376,8 +377,13 @@ export default function ScanJobsPage() {
                   style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }} />
               </div>
             )}
+            {createError && (
+              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+                {createError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCreate(false); setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' }) }}
+              <button onClick={() => { setShowCreate(false); setCreateError(null); setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' }) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={createJob} disabled={jobSaving || !jobForm.job_name}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (jobSaving || !jobForm.job_name) ? 'not-allowed' : 'pointer', opacity: (jobSaving || !jobForm.job_name) ? 0.6 : 1 }}>
