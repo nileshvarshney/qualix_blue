@@ -184,12 +184,29 @@ function Dropdown({ label, options, value, onChange }: { label: string; options:
   )
 }
 
+interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
+
 export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const [running, setRunning] = useState(false)
   const [timeFilter, setTimeFilter] = useState('Last 7 days')
   const [domainFilter, setDomainFilter] = useState('All domains')
   const [activeMetric, setActiveMetric] = useState<string | null>(null)
+  const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null)
   const router = useRouter()
+
+  useEffect(() => {
+    fetch('/api/alerts')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        if (!Array.isArray(data)) return
+        const open = data.filter(a => a.alert_status === 'open').length
+        const critical = data.filter(a => a.severity === 'critical' && a.alert_status === 'open').length
+        const high = data.filter(a => a.severity === 'high' && a.alert_status === 'open').length
+        const acknowledged = data.filter(a => a.alert_status === 'acknowledged').length
+        setAlertSummary({ open, critical, high, acknowledged })
+      })
+      .catch(() => {})
+  }, [])
 
   async function runCheck() {
     setRunning(true)
@@ -307,6 +324,43 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </div>
         </Link>
       </div>
+
+      {/* Alert Summary Strip */}
+      {alertSummary !== null && (
+        <Link href="/alerts" style={{ textDecoration: 'none', display: 'block', marginBottom: '10px' }}>
+          <div style={{ ...card, padding: '10px 16px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
+            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)')}
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', marginRight: '4px' }}>Active Alerts</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {alertSummary.critical > 0 && (
+                <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                  {alertSummary.critical} critical
+                </span>
+              )}
+              {alertSummary.high > 0 && (
+                <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                  {alertSummary.high} high
+                </span>
+              )}
+              {alertSummary.open === 0 && (
+                <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                  All clear
+                </span>
+              )}
+              {alertSummary.open > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{alertSummary.open} open total</span>
+              )}
+            </div>
+            {alertSummary.acknowledged > 0 && (
+              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
+                {alertSummary.acknowledged} acknowledged
+              </span>
+            )}
+            <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 600, marginLeft: alertSummary.acknowledged > 0 ? '0' : 'auto' }}>View all →</span>
+          </div>
+        </Link>
+      )}
 
       {/* Six Dimensions */}
       <div style={{ ...card, padding: '14px 16px', marginBottom: '10px' }}>

@@ -15,6 +15,7 @@ from app.core.logging_config import setup_logging
 from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.db.database import create_tables, check_db_health
 from app.services.scheduler_service import start_scheduler, stop_scheduler
+from app.api import alert_definitions as alert_definitions_module
 from app.api import (
     domains, subdomains, assets, rules, schedules, executions,
     dashboard, ai, alerts, audit, config, connections,
@@ -177,6 +178,7 @@ app.include_router(dashboard.router)
 app.include_router(quality_scores.router)
 app.include_router(ai.router)
 app.include_router(alerts.router)
+app.include_router(alert_definitions_module.router)
 app.include_router(audit.router)
 app.include_router(config.router)
 app.include_router(connections.router)

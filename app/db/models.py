@@ -1451,3 +1451,46 @@ class NotificationTarget(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class AlertDefinition(Base):
+    """User-defined alert rule: when to fire an alert and where to send it.
+
+    trigger_type values:
+      - rule_failure   : fire when a DQ rule run fails (default behaviour)
+      - score_drop     : fire when an asset quality score drops below threshold_value
+      - freshness_breach: fire when an asset hasn't been refreshed within threshold_value hours
+      - anomaly        : fire when an anomaly detection fires for this asset/domain
+
+    Scope: if both asset_id and domain_id are NULL the definition is global.
+    """
+    __tablename__ = "alert_definitions"
+
+    definition_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # --- trigger ---
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False, default="rule_failure")
+    # For score_drop: minimum acceptable score (0-100). Alert if score < threshold_value.
+    # For freshness_breach: max age in hours. Alert if last_refresh > threshold_value hours ago.
+    # For rule_failure/anomaly: not used.
+    threshold_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+
+    # --- scope (null = all) ---
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="SET NULL"), nullable=True)
+    domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id", ondelete="SET NULL"), nullable=True)
+
+    # --- output ---
+    severity_override: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=240)
+    # JSON list of channel configs: [{"channel": "slack", "address": "..."}, ...]
+    notification_channels: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+
+    # --- lifecycle ---
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    triggered_count: Mapped[int] = mapped_column(Integer, default=0)
+    last_fired_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)

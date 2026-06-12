@@ -37,7 +37,7 @@ interface Asset {
   source_meta?: AssetMeta
 }
 
-type Tab = 'overview' | 'profiling' | 'rules' | 'quality'
+type Tab = 'overview' | 'profiling' | 'rules' | 'quality' | 'alerts'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -114,7 +114,7 @@ export default function AssetDetailPanel({
       {/* Tab bar — only for table/view assets */}
       {isLeaf && (
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
-          {(['overview', 'profiling', 'rules', 'quality'] as Tab[]).map(tab => (
+          {(['overview', 'profiling', 'rules', 'quality', 'alerts'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -200,6 +200,66 @@ export default function AssetDetailPanel({
       {isLeaf && activeTab === 'quality' && (
         <AssetQualityTab assetId={asset.asset_id} />
       )}
+
+      {/* Alerts tab content */}
+      {isLeaf && activeTab === 'alerts' && (
+        <AssetAlertsTab assetId={asset.asset_id} />
+      )}
+    </div>
+  )
+}
+
+/* ─── Asset Alerts Tab ─── */
+type AlertSev = 'critical' | 'high' | 'medium' | 'info'
+const ALERT_SEV: Record<AlertSev, { bg: string; color: string }> = {
+  critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)' },
+  high:     { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)' },
+  medium:   { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)' },
+  info:     { bg: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)' },
+}
+
+function AssetAlertsTab({ assetId }: { assetId: string }) {
+  const [items, setItems] = useState<Record<string, unknown>[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch(`/api/alerts?asset_id=${assetId}&limit=50`)
+      .then(r => r.json())
+      .then(data => { setItems(Array.isArray(data) ? data : []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [assetId])
+
+  if (loading) return <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>Loading alerts…</div>
+  if (items.length === 0) return (
+    <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+      No alerts for this asset
+    </div>
+  )
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+      {items.map((a, i) => {
+        const sev = (String(a.severity || 'info')) as AlertSev
+        const ss = ALERT_SEV[sev] || ALERT_SEV.info
+        const isAck = a.alert_status === 'acknowledged' || a.alert_status === 'resolved'
+        const ts = a.created_at ? (() => { try { return new Date(String(a.created_at)).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) } catch { return String(a.created_at) } })() : '—'
+        return (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '60px 1fr auto auto', gap: '0 8px', alignItems: 'center', padding: '6px 4px', borderLeft: `2px solid ${isAck ? 'var(--border)' : ss.color}`, borderBottom: '1px solid var(--surface-muted)', opacity: isAck ? 0.65 : 1 }}>
+            <span style={{ background: ss.bg, color: ss.color, padding: '1px 4px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{sev}</span>
+            <div style={{ overflow: 'hidden' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {String(a.rule_name || a.alert_type || 'Alert')}
+              </div>
+              {Boolean(a.alert_message) && <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(a.alert_message)}</div>}
+            </div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{ts}</span>
+            {isAck
+              ? <span style={{ fontSize: '9px', color: 'var(--status-ok-text)' }}>✓</span>
+              : <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '9px', padding: '1px 5px', borderRadius: '3px', fontWeight: 600 }}>open</span>
+            }
+          </div>
+        )
+      })}
     </div>
   )
 }

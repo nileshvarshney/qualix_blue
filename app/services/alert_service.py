@@ -4,8 +4,8 @@ import logging
 import uuid
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.db.models import DQAlert, DQRuleRun, DQRule, Asset, Domain
+from sqlalchemy import select, or_
+from app.db.models import DQAlert, DQRuleRun, DQRule, Asset, Domain, AlertDefinition
 import asyncio
 
 logger = logging.getLogger("dq_platform.alerts")
@@ -167,3 +167,181 @@ async def _dispatch_notification(alert: DQAlert, rule: DQRule, run: DQRuleRun, d
             logger.info(f"Notification dispatch result for alert {alert.alert_id}: {results}")
     except Exception as e:
         logger.error(f"Notification dispatch failed for alert {alert.alert_id}: {e}")
+
+
+# ── Score-drop trigger ────────────────────────────────────────────────────────
+
+async def create_score_drop_alert(
+    asset_id: str,
+    domain_id: str,
+    subdomain_id: str,
+    score: float,
+    db: AsyncSession,
+):
+    """Create alerts for all active score_drop AlertDefinitions whose threshold is breached."""
+    q = select(AlertDefinition).where(
+        AlertDefinition.trigger_type == "score_drop",
+        AlertDefinition.is_active == True,
+        or_(
+            AlertDefinition.asset_id == asset_id,
+            AlertDefinition.domain_id == domain_id,
+            AlertDefinition.asset_id.is_(None) & AlertDefinition.domain_id.is_(None),
+        ),
+    )
+    result = await db.execute(q)
+    definitions = result.scalars().all()
+
+    for defn in definitions:
+        threshold = defn.threshold_value if defn.threshold_value is not None else 80.0
+        if score >= threshold:
+            continue
+
+        # Cooldown dedup
+        if defn.last_fired_at:
+            cooldown_delta = timedelta(minutes=defn.cooldown_minutes)
+            if datetime.now(timezone.utc).replace(tzinfo=None) - defn.last_fired_at < cooldown_delta:
+                continue
+
+        severity = defn.severity_override or ("critical" if score < 50 else "high")
+        message = (
+            f"Quality score dropped to {score:.1f}% — below threshold of {threshold:.1f}%"
+        )
+        alert = DQAlert(
+            alert_id=str(uuid.uuid4()),
+            domain_id=domain_id,
+            subdomain_id=subdomain_id,
+            asset_id=asset_id,
+            alert_type="score_drop",
+            severity=severity,
+            alert_status="open",
+            alert_message=message,
+            notification_channel="definition",
+            notification_sent=False,
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        db.add(alert)
+
+        defn.triggered_count = (defn.triggered_count or 0) + 1
+        defn.last_fired_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        await db.commit()
+        await db.refresh(alert)
+        logger.info(f"Score-drop alert created: score={score} threshold={threshold} asset={asset_id}")
+
+        asyncio.create_task(_dispatch_definition_notification(alert, defn, message, db))
+
+
+# ── Freshness-breach trigger ──────────────────────────────────────────────────
+
+async def create_freshness_alert(
+    asset_id: str,
+    domain_id: str,
+    subdomain_id: str,
+    hours_since_refresh: float,
+    db: AsyncSession,
+):
+    """Create alerts for active freshness_breach AlertDefinitions whose threshold is breached."""
+    q = select(AlertDefinition).where(
+        AlertDefinition.trigger_type == "freshness_breach",
+        AlertDefinition.is_active == True,
+        or_(
+            AlertDefinition.asset_id == asset_id,
+            AlertDefinition.domain_id == domain_id,
+            AlertDefinition.asset_id.is_(None) & AlertDefinition.domain_id.is_(None),
+        ),
+    )
+    result = await db.execute(q)
+    definitions = result.scalars().all()
+
+    for defn in definitions:
+        max_hours = defn.threshold_value if defn.threshold_value is not None else 24.0
+        if hours_since_refresh <= max_hours:
+            continue
+
+        if defn.last_fired_at:
+            cooldown_delta = timedelta(minutes=defn.cooldown_minutes)
+            if datetime.now(timezone.utc).replace(tzinfo=None) - defn.last_fired_at < cooldown_delta:
+                continue
+
+        severity = defn.severity_override or "high"
+        message = (
+            f"Freshness breach: asset not refreshed for {hours_since_refresh:.1f}h "
+            f"(max allowed: {max_hours:.0f}h)"
+        )
+        alert = DQAlert(
+            alert_id=str(uuid.uuid4()),
+            domain_id=domain_id,
+            subdomain_id=subdomain_id,
+            asset_id=asset_id,
+            alert_type="freshness_breach",
+            severity=severity,
+            alert_status="open",
+            alert_message=message,
+            notification_channel="definition",
+            notification_sent=False,
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        db.add(alert)
+
+        defn.triggered_count = (defn.triggered_count or 0) + 1
+        defn.last_fired_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        await db.commit()
+        await db.refresh(alert)
+        logger.info(f"Freshness alert created: hours={hours_since_refresh} max={max_hours} asset={asset_id}")
+
+        asyncio.create_task(_dispatch_definition_notification(alert, defn, message, db))
+
+
+# ── Shared notification dispatch for definition-based alerts ─────────────────
+
+async def _dispatch_definition_notification(
+    alert: DQAlert, defn: AlertDefinition, message: str, db: AsyncSession
+):
+    """Dispatch notifications for alerts spawned by an AlertDefinition."""
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.notification_service import dispatch_alert
+        from app.core.config import settings
+
+        channels = defn.notification_channels or []
+        slack_webhook = next((c["address"] for c in channels if c.get("channel") == "slack"), None)
+        extra_emails = [c["address"] for c in channels if c.get("channel") == "email"]
+        teams_webhook = next((c["address"] for c in channels if c.get("channel") == "teams"), None)
+        pagerduty_key = next((c["address"] for c in channels if c.get("channel") == "pagerduty"), None)
+        custom_webhook = next((c["address"] for c in channels if c.get("channel") == "webhook"), None)
+
+        # env-var fallbacks
+        if not teams_webhook:
+            teams_webhook = getattr(settings, "teams_webhook_url", "") or None
+        if not pagerduty_key:
+            pagerduty_key = getattr(settings, "pagerduty_integration_key", "") or None
+
+        async with AsyncSessionLocal() as session:
+            results = await dispatch_alert(
+                rule_name=defn.name,
+                severity=alert.severity,
+                alert_message=message,
+                domain_name="",
+                asset_name=defn.asset_id or "global",
+                failure_pct=None,
+                extra_emails=list(set(extra_emails)),
+                slack_channel_webhook=slack_webhook,
+                teams_webhook=teams_webhook,
+                pagerduty_key=pagerduty_key,
+                custom_webhook=custom_webhook,
+            )
+
+            alert_res = await session.execute(
+                select(DQAlert).where(DQAlert.alert_id == alert.alert_id)
+            )
+            stored = alert_res.scalar_one_or_none()
+            if stored:
+                stored.notification_sent = any(results.values())
+                stored.notification_sent_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                stored.notified_to = ", ".join(extra_emails) if extra_emails else None
+                await session.commit()
+
+            logger.info(f"Definition notification dispatch result for alert {alert.alert_id}: {results}")
+    except Exception as e:
+        logger.error(f"Definition notification dispatch failed for alert {alert.alert_id}: {e}")

@@ -33,7 +33,9 @@ def _fmt(alert: DQAlert, extra: dict = {}) -> dict:
 async def list_alerts(
     status: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
+    asset_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
+    alert_type: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
@@ -43,8 +45,12 @@ async def list_alerts(
         q = q.where(DQAlert.alert_status == status)
     if domain_id:
         q = q.where(DQAlert.domain_id == domain_id)
+    if asset_id:
+        q = q.where(DQAlert.asset_id == asset_id)
     if severity:
         q = q.where(DQAlert.severity == severity)
+    if alert_type:
+        q = q.where(DQAlert.alert_type == alert_type)
     result = await db.execute(q.order_by(desc(DQAlert.created_at)).limit(limit).offset(offset))
     return [_fmt(a) for a in result.scalars().all()]
 

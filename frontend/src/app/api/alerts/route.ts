@@ -3,9 +3,12 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/alerts?limit=100`, { cache: 'no-store' })
+    const { searchParams } = new URL(req.url)
+    const qs = searchParams.toString()
+    const url = qs ? `${BACKEND}/alerts?${qs}&limit=100` : `${BACKEND}/alerts?limit=100`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
