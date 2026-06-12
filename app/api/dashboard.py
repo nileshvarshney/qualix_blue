@@ -9,7 +9,7 @@ from sqlalchemy import select, func, desc, and_, or_, case, literal_column
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional
 from app.db.database import get_db
-from app.db.models import Domain, Subdomain, Asset, DQRule, DQRuleRun, DQAlert, DQQualityScore
+from app.db.models import Domain, Subdomain, Asset, DQRule, DQRuleRun, DQAlert, DQQualityScore, AnomalyDetection
 from app.core.security import get_current_user, get_domain_filter, check_domain_access, apply_domain_filter
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -34,12 +34,14 @@ async def _build_trend(
     asset_id: Optional[str] = None,
 ) -> list[dict]:
     """
-    Build quality trend in 1–2 queries instead of one per day.
+    Build quality trend in a handful of queries instead of one per day.
 
     Strategy:
     1. Fetch all pre-aggregated DQQualityScore rows for the date range in one query.
     2. For any date missing a pre-aggregated row, fetch raw runs in a single IN-query
        and aggregate in Python.
+    3. Fetch DQAlert rows in range, aggregate per-day counts in Python.
+    4. Fetch AnomalyDetection rows in range, aggregate per-day counts in Python.
     """
     today = datetime.now(timezone.utc).replace(tzinfo=None).date()
     cutoff = today - timedelta(days=days - 1)
@@ -79,6 +81,43 @@ async def _build_trend(
         for r in raw_runs:
             raw_by_date.setdefault(r.created_at.date(), []).append(r)
 
+    # ── Query 3: alerts in range, aggregated per day in Python ──────────────
+    alq = select(DQAlert.created_at).where(
+        func.date(DQAlert.created_at) >= cutoff,
+        func.date(DQAlert.created_at) <= today,
+    )
+    if asset_id:
+        alq = alq.where(DQAlert.asset_id == asset_id)
+    elif subdomain_id:
+        alq = alq.where(DQAlert.subdomain_id == subdomain_id)
+    elif domain_id:
+        alq = alq.where(DQAlert.domain_id == domain_id)
+    alert_rows = (await db.execute(alq)).all()
+    alert_count_map: dict[date, int] = {}
+    for r in alert_rows:
+        d = r.created_at.date()
+        alert_count_map[d] = alert_count_map.get(d, 0) + 1
+
+    # ── Query 4: anomalies in range, aggregated per day in Python ────────────
+    anq = select(AnomalyDetection.detected_at)
+    if asset_id:
+        anq = anq.where(AnomalyDetection.asset_id == asset_id)
+    elif subdomain_id or domain_id:
+        anq = anq.join(Asset, AnomalyDetection.asset_id == Asset.asset_id)
+        if subdomain_id:
+            anq = anq.where(Asset.subdomain_id == subdomain_id)
+        else:
+            anq = anq.where(Asset.domain_id == domain_id)
+    anq = anq.where(
+        func.date(AnomalyDetection.detected_at) >= cutoff,
+        func.date(AnomalyDetection.detected_at) <= today,
+    )
+    anomaly_rows = (await db.execute(anq)).all()
+    anomaly_count_map: dict[date, int] = {}
+    for r in anomaly_rows:
+        d = r.detected_at.date()
+        anomaly_count_map[d] = anomaly_count_map.get(d, 0) + 1
+
     # ── Assemble trend in chronological order ───────────────────────────────
     trend = []
     for d in all_dates:
@@ -88,6 +127,8 @@ async def _build_trend(
                 "date": str(d), "score": agg.quality_score,
                 "total": agg.total_rules, "passed": agg.passed_rules,
                 "failed": agg.failed_rules,
+                "alert_count": alert_count_map.get(d, 0),
+                "anomaly_count": anomaly_count_map.get(d, 0),
             })
         else:
             runs = raw_by_date.get(d, [])
@@ -95,7 +136,11 @@ async def _build_trend(
             passed = sum(1 for r in runs if r.status == "passed")
             failed = sum(1 for r in runs if r.status in ("failed", "error"))
             score = round(passed / total * 100, 1) if total else None
-            trend.append({"date": str(d), "score": score, "total": total, "passed": passed, "failed": failed})
+            trend.append({
+                "date": str(d), "score": score, "total": total, "passed": passed, "failed": failed,
+                "alert_count": alert_count_map.get(d, 0),
+                "anomaly_count": anomaly_count_map.get(d, 0),
+            })
     return trend
 
 
