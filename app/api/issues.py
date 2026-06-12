@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from app.db.database import get_db
@@ -230,3 +230,140 @@ async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db), user=Depe
     issue, asset, source_meta, rule, team = row
     check_domain_access(user, issue.domain_id)
     return _fmt_issue(issue, _enrich_extra(asset, source_meta, rule, team))
+
+
+@router.put("/{issue_id}")
+async def update_issue(
+    issue_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = result.scalar_one_or_none()
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    check_domain_access(user, issue.domain_id)
+
+    editable = ("title", "description", "severity", "assigned_to", "assigned_team_id")
+    old_value, new_value = {}, {}
+    for field in editable:
+        if field in body and body[field] != getattr(issue, field):
+            old_value[field] = getattr(issue, field)
+            new_value[field] = body[field]
+            setattr(issue, field, body[field])
+
+    if new_value:
+        issue.updated_at = model_now()
+        db.add(AuditLog(
+            audit_id=gen_uuid(), user_email=user.get("email"), action="update",
+            entity_type="issue", entity_id=issue.issue_id,
+            old_value=old_value, new_value=new_value, created_at=model_now(),
+        ))
+        await db.commit()
+        await db.refresh(issue)
+    return _fmt_issue(issue)
+
+
+@router.post("/{issue_id}/transition")
+async def transition_issue(
+    issue_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    new_status = body.get("status")
+    if not new_status:
+        raise HTTPException(400, "status is required")
+
+    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = result.scalar_one_or_none()
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    check_domain_access(user, issue.domain_id)
+
+    allowed = ISSUE_TRANSITIONS.get(issue.status, set())
+    if new_status not in allowed:
+        raise HTTPException(400, f"Cannot transition from '{issue.status}' to '{new_status}'")
+
+    old_status = issue.status
+    now_dt = model_now()
+    issue.status = new_status
+    issue.updated_at = now_dt
+
+    if new_status == "resolved":
+        issue.resolved_at = now_dt
+    elif new_status == "closed":
+        issue.closed_at = now_dt
+    elif new_status == "reopened":
+        issue.reopen_count = (issue.reopen_count or 0) + 1
+        issue.resolved_at = None
+        issue.closed_at = None
+
+    if body.get("resolution_note"):
+        issue.resolution_note = body["resolution_note"]
+
+    db.add(AuditLog(
+        audit_id=gen_uuid(), user_email=user.get("email"), action="status_change",
+        entity_type="issue", entity_id=issue.issue_id,
+        old_value={"status": old_status}, new_value={"status": new_status}, created_at=now_dt,
+    ))
+    await db.commit()
+    await db.refresh(issue)
+    return _fmt_issue(issue)
+
+
+@router.post("/{issue_id}/reopen")
+async def reopen_issue(
+    issue_id: str,
+    body: dict = Body(default={}),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = result.scalar_one_or_none()
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    check_domain_access(user, issue.domain_id)
+
+    if issue.status not in ("resolved", "closed"):
+        raise HTTPException(400, f"Cannot reopen an issue with status '{issue.status}'")
+
+    old_status = issue.status
+    now_dt = model_now()
+    issue.status = "reopened"
+    issue.updated_at = now_dt
+    issue.reopen_count = (issue.reopen_count or 0) + 1
+    issue.resolved_at = None
+    issue.closed_at = None
+    if body and body.get("resolution_note"):
+        issue.resolution_note = body["resolution_note"]
+
+    db.add(AuditLog(
+        audit_id=gen_uuid(), user_email=user.get("email"), action="status_change",
+        entity_type="issue", entity_id=issue.issue_id,
+        old_value={"status": old_status}, new_value={"status": "reopened"}, created_at=now_dt,
+    ))
+    await db.commit()
+    await db.refresh(issue)
+    return _fmt_issue(issue)
+
+
+@router.get("/{issue_id}/audit")
+async def get_issue_audit(issue_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    result = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "issue", AuditLog.entity_id == issue_id)
+        .order_by(desc(AuditLog.created_at))
+    )
+    logs = result.scalars().all()
+    return {
+        "items": [
+            {
+                "audit_id": l.audit_id, "user_email": l.user_email, "action": l.action,
+                "old_value": l.old_value, "new_value": l.new_value,
+                "created_at": l.created_at.isoformat(),
+            }
+            for l in logs
+        ]
+    }

@@ -192,3 +192,172 @@ def test_router_registered():
     assert "/issues/enriched" in paths
     assert "/issues/stats" in paths
     assert "/issues/{issue_id}" in paths
+
+
+@pytest.mark.asyncio
+async def test_update_issue_changed_fields_audited():
+    from app.api.issues import update_issue
+
+    issue = _make_issue(title="Old title", severity="low")
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    out = await update_issue(issue_id="iss-1", body={"title": "New title", "severity": "low"}, db=db, user=ADMIN)
+    assert out["title"] == "New title"
+    assert issue.title == "New title"
+    db.add.assert_called_once()  # only AuditLog — severity unchanged so not counted
+
+
+@pytest.mark.asyncio
+async def test_update_issue_not_found():
+    from app.api.issues import update_issue
+
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = None
+    db.execute.return_value = result_mock
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_issue(issue_id="missing", body={"title": "x"}, db=db, user=ADMIN)
+    assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_transition_issue_valid():
+    from app.api.issues import transition_issue
+
+    issue = _make_issue(status="new")
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    out = await transition_issue(issue_id="iss-1", body={"status": "confirmed"}, db=db, user=ADMIN)
+    assert out["status"] == "confirmed"
+    assert issue.status == "confirmed"
+
+
+@pytest.mark.asyncio
+async def test_transition_issue_invalid():
+    from app.api.issues import transition_issue
+
+    issue = _make_issue(status="new")
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+
+    with pytest.raises(HTTPException) as exc_info:
+        await transition_issue(issue_id="iss-1", body={"status": "resolved"}, db=db, user=ADMIN)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_transition_to_resolved_sets_resolved_at_and_note():
+    from app.api.issues import transition_issue
+
+    issue = _make_issue(status="in_progress")
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    out = await transition_issue(
+        issue_id="iss-1", body={"status": "resolved", "resolution_note": "Fixed upstream job"}, db=db, user=ADMIN,
+    )
+    assert out["status"] == "resolved"
+    assert issue.resolution_note == "Fixed upstream job"
+    assert issue.resolved_at is not None
+
+
+@pytest.mark.asyncio
+async def test_transition_to_reopened_clears_resolved_and_increments_count():
+    from app.api.issues import transition_issue
+
+    issue = _make_issue(status="resolved", reopen_count=0, resolved_at=MagicMock(isoformat=MagicMock(return_value="2026-06-01T00:00:00")))
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    out = await transition_issue(issue_id="iss-1", body={"status": "reopened"}, db=db, user=ADMIN)
+    assert out["status"] == "reopened"
+    assert issue.reopen_count == 1
+    assert issue.resolved_at is None
+
+
+@pytest.mark.asyncio
+async def test_reopen_issue_from_resolved():
+    from app.api.issues import reopen_issue
+
+    issue = _make_issue(status="resolved", reopen_count=0)
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    out = await reopen_issue(issue_id="iss-1", body={}, db=db, user=ADMIN)
+    assert out["status"] == "reopened"
+    assert issue.reopen_count == 1
+
+
+@pytest.mark.asyncio
+async def test_reopen_issue_invalid_status():
+    from app.api.issues import reopen_issue
+
+    issue = _make_issue(status="new")
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = issue
+    db.execute.return_value = result_mock
+
+    with pytest.raises(HTTPException) as exc_info:
+        await reopen_issue(issue_id="iss-1", body={}, db=db, user=ADMIN)
+    assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_get_issue_audit():
+    from app.api.issues import get_issue_audit
+
+    log = MagicMock()
+    log.audit_id = "audit-1"
+    log.user_email = "admin@example.com"
+    log.action = "create"
+    log.old_value = None
+    log.new_value = {"status": "new"}
+    log.created_at = MagicMock(isoformat=MagicMock(return_value="2026-06-12T00:00:00"))
+
+    db = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.all.return_value = [log]
+    db.execute.return_value = result_mock
+
+    out = await get_issue_audit(issue_id="iss-1", db=db, user=ADMIN)
+    assert out["items"][0]["audit_id"] == "audit-1"
+    assert out["items"][0]["action"] == "create"
+
+
+def test_action_routes_registered():
+    from app.api.issues import router
+    paths = {r.path for r in router.routes}
+    assert "/issues/{issue_id}/transition" in paths
+    assert "/issues/{issue_id}/reopen" in paths
+    assert "/issues/{issue_id}/audit" in paths
