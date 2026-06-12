@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import DomainHealthTrends from '@/components/domains/DomainHealthTrends'
 
 const ICONS  = ['💰','📣','🚚','📦','⚙️','🌐','📊','🏥','🎓','🛒','🏗️','💡','🔬','📱','🎯']
 const COLORS = ['#2563eb','#ec4899','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#16a34a','#0ea5e9','#f97316','#6366f1']
@@ -266,6 +267,9 @@ export default function DomainsPage() {
                 <Link href="/issues" style={{ flex: 1, padding: '6px', borderRadius: '5px', border: '1px solid var(--status-error-bg)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '11px', fontWeight: 500, textAlign: 'center', textDecoration: 'none' }}>View Issues</Link>
                 <Link href="/rules" style={{ flex: 1, padding: '6px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', fontSize: '11px', fontWeight: 500, textAlign: 'center', textDecoration: 'none' }}>View Rules</Link>
               </div>
+
+              {/* Health Trends */}
+              <DomainHealthTrends domainId={selected.id} />
             </div>
           </div>
         </>
