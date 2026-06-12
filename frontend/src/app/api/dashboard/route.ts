@@ -38,6 +38,8 @@ export async function GET() {
       date:   t.date as string,
       score:  t.score as number | null,
       failed: t.failed as number,
+      alert_count:   t.alert_count as number | undefined,
+      anomaly_count: t.anomaly_count as number | undefined,
     }))
 
     const atRiskTables = ((global.at_risk_tables ?? []) as Record<string, unknown>[]).map(t => ({
