@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
+import { TrendPoint } from '@/lib/types'
 
 export function ScorePill({ score }: { score: number }) {
   const color = score >= 90 ? '#16a34a' : score >= 80 ? '#ea8b3a' : '#dc2626'
@@ -7,11 +8,11 @@ export function ScorePill({ score }: { score: number }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: bg, color, padding: '3px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, minWidth: '38px' }}>{score}</span>
 }
 
-export function TrendChart({ data }: { data: { date: string; score: number | null; failed: number }[] }) {
+export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPointClick?: (date: string) => void }) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; score: number; date: string } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
-  const validPts = data.filter(d => d.score !== null) as { date: string; score: number; failed: number }[]
+  const validPts = data.filter(d => d.score !== null) as (TrendPoint & { score: number })[]
 
   if (validPts.length === 0) {
     return (
@@ -32,6 +33,10 @@ export function TrendChart({ data }: { data: { date: string; score: number | nul
     y: pad.top + chartH - ((d.score - min) / (max - min)) * chartH,
     score: d.score, date: d.date
   }))
+
+  const hasAlerts = validPts.some(d => (d.alert_count ?? 0) > 0)
+  const hasAnomalies = validPts.some(d => (d.anomaly_count ?? 0) > 0)
+  const xFor = (i: number) => pad.left + (i / Math.max(validPts.length - 1, 1)) * chartW
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
   const areaPath = `${linePath} L${pts[pts.length - 1].x},${pad.top + chartH} L${pts[0].x},${pad.top + chartH} Z`
@@ -70,8 +75,23 @@ export function TrendChart({ data }: { data: { date: string; score: number | nul
           <circle key={i} cx={p.x} cy={p.y} r={tooltip?.date === p.date ? 5 : 3}
             fill={tooltip?.date === p.date ? '#fff' : '#3b82f6'}
             stroke="#3b82f6" strokeWidth="2"
-            style={{ transition: 'r 0.1s' }} />
+            onClick={() => onPointClick?.(p.date)}
+            style={{ transition: 'r 0.1s', cursor: onPointClick ? 'pointer' : 'default' }} />
         ))}
+        {hasAlerts && validPts.map((d, i) => (d.alert_count ?? 0) > 0 ? (
+          <polygon key={`alert-${i}`}
+            points={`${xFor(i)},${pad.top - 10} ${xFor(i) - 4},${pad.top - 4} ${xFor(i) + 4},${pad.top - 4}`}
+            fill="#8b5cf6"
+            onClick={() => onPointClick?.(d.date)}
+            style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
+        ) : null)}
+        {hasAnomalies && validPts.map((d, i) => (d.anomaly_count ?? 0) > 0 ? (
+          <rect key={`anomaly-${i}`}
+            x={xFor(i) - 3} y={pad.top - 18} width="6" height="6" fill="#f97316"
+            transform={`rotate(45 ${xFor(i)} ${pad.top - 15})`}
+            onClick={() => onPointClick?.(d.date)}
+            style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
+        ) : null)}
         {validPts.filter((_, i) => i % Math.ceil(validPts.length / 7) === 0 || i === validPts.length - 1).map((d) => {
           const idx = validPts.indexOf(d)
           return <text key={idx} x={pad.left + (idx / Math.max(validPts.length - 1, 1)) * chartW} y={h - 8} textAnchor="middle" fontSize="10" fill="#9ca3af">{d.date}</text>
@@ -87,6 +107,12 @@ export function TrendChart({ data }: { data: { date: string; score: number | nul
           <div>{tooltip.date}</div>
           <div style={{ color: '#60a5fa', fontSize: '16px' }}>{tooltip.score}%</div>
           <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1e293b' }} />
+        </div>
+      )}
+      {(hasAlerts || hasAnomalies) && (
+        <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', justifyContent: 'flex-end' }}>
+          {hasAlerts && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#8b5cf6' }}>▲</span> Alerts</span>}
+          {hasAnomalies && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#f97316' }}>◆</span> Anomalies</span>}
         </div>
       )}
     </div>
