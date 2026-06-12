@@ -30,6 +30,10 @@ export default function GlossaryPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [popup, setPopup] = useState<GlossaryTerm | null>(null)
   const [termForm, setTermForm] = useState({ name: '', definition: '', domain: 'Finance', synonyms: '', owner: '', status: 'draft' as 'approved' | 'draft' | 'deprecated' })
+  const [editTerm, setEditTerm] = useState<GlossaryTerm | null>(null)
+  const [editForm, setEditForm] = useState<{ name: string; definition: string; domain: string; synonyms: string; owner: string; status: 'approved' | 'draft' | 'deprecated' }>({ name: '', definition: '', domain: '', synonyms: '', owner: '', status: 'draft' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/glossary')
@@ -81,6 +85,48 @@ export default function GlossaryPage() {
     }
     setShowAdd(false)
     setTermForm({ name: '', definition: '', domain: 'Finance', synonyms: '', owner: '', status: 'draft' })
+  }
+
+  const updateTerm = async () => {
+    if (!editTerm || !editForm.name) return
+    setEditSaving(true)
+    try {
+      const res = await fetch('/api/glossary', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editTerm.id,
+          term_name: editForm.name,
+          definition: editForm.definition,
+          synonyms: editForm.synonyms || null,
+          status: editForm.status,
+          owner_email: editForm.owner || null,
+        }),
+      })
+      if (!res.ok) throw new Error(`Update failed: ${res.status}`)
+      setTerms(prev => prev.map(t => t.id === editTerm.id
+        ? { ...t, name: editForm.name, definition: editForm.definition, status: editForm.status, owner: editForm.owner,
+            synonyms: editForm.synonyms.split(',').map(s => s.trim()).filter(Boolean) } : t))
+      setEditTerm(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setEditSaving(false)
+    }
+  }
+
+  const deleteTerm = async (term: GlossaryTerm) => {
+    if (!confirm(`Delete term "${term.name}"?`)) return
+    setDeletingId(term.id)
+    try {
+      const res = await fetch(`/api/glossary?id=${term.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+      setTerms(prev => prev.filter(t => t.id !== term.id))
+      if (popup?.id === term.id) setPopup(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const filtered = terms.filter(t => {
@@ -151,9 +197,19 @@ export default function GlossaryPage() {
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
             >
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{term.name}</div>
-                <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.definition}</div>
+              <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{term.name}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.definition}</div>
+                </div>
+                <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto', flexShrink: 0 }}>
+                  <button onClick={e => { e.stopPropagation(); setEditTerm(term); setEditForm({ name: term.name, definition: term.definition, domain: term.domain, synonyms: term.synonyms.join(', '), owner: term.owner, status: term.status }) }}
+                    style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: 'pointer', color: 'var(--text-secondary)' }}>Edit</button>
+                  <button onClick={e => { e.stopPropagation(); deleteTerm(term) }} disabled={deletingId === term.id}
+                    style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: deletingId === term.id ? 'not-allowed' : 'pointer', color: 'var(--status-error-text)', opacity: deletingId === term.id ? 0.6 : 1 }}>
+                    {deletingId === term.id ? '…' : 'Delete'}
+                  </button>
+                </div>
               </div>
               <span style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.domain}</span>
               <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textTransform: 'capitalize', display: 'inline-block' }}>{term.status}</span>
@@ -246,6 +302,46 @@ export default function GlossaryPage() {
                 background: termForm.name && termForm.definition ? 'var(--accent)' : 'var(--border)',
                 color: termForm.name && termForm.definition ? '#fff' : 'var(--text-muted)',
               }}>Add Term</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editTerm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Edit Term</div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Term Name *</label>
+              <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Definition</label>
+              <textarea value={editForm.definition} onChange={e => setEditForm(p => ({ ...p, definition: e.target.value }))} rows={3}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Status</label>
+              <select value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value as 'approved' | 'draft' | 'deprecated' }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                <option value="draft">Draft</option>
+                <option value="approved">Approved</option>
+                <option value="deprecated">Deprecated</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Synonyms (comma-separated)</label>
+              <input value={editForm.synonyms} onChange={e => setEditForm(p => ({ ...p, synonyms: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditTerm(null)}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={updateTerm} disabled={editSaving || !editForm.name}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editSaving || !editForm.name) ? 'not-allowed' : 'pointer', opacity: (editSaving || !editForm.name) ? 0.6 : 1 }}>
+                {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
             </div>
           </div>
         </div>
