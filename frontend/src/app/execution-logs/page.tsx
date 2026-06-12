@@ -79,6 +79,20 @@ export default function ExecutionLogsPage() {
   const warnings  = logs.filter(l => l.status === 'warning').length
   const avgScore  = logs.length > 0 ? Math.round(logs.reduce((a, l) => a + l.score, 0) / logs.length) : 0
 
+  function exportExecCsv(rows: typeof filtered) {
+    const headers = ['Date', 'Rule', 'Dataset', 'Status', 'Score', 'Rows Checked', 'Rows Failed', 'Duration']
+    const lines = rows.map(r => [
+      r.ts ?? '', r.rule ?? '', r.dataset ?? '', r.status ?? '',
+      r.score ?? '', r.checked ?? '', r.failed ?? '', r.duration ?? '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...lines].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `execution-logs-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   const filtered = logs.filter(l =>
     (statusFilter === 'all' || l.status === statusFilter) &&
     (search === '' || l.rule.toLowerCase().includes(search.toLowerCase()) || l.dataset.toLowerCase().includes(search.toLowerCase()))
@@ -120,7 +134,7 @@ export default function ExecutionLogsPage() {
             {loading ? 'Loading…' : `${totalRuns} runs · ${passed} passed · ${failed} failed`}
           </div>
         </div>
-        <button style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '5px 10px', borderRadius: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <button onClick={() => exportExecCsv(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '5px 10px', borderRadius: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
           ⬇ Export CSV
         </button>
       </div>

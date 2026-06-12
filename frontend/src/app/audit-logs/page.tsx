@@ -58,6 +58,20 @@ export default function AuditLogsPage() {
   const usersActive   = new Set(logs.filter(l => l.user !== 'System').map(l => l.user)).size
   const systemEvents  = logs.filter(l => l.user === 'System').length
 
+  function exportAuditCsv(rows: typeof filtered) {
+    const headers = ['Timestamp', 'User', 'Action', 'Resource', 'Category', 'Result', 'IP']
+    const lines = rows.map(r => [
+      r.ts ?? '', r.user ?? '', r.action ?? '', r.resource ?? '',
+      r.category ?? '', r.result ?? '', r.ip ?? '',
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    const csv = [headers.join(','), ...lines].join('\n')
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   const filtered = logs.filter(l => {
     const matchFilter =
       filter === 'failed' ? l.result === 'failed' :
@@ -78,7 +92,7 @@ export default function AuditLogsPage() {
         {usersActive > 0 && <span style={{ background: '#dbeafe', color: '#2563eb', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{usersActive} users</span>}
         {systemEvents > 0 && <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{systemEvents} system</span>}
         {failedEvents > 0 && <span style={{ background: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{failedEvents} failed</span>}
-        <button style={{ marginLeft: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
+        <button onClick={() => exportAuditCsv(filtered)} style={{ marginLeft: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
       </div>
 
       {/* search + category */}
