@@ -884,6 +884,44 @@ class QualityIncident(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class Issue(Base):
+    __tablename__ = "dq_issues"
+
+    issue_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    issue_type: Mapped[str] = mapped_column(String(20), default="manual")
+    status: Mapped[str] = mapped_column(String(20), default="new", index=True)
+    severity: Mapped[str] = mapped_column(String(20), default="medium")
+    domain_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    subdomain_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True, index=True)
+    source_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    rule_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    alert_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    assigned_team_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("teams.team_id"), nullable=True)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    reopen_count: Mapped[int] = mapped_column(Integer, default=0)
+    resolution_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+ISSUE_TRANSITIONS: dict[str, set[str]] = {
+    "new":         {"confirmed", "closed"},
+    "confirmed":   {"in_progress", "closed"},
+    "in_progress": {"blocked", "resolved", "confirmed"},
+    "blocked":     {"in_progress"},
+    "resolved":    {"closed", "reopened"},
+    "closed":      {"reopened"},
+    "reopened":    {"confirmed", "in_progress"},
+}
+
+
 class ComplianceFramework(Base):
     __tablename__ = "compliance_frameworks"
 
