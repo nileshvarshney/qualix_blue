@@ -40,6 +40,30 @@ const STATUS_STYLE: Record<ScheduleStatus, { background: string; color: string }
 
 const GRID = '1fr 100px 80px 80px 90px 90px 110px auto'
 
+function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
+  return {
+    id:            String(s.schedule_id ?? s.id ?? i),
+    name:          String(s.schedule_name ?? s.name ?? ''),
+    dataset:       String(s.asset_name ?? s.dataset ?? ''),
+    cron:          String(s.cron_expression ?? s.cron ?? ''),
+    human:         String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
+    rules:         Number(s.rule_count ?? s.rules ?? 0),
+    lastRun:       String(s.last_run_at ?? s.lastRun ?? '—'),
+    nextRun:       String(s.next_run_at ?? s.nextRun ?? '—'),
+    status:        (s.is_active ? 'active' : 'paused') as ScheduleStatus,
+    lastRunStatus: (['passed', 'failed', 'warning'] as const).includes(s.last_run_status as 'passed' | 'failed' | 'warning')
+                     ? (s.last_run_status as 'passed' | 'failed' | 'warning')
+                     : 'passed',
+    lastDuration:  String(s.last_duration ?? s.lastDuration ?? '—'),
+    connection:    String(s.connection_name ?? s.connection ?? '(no connection)'),
+    owner:         String(s.owner ?? ''),
+    failedRules:   Number(s.failed_rules ?? s.failedRules ?? 0),
+    checkedRows:   String(s.checked_rows ?? s.checkedRows ?? '0'),
+    failedRows:    String(s.failed_rows ?? s.failedRows ?? '0'),
+    issues:        Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
+  }
+}
+
 export default function SchedulesPage() {
   const [scheduleList, setScheduleList] = useState<Schedule[]>([])
   const [loading, setLoading]           = useState(true)
@@ -50,32 +74,14 @@ export default function SchedulesPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [schedForm, setSchedForm] = useState({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
   const [schedSaving, setSchedSaving] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [connOptions, setConnOptions] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
     fetch('/api/schedules')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
-        const items: Schedule[] = (Array.isArray(data) ? data : []).map((s, i) => ({
-          id: String(s.schedule_id ?? s.id ?? i),
-          name: String(s.schedule_name ?? s.name ?? ''),
-          dataset: String(s.asset_name ?? s.dataset ?? ''),
-          cron: String(s.cron_expression ?? s.cron ?? ''),
-          human: String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
-          rules: Number(s.rule_count ?? s.rules ?? 0),
-          lastRun: String(s.last_run_at ?? s.lastRun ?? '—'),
-          nextRun: String(s.next_run_at ?? s.nextRun ?? '—'),
-          status: (s.is_active ? 'active' : 'paused') as ScheduleStatus,
-          lastRunStatus: (s.last_run_status as LastRunStatus) ?? 'passed',
-          lastDuration: String(s.last_duration ?? s.lastDuration ?? '—'),
-          connection: String(s.connection_name ?? s.connection ?? '(no connection)'),
-          owner: String(s.owner ?? ''),
-          failedRules: Number(s.failed_rules ?? s.failedRules ?? 0),
-          checkedRows: String(s.checked_rows ?? s.checkedRows ?? '0'),
-          failedRows: String(s.failed_rows ?? s.failedRows ?? '0'),
-          issues: Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
-        }))
-        setScheduleList(items)
+        setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -157,30 +163,12 @@ export default function SchedulesPage() {
       const listRes = await fetch('/api/schedules')
       if (!listRes.ok) throw new Error('Failed to reload schedules')
       const data: Record<string, unknown>[] = await listRes.json()
-      const items: Schedule[] = (Array.isArray(data) ? data : []).map((s, i) => ({
-        id: String(s.schedule_id ?? s.id ?? i),
-        name: String(s.schedule_name ?? s.name ?? ''),
-        dataset: String(s.asset_name ?? s.dataset ?? ''),
-        cron: String(s.cron_expression ?? s.cron ?? ''),
-        human: String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
-        rules: Number(s.rule_count ?? s.rules ?? 0),
-        lastRun: String(s.last_run_at ?? s.lastRun ?? '—'),
-        nextRun: String(s.next_run_at ?? s.nextRun ?? '—'),
-        status: (s.is_active ? 'active' : 'paused') as ScheduleStatus,
-        lastRunStatus: (s.last_run_status as LastRunStatus) ?? 'passed',
-        lastDuration: String(s.last_duration ?? s.lastDuration ?? '—'),
-        connection: String(s.connection_name ?? s.connection ?? '(no connection)'),
-        owner: String(s.owner ?? ''),
-        failedRules: Number(s.failed_rules ?? s.failedRules ?? 0),
-        checkedRows: String(s.checked_rows ?? s.checkedRows ?? '0'),
-        failedRows: String(s.failed_rows ?? s.failedRows ?? '0'),
-        issues: Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
-      }))
-      setScheduleList(items)
+      setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
       setShowCreate(false)
       setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
     } catch (err) {
       console.error(err)
+      setCreateError('Failed to create schedule. Please try again.')
     } finally {
       setSchedSaving(false)
     }
@@ -204,7 +192,7 @@ export default function SchedulesPage() {
             {loading ? 'Loading…' : `${active} of ${scheduleList.length} active · ${conns.length} connection${conns.length !== 1 ? 's' : ''}${(failed + warning) > 0 ? ` · ${failed + warning} need attention` : ''}`}
           </div>
         </div>
-        <button onClick={() => setShowCreate(true)} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => { setShowCreate(true); setCreateError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + New Schedule
         </button>
       </div>
@@ -407,8 +395,13 @@ export default function SchedulesPage() {
                 {connOptions.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
+            {createError && (
+              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+                {createError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCreate(false); setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' }) }}
+              <button onClick={() => { setShowCreate(false); setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' }); setCreateError(null) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={createSchedule} disabled={schedSaving || !schedForm.name || !schedForm.cron}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (schedSaving || !schedForm.name || !schedForm.cron) ? 'not-allowed' : 'pointer', opacity: (schedSaving || !schedForm.name || !schedForm.cron) ? 0.6 : 1 }}>
