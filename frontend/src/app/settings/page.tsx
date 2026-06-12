@@ -324,7 +324,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <button onClick={save} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' }}>
+              <button onClick={() => save()} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' }}>
                 {saved ? '✓ Saved!' : 'Save Security Settings'}
               </button>
             </div>

@@ -59,7 +59,7 @@ function mapJob(j: Record<string, unknown>, i: number): ScanJob {
                             : '(no connection)',
     is_active:          Boolean(j.is_active ?? true),
     last_run_status:    (['completed','failed','running','queued','cancelled'] as const)
-                          .includes(j.last_run_status as LastRunStatus)
+                          .includes(j.last_run_status as 'completed')
                           ? (j.last_run_status as LastRunStatus)
                           : null,
     last_run_at:        typeof j.last_run_at === 'string' ? j.last_run_at : null,
