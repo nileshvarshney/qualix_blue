@@ -361,7 +361,7 @@ export default function SLAsPage() {
               </div>
             ))}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setEditSla(null)}
+              <button onClick={() => { setEditSla(null); setEditForm({ name: '', dataset: '', type: '', target: '', owner: '' }) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
               <button onClick={updateSla} disabled={editSaving || !editForm.name}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editSaving || !editForm.name) ? 'not-allowed' : 'pointer', opacity: (editSaving || !editForm.name) ? 0.6 : 1 }}>

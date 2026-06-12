@@ -64,6 +64,7 @@ export default function UsersPage() {
   const [showInvite, setShowInvite]   = useState(false)
   const [inviteForm, setInviteForm]   = useState<{ email: string; full_name: string; role: UserRole }>({ email: '', full_name: '', role: 'viewer' })
   const [inviteSaving, setInviteSaving] = useState(false)
+  const [inviteError, setInviteError] = useState<string | null>(null)
 
   // Edit modal state
   const [editUser, setEditUser]     = useState<AppUser | null>(null)
@@ -143,7 +144,7 @@ export default function UsersPage() {
       setShowInvite(false)
       setInviteForm({ email: '', full_name: '', role: 'viewer' })
     } catch {
-      // swallow error — modal stays open so user can retry
+      setInviteError('Failed to invite user. Please try again.')
     } finally {
       setInviteSaving(false)
     }
@@ -175,7 +176,10 @@ export default function UsersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: true }),
     })
-      .then(() => setUsers(prev => prev.map(u => u.user_id === user.user_id ? { ...u, is_active: true } : u)))
+      .then(res => {
+        if (!res.ok) throw new Error(`Reactivate failed: ${res.status}`)
+        setUsers(prev => prev.map(u => u.user_id === user.user_id ? { ...u, is_active: true } : u))
+      })
       .catch(() => {})
       .finally(() => setReactivating(null))
   }
@@ -200,7 +204,7 @@ export default function UsersPage() {
             {loading ? 'Loading…' : `${users.length} user${users.length !== 1 ? 's' : ''} · ${totalActive} active · ${totalAdmins} admin${totalAdmins !== 1 ? 's' : ''}`}
           </div>
         </div>
-        <button onClick={() => setShowInvite(true)} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => { setShowInvite(true); setInviteError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + Invite User
         </button>
       </div>
@@ -356,8 +360,13 @@ export default function UsersPage() {
               </select>
             </div>
 
+            {inviteError && (
+              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+                {inviteError}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowInvite(false); setInviteForm({ email: '', full_name: '', role: 'viewer' }) }}
+              <button onClick={() => { setShowInvite(false); setInviteForm({ email: '', full_name: '', role: 'viewer' }); setInviteError(null) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
                 Cancel
               </button>
@@ -402,7 +411,7 @@ export default function UsersPage() {
             </div>
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setEditUser(null)}
+              <button onClick={() => { setEditUser(null); setEditForm({ full_name: '', role: 'viewer' }) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
                 Cancel
               </button>

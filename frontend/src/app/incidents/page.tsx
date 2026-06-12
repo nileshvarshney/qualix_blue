@@ -66,20 +66,22 @@ export default function IncidentsPage() {
         }),
       })
       if (!res.ok) throw new Error(`Failed to create incident: ${res.status}`)
-      const data: Record<string, unknown> = await res.json()
-      const newInc: Incident = {
-        id: String(data.incident_id ?? data.id ?? `inc${Date.now()}`),
-        title: incForm.title,
-        severity: (['critical','high','medium','low'] as const).includes(incForm.severity as 'critical') ? (incForm.severity as Incident['severity']) : 'medium',
-        asset: incForm.asset,
-        description: incForm.description,
-        status: 'open',
-        createdAt: new Date().toISOString(),
-        resolvedAt: null,
-        owner: '',
-        ttrMinutes: null,
-      }
-      setIncidents((prev: Incident[]) => [newInc, ...prev])
+      const listRes = await fetch('/api/incidents')
+      if (!listRes.ok) throw new Error('Failed to reload incidents')
+      const data2: Record<string, unknown>[] = await listRes.json()
+      const items = Array.isArray(data2) ? data2 : []
+      setIncidents(items.map((inc: Record<string, unknown>, i: number) => ({
+        id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
+        title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
+        asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
+        severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
+        status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
+        createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
+        resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
+        description: String(inc.description ?? inc.message ?? ''),
+        owner: String(inc.owner ?? inc.assigned_to ?? ''),
+        ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
+      })))
       setShowCreate(false)
       setIncForm({ title: '', severity: 'medium', asset: '', description: '' })
     } catch (err) {
