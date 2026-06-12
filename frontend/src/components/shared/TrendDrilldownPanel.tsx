@@ -49,7 +49,7 @@ export default function TrendDrilldownPanel({ date, scope, onClose }: {
     else if (scope.domainId) params.set('domain_id', scope.domainId)
     fetch(`/api/dashboard/day-detail?${params.toString()}`)
       .then(r => r.json())
-      .then((d: DayDetail) => setDetail(d))
+      .then((d: DayDetail) => setDetail(Array.isArray(d?.failed_runs) ? d : null))
       .catch(() => setDetail(null))
       .finally(() => setLoading(false))
   }, [date, scope.assetId, scope.subdomainId, scope.domainId])
