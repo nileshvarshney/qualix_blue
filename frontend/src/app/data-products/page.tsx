@@ -42,6 +42,12 @@ export default function DataProductsPage() {
     status: 'draft' as DataProduct['status'], tier: 'bronze' as DataProduct['tier'],
     sla: '99.0%', tags: '',
   })
+  const [editProduct, setEditProduct] = useState<DataProduct | null>(null)
+  const [editPForm, setEditPForm] = useState<{
+    name: string; description: string; domain: string; owner: string;
+    status: DataProduct['status']; tier: DataProduct['tier']; sla: string
+  }>({ name: '', description: '', domain: '', owner: '', status: 'draft', tier: 'bronze', sla: '' })
+  const [editPSaving, setEditPSaving] = useState(false)
 
   useEffect(() => {
     fetch('/api/data-products')
@@ -67,6 +73,38 @@ export default function DataProductsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  const updateProduct = async () => {
+    if (!editProduct || !editPForm.name) return
+    setEditPSaving(true)
+    try {
+      const res = await fetch('/api/data-products', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editProduct.id,
+          product_name: editPForm.name,
+          description: editPForm.description,
+          domain: editPForm.domain,
+          owner: editPForm.owner,
+          status: editPForm.status,
+          tier: editPForm.tier,
+          sla: editPForm.sla,
+        }),
+      })
+      if (!res.ok) throw new Error(`Update failed: ${res.status}`)
+      setProducts(prev => prev.map(p => p.id === editProduct.id
+        ? { ...p, name: editPForm.name, description: editPForm.description, domain: editPForm.domain,
+            owner: editPForm.owner, status: editPForm.status, tier: editPForm.tier, sla: editPForm.sla } : p))
+      if (selected?.id === editProduct.id) {
+        setSelected(prev => prev ? { ...prev, name: editPForm.name, description: editPForm.description } : prev)
+      }
+      setEditProduct(null)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setEditPSaving(false)
+    }
+  }
 
   const certifiedCount = products.filter(p => p.status === 'certified').length
   const avgQuality     = products.length > 0 ? Math.round(products.reduce((s, p) => s + p.qualityScore, 0) / products.length) : 0
@@ -183,7 +221,7 @@ export default function DataProductsPage() {
               <span style={{ background: stat.bg, color: stat.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600 }}>{stat.label}</span>
               <span style={{ background: scoreBg(p.qualityScore), color: scoreColor(p.qualityScore), padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700 }}>{p.qualityScore}%</span>
               <div style={{ opacity: hoverId === p.id ? 1 : 0, transition: 'opacity 0.1s' }}>
-                <button onClick={e => e.stopPropagation()} style={{ padding: '2px 4px', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '9px', cursor: 'pointer' }}>✏️</button>
+                <button onClick={e => { e.stopPropagation(); setEditProduct(p); setEditPForm({ name: p.name, description: p.description, domain: p.domain, owner: p.owner, status: p.status, tier: p.tier, sla: p.sla ?? '' }) }} style={{ padding: '2px 4px', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '9px', cursor: 'pointer' }}>✏️</button>
               </div>
             </div>
           )
@@ -261,6 +299,62 @@ export default function DataProductsPage() {
           </>
         )
       })()}
+
+      {/* Edit modal */}
+      {editProduct && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '460px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Edit Data Product</div>
+            {[
+              { label: 'Name *', key: 'name' },
+              { label: 'Description', key: 'description' },
+              { label: 'Owner', key: 'owner' },
+              { label: 'SLA Target', key: 'sla' },
+            ].map(({ label, key }) => (
+              <div key={key}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>{label}</label>
+                <input value={(editPForm as Record<string, string>)[key]} onChange={e => setEditPForm(p => ({ ...p, [key]: e.target.value }))}
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+              </div>
+            ))}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Domain</label>
+                <select value={editPForm.domain} onChange={e => setEditPForm(p => ({ ...p, domain: e.target.value }))}
+                  style={{ width: '100%', padding: '7px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                  {DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Status</label>
+                <select value={editPForm.status} onChange={e => setEditPForm(p => ({ ...p, status: e.target.value as DataProduct['status'] }))}
+                  style={{ width: '100%', padding: '7px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                  <option value="draft">Draft</option>
+                  <option value="published">Published</option>
+                  <option value="certified">Certified</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Tier</label>
+                <select value={editPForm.tier} onChange={e => setEditPForm(p => ({ ...p, tier: e.target.value as DataProduct['tier'] }))}
+                  style={{ width: '100%', padding: '7px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                  <option value="bronze">Bronze</option>
+                  <option value="silver">Silver</option>
+                  <option value="gold">Gold</option>
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setEditProduct(null)}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={updateProduct} disabled={editPSaving || !editPForm.name}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editPSaving || !editPForm.name) ? 'not-allowed' : 'pointer', opacity: (editPSaving || !editPForm.name) ? 0.6 : 1 }}>
+                {editPSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create modal — unchanged from original */}
       {showCreate && (
