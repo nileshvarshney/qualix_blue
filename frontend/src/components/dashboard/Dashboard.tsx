@@ -6,6 +6,7 @@ import { CheckResult, Connection, DashboardStats, DimensionScores, FailingRule, 
 import { formatNumber } from '@/lib/utils'
 import { loadConnections } from '@/lib/seedData'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
+import DashboardTrendsTab from './DashboardTrendsTab'
 
 
 const TIME_OPTIONS = ['Last 1 hour','Last 6 hours','Last 24 hours','Last 7 days','Last 14 days','Last 30 days']
@@ -191,6 +192,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const [timeFilter, setTimeFilter] = useState('Last 7 days')
   const [domainFilter, setDomainFilter] = useState('All domains')
   const [activeMetric, setActiveMetric] = useState<string | null>(null)
+  const [activeView, setActiveView] = useState<'overview' | 'trends'>('overview')
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null)
   const router = useRouter()
 
@@ -240,6 +242,27 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         </div>
       </div>
 
+      {/* view tabs */}
+      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '12px' }}>
+        {(['overview', 'trends'] as const).map(view => (
+          <button
+            key={view}
+            onClick={() => setActiveView(view)}
+            style={{
+              padding: '6px 14px', fontSize: '12px',
+              fontWeight: activeView === view ? 600 : 400,
+              color: activeView === view ? 'var(--foreground)' : 'var(--text-muted)',
+              background: 'transparent', border: 'none',
+              borderBottom: activeView === view ? '2px solid var(--primary)' : '2px solid transparent',
+              cursor: 'pointer', marginBottom: '-1px',
+            }}
+          >
+            {view === 'overview' ? 'Overview' : 'Trends & Monitoring'}
+          </button>
+        ))}
+      </div>
+
+      {activeView === 'overview' && (<>
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
         {/* Overall Quality Score */}
@@ -527,6 +550,8 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </table>
         </div>
       )}
+      </>)}
+      {activeView === 'trends' && <DashboardTrendsTab />}
     </div>
   )
 }
