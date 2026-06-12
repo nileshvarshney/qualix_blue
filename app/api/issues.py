@@ -10,7 +10,7 @@ from app.core.security import get_current_user, require_write, check_domain_acce
 router = APIRouter(prefix="/issues", tags=["Issues"])
 
 
-def _fmt_issue(issue: Issue, extra: dict = {}) -> dict:
+def _fmt_issue(issue: Issue, extra: Optional[dict] = None) -> dict:
     return {
         "issue_id":          issue.issue_id,
         "title":             issue.title,
@@ -34,7 +34,7 @@ def _fmt_issue(issue: Issue, extra: dict = {}) -> dict:
         "closed_at":         issue.closed_at.isoformat() if issue.closed_at else None,
         "reopen_count":      issue.reopen_count,
         "resolution_note":   issue.resolution_note,
-        **extra,
+        **(extra or {}),
     }
 
 
