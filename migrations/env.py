@@ -6,10 +6,24 @@ Run migrations with:
 """
 from logging.config import fileConfig
 from alembic import context
+from alembic.ddl.impl import DefaultImpl
 
 # Import all models so metadata is populated
 from app.db.database import Base, engine
 import app.db.models  # noqa: F401
+
+
+class SnowflakeImpl(DefaultImpl):
+    """Registers the 'snowflake' dialect with Alembic.
+
+    snowflake-sqlalchemy provides the SQLAlchemy dialect but does not
+    register an Alembic DefaultImpl, so without this Alembic raises
+    `KeyError: 'snowflake'` when configuring the migration context.
+    Snowflake auto-commits DDL per statement, matching the base
+    `transactional_ddl = False` default.
+    """
+
+    __dialect__ = "snowflake"
 
 config = context.config
 if config.config_file_name is not None:
