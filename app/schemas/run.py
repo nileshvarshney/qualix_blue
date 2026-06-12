@@ -33,6 +33,7 @@ class RunSampleResponse(BaseModel):
     run_id: str
     rule_id: str
     failed_record: Optional[dict]
+    masked_fields: list[str] = []
     created_at: datetime
 
     class Config:

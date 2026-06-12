@@ -22,11 +22,14 @@ export async function GET(
     const run = await runRes.json()
 
     let samples: unknown[] = []
+    let maskedFields: string[] = []
     if (samplesRes?.ok) {
       const raw = await samplesRes.json()
-      samples = Array.isArray(raw) ? raw : []
+      const rows = Array.isArray(raw) ? raw as Record<string, unknown>[] : []
+      samples = rows.map(r => (r.failed_record as Record<string, unknown>) ?? {})
+      maskedFields = Array.isArray(rows[0]?.masked_fields) ? rows[0].masked_fields as string[] : []
     }
 
-    return NextResponse.json({ ...run, samples })
+    return NextResponse.json({ ...run, samples, masked_fields: maskedFields })
   } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }) }
 }

@@ -737,3 +737,51 @@ async def get_rule_runs(
             for r in runs
         ],
     }
+
+
+# ── Failed-record evidence (latest failing run) ───────────────────────────────
+
+@router.get("/{rule_id}/failed-records")
+async def get_rule_failed_records(
+    rule_id: str,
+    limit: int = Query(20, le=100),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    from app.db.models import DQRuleRun, DQRuleRunSample
+    from app.services.masking_service import mask_records
+
+    rule_result = await db.execute(select(DQRule).where(DQRule.rule_id == rule_id))
+    if rule_result.scalar_one_or_none() is None:
+        raise HTTPException(404, "Rule not found")
+
+    run_result = await db.execute(
+        select(DQRuleRun)
+        .where(DQRuleRun.rule_id == rule_id, DQRuleRun.failed_rows_count > 0)
+        .order_by(desc(DQRuleRun.created_at))
+        .limit(1)
+    )
+    run = run_result.scalar_one_or_none()
+    if not run:
+        return {
+            "run_id": None, "status": None, "failed_rows_count": 0,
+            "total_rows_scanned": None, "executed_at": None,
+            "samples": [], "masked_fields": [],
+        }
+
+    samples_result = await db.execute(
+        select(DQRuleRunSample).where(DQRuleRunSample.run_id == run.run_id).limit(limit)
+    )
+    samples = samples_result.scalars().all()
+    records = [s.failed_record or {} for s in samples]
+    masked_records, masked_fields = await mask_records(db, run.asset_id, user, records)
+
+    return {
+        "run_id": run.run_id,
+        "status": run.status,
+        "failed_rows_count": run.failed_rows_count,
+        "total_rows_scanned": run.total_rows_scanned,
+        "executed_at": run.created_at.isoformat(),
+        "samples": masked_records,
+        "masked_fields": masked_fields,
+    }

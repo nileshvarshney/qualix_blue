@@ -423,6 +423,32 @@ async def get_run(run_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/runs/{run_id}/samples", response_model=list[RunSampleResponse])
-async def get_run_samples(run_id: str, db: AsyncSession = Depends(get_db)):
+async def get_run_samples(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    from app.services.masking_service import mask_records
+
+    run_result = await db.execute(select(DQRuleRun).where(DQRuleRun.run_id == run_id))
+    run = run_result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(404, "Run not found")
+
     result = await db.execute(select(DQRuleRunSample).where(DQRuleRunSample.run_id == run_id))
-    return result.scalars().all()
+    samples = result.scalars().all()
+
+    records = [s.failed_record or {} for s in samples]
+    masked_records, masked_fields = await mask_records(db, run.asset_id, user, records)
+
+    return [
+        RunSampleResponse(
+            sample_id=sample.sample_id,
+            run_id=sample.run_id,
+            rule_id=sample.rule_id,
+            failed_record=masked_records[i],
+            masked_fields=masked_fields,
+            created_at=sample.created_at,
+        )
+        for i, sample in enumerate(samples)
+    ]

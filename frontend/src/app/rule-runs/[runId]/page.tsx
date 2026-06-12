@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import FailedRecordsTable from '@/components/shared/FailedRecordsTable'
 
 type RunStatus = 'passed' | 'failed' | 'error' | 'skipped' | 'running'
 
@@ -22,6 +23,7 @@ interface RuleRun {
   execution_end_time: string | null
   duration_ms: number | null
   samples: Record<string, unknown>[]
+  masked_fields: string[]
 }
 
 const STATUS_STYLE: Record<string, { background: string; color: string }> = {
@@ -80,6 +82,7 @@ export default function RuleRunDetailPage({ params }: { params: { runId: string 
           execution_end_time:  data.execution_end_time as string | null ?? null,
           duration_ms:         data.duration_ms as number | null ?? null,
           samples:             Array.isArray(data.samples) ? data.samples as Record<string, unknown>[] : [],
+          masked_fields:       Array.isArray(data.masked_fields) ? data.masked_fields as string[] : [],
         })
         setLoading(false)
       })
@@ -99,7 +102,6 @@ export default function RuleRunDetailPage({ params }: { params: { runId: string 
   }
 
   const ss = run ? (STATUS_STYLE[run.status] ?? STATUS_STYLE.error) : null
-  const sampleCols = run?.samples.length ? Object.keys(run.samples[0]) : []
 
   return (
     <div style={{ padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--background)', minHeight: '100%' }}>
@@ -193,35 +195,17 @@ export default function RuleRunDetailPage({ params }: { params: { runId: string 
           {/* Failing samples */}
           {run.samples.length > 0 && (
             <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden' }}>
-              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>
                   Failing Records Sample ({run.samples.length})
                 </span>
+                {run.masked_fields.length > 0 && (
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                    🔒 {run.masked_fields.length} column{run.masked_fields.length !== 1 ? 's' : ''} masked for your role
+                  </span>
+                )}
               </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px', fontFamily: 'monospace' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--surface-muted)' }}>
-                      {sampleCols.map(col => (
-                        <th key={col} style={{ padding: '6px 12px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {run.samples.map((row, i) => (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--surface-muted)' }}>
-                        {sampleCols.map(col => (
-                          <td key={col} style={{ padding: '5px 12px', color: 'var(--foreground)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {row[col] == null ? <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>null</span> : String(row[col])}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <FailedRecordsTable records={run.samples} maskedFields={run.masked_fields} />
             </div>
           )}
 

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 
 type Severity = 'critical' | 'high' | 'medium' | 'info'
 type AlertFilter = 'all' | 'unacked' | 'critical' | 'high'
@@ -11,6 +12,7 @@ interface RecentAlert {
   message: string; channel: string; ts: string; ack: boolean
   rootCause: string; impact: string; recommendation: string
   affectedRecords: number; pipeline: string; alertType: string
+  runId: string | null
 }
 
 interface AlertDefinition {
@@ -258,6 +260,7 @@ export default function AlertsPage() {
           affectedRecords: Number(a.affected_records ?? 0),
           pipeline: String(a.pipeline ?? ''),
           alertType: String(a.alert_type ?? 'rule_failure'),
+          runId: a.run_id ? String(a.run_id) : null,
         })))
         setLoading(false)
       })
@@ -506,6 +509,11 @@ export default function AlertsPage() {
                   <div style={{ padding: '0 14px 14px', display: 'flex', gap: '6px' }}>
                     {!popupAlert.ack && (
                       <button onClick={e => { ack(popupAlert.id, e); closePopup() }} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>✓ Acknowledge</button>
+                    )}
+                    {popupAlert.runId && (
+                      <Link href={`/rule-runs/${popupAlert.runId}`} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', textDecoration: 'none', fontWeight: 600 }}>
+                        🔍 View Evidence
+                      </Link>
                     )}
                   </div>
                 </>

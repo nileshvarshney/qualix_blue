@@ -4,6 +4,7 @@ import { Rule, RuleCategory, RuleType, RuleStatus, Connection } from '@/lib/type
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { useRulesGrouping } from './useRulesGrouping'
+import RuleFailedRecordsTab from './RuleFailedRecordsTab'
 
 /* ── Categories ──────────────────────────────────────────────────── */
 
@@ -78,6 +79,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   const [showModal, setShowModal] = useState(false)
   const [editDrawer, setEditDrawer] = useState<Rule | null>(null)
+  const [drawerTab, setDrawerTab] = useState<'config' | 'failed-records'>('config')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, { status: string; score: number }>>({})
@@ -184,6 +186,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     if (editDrawer) {
       fetchTables()
       if (editDrawer.tableName) fetchColumns(editDrawer.tableName)
+      setDrawerTab('config')
     }
   }, [editDrawer, fetchTables, fetchColumns])
 
@@ -969,7 +972,32 @@ export default function RulesClient({ initialRules, connections }: Props) {
               <button onClick={() => { setEditDrawer(null); setEditForm(null) }} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px' }}>✕</button>
             </div>
 
+            {/* Drawer Tabs */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 20px', gap: '4px', flexShrink: 0 }}>
+              {([['config', 'Configuration'], ['failed-records', 'Failed Records']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setDrawerTab(key)}
+                  style={{
+                    padding: '10px 4px', background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: 'var(--text-sm)', fontWeight: drawerTab === key ? 600 : 400,
+                    color: drawerTab === key ? 'var(--foreground)' : 'var(--text-muted)',
+                    borderBottom: drawerTab === key ? '2px solid var(--primary)' : '2px solid transparent',
+                    marginBottom: '-1px',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
             {/* Drawer Body */}
+            {drawerTab === 'failed-records' && (
+              <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px' }}>
+                <RuleFailedRecordsTab ruleId={editDrawer.id} />
+              </div>
+            )}
+            {drawerTab === 'config' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
                 <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Rule Name *</label>
@@ -1049,8 +1077,10 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 </div>
               </div>
             </div>
+            )}
 
             {/* Drawer Footer */}
+            {drawerTab === 'config' && (
             <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: '8px' }}>
               <button onClick={saveEdit} disabled={saving} style={{
                 padding: '9px 18px', borderRadius: '8px', border: 'none', background: 'var(--brand-primary)', color: '#fff',
@@ -1063,6 +1093,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
               </button>
               <button onClick={() => { setEditDrawer(null); setEditForm(null) }} style={{ padding: '9px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
             </div>
+            )}
           </div>
         </div>
       )}
