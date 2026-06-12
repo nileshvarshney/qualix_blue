@@ -2,7 +2,6 @@
 import { useState, useEffect } from 'react'
 
 type UserRole   = 'admin' | 'data_steward' | 'data_engineer' | 'analyst' | 'viewer' | string
-type UserStatus = 'active' | 'inactive'
 type FilterType = 'all' | 'admin' | 'active' | 'inactive'
 
 interface AppUser {
@@ -37,7 +36,7 @@ function RoleChip({ role }: { role: string }) {
   const st = ROLE_STYLE[role] ?? { background: 'var(--surface-muted)', color: 'var(--text-muted)' }
   return (
     <span style={{ ...st, padding: '1px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block' }}>
-      {role.replace('_', ' ')}
+      {role.replace(/_/g, ' ')}
     </span>
   )
 }
@@ -127,17 +126,20 @@ export default function UsersPage() {
         body: JSON.stringify({ email: inviteForm.email, full_name: inviteForm.full_name, role: inviteForm.role, is_active: true }),
       })
       const data = await res.json()
-      const newUser: AppUser = {
-        user_id:    String(data.user_id ?? Date.now()),
-        email:      inviteForm.email,
-        full_name:  inviteForm.full_name,
-        role:       inviteForm.role,
-        is_active:  true,
-        created_at: new Date().toISOString(),
-        last_login: null,
-        domain_id:  null,
-      }
-      setUsers(prev => [newUser, ...prev])
+      if (!res.ok) throw new Error(data.error ?? 'Failed to invite user')
+      const refreshed = await fetch('/api/users')
+      const list = await refreshed.json()
+      const items: AppUser[] = (Array.isArray(list) ? list : []).map((u: Record<string, unknown>, i: number) => ({
+        user_id:    String(u.user_id ?? u.id ?? i),
+        email:      String(u.email ?? ''),
+        full_name:  String(u.full_name ?? u.name ?? u.email ?? ''),
+        role:       String(u.role ?? 'viewer'),
+        is_active:  u.is_active !== false,
+        created_at: String(u.created_at ?? ''),
+        last_login: u.last_login as string | null ?? null,
+        domain_id:  u.domain_id as string | null ?? null,
+      }))
+      setUsers(items)
       setShowInvite(false)
       setInviteForm({ email: '', full_name: '', role: 'viewer' })
     } catch {
@@ -151,11 +153,12 @@ export default function UsersPage() {
     if (!editUser) return
     setEditSaving(true)
     try {
-      await fetch(`/api/users/${editUser.user_id}`, {
+      const res = await fetch(`/api/users/${editUser.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role }),
       })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error((d as { error?: string }).error ?? 'Failed to save user') }
       setUsers(prev => prev.map(u => u.user_id === editUser.user_id ? { ...u, full_name: editForm.full_name, role: editForm.role } : u))
       setEditUser(null)
     } catch {
@@ -290,18 +293,19 @@ export default function UsersPage() {
                 {/* Edit button — always visible */}
                 <button
                   onClick={() => { setEditUser(user); setEditForm({ full_name: user.full_name, role: user.role }) }}
-                  style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
+                  disabled={editSaving}
+                  style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: editSaving ? 'not-allowed' : 'pointer', opacity: editSaving ? 0.6 : 1 }}>
                   Edit
                 </button>
 
                 {user.is_active ? (
                   <button onClick={() => deactivate(user)} disabled={deactivating === user.user_id}
-                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '10px', cursor: 'pointer' }}>
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '10px', cursor: deactivating === user.user_id ? 'not-allowed' : 'pointer', opacity: deactivating === user.user_id ? 0.6 : 1 }}>
                     {deactivating === user.user_id ? '…' : 'Deactivate'}
                   </button>
                 ) : (
                   <button onClick={() => reactivate(user)} disabled={reactivating === user.user_id}
-                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-ok-text)', fontSize: '10px', cursor: 'pointer' }}>
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-ok-text)', fontSize: '10px', cursor: reactivating === user.user_id ? 'not-allowed' : 'pointer', opacity: reactivating === user.user_id ? 0.6 : 1 }}>
                     {reactivating === user.user_id ? '…' : 'Reactivate'}
                   </button>
                 )}
