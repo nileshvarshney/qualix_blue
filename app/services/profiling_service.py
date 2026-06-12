@@ -220,6 +220,12 @@ async def profile_table(
 
         await db.commit()
 
+        try:
+            from app.services.scoring_service import aggregate_dimension_scores
+            await aggregate_dimension_scores(db)
+        except Exception as e:
+            logger.error(f"Dimension score aggregation failed: {e}")
+
     return {
         "columns_profiled": len(col_names),
         "row_count": total_rows,

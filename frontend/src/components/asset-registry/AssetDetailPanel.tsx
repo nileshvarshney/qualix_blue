@@ -1,9 +1,12 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AssetDescriptionField from './AssetDescriptionField'
 import AssetColumnsSection from './AssetColumnsSection'
 import AssetProfilingTab from './AssetProfilingTab'
 import AssetRulesTab from './AssetRulesTab'
+import AssetQualityTab from './AssetQualityTab'
+import { ScorePill } from '@/components/shared/charts'
+import { AssetQualityScore } from '@/lib/types'
 
 interface AssetMeta {
   sf_table_name?: string
@@ -34,7 +37,7 @@ interface Asset {
   source_meta?: AssetMeta
 }
 
-type Tab = 'overview' | 'profiling' | 'rules'
+type Tab = 'overview' | 'profiling' | 'rules' | 'quality'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -68,6 +71,17 @@ export default function AssetDetailPanel({
   onDescriptionSaved: (desc: string) => void
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
+  const [qualityScore, setQualityScore] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!asset) { setQualityScore(null); return }
+    const leaf = asset.asset_type === 'table' || asset.asset_type === 'view'
+    if (!leaf) { setQualityScore(null); return }
+    fetch(`/api/quality-scores/assets/${asset.asset_id}`)
+      .then(r => r.json())
+      .then((d: AssetQualityScore) => setQualityScore(d.overall_score))
+      .catch(() => setQualityScore(null))
+  }, [asset])
 
   if (!asset) {
     return (
@@ -94,12 +108,13 @@ export default function AssetDetailPanel({
         <span style={{ ...statusStyle, fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, marginLeft: 'auto' }}>
           {asset.status}
         </span>
+        {isLeaf && qualityScore !== null && <ScorePill score={Math.round(qualityScore)} />}
       </div>
 
       {/* Tab bar — only for table/view assets */}
       {isLeaf && (
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
-          {(['overview', 'profiling', 'rules'] as Tab[]).map(tab => (
+          {(['overview', 'profiling', 'rules', 'quality'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -179,6 +194,11 @@ export default function AssetDetailPanel({
       {/* Rules tab content */}
       {isLeaf && activeTab === 'rules' && (
         <AssetRulesTab assetId={asset.asset_id} />
+      )}
+
+      {/* Quality tab content */}
+      {isLeaf && activeTab === 'quality' && (
+        <AssetQualityTab assetId={asset.asset_id} />
       )}
     </div>
   )

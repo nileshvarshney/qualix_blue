@@ -410,8 +410,9 @@ async def execute_asset_rules(asset_id: str, db: AsyncSession) -> list[DQRuleRun
 
     if runs:
         try:
-            from app.services.scoring_service import aggregate_quality_scores
+            from app.services.scoring_service import aggregate_quality_scores, aggregate_dimension_scores
             await aggregate_quality_scores(db)
+            await aggregate_dimension_scores(db)
         except Exception as e:
             logger.error(f"Quality score aggregation failed: {e}")
 
