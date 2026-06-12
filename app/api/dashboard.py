@@ -784,6 +784,91 @@ async def global_trend(
     return {"days": days, "trend": trend}
 
 
+@router.get("/day-detail")
+async def day_detail(
+    date_str: str = Query(..., alias="date"),
+    domain_id: Optional[str] = Query(None),
+    subdomain_id: Optional[str] = Query(None),
+    asset_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return failed runs, alerts, and anomalies for a single date + scope, for trend drilldowns."""
+    if domain_id:
+        check_domain_access(user, domain_id)
+    try:
+        target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(400, "date must be in YYYY-MM-DD format")
+
+    # ── Failed rule runs ──────────────────────────────────────────────────
+    rq = (
+        select(DQRuleRun, DQRule.rule_name, Asset.physical_name)
+        .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
+        .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
+        .where(
+            func.date(DQRuleRun.created_at) == target_date,
+            DQRuleRun.status.in_(["failed", "error"]),
+        )
+    )
+    if asset_id:
+        rq = rq.where(DQRuleRun.asset_id == asset_id)
+    elif subdomain_id:
+        rq = rq.where(DQRuleRun.subdomain_id == subdomain_id)
+    elif domain_id:
+        rq = rq.where(DQRuleRun.domain_id == domain_id)
+    rq = rq.order_by(desc(DQRuleRun.created_at)).limit(50)
+    run_rows = (await db.execute(rq)).all()
+    failed_runs = [
+        {
+            "run_id": run.run_id, "rule_id": run.rule_id, "rule_name": rule_name,
+            "asset_id": run.asset_id, "table_name": table_name,
+            "status": run.status, "failed_rows_count": run.failed_rows_count,
+        }
+        for run, rule_name, table_name in run_rows
+    ]
+
+    # ── Alerts ────────────────────────────────────────────────────────────
+    aq = select(DQAlert).where(func.date(DQAlert.created_at) == target_date)
+    if asset_id:
+        aq = aq.where(DQAlert.asset_id == asset_id)
+    elif subdomain_id:
+        aq = aq.where(DQAlert.subdomain_id == subdomain_id)
+    elif domain_id:
+        aq = aq.where(DQAlert.domain_id == domain_id)
+    aq = aq.order_by(desc(DQAlert.created_at)).limit(50)
+    alert_rows = (await db.execute(aq)).scalars().all()
+    alerts = [
+        {
+            "alert_id": a.alert_id, "severity": a.severity, "alert_type": a.alert_type,
+            "alert_status": a.alert_status, "asset_id": a.asset_id, "rule_id": a.rule_id,
+        }
+        for a in alert_rows
+    ]
+
+    # ── Anomalies ─────────────────────────────────────────────────────────
+    anq = select(AnomalyDetection).where(func.date(AnomalyDetection.detected_at) == target_date)
+    if asset_id:
+        anq = anq.where(AnomalyDetection.asset_id == asset_id)
+    elif subdomain_id or domain_id:
+        anq = anq.join(Asset, AnomalyDetection.asset_id == Asset.asset_id)
+        if subdomain_id:
+            anq = anq.where(Asset.subdomain_id == subdomain_id)
+        else:
+            anq = anq.where(Asset.domain_id == domain_id)
+    anq = anq.order_by(desc(AnomalyDetection.detected_at)).limit(50)
+    anomaly_rows = (await db.execute(anq)).scalars().all()
+    anomalies = [
+        {
+            "detection_id": d.detection_id, "asset_id": d.asset_id, "anomaly_type": d.anomaly_type,
+            "severity": d.severity, "confidence": d.confidence,
+        }
+        for d in anomaly_rows
+    ]
+
+    return {"date": date_str, "failed_runs": failed_runs, "alerts": alerts, "anomalies": anomalies}
+
+
 @router.get("/dimensions")
 async def quality_dimensions(
     domain_id: Optional[str] = Query(None),
