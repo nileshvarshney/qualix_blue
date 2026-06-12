@@ -796,6 +796,14 @@ async def day_detail(
     """Return failed runs, alerts, and anomalies for a single date + scope, for trend drilldowns."""
     if domain_id:
         check_domain_access(user, domain_id)
+    elif asset_id:
+        asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
+        if asset:
+            check_domain_access(user, asset.domain_id)
+    elif subdomain_id:
+        sub = (await db.execute(select(Subdomain).where(Subdomain.subdomain_id == subdomain_id))).scalar_one_or_none()
+        if sub:
+            check_domain_access(user, sub.domain_id)
     domain_scope = domain_id or get_domain_filter(user)
     try:
         target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
