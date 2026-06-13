@@ -85,6 +85,7 @@ export default function IssueDetailPanel({
   })
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setAuditLoading(true)
     fetch(`/api/issues/${issue.issue_id}/audit`)
       .then(r => r.json())
