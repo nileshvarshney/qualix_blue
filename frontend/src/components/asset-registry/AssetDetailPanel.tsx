@@ -6,6 +6,7 @@ import AssetProfilingTab from './AssetProfilingTab'
 import AssetRulesTab from './AssetRulesTab'
 import AssetQualityTab from './AssetQualityTab'
 import AssetTrendsTab from './AssetTrendsTab'
+import AssetIssuesTab from './AssetIssuesTab'
 import { ScorePill } from '@/components/shared/charts'
 import { AssetQualityScore } from '@/lib/types'
 
@@ -31,6 +32,7 @@ interface Asset {
   owner_team_id?: string
   steward_user_id?: string
   domain?: string
+  domain_id?: string | null
   discovered_at?: string
   last_seen_at?: string
   connection_id?: string
@@ -38,7 +40,7 @@ interface Asset {
   source_meta?: AssetMeta
 }
 
-type Tab = 'overview' | 'profiling' | 'rules' | 'quality' | 'alerts' | 'trends'
+type Tab = 'overview' | 'profiling' | 'rules' | 'quality' | 'alerts' | 'trends' | 'issues'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -73,6 +75,7 @@ export default function AssetDetailPanel({
 }) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [qualityScore, setQualityScore] = useState<number | null>(null)
+  const [openIssueCount, setOpenIssueCount] = useState<number | null>(null)
 
   useEffect(() => {
     if (!asset) { setQualityScore(null); return }
@@ -82,6 +85,20 @@ export default function AssetDetailPanel({
       .then(r => r.json())
       .then((d: AssetQualityScore) => setQualityScore(d.overall_score))
       .catch(() => setQualityScore(null))
+  }, [asset])
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!asset) { setOpenIssueCount(null); return }
+    const leaf = asset.asset_type === 'table' || asset.asset_type === 'view'
+    if (!leaf) { setOpenIssueCount(null); return }
+    fetch(`/api/issues?asset_id=${asset.asset_id}&limit=50`)
+      .then(r => r.json())
+      .then((items: { status: string }[]) => {
+        const open = Array.isArray(items) ? items.filter(i => i.status !== 'resolved' && i.status !== 'closed').length : 0
+        setOpenIssueCount(open)
+      })
+      .catch(() => setOpenIssueCount(null))
   }, [asset])
 
   if (!asset) {
@@ -115,7 +132,7 @@ export default function AssetDetailPanel({
       {/* Tab bar — only for table/view assets */}
       {isLeaf && (
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
-          {(['overview', 'profiling', 'rules', 'quality', 'alerts', 'trends'] as Tab[]).map(tab => (
+          {(['overview', 'profiling', 'rules', 'quality', 'alerts', 'trends', 'issues'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -133,6 +150,11 @@ export default function AssetDetailPanel({
               }}
             >
               {tab}
+              {tab === 'issues' && openIssueCount !== null && openIssueCount > 0 && (
+                <span style={{ marginLeft: '4px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', borderRadius: '8px', padding: '0 5px', fontSize: '9px', fontWeight: 700 }}>
+                  {openIssueCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -210,6 +232,11 @@ export default function AssetDetailPanel({
       {/* Trends tab content */}
       {isLeaf && activeTab === 'trends' && (
         <AssetTrendsTab assetId={asset.asset_id} />
+      )}
+
+      {/* Issues tab content */}
+      {isLeaf && activeTab === 'issues' && (
+        <AssetIssuesTab assetId={asset.asset_id} domainId={asset.domain_id} />
       )}
     </div>
   )
