@@ -1,6 +1,6 @@
 'use client'
 import { useState, useMemo, useEffect, useCallback } from 'react'
-import { Rule, RuleCategory, RuleType, RuleStatus, Connection } from '@/lib/types'
+import { Rule, RuleCategory, RuleType, RuleStatus, Connection, AssetTreeNode } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { useRulesGrouping } from './useRulesGrouping'
@@ -121,6 +121,28 @@ export default function RulesClient({ initialRules, connections }: Props) {
       setForm(f => ({ ...f, connectionId: connections[0].id }))
     }
   }, [connections])
+
+  // Asset registry lookup: assetId -> "database.schema.table" qualified name
+  const [assetQualifiedNames, setAssetQualifiedNames] = useState<Record<string, string>>({})
+  useEffect(() => {
+    async function loadAssetNames() {
+      try {
+        const res = await fetch('/api/asset-registry/tree', { cache: 'no-store' })
+        if (!res.ok) return
+        const tree: AssetTreeNode[] = await res.json()
+        const map: Record<string, string> = {}
+        const walk = (nodes: AssetTreeNode[]) => {
+          for (const n of nodes) {
+            if (n.asset_type === 'table' && n.qualified_name) map[n.asset_id] = n.qualified_name
+            if (n.children?.length) walk(n.children)
+          }
+        }
+        walk(Array.isArray(tree) ? tree : [])
+        setAssetQualifiedNames(map)
+      } catch { /* ignore */ }
+    }
+    loadAssetNames()
+  }, [])
 
   // Edit form
   const [editForm, setEditForm] = useState<typeof form | null>(null)
@@ -579,12 +601,16 @@ export default function RulesClient({ initialRules, connections }: Props) {
           <div style={{ width: '24px' }}>
             <input type="checkbox" checked={allSelected} onChange={toggleSelectAll} style={{ width: '12px', height: '12px', cursor: 'pointer', accentColor: '#E8541A' }} />
           </div>
-          <div style={{ flex: 1, fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Name</div>
-          <div style={{ width: '130px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            {groupMode === 'rule-type' ? 'Target' : 'Rule Type'}
-          </div>
-          <div style={{ width: '68px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Category</div>
-          <div style={{ width: '58px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Severity</div>
+          {groupMode === 'rule-type' ? (
+            <div style={{ flex: 1, fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Target</div>
+          ) : (
+            <>
+              <div style={{ flex: 1, fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Name</div>
+              <div style={{ width: '130px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Rule Type</div>
+            </>
+          )}
+          <div style={{ width: '86px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Category</div>
+          <div style={{ width: '64px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Severity</div>
           <div style={{ width: '86px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</div>
           <div style={{ width: '60px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Last Run</div>
           <div style={{ width: '96px' }} />
@@ -692,38 +718,65 @@ export default function RulesClient({ initialRules, connections }: Props) {
                     style={{ width: '12px', height: '12px', cursor: 'pointer', accentColor: '#E8541A' }} />
                 </div>
 
-                <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                  <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-                    title={rule.name}>
-                    {rule.name}
-                    {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
-                  </span>
-                </div>
+                {groupMode === 'rule-type' ? (
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                    {(() => {
+                      const connName = connections.find(c => c.id === rule.connectionId)?.name || 'Unknown'
+                      const qualifiedName = rule.assetId ? assetQualifiedNames[rule.assetId] : undefined
+                      const path = qualifiedName ? qualifiedName.split('.') : [connName, rule.tableName]
+                      const tablePart = path[path.length - 1]
+                      const dbPath = path.slice(0, -1).join('.')
+                      const fullTitle = rule.tableName === 'ALL_TABLES'
+                        ? `${connName} · All Tables`
+                        : `${path.join('.')}${rule.columnName ? `.${rule.columnName}` : ''}`
+                      return (
+                        <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                          title={fullTitle}>
+                          {rule.tableName === 'ALL_TABLES' ? (
+                            <>
+                              <span style={{ color: 'var(--text-muted)' }}>{connName}</span>
+                              <span style={{ color: 'var(--border)' }}> · </span>
+                              <span style={{ color: '#0369a1', fontWeight: 600, fontSize: '10px' }}>All Tables</span>
+                            </>
+                          ) : (
+                            <>
+                              <span style={{ color: 'var(--text-muted)' }}>{dbPath}.</span>
+                              {tablePart}
+                              <span style={{ color: 'var(--brand-primary)' }}>{rule.columnName ? `.${rule.columnName}` : ''}</span>
+                            </>
+                          )}
+                          {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
+                        </span>
+                      )
+                    })()}
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                        title={rule.name}>
+                        {rule.name}
+                        {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
+                      </span>
+                    </div>
 
-                <div style={{ width: '130px', flexShrink: 0 }}>
-                  {groupMode === 'rule-type' ? (
-                    <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-                      title={rule.tableName === 'ALL_TABLES' ? 'All Tables' : `${rule.tableName}${rule.columnName ? `.${rule.columnName}` : ''}`}>
-                      {rule.tableName === 'ALL_TABLES'
-                        ? <span style={{ color: '#0369a1', fontWeight: 600, fontSize: '10px' }}>All Tables</span>
-                        : <>{rule.tableName}<span style={{ color: 'var(--brand-primary)' }}>{rule.columnName ? `.${rule.columnName}` : ''}</span></>}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-muted)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
-                      title={ruleTypeDef?.label || rule.type}>
-                      {ruleTypeDef?.label || rule.type}
-                    </span>
-                  )}
-                </div>
+                    <div style={{ width: '130px', flexShrink: 0 }}>
+                      <span style={{ fontSize: '9.5px', fontWeight: 600, padding: '1px 6px', borderRadius: '4px', background: 'var(--surface-muted)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                        title={ruleTypeDef?.label || rule.type}>
+                        {ruleTypeDef?.label || rule.type}
+                      </span>
+                    </div>
+                  </>
+                )}
 
-                <div style={{ width: '68px', flexShrink: 0 }}>
-                  <span style={{ padding: '1px 5px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600, background: categoryColors[rule.category] + '18', color: categoryColors[rule.category] }}>
+                <div style={{ width: '86px', flexShrink: 0, overflow: 'hidden' }}>
+                  <span style={{ padding: '1px 5px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600, background: categoryColors[rule.category] + '18', color: categoryColors[rule.category], whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%' }}>
                     {CATEGORIES.find(c => c.value === rule.category)?.label}
                   </span>
                 </div>
 
-                <div style={{ width: '58px', flexShrink: 0 }}>
-                  <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600 }}>{sev.label}</span>
+                <div style={{ width: '64px', flexShrink: 0, overflow: 'hidden' }}>
+                  <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%' }}>{sev.label}</span>
                 </div>
 
                 <div style={{ width: '86px', flexShrink: 0 }}>
