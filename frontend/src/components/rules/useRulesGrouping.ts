@@ -49,7 +49,8 @@ export function useRulesGrouping(
   connections: Connection[],
   groupMode: 'rule-type' | 'db-table',
   expandedGroups: Set<string>,
-  testResults: Record<string, { status: string; score: number }>
+  testResults: Record<string, { status: string; score: number }>,
+  assetQualifiedNames: Record<string, string> = {}
 ): RowItem[] {
   return useMemo(() => {
     const connMap = new Map(connections.map(c => [c.id, c]))
@@ -90,8 +91,11 @@ export function useRulesGrouping(
 
     for (const r of rules) {
       const conn = connMap.get(r.connectionId)
-      const db = conn?.database || '(Unknown DB)'
-      const schema = conn?.schema || '(Unknown Schema)'
+      const qualifiedName = r.assetId ? assetQualifiedNames[r.assetId] : undefined
+      const qualifiedParts = qualifiedName ? qualifiedName.split('.') : []
+      const db = qualifiedParts.length >= 3 ? qualifiedParts[qualifiedParts.length - 3] : conn?.database
+      const schema = qualifiedParts.length >= 2 ? qualifiedParts[qualifiedParts.length - 2] : conn?.schema
+      if (!db || !schema) continue
       const table = r.tableName === 'ALL_TABLES' ? '(All Tables)' : (r.tableName || '(No Table)')
       if (!tree.has(db)) tree.set(db, new Map())
       const dbMap = tree.get(db)!
@@ -135,5 +139,5 @@ export function useRulesGrouping(
       }
     }
     return rows
-  }, [rules, connections, groupMode, expandedGroups, testResults])
+  }, [rules, connections, groupMode, expandedGroups, testResults, assetQualifiedNames])
 }

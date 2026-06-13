@@ -243,7 +243,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     return counts
   }, [rules])
 
-  const rows = useRulesGrouping(filtered, connections, groupMode, expandedGroups, testResults)
+  const rows = useRulesGrouping(filtered, connections, groupMode, expandedGroups, testResults, assetQualifiedNames)
 
   const allSelected = filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
 
