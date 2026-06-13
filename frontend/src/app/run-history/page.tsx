@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import RunDetailPanel from '@/components/shared/RunDetailPanel'
 
 type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
 type FilterType = 'all' | 'running' | 'succeeded' | 'failed' | 'cancelled'
@@ -58,6 +59,7 @@ function RunHistoryInner() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<FilterType>('all')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [selectedRun, setSelectedRun] = useState<{ jobId: string; runId: string } | null>(null)
 
   useEffect(() => {
     const url = jobFilter
@@ -204,11 +206,11 @@ function RunHistoryInner() {
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{fmtDuration(run.duration_seconds)}</span>
                 <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{run.assets_scanned}</span>
 
-                <Link href={`/scan-jobs/${run.job_id}/runs/${run.run_id}`}
-                  onClick={e => e.stopPropagation()}
-                  style={{ fontSize: '10px', color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                <button
+                  onClick={e => { e.stopPropagation(); setSelectedRun({ jobId: run.job_id, runId: run.run_id }) }}
+                  style={{ fontSize: '10px', color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
                   Detail →
-                </Link>
+                </button>
               </div>
 
               {isExpanded && run.error_message && (
@@ -221,6 +223,16 @@ function RunHistoryInner() {
           )
         })}
       </div>
+
+      {selectedRun && (
+        <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(640px, 92vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 900, display: 'flex' }}>
+          <RunDetailPanel
+            jobId={selectedRun.jobId}
+            runId={selectedRun.runId}
+            onClose={() => setSelectedRun(null)}
+          />
+        </div>
+      )}
     </div>
   )
 }
