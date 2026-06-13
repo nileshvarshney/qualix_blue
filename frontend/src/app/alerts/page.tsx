@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import CreateIssueModal from '@/components/issues/CreateIssueModal'
 
 type Severity = 'critical' | 'high' | 'medium' | 'info'
 type AlertFilter = 'all' | 'unacked' | 'critical' | 'high'
@@ -12,7 +13,7 @@ interface RecentAlert {
   message: string; channel: string; ts: string; ack: boolean
   rootCause: string; impact: string; recommendation: string
   affectedRecords: number; pipeline: string; alertType: string
-  runId: string | null
+  runId: string | null; assetId: string | null; ruleId: string | null
 }
 
 interface AlertDefinition {
@@ -239,6 +240,8 @@ export default function AlertsPage() {
   const [popupAlert, setPopupAlert] = useState<RecentAlert | null>(null)
   const [popupRule, setPopupRule] = useState<AlertDefinition | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [showCreateIssue, setShowCreateIssue] = useState(false)
+  const [issueCreatedMsg, setIssueCreatedMsg] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/alerts')
@@ -261,6 +264,8 @@ export default function AlertsPage() {
           pipeline: String(a.pipeline ?? ''),
           alertType: String(a.alert_type ?? 'rule_failure'),
           runId: a.run_id ? String(a.run_id) : null,
+          assetId: a.asset_id ? String(a.asset_id) : null,
+          ruleId: a.rule_id ? String(a.rule_id) : null,
         })))
         setLoading(false)
       })
@@ -335,7 +340,7 @@ export default function AlertsPage() {
     return true
   }).filter(r => !search || r.name.toLowerCase().includes(lowerSearch) || r.trigger_type.includes(lowerSearch))
 
-  const closePopup = () => { setPopupAlert(null); setPopupRule(null) }
+  const closePopup = () => { setPopupAlert(null); setPopupRule(null); setShowCreateIssue(false); setIssueCreatedMsg(null) }
 
   function fmtTs(ts: string | null) {
     if (!ts) return '—'
@@ -506,14 +511,22 @@ export default function AlertsPage() {
                       </div>
                     )}
                   </div>
-                  <div style={{ padding: '0 14px 14px', display: 'flex', gap: '6px' }}>
-                    {!popupAlert.ack && (
-                      <button onClick={e => { ack(popupAlert.id, e); closePopup() }} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>✓ Acknowledge</button>
-                    )}
-                    {popupAlert.runId && (
-                      <Link href={`/rule-runs/${popupAlert.runId}`} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', textDecoration: 'none', fontWeight: 600 }}>
-                        🔍 View Evidence
-                      </Link>
+                  <div style={{ padding: '0 14px 14px', display: 'flex', gap: '6px', flexDirection: 'column' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {!popupAlert.ack && (
+                        <button onClick={e => { ack(popupAlert.id, e); closePopup() }} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>✓ Acknowledge</button>
+                      )}
+                      {popupAlert.runId && (
+                        <Link href={`/rule-runs/${popupAlert.runId}`} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--accent-bg)', background: 'var(--accent-bg)', color: 'var(--accent)', fontSize: '11px', textDecoration: 'none', fontWeight: 600 }}>
+                          🔍 View Evidence
+                        </Link>
+                      )}
+                      <button onClick={() => setShowCreateIssue(true)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
+                        🐞 Create Issue
+                      </button>
+                    </div>
+                    {issueCreatedMsg && (
+                      <div style={{ fontSize: '11px', color: 'var(--status-ok-text)' }}>{issueCreatedMsg}</div>
                     )}
                   </div>
                 </>
@@ -594,6 +607,25 @@ export default function AlertsPage() {
             })()}
           </div>
         </>
+      )}
+
+      {showCreateIssue && popupAlert && (
+        <CreateIssueModal
+          prefill={{
+            issueType: 'alert',
+            alertId: popupAlert.id,
+            assetId: popupAlert.assetId,
+            ruleId: popupAlert.ruleId,
+            runId: popupAlert.runId,
+            severity: popupAlert.severity === 'info' ? 'low' : popupAlert.severity,
+            title: popupAlert.rule,
+          }}
+          onClose={() => setShowCreateIssue(false)}
+          onCreated={issue => {
+            setShowCreateIssue(false)
+            setIssueCreatedMsg(`Issue ${issue.issue_id.slice(0, 8)} created`)
+          }}
+        />
       )}
 
       {showCreate && (
