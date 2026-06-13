@@ -127,7 +127,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
   function cancelRun() {
     setCancelling(true)
     fetch(`/api/scan-jobs/${jobId}/runs/${runId}`, { method: 'POST' })
-      .then(() => setRun(r => r ? { ...r, status: 'cancelled' } : r))
+      .then(res => { if (res.ok) setRun(r => r ? { ...r, status: 'cancelled' } : r) })
       .catch(() => {})
       .finally(() => setCancelling(false))
   }
@@ -231,7 +231,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
             {!loadingLogs && filteredLogs.map((entry, idx) => {
               const ls = LOG_STYLE[entry.level] ?? LOG_STYLE.INFO
               return (
-                <div key={entry.log_id} style={{ display: 'flex', gap: '12px', padding: '3px 16px', background: idx % 2 === 0 ? 'transparent' : 'var(--surface-muted)', borderBottom: '1px solid var(--border)' + '20', ...('bg' in ls && ls.bg !== 'transparent' ? { background: ls.bg } : {}) }}>
+                <div key={entry.log_id} style={{ display: 'flex', gap: '12px', padding: '3px 16px', background: idx % 2 === 0 ? 'transparent' : 'var(--surface-muted)', borderBottom: '1px solid var(--border)', ...('bg' in ls && ls.bg !== 'transparent' ? { background: ls.bg } : {}) }}>
                   <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0, fontSize: '10px', paddingTop: '1px' }}>
                     {entry.logged_at ? new Date(entry.logged_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
                   </span>
