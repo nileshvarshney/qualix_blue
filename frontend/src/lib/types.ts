@@ -265,3 +265,57 @@ export interface DayDetail {
   alerts: DayDetailAlert[]
   anomalies: DayDetailAnomaly[]
 }
+
+export type IssueType = 'rule_failure' | 'alert' | 'failed_run' | 'manual'
+export type IssueStatus = 'new' | 'confirmed' | 'in_progress' | 'blocked' | 'resolved' | 'closed' | 'reopened'
+export type IssueSeverity = 'critical' | 'high' | 'medium' | 'low'
+
+export interface Issue {
+  issue_id: string
+  title: string
+  description: string | null
+  issue_type: IssueType
+  status: IssueStatus
+  severity: IssueSeverity
+  domain_id: string | null
+  subdomain_id: string | null
+  asset_id: string | null
+  source_id: string | null
+  rule_id: string | null
+  run_id: string | null
+  alert_id: string | null
+  assigned_team_id: string | null
+  assigned_to: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+  resolved_at: string | null
+  closed_at: string | null
+  reopen_count: number
+  resolution_note: string | null
+  asset_name?: string | null
+  sf_database_name?: string | null
+  sf_schema_name?: string | null
+  sf_table_name?: string | null
+  rule_name?: string | null
+  assigned_team_name?: string | null
+}
+
+export interface IssueAuditEntry {
+  audit_id: string
+  user_email: string | null
+  action: string
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
+  created_at: string
+}
+
+export const ISSUE_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
+  new:         ['confirmed', 'closed'],
+  confirmed:   ['in_progress', 'closed'],
+  in_progress: ['blocked', 'resolved', 'confirmed'],
+  blocked:     ['in_progress'],
+  resolved:    ['closed', 'reopened'],
+  closed:      ['reopened'],
+  reopened:    ['confirmed', 'in_progress'],
+}
