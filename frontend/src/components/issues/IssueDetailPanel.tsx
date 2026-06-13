@@ -165,7 +165,7 @@ export default function IssueDetailPanel({
 
   const sev = SEV_CFG[issue.severity]
   const st = ST_CFG[issue.status]
-  const nextStatuses = ISSUE_TRANSITIONS[issue.status] ?? []
+  const nextStatuses = (ISSUE_TRANSITIONS[issue.status] ?? []).filter(s => s !== 'reopened')
   const canReopen = issue.status === 'resolved' || issue.status === 'closed'
 
   return (
