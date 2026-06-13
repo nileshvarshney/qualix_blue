@@ -1,10 +1,11 @@
-# Scheduled Rules: Per-Rule Run, Status, and Failure Detail
+# Scheduled Rules: Side Drawer with Per-Rule Run, Status, and Failure Detail
 
 ## Problem
 
-On the Schedules page, expanding a table schedule shows a "Scheduled Rules"
-list (`bundledRules`). Today each rule only shows severity, name, and
-description, with a "Pause" button. This is missing:
+On the Schedules page, clicking a table schedule row expands an inline panel
+showing a "Scheduled Rules" list (`bundledRules`) and any last-run issues.
+Today each rule only shows severity, name, and description, with a "Pause"
+button. This is missing:
 
 - Any way to run a single rule on demand.
 - Last-run result, timestamp, duration, and next-run time per rule.
@@ -12,6 +13,10 @@ description, with a "Pause" button. This is missing:
   entirely (table-level query filters `DQRule.is_active == True`), so paused
   rules silently disappear with no way to unpause from this view.
 - Failed rules show no detail about what failed.
+
+Additionally, the inline expand panel is cramped. We're replacing it with a
+right-side drawer (following the `RunDetailPanel` pattern already used on the
+Run History page), giving each rule room for full detail.
 
 ## Design
 
@@ -50,9 +55,7 @@ Add to each `bundled_rules` entry:
 - `failed_rows_count`, `total_rows_scanned`, `failure_percentage`,
   `error_message`, `ai_explanation` from `run` (all `None` if no run exists)
 
-### Frontend: `frontend/src/app/schedules/page.tsx`
-
-#### Types
+### Frontend: types and mapping (`frontend/src/app/schedules/page.tsx`)
 
 Extend `BundledRule`:
 
@@ -82,32 +85,65 @@ fields).
 Add a `formatDuration(ms: number | null): string` helper: `null` → `"—"`,
 `< 1000` → `"850ms"`, `< 60000` → `"1.4s"`, else `"1m 23s"`.
 
-#### Rule row layout
+### Replace inline expand with a side drawer
 
-Each bundled rule renders as a row using the **same grid** as the schedule
-row (`GRID = '1fr 100px 80px 80px 90px 90px 110px auto'`) with the same
-`gap`/padding, so it aligns under the existing column header:
+Remove the existing inline expand panel (the `isExpanded` block rendering
+"Scheduled Rules" and "Last Run Issues" under the row). Clicking a schedule
+row instead sets `selectedId` state, which renders a new
+`ScheduleDetailDrawer` component.
 
-| Column | Content |
-|---|---|
-| Schedule · Cron | severity badge + rule name + description |
-| Last Run | `lastRunAt` formatted, or "—" |
-| Result | badge: ✓ passed / ✕ failed / ⚠ warning / "—" if never run. For failed rules, badge text becomes `"✕ failed · {failedRowsCount} rows ▾"` and is clickable. |
-| Next Run | `nextRun` formatted, or "—" for paused/never-scheduled |
-| Duration | `formatDuration(lastDurationMs)` |
-| Rules | "—" (column doesn't apply to a single rule) |
-| Status | "active" or "paused" badge (muted style for paused) |
-| Actions | pause/unpause icon button + Run button |
+#### New component: `ScheduleDetailDrawer`
 
-Paused rules (`status === 'disabled'`): row rendered with reduced opacity /
-muted background (matching `STATUS_STYLE.paused`), Status badge shows
-"paused", Next Run shows "—".
+New file: `frontend/src/components/shared/ScheduleDetailDrawer.tsx`
+
+- Props: `schedule: Schedule`, `onClose: () => void`, plus action callbacks
+  `onRunSchedule`, `onToggleSchedule`, `onRunRule`, `onSetRuleStatus` (all
+  delegate to the existing/new handlers in the page, which call
+  `refreshSchedules()` on completion).
+- No separate fetch needed — `scheduleList` already contains `bundledRules`
+  and `issues` for every schedule, so the drawer just renders the passed-in
+  `schedule` object. When `refreshSchedules()` updates `scheduleList`, the
+  drawer re-renders with fresh data automatically (parent looks up
+  `scheduleList.find(s => s.id === selectedId)` each render).
+- Positioning matches `RunDetailPanel`: `position: fixed, top: 0, right: 0,
+  bottom: 0, width: min(640px, 92vw)`, border-left, shadow, z-index above
+  page content.
+- Clicking a different schedule row while the drawer is open swaps
+  `selectedId` directly — the drawer re-renders for the new schedule without
+  closing.
+
+#### Drawer header
+
+- Table FQN (`schedule.tableFqn`), cron summary (`human`/`cron`), last run /
+  next run / duration summary line.
+- Schedule-level result badge (`lastRunStatus`).
+- Actions: "▶ Run Now" (`onRunSchedule`), pause/resume icon
+  (`onToggleSchedule`), close button (`onClose`).
+
+#### Drawer body — "Scheduled Rules" section
+
+Heading: `Scheduled Rules — {bundledRules.length}`.
+
+Each rule renders as a two-line card:
+
+- **Line 1**: severity badge, rule name, rule description (truncated), and
+  right-aligned action buttons — "▶ Run" / "⏳" while running
+  (`onRunRule`), and pause/unpause icon (`onSetRuleStatus`).
+- **Line 2** (muted, small text): `Last run: {lastRunAt formatted}`, result
+  badge (✓ passed / ✕ failed / ⚠ warning / nothing if never run), `Next run:
+  {nextRun formatted or "—"}`, `Duration: {formatDuration(lastDurationMs)}`.
+  For rules that have never run, show `Never run · Next run: {nextRun}`.
+
+Paused rules (`status === 'disabled'`): card rendered with reduced opacity /
+muted background, a "Paused" badge next to the severity badge, "Next run: —",
+and the pause icon replaced with "▶" (unpause).
 
 #### Failed-rule expand
 
-Clicking the Result badge of a failed rule (only) toggles a per-rule expanded
-state (`expandedRuleId`, separate from the schedule's `expandedId`). When
-expanded, render a detail card below the row using the existing issue-card
+For a rule whose `lastRunStatus === 'failed'`, the result badge on line 2
+becomes `"✕ failed · {failedRowsCount} rows ▾"` and is clickable, toggling a
+per-rule expanded state (`expandedRuleId`, local to the drawer). When
+expanded, render a detail card below the card using the existing issue-card
 two-column style (`Root Cause` / `Impact`):
 
 - Root Cause: `aiExplanation` if present, else a generated sentence from
@@ -117,25 +153,36 @@ two-column style (`Root Cause` / `Impact`):
 - Impact: `errorMessage` if `aiExplanation` was used for Root Cause, else
   omit the Impact column (single-column card).
 
-#### Actions
+#### Drawer body — "Last Run Issues" section
 
-- **Run**: new `runRule(ruleId: string)`:
+Below "Scheduled Rules", if `schedule.issues.length > 0`, render the existing
+issue cards (currently rendered in the inline expand panel) unchanged.
+
+### Actions
+
+- **Run rule**: new `runRule(ruleId: string)` in the page:
   - Tracks in-flight state via `runningRuleId` (separate from schedule-level
     `runningId`).
   - `POST /api/rules/{ruleId}/run` (existing proxy →
     `/execute/rule/{rule_id}/sync`).
-  - Button shows "▶ Run" normally, "⏳" while in flight (icon-only, matching
-    the pause/unpause icon button size).
-  - On completion (success or error), call `refreshSchedules()` to pick up
-    updated last-run data.
+  - On completion (success or error), call `refreshSchedules()`.
 
-- **Pause/Unpause**: generalize existing `pauseRule(ruleId)` to
+- **Pause/Unpause rule**: generalize existing `pauseRule(ruleId)` to
   `setRuleStatus(ruleId: string, status: 'active' | 'disabled')`:
   - `PATCH /api/rules/{ruleId}/status` with `{ status }`.
-  - Button shows "⏸" when `status === 'active'` (pauses → sends
-    `'disabled'`), "▶" when `'disabled'` (unpauses → sends `'active'`).
+  - Icon shows "⏸" when `status === 'active'` (pauses → sends `'disabled'`),
+    "▶" when `'disabled'` (unpauses → sends `'active'`).
   - Tracked via existing `pausingRuleId` loading state.
   - On completion, `refreshSchedules()`.
+
+### Page-level changes summary (`frontend/src/app/schedules/page.tsx`)
+
+- Remove `expandedId`, `canExpand`, and the inline expand panel JSX.
+- Add `selectedId: string | null` state; clicking a schedule row toggles it
+  (click again or close button → `null`).
+- When `selectedId` is set, render `<ScheduleDetailDrawer schedule={...} ... />`.
+- Existing per-row "▶ Run" / pause icons in the list stay as-is (operate on
+  the whole schedule), independent of the drawer.
 
 ## Out of scope
 
@@ -143,4 +190,4 @@ two-column style (`Root Cause` / `Impact`):
   cron; "Next Run" is read-only and derived from the schedule.
 - No run-history list per rule (only the single latest run is shown inline).
   Linking to a fuller rule run-history view is a future enhancement.
-- No changes to the schedule-level row/columns themselves.
+- No changes to the schedule-level row/columns in the main list.
