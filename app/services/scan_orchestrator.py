@@ -214,7 +214,7 @@ async def _execute_run(run_id: str) -> bool:
             run.assets_scanned = metrics.get("assets_scanned", 0)
             run.errors_count = metrics.get("errors_count", 0)
             run.warnings_count = metrics.get("warnings_count", 0)
-            run.error_message = error_msg
+            run.error_message = error_msg or metrics.get("error_message")
             run.result_summary = metrics.get("result_summary") or None
 
             job = await db.get(ScanJob, job_id)
@@ -354,6 +354,10 @@ async def _run_metadata_discovery(
     new_assets = sum(1 for r in results if r.get("status") == "imported")
     # "skipped" means already-in-catalog — discovery still refreshed its metadata
     updated_assets = sum(1 for r in results if r.get("status") == "skipped")
+    errors = [
+        f"{r.get('database')}.{r.get('schema')}.{r.get('table_name')}: {r.get('reason')}"
+        for r in results if r.get("status") == "error"
+    ]
 
     await append_log(
         run_id, "INFO",
@@ -364,6 +368,7 @@ async def _run_metadata_discovery(
         "assets_scanned": completed,
         "errors_count": failed,
         "warnings_count": 0,
+        "error_message": "; ".join(errors)[:2000] if errors else None,
         "result_summary": {
             "tables_scanned": completed,
             "tables_failed": failed,
@@ -411,6 +416,7 @@ async def _run_profile_scan(
 
     profiled = metrics.get("assets_profiled", 0)
     failed = metrics.get("assets_failed", 0)
+    errors = metrics.get("errors", [])
     await append_log(
         run_id, "INFO",
         f"Profile scan complete: {profiled} profiled, {failed} failed",
@@ -419,6 +425,7 @@ async def _run_profile_scan(
         "assets_scanned": profiled,
         "errors_count": failed,
         "warnings_count": 0,
+        "error_message": "; ".join(errors)[:2000] if errors else None,
         "result_summary": {
             "tables_profiled": profiled,
             "tables_failed": failed,

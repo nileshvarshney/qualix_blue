@@ -17,6 +17,7 @@ interface ScanJob {
   is_active: boolean
   last_run_status: LastRunStatus
   last_run_at: string | null
+  last_run_error_message: string | null
   created_at: string
 }
 
@@ -44,6 +45,66 @@ const FREQ_LABEL: Record<string, string> = {
 
 const GRID = '1fr 140px 90px 90px 100px 90px auto'
 
+interface ErrorInsight { title: string; suggestion: string }
+
+const ERROR_PATTERNS: { pattern: RegExp; title: string; suggestion: string }[] = [
+  {
+    pattern: /password authentication failed|authentication failed|invalid credentials|access denied for user|incorrect username or password|login failed/i,
+    title: 'Authentication failed',
+    suggestion: "The stored username or password for this connection was rejected. Edit the connection and re-enter the correct credentials.",
+  },
+  {
+    pattern: /could not connect|connection refused|econnrefused|no route to host|host.*unreachable|name or service not known/i,
+    title: 'Could not reach the database',
+    suggestion: 'Check that the host and port are correct, the database is running, and any firewall or VPN allows access from this server.',
+  },
+  {
+    pattern: /timed out|timeout/i,
+    title: 'Connection timed out',
+    suggestion: 'The database took too long to respond. Verify network connectivity, or increase the job timeout if the source is just slow.',
+  },
+  {
+    pattern: /permission denied|insufficient privileges|not authorized|access is denied/i,
+    title: 'Permission denied',
+    suggestion: "The connection's account lacks the privileges needed for this scan. Grant the required access or use an account with broader permissions.",
+  },
+  {
+    pattern: /does not exist|not found|unknown database|unknown table|no such table|no such database/i,
+    title: 'Database object not found',
+    suggestion: 'A referenced database, schema, or table may have been renamed or dropped. Re-run discovery or update the job’s configuration.',
+  },
+  {
+    pattern: /ssl|certificate/i,
+    title: 'SSL/TLS connection error',
+    suggestion: 'Check the SSL settings for this connection (certificate, sslmode) and ensure the database accepts secure connections from this server.',
+  },
+  {
+    pattern: /decrypt|fernet|invalid token/i,
+    title: 'Stored credentials could not be read',
+    suggestion: 'The saved password for this connection could not be decrypted. Open the connection settings and re-enter the password to save it again.',
+  },
+  {
+    pattern: /driver|module.*not installed|no module named/i,
+    title: 'Database driver missing',
+    suggestion: "A required database driver isn't installed on the server. Contact your administrator to install the missing dependency.",
+  },
+  {
+    pattern: /rate limit|too many connections|too many requests/i,
+    title: 'Rejected by the database',
+    suggestion: 'The database rejected the connection, likely due to too many concurrent connections. Try again later or reduce job concurrency.',
+  },
+]
+
+function classifyError(message: string): ErrorInsight {
+  for (const { pattern, title, suggestion } of ERROR_PATTERNS) {
+    if (pattern.test(message)) return { title, suggestion }
+  }
+  return {
+    title: 'Scan failed',
+    suggestion: 'Review the run logs for the full error details, or contact your administrator if this keeps happening.',
+  }
+}
+
 function mapJob(j: Record<string, unknown>, i: number): ScanJob {
   return {
     job_id:             String(j.job_id ?? j.id ?? i),
@@ -63,6 +124,7 @@ function mapJob(j: Record<string, unknown>, i: number): ScanJob {
                           ? (j.last_run_status as LastRunStatus)
                           : null,
     last_run_at:        typeof j.last_run_at === 'string' ? j.last_run_at : null,
+    last_run_error_message: typeof j.last_run_error_message === 'string' ? j.last_run_error_message : null,
     created_at:         String(j.created_at ?? ''),
   }
 }
@@ -73,6 +135,7 @@ export default function ScanJobsPage() {
   const [filter, setFilter]               = useState<FilterType>('all')
   const [runningId, setRunningId]         = useState<string | null>(null)
   const [collapsedConns, setCollapsedConns] = useState<Set<string>>(new Set())
+  const [expandedJob, setExpandedJob]     = useState<string | null>(null)
   const [showCreate, setShowCreate]       = useState(false)
   const [jobForm, setJobForm]             = useState({
     job_name: '', job_type: 'metadata_discovery', connection_id: '',
@@ -277,9 +340,12 @@ export default function ScanJobsPage() {
                 <div style={{ marginLeft: '16px', marginBottom: '2px', borderLeft: '2px solid var(--border)' }}>
                   {connJobs.map(job => {
                     const rs = job.last_run_status ? RUN_STYLE[job.last_run_status] ?? RUN_STYLE.queued : null
+                    const hasError = job.last_run_status === 'failed' && !!job.last_run_error_message
+                    const isExpanded = expandedJob === job.job_id
                     return (
-                      <div key={job.job_id}
-                        style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '5px 8px', background: 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', minHeight: '32px' }}>
+                      <div key={job.job_id}>
+                      <div
+                        style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '5px 8px', background: isExpanded ? 'var(--surface-muted)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', minHeight: '32px' }}>
 
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{job.job_name}</div>
@@ -326,7 +392,29 @@ export default function ScanJobsPage() {
                             style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
                             Runs
                           </Link>
+                          {hasError && (
+                            <button onClick={() => setExpandedJob(isExpanded ? null : job.job_id)}
+                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #fca5a5', background: isExpanded ? '#fee2e2' : 'var(--surface)', color: '#dc2626', fontSize: '10px', cursor: 'pointer', fontWeight: 600 }}>
+                              {isExpanded ? 'Hide' : 'View Error'}
+                            </button>
+                          )}
                         </div>
+                      </div>
+                      {isExpanded && job.last_run_error_message && (() => {
+                        const insight = classifyError(job.last_run_error_message)
+                        return (
+                          <div style={{ background: '#fee2e2', borderBottom: '1px solid #fca5a5', padding: '10px 16px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>{insight.title}</div>
+                            <div style={{ fontSize: '10px', color: '#7f1d1d', marginBottom: '8px' }}>
+                              <span style={{ fontWeight: 600 }}>Suggested fix: </span>{insight.suggestion}
+                            </div>
+                            <details>
+                              <summary style={{ fontSize: '10px', color: '#dc2626', cursor: 'pointer' }}>Show technical details</summary>
+                              <pre style={{ margin: '6px 0 0', fontSize: '10px', color: '#7f1d1d', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{job.last_run_error_message}</pre>
+                            </details>
+                          </div>
+                        )
+                      })()}
                       </div>
                     )
                   })}

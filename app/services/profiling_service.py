@@ -93,7 +93,10 @@ async def profile_table(
         if not conn_record:
             raise ValueError(f"Connection {connection_id} not found")
 
-    config = config_from_orm(conn_record)
+        from app.api.connections import _decrypt_password
+        config = config_from_orm(conn_record)
+        config.password = _decrypt_password(conn_record)
+
     connector = get_connector(config)
 
     rows = await connector.sample_rows(database, schema, table, limit=10000)
@@ -256,6 +259,7 @@ async def profile_all_assets(
 
     profiled = 0
     failed = 0
+    errors: list[str] = []
 
     for asset, meta in rows:
         coords = _resolve_coords(asset, meta)
@@ -277,5 +281,6 @@ async def profile_all_assets(
         except Exception as exc:
             failed += 1
             logger.error("Failed to profile %s.%s.%s: %s", database, schema, table, exc)
+            errors.append(f"{database}.{schema}.{table}: {exc}")
 
-    return {"assets_profiled": profiled, "assets_failed": failed}
+    return {"assets_profiled": profiled, "assets_failed": failed, "errors": errors}

@@ -62,7 +62,20 @@ async def list_scan_jobs(
         q = q.where(ScanJob.connection_id == connection_id)
     q = q.order_by(desc(ScanJob.created_at))
     jobs = (await db.execute(q)).scalars().all()
-    return [_job_dict(j) for j in jobs]
+
+    failed_ids = [j.job_id for j in jobs if j.last_run_status == "failed"]
+    error_by_job: dict[str, str] = {}
+    if failed_ids:
+        runs_q = (
+            select(ScanJobRun)
+            .where(ScanJobRun.job_id.in_(failed_ids))
+            .where(ScanJobRun.error_message.isnot(None))
+            .order_by(desc(ScanJobRun.created_at))
+        )
+        for run in (await db.execute(runs_q)).scalars().all():
+            error_by_job.setdefault(run.job_id, run.error_message)
+
+    return [_job_dict(j, last_run_error_message=error_by_job.get(j.job_id)) for j in jobs]
 
 
 @router.get("/{job_id}")
@@ -217,7 +230,7 @@ async def cancel_run(
 
 # ─── Serializers ──────────────────────────────────────────────────────────────
 
-def _job_dict(job: ScanJob) -> dict:
+def _job_dict(job: ScanJob, last_run_error_message: Optional[str] = None) -> dict:
     return {
         "job_id": job.job_id,
         "connection_id": job.connection_id,
@@ -232,6 +245,7 @@ def _job_dict(job: ScanJob) -> dict:
         "parameters": job.parameters,
         "last_run_at": job.last_run_at.isoformat() if job.last_run_at else None,
         "last_run_status": job.last_run_status,
+        "last_run_error_message": last_run_error_message,
         "created_by": job.created_by,
         "created_at": job.created_at.isoformat(),
         "updated_at": job.updated_at.isoformat(),
