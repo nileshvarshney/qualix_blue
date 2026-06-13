@@ -57,7 +57,7 @@ const FREQ_LABEL: Record<string, string> = {
   weekly: 'Weekly', monthly: 'Monthly', cron: 'Custom',
 }
 
-const GRID = '1fr 140px 90px 90px 100px 90px auto'
+const GRID = '1fr 140px 90px 90px 100px 90px 230px'
 
 interface ErrorInsight { title: string; suggestion: string }
 
@@ -150,6 +150,7 @@ export default function ScanJobsPage() {
   const [collapsedConns, setCollapsedConns] = useState<Set<string>>(new Set())
   const [expandedJob, setExpandedJob]     = useState<string | null>(null)
   const [showCreate, setShowCreate]       = useState(false)
+  const [editingJobId, setEditingJobId]   = useState<string | null>(null)
   const [jobForm, setJobForm]             = useState({
     job_name: '', job_type: 'metadata_discovery', connection_id: '',
     schedule_frequency: 'daily', cron_expr: '',
@@ -198,34 +199,59 @@ export default function ScanJobsPage() {
   }, {})
   const conns = Object.keys(byConn).sort()
 
-  async function createJob() {
+  function openEdit(job: ScanJob) {
+    setEditingJobId(job.job_id)
+    setJobForm({
+      job_name: job.job_name,
+      job_type: job.job_type,
+      connection_id: job.connection_id ?? '',
+      schedule_frequency: job.schedule_frequency,
+      cron_expr: job.cron_expr ?? '',
+    })
+    setCreateError(null)
+    setShowCreate(true)
+  }
+
+  function closeJobDialog() {
+    setShowCreate(false)
+    setEditingJobId(null)
+    setCreateError(null)
+    setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' })
+  }
+
+  async function saveJob() {
     if (!jobForm.job_name) return
     setJobSaving(true)
     try {
-      const res = await fetch('/api/scan-jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          job_name: jobForm.job_name,
-          job_type: jobForm.job_type,
-          connection_id: jobForm.connection_id || null,
-          schedule_frequency: jobForm.schedule_frequency,
-          cron_expr: jobForm.schedule_frequency === 'cron' ? jobForm.cron_expr : null,
-          is_active: true,
-        }),
-      })
-      if (!res.ok) throw new Error(`Failed to create job: ${res.status}`)
-      // Re-fetch jobs list after successful create
+      const body = {
+        job_name: jobForm.job_name,
+        job_type: jobForm.job_type,
+        connection_id: jobForm.connection_id || null,
+        schedule_frequency: jobForm.schedule_frequency,
+        cron_expr: jobForm.schedule_frequency === 'cron' ? jobForm.cron_expr : null,
+      }
+      const res = editingJobId
+        ? await fetch('/api/scan-jobs', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: editingJobId, ...body }),
+          })
+        : await fetch('/api/scan-jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...body, is_active: true }),
+          })
+      if (!res.ok) throw new Error(`Failed to save job: ${res.status}`)
+      // Re-fetch jobs list after successful save
       const listRes = await fetch('/api/scan-jobs')
       if (!listRes.ok) throw new Error('Failed to reload jobs')
       const data: Record<string, unknown>[] = await listRes.json()
       const items: ScanJob[] = (Array.isArray(data) ? data : []).map(mapJob)
       setJobs(items)
-      setShowCreate(false)
-      setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' })
+      closeJobDialog()
     } catch (err) {
       console.error(err)
-      setCreateError('Failed to create job. Please try again.')
+      setCreateError(editingJobId ? 'Failed to update job. Please try again.' : 'Failed to create job. Please try again.')
     } finally {
       setJobSaving(false)
     }
@@ -275,7 +301,7 @@ export default function ScanJobsPage() {
             {loading ? 'Loading…' : `${jobs.length} job${jobs.length !== 1 ? 's' : ''} · ${totalActive} active${totalFailed > 0 ? ` · ${totalFailed} failing` : ''}`}
           </div>
         </div>
-        <button onClick={() => { setShowCreate(true); setCreateError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={() => { setEditingJobId(null); setShowCreate(true); setCreateError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
           + New Job
         </button>
       </div>
@@ -294,24 +320,9 @@ export default function ScanJobsPage() {
         })}
       </div>
 
-      {/* filter chips */}
-      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-        {(['all', 'active', 'inactive', 'failed'] as FilterType[]).map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '4px 12px', borderRadius: '20px', border: '1px solid', fontSize: 'var(--text-xs)', cursor: 'pointer',
-            fontWeight: filter === f ? 600 : 400,
-            borderColor: filter === f ? 'var(--foreground)' : 'var(--border)',
-            background: filter === f ? 'var(--foreground)' : 'var(--surface)',
-            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
-          }}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
-      </div>
-
       {/* column header */}
       {!loading && filtered.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', padding: '0 24px', flexShrink: 0, borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', padding: '0 8px', marginLeft: '18px', flexShrink: 0, borderBottom: '1px solid var(--border)', paddingBottom: '4px' }}>
           {['Job · Type', 'Schedule', 'Last Run', 'Status', 'Created', 'Active', 'Actions'].map((h, i) => (
             <span key={i} style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
           ))}
@@ -401,9 +412,13 @@ export default function ScanJobsPage() {
                             style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
                             {job.is_active ? '⏸' : '▶'}
                           </button>
+                          <button onClick={() => openEdit(job)}
+                            style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
+                            Edit
+                          </button>
                           <Link href={`/run-history?job=${job.job_id}`}
                             style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
-                            Runs
+                            History
                           </Link>
                           {hasError && (
                             <button onClick={() => setExpandedJob(isExpanded ? null : job.job_id)}
@@ -441,7 +456,7 @@ export default function ScanJobsPage() {
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>New Scan Job</div>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>{editingJobId ? 'Edit Scan Job' : 'New Scan Job'}</div>
             <div>
               <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Job Name *</label>
               <input value={jobForm.job_name} onChange={e => setJobForm(p => ({ ...p, job_name: e.target.value }))}
@@ -484,11 +499,11 @@ export default function ScanJobsPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCreate(false); setCreateError(null); setJobForm({ job_name: '', job_type: 'metadata_discovery', connection_id: '', schedule_frequency: 'daily', cron_expr: '' }) }}
+              <button onClick={closeJobDialog}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={createJob} disabled={jobSaving || !jobForm.job_name}
+              <button onClick={saveJob} disabled={jobSaving || !jobForm.job_name}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (jobSaving || !jobForm.job_name) ? 'not-allowed' : 'pointer', opacity: (jobSaving || !jobForm.job_name) ? 0.6 : 1 }}>
-                {jobSaving ? 'Creating…' : 'Create Job'}
+                {jobSaving ? (editingJobId ? 'Saving…' : 'Creating…') : (editingJobId ? 'Save Changes' : 'Create Job')}
               </button>
             </div>
           </div>
