@@ -1,8 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 
-type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
 type LogLevel  = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL'
 
 interface RunDetail {
@@ -32,11 +32,13 @@ interface LogEntry {
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
-  completed: { background: '#f0fdf4', color: '#16a34a' },
-  failed:    { background: '#fee2e2', color: '#dc2626' },
-  running:   { background: '#eff6ff', color: '#2563eb' },
-  queued:    { background: '#fef3c7', color: '#d97706' },
-  cancelled: { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
+  partial_success: { background: '#fffbeb', color: '#d97706' },
+  failed:          { background: '#fee2e2', color: '#dc2626' },
+  timed_out:       { background: '#fee2e2', color: '#dc2626' },
+  running:         { background: '#eff6ff', color: '#2563eb' },
+  queued:          { background: '#fef3c7', color: '#d97706' },
+  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
 }
 
 const LOG_STYLE: Record<LogLevel, { color: string; bg: string }> = {
@@ -61,8 +63,8 @@ function fmtTs(ts: string | null): string {
   })
 }
 
-export default function RunDetailPage({ params }: { params: { jobId: string; runId: string } }) {
-  const { jobId, runId } = params
+export default function RunDetailPage({ params }: { params: Promise<{ jobId: string; runId: string }> }) {
+  const { jobId, runId } = use(params)
 
   const [run, setRun]       = useState<RunDetail | null>(null)
   const [logs, setLogs]     = useState<LogEntry[]>([])

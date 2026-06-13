@@ -3,8 +3,8 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-type RunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
-type FilterType = 'all' | 'running' | 'completed' | 'failed' | 'cancelled'
+type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
+type FilterType = 'all' | 'running' | 'succeeded' | 'failed' | 'cancelled'
 
 interface Run {
   run_id: string
@@ -26,15 +26,17 @@ interface Run {
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
-  completed: { background: '#f0fdf4', color: '#16a34a' },
-  failed:    { background: '#fee2e2', color: '#dc2626' },
-  running:   { background: '#eff6ff', color: '#2563eb' },
-  queued:    { background: '#fef3c7', color: '#d97706' },
-  cancelled: { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
+  partial_success: { background: '#fffbeb', color: '#d97706' },
+  failed:          { background: '#fee2e2', color: '#dc2626' },
+  timed_out:       { background: '#fee2e2', color: '#dc2626' },
+  running:         { background: '#eff6ff', color: '#2563eb' },
+  queued:          { background: '#fef3c7', color: '#d97706' },
+  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
 }
 
 const STATUS_ICON: Record<RunStatus, string> = {
-  completed: '✓', failed: '✕', running: '⏳', queued: '○', cancelled: '—',
+  succeeded: '✓', partial_success: '⚠', failed: '✕', timed_out: '⏱', running: '⏳', queued: '○', cancelled: '—',
 }
 
 function fmtDuration(secs: number | null): string {
@@ -91,15 +93,20 @@ function RunHistoryInner() {
   }, [jobFilter])
 
   const totalRunning   = runs.filter(r => r.status === 'running').length
-  const totalCompleted = runs.filter(r => r.status === 'completed').length
-  const totalFailed    = runs.filter(r => r.status === 'failed').length
+  const totalCompleted = runs.filter(r => r.status === 'succeeded' || r.status === 'partial_success').length
+  const totalFailed    = runs.filter(r => r.status === 'failed' || r.status === 'timed_out').length
 
-  const filtered = runs.filter(r => filter === 'all' || r.status === filter)
+  const filtered = runs.filter(r => {
+    if (filter === 'all') return true
+    if (filter === 'succeeded') return r.status === 'succeeded' || r.status === 'partial_success'
+    if (filter === 'failed') return r.status === 'failed' || r.status === 'timed_out'
+    return r.status === filter
+  })
 
   const CARDS = [
     { key: 'all',       label: 'Total',     value: runs.length,    color: 'var(--accent)' },
     { key: 'running',   label: 'Running',   value: totalRunning,   color: '#2563eb' },
-    { key: 'completed', label: 'Completed', value: totalCompleted, color: 'var(--status-ok-text)' },
+    { key: 'succeeded', label: 'Succeeded', value: totalCompleted, color: 'var(--status-ok-text)' },
     { key: 'failed',    label: 'Failed',    value: totalFailed,    color: 'var(--status-error-text)' },
   ] as const
 
@@ -139,7 +146,7 @@ function RunHistoryInner() {
 
       {/* filter chips */}
       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-        {(['all', 'running', 'completed', 'failed', 'cancelled'] as FilterType[]).map(f => (
+        {(['all', 'running', 'succeeded', 'failed', 'cancelled'] as FilterType[]).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 12px', borderRadius: '20px', border: '1px solid', fontSize: 'var(--text-xs)', cursor: 'pointer',
             fontWeight: filter === f ? 600 : 400,

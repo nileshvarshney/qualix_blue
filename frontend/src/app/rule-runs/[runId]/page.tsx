@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import FailedRecordsTable from '@/components/shared/FailedRecordsTable'
 
@@ -53,8 +53,8 @@ function scoreColor(s: number | null): string {
   return s >= 90 ? '#16a34a' : s >= 80 ? '#ea8b3a' : '#dc2626'
 }
 
-export default function RuleRunDetailPage({ params }: { params: { runId: string } }) {
-  const { runId } = params
+export default function RuleRunDetailPage({ params }: { params: Promise<{ runId: string }> }) {
+  const { runId } = use(params)
   const [run, setRun] = useState<RuleRun | null>(null)
   const [loading, setLoading] = useState(true)
   const [showSql, setShowSql] = useState(false)

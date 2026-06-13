@@ -3,8 +3,20 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 type JobStatus = 'active' | 'inactive'
-type LastRunStatus = 'completed' | 'failed' | 'running' | 'queued' | 'cancelled' | null
+type LastRunStatus = 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'running' | 'queued' | 'cancelled' | null
 type FilterType = 'all' | 'active' | 'inactive' | 'failed'
+
+const RUN_STATUSES = ['succeeded', 'partial_success', 'failed', 'timed_out', 'running', 'queued', 'cancelled'] as const
+
+const RUN_ICON: Record<string, string> = {
+  succeeded:       '✓',
+  partial_success: '⚠',
+  failed:          '✕',
+  timed_out:       '⏱',
+  running:         '⏳',
+  queued:          '○',
+  cancelled:       '—',
+}
 
 interface ScanJob {
   job_id: string
@@ -22,11 +34,13 @@ interface ScanJob {
 }
 
 const RUN_STYLE: Record<string, { background: string; color: string }> = {
-  completed:  { background: '#f0fdf4', color: '#16a34a' },
-  failed:     { background: '#fee2e2', color: '#dc2626' },
-  running:    { background: '#eff6ff', color: '#2563eb' },
-  queued:     { background: '#fef3c7', color: '#d97706' },
-  cancelled:  { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
+  partial_success: { background: '#fffbeb', color: '#d97706' },
+  failed:          { background: '#fee2e2', color: '#dc2626' },
+  timed_out:       { background: '#fee2e2', color: '#dc2626' },
+  running:         { background: '#eff6ff', color: '#2563eb' },
+  queued:          { background: '#fef3c7', color: '#d97706' },
+  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
 }
 
 const JOB_TYPE_LABEL: Record<string, string> = {
@@ -119,8 +133,7 @@ function mapJob(j: Record<string, unknown>, i: number): ScanJob {
                             ? j.connection_id
                             : '(no connection)',
     is_active:          Boolean(j.is_active ?? true),
-    last_run_status:    (['completed','failed','running','queued','cancelled'] as const)
-                          .includes(j.last_run_status as 'completed')
+    last_run_status:    (RUN_STATUSES as readonly string[]).includes(j.last_run_status as string)
                           ? (j.last_run_status as LastRunStatus)
                           : null,
     last_run_at:        typeof j.last_run_at === 'string' ? j.last_run_at : null,
@@ -170,12 +183,12 @@ export default function ScanJobsPage() {
 
   const totalActive   = jobs.filter(j => j.is_active).length
   const totalInactive = jobs.filter(j => !j.is_active).length
-  const totalFailed   = jobs.filter(j => j.last_run_status === 'failed').length
+  const totalFailed   = jobs.filter(j => j.last_run_status === 'failed' || j.last_run_status === 'timed_out').length
 
   const filtered = jobs.filter(j => {
     if (filter === 'active')   return j.is_active
     if (filter === 'inactive') return !j.is_active
-    if (filter === 'failed')   return j.last_run_status === 'failed'
+    if (filter === 'failed')   return j.last_run_status === 'failed' || j.last_run_status === 'timed_out'
     return true
   })
 
@@ -340,7 +353,7 @@ export default function ScanJobsPage() {
                 <div style={{ marginLeft: '16px', marginBottom: '2px', borderLeft: '2px solid var(--border)' }}>
                   {connJobs.map(job => {
                     const rs = job.last_run_status ? RUN_STYLE[job.last_run_status] ?? RUN_STYLE.queued : null
-                    const hasError = job.last_run_status === 'failed' && !!job.last_run_error_message
+                    const hasError = (job.last_run_status === 'failed' || job.last_run_status === 'partial_success' || job.last_run_status === 'timed_out') && !!job.last_run_error_message
                     const isExpanded = expandedJob === job.job_id
                     return (
                       <div key={job.job_id}>
@@ -363,7 +376,7 @@ export default function ScanJobsPage() {
                         <div>
                           {rs && job.last_run_status ? (
                             <span style={{ ...rs, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block' }}>
-                              {job.last_run_status === 'completed' ? '✓' : job.last_run_status === 'failed' ? '✕' : job.last_run_status === 'running' ? '⏳' : '○'} {job.last_run_status}
+                              {RUN_ICON[job.last_run_status] ?? '○'} {job.last_run_status}
                             </span>
                           ) : (
                             <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>

@@ -63,7 +63,7 @@ async def list_scan_jobs(
     q = q.order_by(desc(ScanJob.created_at))
     jobs = (await db.execute(q)).scalars().all()
 
-    failed_ids = [j.job_id for j in jobs if j.last_run_status == "failed"]
+    failed_ids = [j.job_id for j in jobs if j.last_run_status in ("failed", "partial_success", "timed_out")]
     error_by_job: dict[str, str] = {}
     if failed_ids:
         runs_q = (
