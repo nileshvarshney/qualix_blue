@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import DQSchedule, DQRule, Domain, Subdomain, Asset
+from app.db.models import DQSchedule, DQRule, Domain, Subdomain, Asset, SnowflakeConnection
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 from app.services.scheduler_service import (
     register_schedule, remove_schedule, get_next_run, list_jobs,
@@ -200,6 +200,7 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
     for s in schedules:
         rule_name = rule_description = None
         domain_name = subdomain_name = asset_name = asset_schema = None
+        connection_name = None
 
         if s.rule_id:
             r = await db.execute(select(DQRule).where(DQRule.rule_id == s.rule_id))
@@ -226,6 +227,13 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
             if asset:
                 asset_name = asset.sf_table_name
                 asset_schema = asset.sf_schema_name
+                if asset.connection_id:
+                    c = await db.execute(
+                        select(SnowflakeConnection).where(SnowflakeConnection.connection_id == asset.connection_id)
+                    )
+                    conn = c.scalar_one_or_none()
+                    if conn:
+                        connection_name = conn.connection_name
 
         # Resolve bundled rule summaries
         rule_ids_list = _rule_ids_from_db(s.rule_ids)
@@ -257,6 +265,7 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
             "asset_id":       s.asset_id,
             "asset_name":     asset_name,
             "asset_schema":   asset_schema,
+            "connection_name": connection_name,
             "domain_id":      s.domain_id,
             "domain_name":    domain_name,
             "subdomain_id":   s.subdomain_id,

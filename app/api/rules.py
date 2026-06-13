@@ -340,6 +340,11 @@ async def set_rule_status(
         new_value={"status": new_status},
     ))
     await db.commit()
+    from app.services.scheduler_service import ensure_table_schedule, remove_rule_from_table_schedule
+    if rule.is_active:
+        await ensure_table_schedule(rule, db)
+    else:
+        await remove_rule_from_table_schedule(rule.rule_id, rule.asset_id, db)
     return {"rule_id": rule_id, "status": rule.status, "is_active": rule.is_active}
 
 
@@ -515,6 +520,8 @@ async def rollback_rule(
     ))
     await db.commit()
     await db.refresh(rule)
+    from app.services.scheduler_service import remove_rule_from_table_schedule
+    await remove_rule_from_table_schedule(rule.rule_id, rule.asset_id, db)
     return rule
 
 
@@ -532,6 +539,7 @@ async def bulk_set_status(
         raise HTTPException(400, f"Invalid status. Valid: {valid_statuses}")
 
     updated = 0
+    updated_rules = []
     for rule_id in payload.rule_ids:
         result = await db.execute(select(DQRule).where(DQRule.rule_id == rule_id))
         rule = result.scalar_one_or_none()
@@ -540,6 +548,7 @@ async def bulk_set_status(
             rule.is_active = payload.status == "active"
             rule.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
             updated += 1
+            updated_rules.append(rule)
 
     db.add(AuditLog(
         audit_id=str(uuid.uuid4()), user_email=user.get("email"),
@@ -547,6 +556,14 @@ async def bulk_set_status(
         new_value={"rule_ids": payload.rule_ids, "status": payload.status, "updated": updated},
     ))
     await db.commit()
+
+    from app.services.scheduler_service import ensure_table_schedule, remove_rule_from_table_schedule
+    for rule in updated_rules:
+        if rule.is_active:
+            await ensure_table_schedule(rule, db)
+        else:
+            await remove_rule_from_table_schedule(rule.rule_id, rule.asset_id, db)
+
     return {"updated": updated, "status": payload.status, "rule_ids": payload.rule_ids}
 
 
