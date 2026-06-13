@@ -35,6 +35,7 @@ from app.api import (
     scan_results,
     profile_results,
     quality_scores,
+    issues,
 )
 # §M6 User/Role/Team
 from app.api import teams as teams_module
@@ -215,6 +216,7 @@ app.include_router(metadata.router)
 app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)
 app.include_router(profile_results.router)
+app.include_router(issues.router)
 app.include_router(teams_module.router)
 app.include_router(ownership_module.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*

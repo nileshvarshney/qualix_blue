@@ -361,3 +361,11 @@ def test_action_routes_registered():
     assert "/issues/{issue_id}/transition" in paths
     assert "/issues/{issue_id}/reopen" in paths
     assert "/issues/{issue_id}/audit" in paths
+
+
+def test_issues_router_mounted_in_app():
+    from app.main import app
+    paths = {r.path for r in app.routes}
+    assert "/issues" in paths
+    assert "/issues/{issue_id}" in paths
+    assert "/issues/{issue_id}/transition" in paths
