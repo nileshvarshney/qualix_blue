@@ -208,7 +208,7 @@ function RunHistoryInner() {
 
                 <button
                   onClick={e => { e.stopPropagation(); setSelectedRun({ jobId: run.job_id, runId: run.run_id }) }}
-                  style={{ fontSize: '10px', color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+                  style={{ fontSize: '10px', color: 'var(--accent)', whiteSpace: 'nowrap', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Detail →
                 </button>
               </div>
