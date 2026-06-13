@@ -5,7 +5,7 @@ import Link from 'next/link'
 import RunDetailPanel from '@/components/shared/RunDetailPanel'
 
 type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
-type FilterType = 'all' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+type FilterType = 'all' | 'running' | 'succeeded' | 'failed'
 
 interface Run {
   run_id: string
@@ -49,7 +49,7 @@ function fmtTs(ts: string | null): string {
   return new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-const GRID = '1fr 120px 80px 110px 110px 70px 60px auto'
+const GRID = '1fr 120px 80px 110px 110px 70px 60px 64px'
 
 function RunHistoryInner() {
   const searchParams = useSearchParams()
@@ -140,21 +140,6 @@ function RunHistoryInner() {
             </div>
           )
         })}
-      </div>
-
-      {/* filter chips */}
-      <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-        {(['all', 'running', 'succeeded', 'failed', 'cancelled'] as FilterType[]).map(f => (
-          <button key={f} onClick={() => setFilter(f)} style={{
-            padding: '4px 12px', borderRadius: '20px', border: '1px solid', fontSize: 'var(--text-xs)', cursor: 'pointer',
-            fontWeight: filter === f ? 600 : 400,
-            borderColor: filter === f ? 'var(--foreground)' : 'var(--border)',
-            background: filter === f ? 'var(--foreground)' : 'var(--surface)',
-            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
-          }}>
-            {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
-        ))}
       </div>
 
       {/* column header */}

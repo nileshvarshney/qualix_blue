@@ -29,7 +29,9 @@ class ScanJobCreate(BaseModel):
 
 
 class ScanJobUpdate(BaseModel):
+    connection_id: Optional[str] = None
     job_name: Optional[str] = Field(None, min_length=1, max_length=200)
+    job_type: Optional[str] = Field(None, pattern=_JOB_TYPE_RE)
     is_active: Optional[bool] = None
     schedule_frequency: Optional[str] = Field(None, pattern=_FREQ_RE)
     cron_expr: Optional[str] = None

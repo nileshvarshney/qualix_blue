@@ -42,7 +42,8 @@ async def create_scan_job(
         from app.services.scheduler_service import schedule_scan_job
         schedule_scan_job(job)
 
-    return _job_dict(job)
+    conn = await db.get(SnowflakeConnection, job.connection_id) if job.connection_id else None
+    return _job_dict(job, connection_name=conn.connection_name if conn else None)
 
 
 @router.get("")
@@ -75,7 +76,21 @@ async def list_scan_jobs(
         for run in (await db.execute(runs_q)).scalars().all():
             error_by_job.setdefault(run.job_id, run.error_message)
 
-    return [_job_dict(j, last_run_error_message=error_by_job.get(j.job_id)) for j in jobs]
+    conn_ids = {j.connection_id for j in jobs if j.connection_id}
+    conn_name_by_id: dict[str, str] = {}
+    if conn_ids:
+        conns_q = select(SnowflakeConnection).where(SnowflakeConnection.connection_id.in_(conn_ids))
+        for conn in (await db.execute(conns_q)).scalars().all():
+            conn_name_by_id[conn.connection_id] = conn.connection_name
+
+    return [
+        _job_dict(
+            j,
+            last_run_error_message=error_by_job.get(j.job_id),
+            connection_name=conn_name_by_id.get(j.connection_id) if j.connection_id else None,
+        )
+        for j in jobs
+    ]
 
 
 @router.get("/runs")
@@ -109,7 +124,8 @@ async def get_scan_job(
     job = await db.get(ScanJob, job_id)
     if not job:
         raise HTTPException(404, "Scan job not found")
-    return _job_dict(job)
+    conn = await db.get(SnowflakeConnection, job.connection_id) if job.connection_id else None
+    return _job_dict(job, connection_name=conn.connection_name if conn else None)
 
 
 @router.patch("/{job_id}")
@@ -133,7 +149,8 @@ async def update_scan_job(
     if job.is_active and job.schedule_frequency != "on_demand":
         schedule_scan_job(job)
 
-    return _job_dict(job)
+    conn = await db.get(SnowflakeConnection, job.connection_id) if job.connection_id else None
+    return _job_dict(job, connection_name=conn.connection_name if conn else None)
 
 
 @router.delete("/{job_id}", status_code=204)
@@ -254,10 +271,15 @@ async def cancel_run(
 
 # ─── Serializers ──────────────────────────────────────────────────────────────
 
-def _job_dict(job: ScanJob, last_run_error_message: Optional[str] = None) -> dict:
+def _job_dict(
+    job: ScanJob,
+    last_run_error_message: Optional[str] = None,
+    connection_name: Optional[str] = None,
+) -> dict:
     return {
         "job_id": job.job_id,
         "connection_id": job.connection_id,
+        "connection_name": connection_name,
         "job_name": job.job_name,
         "job_type": job.job_type,
         "is_active": job.is_active,
