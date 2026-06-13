@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -96,6 +97,8 @@ async def list_scan_jobs(
 @router.get("/runs")
 async def list_all_runs(
     status: Optional[str] = Query(None),
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
     limit: int = Query(200, ge=1, le=500),
     db=Depends(get_db),
     user: dict = Depends(get_current_user),
@@ -107,6 +110,10 @@ async def list_all_runs(
     )
     if status:
         q = q.where(ScanJobRun.status == status)
+    if start_date:
+        q = q.where(ScanJobRun.created_at >= start_date)
+    if end_date:
+        q = q.where(ScanJobRun.created_at < end_date)
     q = q.order_by(desc(ScanJobRun.created_at)).limit(limit)
     rows = (await db.execute(q)).all()
     return [

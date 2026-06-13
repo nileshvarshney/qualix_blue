@@ -11,17 +11,29 @@ interface Run {
   run_id: string
   job_id: string
   job_name: string
-  connection_name: string | null
   status: RunStatus
   trigger_type: string
   triggered_by: string | null
   started_at: string | null
   ended_at: string | null
+  created_at: string | null
   duration_seconds: number | null
   assets_scanned: number
   errors_count: number
   warnings_count: number
   error_message: string | null
+}
+
+function todayLocal(): string {
+  const d = new Date()
+  const tzOffset = d.getTimezoneOffset() * 60000
+  return new Date(d.getTime() - tzOffset).toISOString().slice(0, 10)
+}
+
+function dayRange(date: string): { start: string; end: string } {
+  const start = new Date(`${date}T00:00:00`)
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000)
+  return { start: start.toISOString(), end: end.toISOString() }
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
@@ -58,13 +70,16 @@ function RunHistoryInner() {
   const [runs, setRuns]       = useState<Run[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<FilterType>('all')
+  const [logDate, setLogDate] = useState<string>(todayLocal())
   const [expanded, setExpanded] = useState<string | null>(null)
   const [selectedRun, setSelectedRun] = useState<{ jobId: string; runId: string } | null>(null)
 
   useEffect(() => {
+    setLoading(true)
+    const { start, end } = dayRange(logDate)
     const url = jobFilter
       ? `/api/scan-jobs/${jobFilter}/runs`
-      : '/api/run-history'
+      : `/api/run-history?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`
     fetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
@@ -72,23 +87,29 @@ function RunHistoryInner() {
           run_id:           String(r.run_id ?? r.id ?? i),
           job_id:           String(r.job_id ?? ''),
           job_name:         String(r.job_name ?? r.scan_job_name ?? r.job_id ?? '—'),
-          connection_name:  r.connection_name as string | null ?? null,
           status:           (r.status as RunStatus) ?? 'queued',
           trigger_type:     String(r.trigger_type ?? 'manual'),
           triggered_by:     r.triggered_by as string | null ?? null,
           started_at:       r.started_at as string | null ?? null,
           ended_at:         r.ended_at as string | null ?? null,
+          created_at:       r.created_at as string | null ?? null,
           duration_seconds: r.duration_seconds as number | null ?? null,
           assets_scanned:   Number(r.assets_scanned ?? 0),
           errors_count:     Number(r.errors_count ?? 0),
           warnings_count:   Number(r.warnings_count ?? 0),
           error_message:    r.error_message as string | null ?? null,
         }))
-        setRuns(items.sort((a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? '')))
+        const filteredByDate = jobFilter
+          ? items.filter(r => {
+              const ts = r.started_at ?? r.created_at
+              return !!ts && ts >= start && ts < end
+            })
+          : items
+        setRuns(filteredByDate.sort((a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? '')))
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [jobFilter])
+  }, [jobFilter, logDate])
 
   const totalRunning   = runs.filter(r => r.status === 'running').length
   const totalCompleted = runs.filter(r => r.status === 'succeeded' || r.status === 'partial_success').length
@@ -121,11 +142,30 @@ function RunHistoryInner() {
             {loading ? 'Loading…' : `${runs.length} run${runs.length !== 1 ? 's' : ''}${totalRunning > 0 ? ` · ${totalRunning} in progress` : ''}`}
           </div>
         </div>
-        {jobFilter && (
-          <Link href="/run-history" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none' }}>
-            ← All jobs
-          </Link>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+            Log date
+            <input
+              type="date"
+              value={logDate}
+              max={todayLocal()}
+              onChange={e => setLogDate(e.target.value)}
+              style={{ fontSize: 'var(--text-xs)', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)' }}
+            />
+          </label>
+          {logDate !== todayLocal() && (
+            <button
+              onClick={() => setLogDate(todayLocal())}
+              style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Today
+            </button>
+          )}
+          {jobFilter && (
+            <Link href="/run-history" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none' }}>
+              ← All jobs
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* stat cards */}
@@ -176,10 +216,7 @@ function RunHistoryInner() {
                 onClick={() => hasError && setExpanded(isExpanded ? null : run.run_id)}
                 style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '5px 12px', background: isExpanded ? 'var(--surface-muted)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', minHeight: '32px', cursor: hasError ? 'pointer' : 'default' }}>
 
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{run.job_name}</div>
-                  {run.connection_name && <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{run.connection_name}</div>}
-                </div>
+                <div style={{ minWidth: 0, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{run.job_name}</div>
 
                 <span style={{ ...ss, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block', width: 'fit-content' }}>
                   {STATUS_ICON[run.status]} {run.status}
