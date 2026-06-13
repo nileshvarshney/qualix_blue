@@ -48,6 +48,18 @@ const STATUS_STYLE: Record<ScheduleStatus, { background: string; color: string }
 
 const GRID = '1fr 100px 80px 80px 90px 90px 110px auto'
 
+const SCHED_FREQ_LABEL: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', custom: 'Custom (cron)' }
+const DOW_LABEL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+function buildCronExpression(frequency: string, time: string, dayOfWeek: string, customCron: string): string {
+  if (frequency === 'custom') return customCron
+  const [hourStr, minuteStr] = time.split(':')
+  const hour = Number(hourStr ?? 0)
+  const minute = Number(minuteStr ?? 0)
+  if (frequency === 'weekly') return `${minute} ${hour} * * ${dayOfWeek}`
+  return `${minute} ${hour} * * *`
+}
+
 function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
   const dataset = String(s.asset_name ?? s.dataset ?? '')
   const tableFqn = [s.asset_database, s.asset_schema, s.asset_name]
@@ -103,9 +115,12 @@ export default function SchedulesPage() {
   const [editingId, setEditingId]       = useState<string | null>(null)
   const [editHour, setEditHour]         = useState(6)
   const [editMinute, setEditMinute]     = useState(0)
+  const [editFrequency, setEditFrequency] = useState('daily')
+  const [editDayOfWeek, setEditDayOfWeek] = useState('1')
+  const [editCron, setEditCron]         = useState('0 2 * * *')
   const [savingSchedule, setSavingSchedule] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
-  const [schedForm, setSchedForm] = useState({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
+  const [schedForm, setSchedForm] = useState({ name: '', dataset: '', cron: '0 2 * * *', connection: '', frequency: 'daily', time: '02:00', dayOfWeek: '1' })
   const [schedSaving, setSchedSaving] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [connOptions, setConnOptions] = useState<{ id: string; name: string }[]>([])
@@ -157,14 +172,22 @@ export default function SchedulesPage() {
     setEditingId(s.id)
     setEditHour(s.runAtHour ?? 6)
     setEditMinute(s.runAtMinute ?? 0)
+    setEditFrequency(s.frequency === 'weekly' ? 'weekly' : s.frequency === 'daily' ? 'daily' : 'custom')
+    setEditDayOfWeek('1')
+    setEditCron(s.cron || '0 2 * * *')
   }
 
   async function saveScheduleTime(id: string) {
     setSavingSchedule(true)
     try {
+      const body = editFrequency === 'daily'
+        ? { frequency: 'daily', run_at_hour: editHour, run_at_minute: editMinute }
+        : editFrequency === 'weekly'
+          ? { frequency: 'cron', cron_expression: `${editMinute} ${editHour} * * ${editDayOfWeek}` }
+          : { frequency: 'cron', cron_expression: editCron }
       await fetch(`/api/schedules/${id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ run_at_hour: editHour, run_at_minute: editMinute }),
+        body: JSON.stringify(body),
       })
       await refreshSchedules()
       setEditingId(null)
@@ -213,7 +236,8 @@ export default function SchedulesPage() {
   }
 
   async function createSchedule() {
-    if (!schedForm.name || !schedForm.cron) return
+    const cronExpression = buildCronExpression(schedForm.frequency, schedForm.time, schedForm.dayOfWeek, schedForm.cron)
+    if (!schedForm.name || !cronExpression) return
     setSchedSaving(true)
     try {
       const res = await fetch('/api/schedules', {
@@ -222,7 +246,7 @@ export default function SchedulesPage() {
           create: true,
           schedule_name: schedForm.name,
           asset_name: schedForm.dataset,
-          cron_expression: schedForm.cron,
+          cron_expression: cronExpression,
           connection_name: schedForm.connection,
           is_active: true,
         }),
@@ -234,7 +258,7 @@ export default function SchedulesPage() {
       const data: Record<string, unknown>[] = await listRes.json()
       setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
       setShowCreate(false)
-      setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
+      setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '', frequency: 'daily', time: '02:00', dayOfWeek: '1' })
     } catch (err) {
       console.error(err)
       setCreateError('Failed to create schedule. Please try again.')
@@ -336,12 +360,30 @@ export default function SchedulesPage() {
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.tableFqn}</span>
                     {isEditing ? (
-                      <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <input type="number" min={0} max={23} value={editHour} onChange={e => setEditHour(Number(e.target.value))}
-                          style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
-                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>:</span>
-                        <input type="number" min={0} max={59} value={editMinute} onChange={e => setEditMinute(Number(e.target.value))}
-                          style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+                      <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                        <select value={editFrequency} onChange={e => setEditFrequency(e.target.value)}
+                          style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                          {Object.entries(SCHED_FREQ_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                        </select>
+                        {editFrequency === 'weekly' && (
+                          <select value={editDayOfWeek} onChange={e => setEditDayOfWeek(e.target.value)}
+                            style={{ fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }}>
+                            {DOW_LABEL.map((label, i) => <option key={i} value={String(i)}>{label.slice(0, 3)}</option>)}
+                          </select>
+                        )}
+                        {(editFrequency === 'daily' || editFrequency === 'weekly') && (
+                          <>
+                            <input type="number" min={0} max={23} value={editHour} onChange={e => setEditHour(Number(e.target.value))}
+                              style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+                            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>:</span>
+                            <input type="number" min={0} max={59} value={editMinute} onChange={e => setEditMinute(Number(e.target.value))}
+                              style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+                          </>
+                        )}
+                        {editFrequency === 'custom' && (
+                          <input value={editCron} onChange={e => setEditCron(e.target.value)} placeholder="0 2 * * *"
+                            style={{ width: '90px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)', fontFamily: 'monospace' }} />
+                        )}
                         <button onClick={() => saveScheduleTime(s.id)} disabled={savingSchedule}
                           style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: savingSchedule ? 'not-allowed' : 'pointer' }}>
                           {savingSchedule ? '⏳' : '✓'}
@@ -482,11 +524,38 @@ export default function SchedulesPage() {
                 style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
             </div>
             <div>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Cron Expression *</label>
-              <input value={schedForm.cron} onChange={e => setSchedForm(p => ({ ...p, cron: e.target.value }))}
-                placeholder="0 2 * * * (daily at 2am)"
-                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }} />
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Frequency *</label>
+              <select value={schedForm.frequency} onChange={e => setSchedForm(p => ({ ...p, frequency: e.target.value }))}
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                {Object.entries(SCHED_FREQ_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
             </div>
+            {(schedForm.frequency === 'daily' || schedForm.frequency === 'weekly') && (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {schedForm.frequency === 'weekly' && (
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Day of Week</label>
+                    <select value={schedForm.dayOfWeek} onChange={e => setSchedForm(p => ({ ...p, dayOfWeek: e.target.value }))}
+                      style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
+                      {DOW_LABEL.map((label, i) => <option key={i} value={String(i)}>{label}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Time *</label>
+                  <input type="time" value={schedForm.time} onChange={e => setSchedForm(p => ({ ...p, time: e.target.value }))}
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }} />
+                </div>
+              </div>
+            )}
+            {schedForm.frequency === 'custom' && (
+              <div>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Cron Expression *</label>
+                <input value={schedForm.cron} onChange={e => setSchedForm(p => ({ ...p, cron: e.target.value }))}
+                  placeholder="0 2 * * * (daily at 2am)"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }} />
+              </div>
+            )}
             <div>
               <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Connection</label>
               <select value={schedForm.connection} onChange={e => setSchedForm(p => ({ ...p, connection: e.target.value }))}
@@ -501,10 +570,10 @@ export default function SchedulesPage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button onClick={() => { setShowCreate(false); setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '' }); setCreateError(null) }}
+              <button onClick={() => { setShowCreate(false); setSchedForm({ name: '', dataset: '', cron: '0 2 * * *', connection: '', frequency: 'daily', time: '02:00', dayOfWeek: '1' }); setCreateError(null) }}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>Cancel</button>
-              <button onClick={createSchedule} disabled={schedSaving || !schedForm.name || !schedForm.cron}
-                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (schedSaving || !schedForm.name || !schedForm.cron) ? 'not-allowed' : 'pointer', opacity: (schedSaving || !schedForm.name || !schedForm.cron) ? 0.6 : 1 }}>
+              <button onClick={createSchedule} disabled={schedSaving || !schedForm.name || !buildCronExpression(schedForm.frequency, schedForm.time, schedForm.dayOfWeek, schedForm.cron)}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (schedSaving || !schedForm.name || !buildCronExpression(schedForm.frequency, schedForm.time, schedForm.dayOfWeek, schedForm.cron)) ? 'not-allowed' : 'pointer', opacity: (schedSaving || !schedForm.name || !buildCronExpression(schedForm.frequency, schedForm.time, schedForm.dayOfWeek, schedForm.cron)) ? 0.6 : 1 }}>
                 {schedSaving ? 'Creating…' : 'Create Schedule'}
               </button>
             </div>

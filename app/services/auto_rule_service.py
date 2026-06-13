@@ -65,7 +65,7 @@ def _make_rule(
     col_label = f" on {target_column}" if target_column else ""
     return DQRule(
         rule_id=str(uuid.uuid4()),
-        rule_name=f"Auto: {rule_type}{col_label} [{asset.sf_table_name}]",
+        rule_name=f"Auto: {rule_type}{col_label}",
         domain_id=asset.domain_id,
         subdomain_id=asset.subdomain_id,
         asset_id=asset.asset_id,
