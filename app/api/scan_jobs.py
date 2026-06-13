@@ -7,7 +7,7 @@ from sqlalchemy import desc, select
 
 from app.core.security import get_current_user
 from app.db.database import get_db
-from app.db.models import ScanJob, ScanJobRun, ScanJobRunLog
+from app.db.models import ScanJob, ScanJobRun, ScanJobRunLog, SnowflakeConnection
 from app.schemas.scan_job import ScanJobCreate, ScanJobUpdate, TriggerRequest
 from app.services import scan_orchestrator
 
@@ -76,6 +76,28 @@ async def list_scan_jobs(
             error_by_job.setdefault(run.job_id, run.error_message)
 
     return [_job_dict(j, last_run_error_message=error_by_job.get(j.job_id)) for j in jobs]
+
+
+@router.get("/runs")
+async def list_all_runs(
+    status: Optional[str] = Query(None),
+    limit: int = Query(200, ge=1, le=500),
+    db=Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    q = (
+        select(ScanJobRun, ScanJob, SnowflakeConnection)
+        .join(ScanJob, ScanJobRun.job_id == ScanJob.job_id)
+        .outerjoin(SnowflakeConnection, ScanJob.connection_id == SnowflakeConnection.connection_id)
+    )
+    if status:
+        q = q.where(ScanJobRun.status == status)
+    q = q.order_by(desc(ScanJobRun.created_at)).limit(limit)
+    rows = (await db.execute(q)).all()
+    return [
+        _run_dict(run, job_name=job.job_name, connection_name=conn.connection_name if conn else None)
+        for run, job, conn in rows
+    ]
 
 
 @router.get("/{job_id}")
@@ -165,7 +187,8 @@ async def list_runs(
     db=Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    if not await db.get(ScanJob, job_id):
+    job = await db.get(ScanJob, job_id)
+    if not job:
         raise HTTPException(404, "Scan job not found")
     q = (
         select(ScanJobRun)
@@ -174,7 +197,7 @@ async def list_runs(
         .limit(limit)
     )
     runs = (await db.execute(q)).scalars().all()
-    return [_run_dict(r) for r in runs]
+    return [_run_dict(r, job_name=job.job_name) for r in runs]
 
 
 @router.get("/{job_id}/runs/{run_id}")
@@ -187,7 +210,8 @@ async def get_run(
     run = await db.get(ScanJobRun, run_id)
     if not run or run.job_id != job_id:
         raise HTTPException(404, "Run not found")
-    return _run_dict(run)
+    job = await db.get(ScanJob, job_id)
+    return _run_dict(run, job_name=job.job_name if job else None)
 
 
 @router.get("/{job_id}/runs/{run_id}/logs")
@@ -252,10 +276,12 @@ def _job_dict(job: ScanJob, last_run_error_message: Optional[str] = None) -> dic
     }
 
 
-def _run_dict(run: ScanJobRun) -> dict:
+def _run_dict(run: ScanJobRun, job_name: Optional[str] = None, connection_name: Optional[str] = None) -> dict:
     return {
         "run_id": run.run_id,
         "job_id": run.job_id,
+        "job_name": job_name,
+        "connection_name": connection_name,
         "status": run.status,
         "trigger_type": run.trigger_type,
         "triggered_by": run.triggered_by,

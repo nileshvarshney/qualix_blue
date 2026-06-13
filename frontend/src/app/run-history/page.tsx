@@ -21,8 +21,6 @@ interface Run {
   errors_count: number
   warnings_count: number
   error_message: string | null
-  run_type?: string
-  rule_id?: string
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
@@ -83,8 +81,6 @@ function RunHistoryInner() {
           errors_count:     Number(r.errors_count ?? 0),
           warnings_count:   Number(r.warnings_count ?? 0),
           error_message:    r.error_message as string | null ?? null,
-          run_type:         r.run_type as string | undefined,
-          rule_id:          r.rule_id as string | undefined,
         }))
         setRuns(items.sort((a, b) => (b.started_at ?? '').localeCompare(a.started_at ?? '')))
         setLoading(false)
@@ -208,7 +204,7 @@ function RunHistoryInner() {
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{fmtDuration(run.duration_seconds)}</span>
                 <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{run.assets_scanned}</span>
 
-                <Link href={run.run_type === 'rule_run' || run.rule_id ? `/rule-runs/${run.run_id}` : `/scan-jobs/${run.job_id}/runs/${run.run_id}`}
+                <Link href={`/scan-jobs/${run.job_id}/runs/${run.run_id}`}
                   onClick={e => e.stopPropagation()}
                   style={{ fontSize: '10px', color: 'var(--accent)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                   Detail →

@@ -51,7 +51,7 @@ export default function ExecutionLogsPage() {
           rule:          String(l.rule_name ?? l.rule ?? ''),
           dataset:       String(l.asset_name ?? l.dataset ?? ''),
           connection:    String(l.connection_name ?? l.connection ?? ''),
-          status:        (l.status as RunStatus) ?? 'passed',
+          status:        (l.status === 'error' ? 'failed' : l.status as RunStatus) ?? 'passed',
           score:         Number(l.quality_score ?? l.score ?? 100),
           checked:       Number(l.checked_rows ?? l.checked ?? 0),
           failed:        Number(l.failed_rows ?? l.failed ?? 0),
