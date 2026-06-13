@@ -71,15 +71,18 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
   const [cancelling, setCancelling] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
     setLoadingRun(true)
     setLoadingLogs(true)
     setLogFilter('ALL')
+    setCancelling(false)
     setRun(null)
     setLogs([])
 
     fetch(`/api/scan-jobs/${jobId}/runs/${runId}`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
+        if (cancelled) return
         if (!data) { setLoadingRun(false); return }
         setRun({
           run_id:          String(data.run_id ?? ''),
@@ -100,11 +103,12 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
         })
         setLoadingRun(false)
       })
-      .catch(() => setLoadingRun(false))
+      .catch(() => { if (!cancelled) setLoadingRun(false) })
 
     fetch(`/api/scan-jobs/${jobId}/runs/${runId}/logs`)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
+        if (cancelled) return
         const entries: LogEntry[] = (Array.isArray(data) ? data : []).map((l, i) => ({
           log_id:    String(l.log_id ?? i),
           level:     (l.level as LogLevel) ?? 'INFO',
@@ -115,7 +119,9 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
         setLogs(entries)
         setLoadingLogs(false)
       })
-      .catch(() => setLoadingLogs(false))
+      .catch(() => { if (!cancelled) setLoadingLogs(false) })
+
+    return () => { cancelled = true }
   }, [jobId, runId])
 
   function cancelRun() {
