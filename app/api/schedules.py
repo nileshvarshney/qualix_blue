@@ -221,12 +221,14 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
             if subdom:
                 subdomain_name = subdom.subdomain_name
 
+        asset_database = None
         if s.asset_id:
             a = await db.execute(select(Asset).where(Asset.asset_id == s.asset_id))
             asset = a.scalar_one_or_none()
             if asset:
                 asset_name = asset.sf_table_name
                 asset_schema = asset.sf_schema_name
+                asset_database = asset.sf_database_name
                 if asset.connection_id:
                     c = await db.execute(
                         select(SnowflakeConnection).where(SnowflakeConnection.connection_id == asset.connection_id)
@@ -238,7 +240,21 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
         # Resolve bundled rule summaries
         rule_ids_list = _rule_ids_from_db(s.rule_ids)
         bundled_rules = []
-        if rule_ids_list:
+        if s.schedule_level == "table" and s.asset_id:
+            # Table-level schedules cover every active/approved rule for the asset,
+            # not just the rules captured in rule_ids at creation time.
+            rr = await db.execute(
+                select(DQRule).where(DQRule.asset_id == s.asset_id, DQRule.is_active == True)
+            )
+            for bundled_rule in rr.scalars().all():
+                bundled_rules.append({
+                    "rule_id": bundled_rule.rule_id,
+                    "rule_name": bundled_rule.rule_name,
+                    "rule_description": bundled_rule.rule_description,
+                    "severity": bundled_rule.severity,
+                })
+            rule_ids_list = [r["rule_id"] for r in bundled_rules]
+        elif rule_ids_list:
             for rid in rule_ids_list:
                 rr = await db.execute(select(DQRule).where(DQRule.rule_id == rid))
                 bundled_rule = rr.scalar_one_or_none()
@@ -265,12 +281,14 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
             "asset_id":       s.asset_id,
             "asset_name":     asset_name,
             "asset_schema":   asset_schema,
+            "asset_database": asset_database,
             "connection_name": connection_name,
             "domain_id":      s.domain_id,
             "domain_name":    domain_name,
             "subdomain_id":   s.subdomain_id,
             "subdomain_name": subdomain_name,
             "rule_ids":       rule_ids_list,
+            "rule_count":     len(bundled_rules),
             "bundled_rules":  bundled_rules,
             "next_run_time":  get_next_run(s.schedule_id),
             "created_at":     s.created_at.isoformat(),

@@ -13,12 +13,20 @@ interface RunIssue {
   failedRows: string
 }
 
+interface BundledRule {
+  ruleId: string
+  ruleName: string
+  ruleDescription: string
+  severity: 'critical' | 'high' | 'medium' | 'low'
+}
+
 interface Schedule {
-  id: string; name: string; dataset: string; cron: string; human: string
+  id: string; name: string; dataset: string; tableFqn: string; cron: string; human: string
+  frequency: string; runAtHour: number | null; runAtMinute: number | null
   rules: number; lastRun: string; nextRun: string; status: ScheduleStatus
   lastRunStatus: LastRunStatus; lastDuration: string; connection: string
   owner: string; failedRules: number; checkedRows: string; failedRows: string
-  issues: RunIssue[]
+  issues: RunIssue[]; bundledRules: BundledRule[]
 }
 
 const SEV_CFG = {
@@ -41,12 +49,20 @@ const STATUS_STYLE: Record<ScheduleStatus, { background: string; color: string }
 const GRID = '1fr 100px 80px 80px 90px 90px 110px auto'
 
 function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
+  const dataset = String(s.asset_name ?? s.dataset ?? '')
+  const tableFqn = [s.asset_database, s.asset_schema, s.asset_name]
+    .filter(v => typeof v === 'string' && v)
+    .join('.') || dataset || '(unscoped)'
   return {
     id:            String(s.schedule_id ?? s.id ?? i),
     name:          String(s.schedule_name ?? s.name ?? ''),
-    dataset:       String(s.asset_name ?? s.dataset ?? ''),
+    dataset,
+    tableFqn,
     cron:          String(s.cron_expression ?? s.cron ?? ''),
     human:         String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
+    frequency:     String(s.frequency ?? 'daily'),
+    runAtHour:     s.run_at_hour === null || s.run_at_hour === undefined ? null : Number(s.run_at_hour),
+    runAtMinute:   s.run_at_minute === null || s.run_at_minute === undefined ? null : Number(s.run_at_minute),
     rules:         Number(s.rule_count ?? s.rules ?? 0),
     lastRun:       String(s.last_run_at ?? s.lastRun ?? '—'),
     nextRun:       String(s.next_run_at ?? s.nextRun ?? '—'),
@@ -61,7 +77,20 @@ function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
     checkedRows:   String(s.checked_rows ?? s.checkedRows ?? '0'),
     failedRows:    String(s.failed_rows ?? s.failedRows ?? '0'),
     issues:        Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
+    bundledRules:  Array.isArray(s.bundled_rules) ? (s.bundled_rules as Record<string, unknown>[]).map(r => ({
+                     ruleId: String(r.rule_id ?? ''),
+                     ruleName: String(r.rule_name ?? ''),
+                     ruleDescription: String(r.rule_description ?? ''),
+                     severity: (r.severity ?? 'medium') as BundledRule['severity'],
+                   })) : [],
   }
+}
+
+const RULE_SEV_CFG: Record<BundledRule['severity'], { color: string; bg: string }> = {
+  critical: { color: '#dc2626', bg: '#fee2e2' },
+  high:     { color: '#d97706', bg: '#fef3c7' },
+  medium:   { color: '#2563eb', bg: '#dbeafe' },
+  low:      { color: 'var(--text-muted)', bg: 'var(--surface-muted)' },
 }
 
 export default function SchedulesPage() {
@@ -70,7 +99,11 @@ export default function SchedulesPage() {
   const [runningId, setRunningId]       = useState<string | null>(null)
   const [expandedId, setExpandedId]     = useState<string | null>(null)
   const [filter, setFilter]             = useState<FilterType>('all')
-  const [collapsedConns, setCollapsedConns] = useState<Set<string>>(new Set())
+  const [pausingRuleId, setPausingRuleId] = useState<string | null>(null)
+  const [editingId, setEditingId]       = useState<string | null>(null)
+  const [editHour, setEditHour]         = useState(6)
+  const [editMinute, setEditMinute]     = useState(0)
+  const [savingSchedule, setSavingSchedule] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [schedForm, setSchedForm] = useState({ name: '', dataset: '', cron: '0 2 * * *', connection: '' })
   const [schedSaving, setSchedSaving] = useState(false)
@@ -111,14 +144,50 @@ export default function SchedulesPage() {
     return true
   })
 
-  // Group by connection
-  const byConn = filtered.reduce<Record<string, Schedule[]>>((acc, s) => {
-    ;(acc[s.connection] ??= []).push(s); return acc
-  }, {})
-  const conns = Object.keys(byConn).sort()
+  const sorted = [...filtered].sort((a, b) => a.tableFqn.localeCompare(b.tableFqn) || a.id.localeCompare(b.id))
+  const tableCount = new Set(filtered.map(s => s.tableFqn)).size
 
-  function toggleConn(c: string) {
-    setCollapsedConns(prev => { const s = new Set(prev); s.has(c) ? s.delete(c) : s.add(c); return s })
+  async function refreshSchedules() {
+    const res = await fetch('/api/schedules')
+    const data: Record<string, unknown>[] = await res.json()
+    setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
+  }
+
+  function startEditSchedule(s: Schedule) {
+    setEditingId(s.id)
+    setEditHour(s.runAtHour ?? 6)
+    setEditMinute(s.runAtMinute ?? 0)
+  }
+
+  async function saveScheduleTime(id: string) {
+    setSavingSchedule(true)
+    try {
+      await fetch(`/api/schedules/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_at_hour: editHour, run_at_minute: editMinute }),
+      })
+      await refreshSchedules()
+      setEditingId(null)
+    } catch {
+      // ignore — list simply won't reflect the change
+    } finally {
+      setSavingSchedule(false)
+    }
+  }
+
+  async function pauseRule(ruleId: string) {
+    setPausingRuleId(ruleId)
+    try {
+      await fetch(`/api/rules/${ruleId}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'disabled' }),
+      })
+      await refreshSchedules()
+    } catch {
+      // ignore — list simply won't reflect the change
+    } finally {
+      setPausingRuleId(null)
+    }
   }
 
   function toggle(id: string) {
@@ -189,7 +258,7 @@ export default function SchedulesPage() {
         <div>
           <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Schedules</div>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {loading ? 'Loading…' : `${active} of ${scheduleList.length} active · ${conns.length} connection${conns.length !== 1 ? 's' : ''}${(failed + warning) > 0 ? ` · ${failed + warning} need attention` : ''}`}
+            {loading ? 'Loading…' : `${active} of ${scheduleList.length} active · ${tableCount} table${tableCount !== 1 ? 's' : ''}${(failed + warning) > 0 ? ` · ${failed + warning} need attention` : ''}`}
           </div>
         </div>
         <button onClick={() => { setShowCreate(true); setCreateError(null) }} style={{ background: 'var(--accent)', color: 'var(--accent-text)', border: 'none', padding: '5px 12px', borderRadius: '6px', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
@@ -235,7 +304,7 @@ export default function SchedulesPage() {
         </div>
       )}
 
-      {/* scrollable list grouped by connection */}
+      {/* scrollable list grouped by table */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading && <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>Loading…</div>}
         {!loading && scheduleList.length === 0 && (
@@ -245,119 +314,150 @@ export default function SchedulesPage() {
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No schedules match the selected filter</div>
         )}
 
-        {!loading && conns.map(conn => {
-          const connSchedules = byConn[conn]
-          const collapsed     = collapsedConns.has(conn)
-          const connActive    = connSchedules.filter(s => s.status === 'active').length
-          const connFailed    = connSchedules.filter(s => s.lastRunStatus === 'failed' || s.lastRunStatus === 'warning').length
+        {!loading && sorted.map(s => {
+          const isExpanded = expandedId === s.id
+          const rs         = RUN_STYLE[s.lastRunStatus]
+          const ss         = STATUS_STYLE[s.status]
+          const hasIssues  = s.issues.length > 0
+          const hasRules   = s.bundledRules.length > 0
+          const canExpand  = hasIssues || hasRules
+          const isEditing  = editingId === s.id
 
           return (
-            <div key={conn} style={{ marginBottom: '3px' }}>
-              {/* connection group header */}
-              <div onClick={() => toggleConn(conn)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', cursor: 'pointer', userSelect: 'none', marginBottom: '2px' }}>
-                <span style={{ fontSize: '9px', color: 'var(--text-muted)', display: 'inline-block', transform: collapsed ? 'none' : 'rotate(90deg)', transition: 'transform 0.12s', lineHeight: 1, width: '8px', flexShrink: 0 }}>▶</span>
-                <span style={{ fontSize: '11px', flexShrink: 0 }}>🔌</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conn}</span>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>{connSchedules.length} schedule{connSchedules.length !== 1 ? 's' : ''} · {connActive} active</span>
-                {connFailed > 0 && <span style={{ fontSize: '10px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>{connFailed} need attention</span>}
+            <div key={s.id}>
+              {/* schedule row */}
+              <div onClick={() => canExpand && setExpandedId(isExpanded ? null : s.id)}
+                style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isExpanded ? 'var(--surface-muted)' : hasIssues && s.lastRunStatus !== 'passed' ? 'rgba(254,242,242,0.4)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: canExpand ? 'pointer' : 'default', minHeight: '30px' }}>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
+                  {canExpand && (
+                    <span style={{ color: hasIssues ? (s.lastRunStatus === 'failed' ? '#dc2626' : '#d97706') : 'var(--text-muted)', fontSize: '9px', flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+                  )}
+                  <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.tableFqn}</span>
+                    {isEditing ? (
+                      <span onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <input type="number" min={0} max={23} value={editHour} onChange={e => setEditHour(Number(e.target.value))}
+                          style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+                        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>:</span>
+                        <input type="number" min={0} max={59} value={editMinute} onChange={e => setEditMinute(Number(e.target.value))}
+                          style={{ width: '36px', fontSize: '10px', padding: '1px 3px', borderRadius: '4px', border: '1px solid var(--border)' }} />
+                        <button onClick={() => saveScheduleTime(s.id)} disabled={savingSchedule}
+                          style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: savingSchedule ? 'not-allowed' : 'pointer' }}>
+                          {savingSchedule ? '⏳' : '✓'}
+                        </button>
+                        <button onClick={() => setEditingId(null)}
+                          style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer' }}>
+                          ✕
+                        </button>
+                      </span>
+                    ) : (
+                      <span onClick={e => { e.stopPropagation(); startEditSchedule(s) }}
+                        style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', whiteSpace: 'nowrap', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        {s.runAtHour !== null ? `Daily at ${String(s.runAtHour).padStart(2, '0')}:${String(s.runAtMinute ?? 0).padStart(2, '0')}` : s.cron}
+                        <span style={{ color: 'var(--accent)' }}>✎</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.lastRun}</span>
+
+                <div>
+                  <span style={{ ...rs, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block' }}>
+                    {s.lastRunStatus === 'passed' ? '✓' : s.lastRunStatus === 'failed' ? '✕' : '⚠'} {s.lastRunStatus}
+                  </span>
+                  {s.failedRules > 0 && <div style={{ fontSize: '9px', color: 'var(--status-error-text)' }}>{s.failedRules} rule{s.failedRules > 1 ? 's' : ''} failed</div>}
+                </div>
+
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nextRun}</span>
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.lastDuration}</span>
+                <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{s.rules}</span>
+
+                <span style={{ ...ss, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block', width: 'fit-content' }}>{s.status}</span>
+
+                <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => toggle(s.id)}
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
+                    {s.status === 'active' ? '⏸' : '▶'}
+                  </button>
+                  <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #dbeafe', background: runningId === s.id ? '#eff6ff' : 'var(--surface)', color: '#2563eb', fontSize: '10px', cursor: runningId === s.id ? 'not-allowed' : 'pointer' }}>
+                    {runningId === s.id ? '⏳' : '▶ Run'}
+                  </button>
+                </div>
               </div>
 
-              {!collapsed && (
-                <div style={{ marginLeft: '16px', marginBottom: '2px', borderLeft: '2px solid var(--border)' }}>
-                  {connSchedules.map(s => {
-                    const isExpanded = expandedId === s.id
-                    const rs         = RUN_STYLE[s.lastRunStatus]
-                    const ss         = STATUS_STYLE[s.status]
-                    const hasIssues  = s.issues.length > 0
-
-                    return (
-                      <div key={s.id}>
-                        {/* schedule row */}
-                        <div onClick={() => hasIssues && setExpandedId(isExpanded ? null : s.id)}
-                          style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isExpanded ? 'var(--surface-muted)' : hasIssues && s.lastRunStatus !== 'passed' ? 'rgba(254,242,242,0.4)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: hasIssues ? 'pointer' : 'default', minHeight: '30px' }}>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                            {hasIssues && (
-                              <span style={{ color: s.lastRunStatus === 'failed' ? '#dc2626' : '#d97706', fontSize: '9px', flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
-                            )}
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
-                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>{s.cron} · {s.dataset}</div>
+              {/* expanded issues */}
+              {isExpanded && (
+                <div style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
+                  {hasRules && (
+                    <div style={{ marginBottom: hasIssues ? '14px' : 0 }}>
+                      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--foreground)', marginBottom: '8px' }}>
+                        Scheduled Rules — {s.bundledRules.length}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {s.bundledRules.map(rule => {
+                          const rc = RULE_SEV_CFG[rule.severity]
+                          const isPausing = pausingRuleId === rule.ruleId
+                          return (
+                            <div key={rule.ruleId} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px' }}>
+                              <span style={{ background: rc.bg, color: rc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase' }}>{rule.severity}</span>
+                              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)' }}>{rule.ruleName}</span>
+                              {rule.ruleDescription && (
+                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{rule.ruleDescription}</span>
+                              )}
+                              <button onClick={() => pauseRule(rule.ruleId)} disabled={isPausing}
+                                title="Pause this rule"
+                                style={{ marginLeft: 'auto', flexShrink: 0, padding: '2px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: isPausing ? 'not-allowed' : 'pointer' }}>
+                                {isPausing ? '⏳' : '⏸ Pause'}
+                              </button>
                             </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {hasIssues && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--foreground)' }}>Last Run Issues — {s.tableFqn}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{s.checkedRows} checked · {s.failedRows} failed · {s.lastDuration}</span>
+                  </div>
+                  )}
+                  {hasIssues && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {s.issues.map((issue, j) => {
+                      const sc = SEV_CFG[issue.severity]
+                      return (
+                        <div key={j} style={{ background: 'var(--surface)', border: `1px solid ${sc.color}30`, borderLeft: `3px solid ${sc.color}`, borderRadius: '6px', padding: '10px 14px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                            <span style={{ background: sc.bg, color: sc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>{sc.label}</span>
+                            <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--foreground)' }}>{issue.rule}</span>
+                            <span style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: '10px', color: 'var(--status-error-text)', fontWeight: 600 }}>{issue.failedRows} rows</span>
                           </div>
-
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.lastRun}</span>
-
-                          <div>
-                            <span style={{ ...rs, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block' }}>
-                              {s.lastRunStatus === 'passed' ? '✓' : s.lastRunStatus === 'failed' ? '✕' : '⚠'} {s.lastRunStatus}
-                            </span>
-                            {s.failedRules > 0 && <div style={{ fontSize: '9px', color: 'var(--status-error-text)' }}>{s.failedRules} rule{s.failedRules > 1 ? 's' : ''} failed</div>}
-                          </div>
-
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.nextRun}</span>
-                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.lastDuration}</span>
-                          <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--accent)' }}>{s.rules}</span>
-
-                          <span style={{ ...ss, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block', width: 'fit-content' }}>{s.status}</span>
-
-                          <div style={{ display: 'flex', gap: '4px' }} onClick={e => e.stopPropagation()}>
-                            <button onClick={() => toggle(s.id)}
-                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
-                              {s.status === 'active' ? '⏸' : '▶'}
-                            </button>
-                            <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
-                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #dbeafe', background: runningId === s.id ? '#eff6ff' : 'var(--surface)', color: '#2563eb', fontSize: '10px', cursor: runningId === s.id ? 'not-allowed' : 'pointer' }}>
-                              {runningId === s.id ? '⏳' : '▶ Run'}
-                            </button>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div style={{ background: 'var(--surface-muted)', borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 700, color: '#7c3aed', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Root Cause · </span>{issue.detail}
+                            </div>
+                            <div style={{ background: `${sc.bg}88`, borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
+                              <span style={{ fontWeight: 700, color: sc.color, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Impact · </span>{issue.impact}
+                            </div>
                           </div>
                         </div>
-
-                        {/* expanded issues */}
-                        {isExpanded && (
-                          <div style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--foreground)' }}>Last Run Issues — {s.name}</span>
-                              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{s.checkedRows} checked · {s.failedRows} failed · {s.lastDuration}</span>
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                              {s.issues.map((issue, j) => {
-                                const sc = SEV_CFG[issue.severity]
-                                return (
-                                  <div key={j} style={{ background: 'var(--surface)', border: `1px solid ${sc.color}30`, borderLeft: `3px solid ${sc.color}`, borderRadius: '6px', padding: '10px 14px' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                                      <span style={{ background: sc.bg, color: sc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>{sc.label}</span>
-                                      <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--foreground)' }}>{issue.rule}</span>
-                                      <span style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: '10px', color: 'var(--status-error-text)', fontWeight: 600 }}>{issue.failedRows} rows</span>
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                                      <div style={{ background: 'var(--surface-muted)', borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
-                                        <span style={{ fontWeight: 700, color: '#7c3aed', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Root Cause · </span>{issue.detail}
-                                      </div>
-                                      <div style={{ background: `${sc.bg}88`, borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
-                                        <span style={{ fontWeight: 700, color: sc.color, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Impact · </span>{issue.impact}
-                                      </div>
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                            </div>
-                            <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
-                              <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
-                                style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
-                                {runningId === s.id ? '⏳ Running…' : '▶ Re-run'}
-                              </button>
-                              <button onClick={() => setExpandedId(null)}
-                                style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
-                                ▲ Collapse
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
+                      )
+                    })}
+                  </div>
+                  )}
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
+                    <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+                      {runningId === s.id ? '⏳ Running…' : '▶ Re-run'}
+                    </button>
+                    <button onClick={() => setExpandedId(null)}
+                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+                      ▲ Collapse
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
