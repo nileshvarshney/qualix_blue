@@ -109,7 +109,7 @@ function RunHistoryInner() {
   ] as const
 
   return (
-    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ padding: '16px 24px', paddingRight: selectedRun ? 'calc(min(640px, 92vw) + 24px)' : '24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
