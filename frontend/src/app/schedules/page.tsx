@@ -23,9 +23,10 @@ export default function SchedulesPage() {
   const [scheduleList, setScheduleList] = useState<Schedule[]>([])
   const [loading, setLoading]           = useState(true)
   const [runningId, setRunningId]       = useState<string | null>(null)
-  const [expandedId, setExpandedId]     = useState<string | null>(null)
+  const [selectedId, setSelectedId]     = useState<string | null>(null)
   const [filter, setFilter]             = useState<FilterType>('all')
   const [pausingRuleId, setPausingRuleId] = useState<string | null>(null)
+  const [runningRuleId, setRunningRuleId] = useState<string | null>(null)
   const [editingId, setEditingId]       = useState<string | null>(null)
   const [editHour, setEditHour]         = useState(6)
   const [editMinute, setEditMinute]     = useState(0)
@@ -112,18 +113,30 @@ export default function SchedulesPage() {
     }
   }
 
-  async function pauseRule(ruleId: string) {
+  async function setRuleStatus(ruleId: string, status: 'active' | 'disabled') {
     setPausingRuleId(ruleId)
     try {
       await fetch(`/api/rules/${ruleId}/status`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'disabled' }),
+        body: JSON.stringify({ status }),
       })
       await refreshSchedules()
     } catch {
       // ignore — list simply won't reflect the change
     } finally {
       setPausingRuleId(null)
+    }
+  }
+
+  async function runRule(ruleId: string) {
+    setRunningRuleId(ruleId)
+    try {
+      await fetch(`/api/rules/${ruleId}/run`, { method: 'POST' })
+      await refreshSchedules()
+    } catch {
+      // ignore — list simply won't reflect the change
+    } finally {
+      setRunningRuleId(null)
     }
   }
 
@@ -189,7 +202,7 @@ export default function SchedulesPage() {
   ] as const
 
   return (
-    <div style={{ padding: '16px 24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ paddingTop: '16px', paddingLeft: '24px', paddingBottom: '16px', paddingRight: selectedId ? 'calc(min(640px, 92vw) + 24px)' : '24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -253,24 +266,20 @@ export default function SchedulesPage() {
         )}
 
         {!loading && sorted.map(s => {
-          const isExpanded = expandedId === s.id
+          const isSelected = selectedId === s.id
           const rs         = RUN_STYLE[s.lastRunStatus]
           const ss         = STATUS_STYLE[s.status]
           const hasIssues  = s.issues.length > 0
-          const hasRules   = s.bundledRules.length > 0
-          const canExpand  = hasIssues || hasRules
           const isEditing  = editingId === s.id
 
           return (
             <div key={s.id}>
               {/* schedule row */}
-              <div onClick={() => canExpand && setExpandedId(isExpanded ? null : s.id)}
-                style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isExpanded ? 'var(--surface-muted)' : hasIssues && s.lastRunStatus !== 'passed' ? 'rgba(254,242,242,0.4)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: canExpand ? 'pointer' : 'default', minHeight: '30px' }}>
+              <div onClick={() => setSelectedId(isSelected ? null : s.id)}
+                style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isSelected ? 'var(--surface-muted)' : hasIssues && s.lastRunStatus !== 'passed' ? 'rgba(254,242,242,0.4)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', minHeight: '30px' }}>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                  {canExpand && (
-                    <span style={{ color: hasIssues ? (s.lastRunStatus === 'failed' ? '#dc2626' : '#d97706') : 'var(--text-muted)', fontSize: '9px', flexShrink: 0, transform: isExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
-                  )}
+                  <span style={{ color: hasIssues ? (s.lastRunStatus === 'failed' ? '#dc2626' : '#d97706') : 'var(--text-muted)', fontSize: '9px', flexShrink: 0, transform: isSelected ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.tableFqn}</span>
                     {isEditing ? (
@@ -343,83 +352,30 @@ export default function SchedulesPage() {
                   </button>
                 </div>
               </div>
-
-              {/* expanded issues */}
-              {isExpanded && (
-                <div style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', padding: '12px 16px' }}>
-                  {hasRules && (
-                    <div style={{ marginBottom: hasIssues ? '14px' : 0 }}>
-                      <div style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--foreground)', marginBottom: '8px' }}>
-                        Scheduled Rules — {s.bundledRules.length}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        {s.bundledRules.map(rule => {
-                          const rc = RULE_SEV_CFG[rule.severity]
-                          const isPausing = pausingRuleId === rule.ruleId
-                          return (
-                            <div key={rule.ruleId} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px' }}>
-                              <span style={{ background: rc.bg, color: rc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase' }}>{rule.severity}</span>
-                              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)' }}>{rule.ruleName}</span>
-                              {rule.ruleDescription && (
-                                <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{rule.ruleDescription}</span>
-                              )}
-                              <button onClick={() => pauseRule(rule.ruleId)} disabled={isPausing}
-                                title="Pause this rule"
-                                style={{ marginLeft: 'auto', flexShrink: 0, padding: '2px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: isPausing ? 'not-allowed' : 'pointer' }}>
-                                {isPausing ? '⏳' : '⏸ Pause'}
-                              </button>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
-                  {hasIssues && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                    <span style={{ fontSize: 'var(--text-xs)', fontWeight: 700, color: 'var(--foreground)' }}>Last Run Issues — {s.tableFqn}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{s.checkedRows} checked · {s.failedRows} failed · {s.lastDuration}</span>
-                  </div>
-                  )}
-                  {hasIssues && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {s.issues.map((issue, j) => {
-                      const sc = SEV_CFG[issue.severity]
-                      return (
-                        <div key={j} style={{ background: 'var(--surface)', border: `1px solid ${sc.color}30`, borderLeft: `3px solid ${sc.color}`, borderRadius: '6px', padding: '10px 14px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-                            <span style={{ background: sc.bg, color: sc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 700 }}>{sc.label}</span>
-                            <span style={{ fontWeight: 600, fontSize: 'var(--text-xs)', color: 'var(--foreground)' }}>{issue.rule}</span>
-                            <span style={{ marginLeft: 'auto', fontFamily: 'monospace', fontSize: '10px', color: 'var(--status-error-text)', fontWeight: 600 }}>{issue.failedRows} rows</span>
-                          </div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                            <div style={{ background: 'var(--surface-muted)', borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
-                              <span style={{ fontWeight: 700, color: '#7c3aed', fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Root Cause · </span>{issue.detail}
-                            </div>
-                            <div style={{ background: `${sc.bg}88`, borderRadius: '6px', padding: '8px 10px', fontSize: '10.5px', color: 'var(--foreground)', lineHeight: 1.5 }}>
-                              <span style={{ fontWeight: 700, color: sc.color, fontSize: '9px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Impact · </span>{issue.impact}
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  )}
-                  <div style={{ marginTop: '10px', display: 'flex', gap: '6px' }}>
-                    <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
-                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #dbeafe', background: '#eff6ff', color: '#2563eb', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
-                      {runningId === s.id ? '⏳ Running…' : '▶ Re-run'}
-                    </button>
-                    <button onClick={() => setExpandedId(null)}
-                      style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
-                      ▲ Collapse
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )
         })}
       </div>
+
+      {selectedId && (() => {
+        const selected = scheduleList.find(sc => sc.id === selectedId)
+        if (!selected) return null
+        return (
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(640px, 92vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 900, display: 'flex' }}>
+            <ScheduleDetailDrawer
+              schedule={selected}
+              onClose={() => setSelectedId(null)}
+              runningId={runningId}
+              onRunSchedule={runNow}
+              onToggleSchedule={toggle}
+              runningRuleId={runningRuleId}
+              onRunRule={runRule}
+              pausingRuleId={pausingRuleId}
+              onSetRuleStatus={setRuleStatus}
+            />
+          </div>
+        )
+      })()}
 
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
