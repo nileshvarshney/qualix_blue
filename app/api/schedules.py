@@ -274,33 +274,46 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
                         connection_name = conn.connection_name
 
         # Resolve bundled rule summaries
+        next_run_time = get_next_run(s.schedule_id)
+
         rule_ids_list = _rule_ids_from_db(s.rule_ids)
-        bundled_rules = []
+        bundled_rule_models = []
         if s.schedule_level == "table" and s.asset_id:
-            # Table-level schedules cover every active/approved rule for the asset,
-            # not just the rules captured in rule_ids at creation time.
+            # Table-level schedules cover every active/disabled rule for the asset,
+            # not just the rules captured in rule_ids at creation time. Disabled
+            # (paused) rules stay in the list so they remain visible/unpausable.
             rr = await db.execute(
-                select(DQRule).where(DQRule.asset_id == s.asset_id, DQRule.is_active == True)
+                select(DQRule).where(
+                    DQRule.asset_id == s.asset_id,
+                    DQRule.status.in_(["active", "disabled"]),
+                )
             )
-            for bundled_rule in rr.scalars().all():
-                bundled_rules.append({
-                    "rule_id": bundled_rule.rule_id,
-                    "rule_name": bundled_rule.rule_name,
-                    "rule_description": bundled_rule.rule_description,
-                    "severity": bundled_rule.severity,
-                })
-            rule_ids_list = [r["rule_id"] for r in bundled_rules]
+            bundled_rule_models = list(rr.scalars().all())
+            rule_ids_list = [r.rule_id for r in bundled_rule_models]
         elif rule_ids_list:
             for rid in rule_ids_list:
                 rr = await db.execute(select(DQRule).where(DQRule.rule_id == rid))
                 bundled_rule = rr.scalar_one_or_none()
                 if bundled_rule:
-                    bundled_rules.append({
-                        "rule_id": bundled_rule.rule_id,
-                        "rule_name": bundled_rule.rule_name,
-                        "rule_description": bundled_rule.rule_description,
-                        "severity": bundled_rule.severity,
-                    })
+                    bundled_rule_models.append(bundled_rule)
+
+        bundled_rules = []
+        for bundled_rule in bundled_rule_models:
+            run_result = await db.execute(
+                select(DQRuleRun)
+                .where(DQRuleRun.rule_id == bundled_rule.rule_id)
+                .order_by(DQRuleRun.created_at.desc())
+                .limit(1)
+            )
+            latest_run = run_result.scalar_one_or_none()
+            entry = {
+                "rule_id": bundled_rule.rule_id,
+                "rule_name": bundled_rule.rule_name,
+                "rule_description": bundled_rule.rule_description,
+                "severity": bundled_rule.severity,
+            }
+            entry.update(_format_rule_run_info(latest_run, bundled_rule.status, next_run_time))
+            bundled_rules.append(entry)
 
         out.append({
             "schedule_id":    s.schedule_id,
@@ -326,7 +339,7 @@ async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
             "rule_ids":       rule_ids_list,
             "rule_count":     len(bundled_rules),
             "bundled_rules":  bundled_rules,
-            "next_run_time":  get_next_run(s.schedule_id),
+            "next_run_time":  next_run_time,
             "created_at":     s.created_at.isoformat(),
             "updated_at":     s.updated_at.isoformat(),
         })
