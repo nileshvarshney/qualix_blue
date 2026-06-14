@@ -21,10 +21,13 @@ const STATUS_RANK: Record<RunStatus, number> = { passed: 0, warning: 1, failed: 
 
 export function mapExecLog(l: Record<string, unknown>, i: number): ExecLog {
   const durationSeconds = Number(l.duration_seconds ?? 0)
+  const dataset = [l.sf_database_name, l.sf_schema_name, l.sf_table_name]
+    .filter(Boolean)
+    .join('.')
   return {
     id:            String(l.run_id ?? l.id ?? i),
     rule:          String(l.rule_name ?? l.rule ?? ''),
-    dataset:       String(l.asset_name ?? l.dataset ?? ''),
+    dataset:       dataset || String(l.asset_name ?? l.dataset ?? ''),
     connection:    String(l.connection_name ?? l.connection ?? ''),
     status:        (l.status === 'error' ? 'failed' : l.status as RunStatus) ?? 'passed',
     score:         Number(l.quality_score ?? l.score ?? 100),
@@ -32,7 +35,7 @@ export function mapExecLog(l: Record<string, unknown>, i: number): ExecLog {
     failed:        Number(l.failed_rows ?? l.failed ?? 0),
     duration:      String(l.duration_seconds ? `${l.duration_seconds}s` : l.duration ?? '—'),
     durationSeconds,
-    ts:            String(l.started_at ?? l.ts ?? ''),
+    ts:            String(l.execution_start_time ?? l.started_at ?? l.ts ?? ''),
     trigger:       String(l.trigger_type ?? l.trigger ?? 'Scheduled'),
     runBy:         String(l.run_by ?? l.runBy ?? 'scheduler'),
     ruleType:      String(l.rule_type ?? l.ruleType ?? ''),
