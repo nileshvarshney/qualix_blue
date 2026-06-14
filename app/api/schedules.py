@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.db.database import get_db
-from app.db.models import DQSchedule, DQRule, Domain, Subdomain, Asset, SnowflakeConnection
+from app.db.models import DQSchedule, DQRule, DQRuleRun, Domain, Subdomain, Asset, SnowflakeConnection
 from app.schemas.schedule import ScheduleCreate, ScheduleUpdate, ScheduleResponse
 from app.services.scheduler_service import (
     register_schedule, remove_schedule, get_next_run, list_jobs,
@@ -18,6 +18,42 @@ from app.core.security import get_current_user
 from datetime import datetime, timezone
 
 router = APIRouter(prefix="/schedules", tags=["Schedules"])
+
+
+def _format_rule_run_info(run, rule_status: str, next_run_time: str | None) -> dict:
+    """Build the per-rule run-status fields merged into each bundled_rules entry."""
+    if run is None:
+        return {
+            "status": rule_status,
+            "last_run_status": None,
+            "last_run_at": None,
+            "last_duration_ms": None,
+            "next_run": next_run_time if rule_status == "active" else None,
+            "failed_rows_count": None,
+            "total_rows_scanned": None,
+            "failure_percentage": None,
+            "error_message": None,
+            "ai_explanation": None,
+        }
+
+    last_run_at = run.execution_end_time or run.created_at
+    last_duration_ms = None
+    if run.execution_start_time and run.execution_end_time:
+        delta = run.execution_end_time - run.execution_start_time
+        last_duration_ms = round(delta.total_seconds() * 1000)
+
+    return {
+        "status": rule_status,
+        "last_run_status": run.status,
+        "last_run_at": last_run_at.isoformat() if last_run_at else None,
+        "last_duration_ms": last_duration_ms,
+        "next_run": next_run_time if rule_status == "active" else None,
+        "failed_rows_count": run.failed_rows_count,
+        "total_rows_scanned": run.total_rows_scanned,
+        "failure_percentage": run.failure_percentage,
+        "error_message": run.error_message,
+        "ai_explanation": run.ai_explanation,
+    }
 
 
 def _register(sched: DQSchedule):
