@@ -9,7 +9,7 @@ from sqlalchemy import select, func, desc, and_, or_, case, literal_column
 from datetime import datetime, timezone, timedelta, date
 from typing import Optional
 from app.db.database import get_db
-from app.db.models import Domain, Subdomain, Asset, DQRule, DQRuleRun, DQAlert, DQQualityScore, AnomalyDetection
+from app.db.models import Domain, Subdomain, Asset, AssetSourceMeta, DQRule, DQRuleRun, DQAlert, DQQualityScore, AnomalyDetection
 from app.core.security import get_current_user, get_domain_filter, check_domain_access, apply_domain_filter
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
@@ -156,13 +156,14 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
     q = (
         select(
             DQRuleRun.asset_id,
-            Asset.sf_table_name,
-            Asset.sf_schema_name,
+            AssetSourceMeta.sf_table_name,
+            AssetSourceMeta.sf_schema_name,
             Domain.domain_name,
             func.date(DQRuleRun.created_at).label("run_date"),
             func.avg(DQRuleRun.quality_score).label("day_avg"),
         )
         .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(
             func.date(DQRuleRun.created_at) >= cutoff,
@@ -171,8 +172,8 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
         )
         .group_by(
             DQRuleRun.asset_id,
-            Asset.sf_table_name,
-            Asset.sf_schema_name,
+            AssetSourceMeta.sf_table_name,
+            AssetSourceMeta.sf_schema_name,
             Domain.domain_name,
             func.date(DQRuleRun.created_at),
         )
@@ -251,8 +252,8 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
         select(
             DQRuleRun.asset_id,
             DQRuleRun.quality_score,
-            Asset.sf_table_name,
-            Asset.sf_schema_name,
+            AssetSourceMeta.sf_table_name,
+            AssetSourceMeta.sf_schema_name,
             Domain.domain_name,
         )
         .join(latest_sq, and_(
@@ -260,6 +261,7 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
             DQRuleRun.created_at == latest_sq.c.latest_ts,
         ))
         .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(DQRuleRun.quality_score.isnot(None))
         .order_by(DQRuleRun.quality_score.asc())
@@ -325,11 +327,12 @@ async def _get_recently_fixed(db: AsyncSession, domain_scope: Optional[str] = No
             DQRuleRun.quality_score,
             DQRuleRun.created_at,
             DQRule.rule_name,
-            Asset.sf_table_name,
+            AssetSourceMeta.sf_table_name,
             Domain.domain_name,
         )
         .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
         .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
+        .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
         .where(DQRuleRun.created_at >= since_24h)
         .order_by(DQRuleRun.rule_id, DQRuleRun.created_at)
