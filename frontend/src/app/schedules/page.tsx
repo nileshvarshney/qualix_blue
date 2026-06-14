@@ -1,50 +1,9 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { Schedule, RUN_STYLE, STATUS_STYLE, mapSchedule } from '@/lib/schedules'
+import ScheduleDetailDrawer from '@/components/shared/ScheduleDetailDrawer'
 
-type LastRunStatus = 'passed' | 'failed' | 'warning'
-type ScheduleStatus = 'active' | 'paused'
 type FilterType = 'all' | 'active' | 'paused' | 'failed'
-
-interface RunIssue {
-  rule: string
-  severity: 'critical' | 'warning' | 'info'
-  detail: string
-  impact: string
-  failedRows: string
-}
-
-interface BundledRule {
-  ruleId: string
-  ruleName: string
-  ruleDescription: string
-  severity: 'critical' | 'high' | 'medium' | 'low'
-}
-
-interface Schedule {
-  id: string; name: string; dataset: string; tableFqn: string; cron: string; human: string
-  frequency: string; runAtHour: number | null; runAtMinute: number | null
-  rules: number; lastRun: string; nextRun: string; status: ScheduleStatus
-  lastRunStatus: LastRunStatus; lastDuration: string; connection: string
-  owner: string; failedRules: number; checkedRows: string; failedRows: string
-  issues: RunIssue[]; bundledRules: BundledRule[]
-}
-
-const SEV_CFG = {
-  critical: { color: '#dc2626', bg: '#fee2e2', label: 'Critical' },
-  warning:  { color: '#d97706', bg: '#fef3c7', label: 'Warning'  },
-  info:     { color: '#2563eb', bg: '#dbeafe', label: 'Info'     },
-}
-
-const RUN_STYLE: Record<LastRunStatus, { background: string; color: string }> = {
-  passed:  { background: '#f0fdf4', color: '#16a34a' },
-  failed:  { background: '#fee2e2', color: '#dc2626' },
-  warning: { background: '#fef3c7', color: '#d97706' },
-}
-
-const STATUS_STYLE: Record<ScheduleStatus, { background: string; color: string }> = {
-  active: { background: '#f0fdf4', color: '#16a34a' },
-  paused: { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
-}
 
 const GRID = '1fr 100px 80px 80px 90px 90px 110px auto'
 
@@ -58,51 +17,6 @@ function buildCronExpression(frequency: string, time: string, dayOfWeek: string,
   const minute = Number(minuteStr ?? 0)
   if (frequency === 'weekly') return `${minute} ${hour} * * ${dayOfWeek}`
   return `${minute} ${hour} * * *`
-}
-
-function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
-  const dataset = String(s.asset_name ?? s.dataset ?? '')
-  const tableFqn = [s.asset_database, s.asset_schema, s.asset_name]
-    .filter(v => typeof v === 'string' && v)
-    .join('.') || dataset || '(unscoped)'
-  return {
-    id:            String(s.schedule_id ?? s.id ?? i),
-    name:          String(s.schedule_name ?? s.name ?? ''),
-    dataset,
-    tableFqn,
-    cron:          String(s.cron_expression ?? s.cron ?? ''),
-    human:         String(s.human_readable ?? s.human ?? s.cron_expression ?? ''),
-    frequency:     String(s.frequency ?? 'daily'),
-    runAtHour:     s.run_at_hour === null || s.run_at_hour === undefined ? null : Number(s.run_at_hour),
-    runAtMinute:   s.run_at_minute === null || s.run_at_minute === undefined ? null : Number(s.run_at_minute),
-    rules:         Number(s.rule_count ?? s.rules ?? 0),
-    lastRun:       String(s.last_run_at ?? s.lastRun ?? '—'),
-    nextRun:       String(s.next_run_at ?? s.nextRun ?? '—'),
-    status:        (s.is_active ? 'active' : 'paused') as ScheduleStatus,
-    lastRunStatus: (['passed', 'failed', 'warning'] as const).includes(s.last_run_status as 'passed' | 'failed' | 'warning')
-                     ? (s.last_run_status as 'passed' | 'failed' | 'warning')
-                     : 'passed',
-    lastDuration:  String(s.last_duration ?? s.lastDuration ?? '—'),
-    connection:    String(s.connection_name ?? s.connection ?? '(no connection)'),
-    owner:         String(s.owner ?? ''),
-    failedRules:   Number(s.failed_rules ?? s.failedRules ?? 0),
-    checkedRows:   String(s.checked_rows ?? s.checkedRows ?? '0'),
-    failedRows:    String(s.failed_rows ?? s.failedRows ?? '0'),
-    issues:        Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
-    bundledRules:  Array.isArray(s.bundled_rules) ? (s.bundled_rules as Record<string, unknown>[]).map(r => ({
-                     ruleId: String(r.rule_id ?? ''),
-                     ruleName: String(r.rule_name ?? ''),
-                     ruleDescription: String(r.rule_description ?? ''),
-                     severity: (r.severity ?? 'medium') as BundledRule['severity'],
-                   })) : [],
-  }
-}
-
-const RULE_SEV_CFG: Record<BundledRule['severity'], { color: string; bg: string }> = {
-  critical: { color: '#dc2626', bg: '#fee2e2' },
-  high:     { color: '#d97706', bg: '#fef3c7' },
-  medium:   { color: '#2563eb', bg: '#dbeafe' },
-  low:      { color: 'var(--text-muted)', bg: 'var(--surface-muted)' },
 }
 
 export default function SchedulesPage() {
