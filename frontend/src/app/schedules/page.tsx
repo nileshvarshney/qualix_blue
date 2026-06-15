@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Schedule, RUN_STYLE, STATUS_STYLE, mapSchedule } from '@/lib/schedules'
-import ScheduleDetailDrawer from '@/components/shared/ScheduleDetailDrawer'
+import ScheduleJobTree from '@/components/shared/ScheduleJobTree'
 
 type FilterType = 'all' | 'active' | 'paused' | 'failed'
 
@@ -66,6 +66,12 @@ export default function SchedulesPage() {
   const paused  = scheduleList.filter(s => s.status === 'paused').length
   const failed  = scheduleList.filter(s => s.lastRunStatus === 'failed').length
   const warning = scheduleList.filter(s => s.lastRunStatus === 'warning').length
+
+  const allRules        = scheduleList.flatMap(s => s.bundledRules)
+  const totalRules      = allRules.length
+  const activeRules     = allRules.filter(r => r.status === 'active').length
+  const pausedRules     = allRules.filter(r => r.status === 'disabled').length
+  const failedWarnRules = allRules.filter(r => r.lastRunStatus === 'failed' || r.lastRunStatus === 'warning').length
 
   const filtered = scheduleList.filter(s => {
     if (filter === 'active') return s.status === 'active'
@@ -195,14 +201,14 @@ export default function SchedulesPage() {
   }
 
   const CARDS = [
-    { key: 'all',    label: 'Total',          value: scheduleList.length, color: 'var(--accent)'            },
-    { key: 'active', label: 'Active',          value: active,              color: 'var(--status-ok-text)'    },
-    { key: 'paused', label: 'Paused',          value: paused,              color: 'var(--text-muted)'        },
-    { key: 'failed', label: 'Failed/Warning',  value: failed + warning,    color: 'var(--status-error-text)' },
+    { key: 'all',    label: 'Total',          value: scheduleList.length, rules: totalRules,      color: 'var(--accent)'            },
+    { key: 'active', label: 'Active',          value: active,              rules: activeRules,     color: 'var(--status-ok-text)'    },
+    { key: 'paused', label: 'Paused',          value: paused,              rules: pausedRules,     color: 'var(--text-muted)'        },
+    { key: 'failed', label: 'Failed/Warning',  value: failed + warning,    rules: failedWarnRules, color: 'var(--status-error-text)' },
   ] as const
 
   return (
-    <div style={{ paddingTop: '16px', paddingLeft: '24px', paddingBottom: '16px', paddingRight: selectedId ? 'calc(min(640px, 92vw) + 24px)' : '24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
+    <div style={{ paddingTop: '16px', paddingLeft: '24px', paddingBottom: '16px', paddingRight: '24px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '10px', background: 'var(--background)' }}>
 
       {/* top bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
@@ -223,9 +229,14 @@ export default function SchedulesPage() {
           const on = filter === s.key
           return (
             <div key={s.key} onClick={() => setFilter(p => p === s.key ? 'all' : s.key as FilterType)}
-              style={{ background: on ? s.color : 'var(--surface)', border: `1px solid ${on ? s.color : 'var(--border)'}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              style={{ background: on ? s.color : `color-mix(in srgb, ${s.color} 12%, var(--surface))`, border: `1px solid ${on ? s.color : `color-mix(in srgb, ${s.color} 35%, var(--border))`}`, borderRadius: '8px', padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{ fontSize: '18px', fontWeight: 700, color: on ? '#fff' : s.color, lineHeight: 1 }}>{loading ? '…' : s.value}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: on ? 'rgba(255,255,255,0.85)' : 'var(--text-muted)' }}>{s.label}</div>
+              <div>
+                <div style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: on ? '#fff' : s.color }}>{s.label}</div>
+                <div style={{ fontSize: '10px', color: on ? 'rgba(255,255,255,0.85)' : 'var(--text-muted)' }}>
+                  {loading ? '…' : `${s.value} table${s.value !== 1 ? 's' : ''} · ${s.rules} rule${s.rules !== 1 ? 's' : ''}`}
+                </div>
+              </div>
             </div>
           )
         })}
@@ -352,30 +363,22 @@ export default function SchedulesPage() {
                   </button>
                 </div>
               </div>
+
+              {isSelected && (
+                <div style={{ padding: '12px 16px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+                  <ScheduleJobTree
+                    schedule={s}
+                    runningRuleId={runningRuleId}
+                    onRunRule={runRule}
+                    pausingRuleId={pausingRuleId}
+                    onSetRuleStatus={setRuleStatus}
+                  />
+                </div>
+              )}
             </div>
           )
         })}
       </div>
-
-      {selectedId && (() => {
-        const selected = scheduleList.find(sc => sc.id === selectedId)
-        if (!selected) return null
-        return (
-          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(640px, 92vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', zIndex: 900, display: 'flex' }}>
-            <ScheduleDetailDrawer
-              schedule={selected}
-              onClose={() => setSelectedId(null)}
-              runningId={runningId}
-              onRunSchedule={runNow}
-              onToggleSchedule={toggle}
-              runningRuleId={runningRuleId}
-              onRunRule={runRule}
-              pausingRuleId={pausingRuleId}
-              onSetRuleStatus={setRuleStatus}
-            />
-          </div>
-        )
-      })()}
 
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
