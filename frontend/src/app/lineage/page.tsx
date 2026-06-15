@@ -19,7 +19,7 @@ interface ColumnLineageEdge { fromAssetId: string; fromColumn: string; toAssetId
 
 
 /* ─── Node visual config ─── */
-const NODE_W = 220, NODE_H = 70
+const NODE_W = 160, NODE_H = 46
 
 const typeConfig: Record<string, { bg: string; border: string; color: string; label: string }> = {
   source:    { bg: '#eff6ff', border: '#93c5fd', color: '#1d4ed8', label: 'Source' },
@@ -29,7 +29,7 @@ const typeConfig: Record<string, { bg: string; border: string; color: string; la
   output:    { bg: '#faf5ff', border: '#d8b4fe', color: '#7c3aed', label: 'Views' },
 }
 
-/* ─── Object-type icon: a database symbol for every object, styled by table/view/materialized/secure/external ─── */
+/* ─── Object-type icon: a distinct database table/view glyph per object type ─── */
 function DbTypeIcon({ tableType, size = 16, x, y }: { tableType?: string | null; size?: number; x?: number; y?: number }) {
   const t = (tableType ?? '').toUpperCase()
   const isMaterialized = t.includes('MATERIALIZED')
@@ -37,28 +37,61 @@ function DbTypeIcon({ tableType, size = 16, x, y }: { tableType?: string | null;
   const isSecure = t.includes('SECURE')
   const isView = t.includes('VIEW')
   const color = isMaterialized ? '#d97706' : isView ? '#7c3aed' : isExternal ? '#64748b' : '#2563eb'
-  const dash = isExternal ? '2 1.5' : undefined
+
+  const common = {
+    x, y, width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: color,
+    strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const,
+    style: { display: 'block', flexShrink: 0 },
+  }
+
+  // Materialized view: a cached/stacked copy of a data table
+  if (isMaterialized) {
+    return (
+      <svg {...common}>
+        <rect x="7" y="7" width="14" height="14" rx="2" />
+        <rect x="3" y="3" width="14" height="14" rx="2" fill="#fff" />
+        <path d="M3 9h14M9 3v14" />
+      </svg>
+    )
+  }
+
+  // Secure view: a view (eye) with a lock badge
+  if (isSecure) {
+    return (
+      <svg {...common}>
+        <path d="M2 12s3.2-6 10-6 10 6 10 6-3.2 6-10 6-10-6-10-6Z" />
+        <circle cx="12" cy="12" r="2.2" />
+        <rect x="15.5" y="15.5" width="6.5" height="5.5" rx="1" fill="#fff" />
+        <path d="M17 15.5v-1.1a1.6 1.6 0 0 1 3.2 0v1.1" />
+      </svg>
+    )
+  }
+
+  // External table: a data table with a dashed border (lives outside the warehouse)
+  if (isExternal) {
+    return (
+      <svg {...common}>
+        <rect x="3" y="3" width="18" height="18" rx="2" strokeDasharray="3 2" />
+        <path d="M3 10h18M3 16h18M10 3v18" strokeDasharray="3 2" />
+      </svg>
+    )
+  }
+
+  // View: an eye — a computed/virtual table
+  if (isView) {
+    return (
+      <svg {...common}>
+        <path d="M2 12s3.2-6 10-6 10 6 10 6-3.2 6-10 6-10-6-10-6Z" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    )
+  }
+
+  // Base table: a data grid
   return (
-    <svg x={x} y={y} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}
-      strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flexShrink: 0 }}>
-      {/* database cylinder — the shared base shape for every object type */}
-      <ellipse cx="12" cy="5" rx="9" ry="3" fill={isMaterialized ? color : 'none'} fillOpacity={isMaterialized ? 0.25 : 0} strokeDasharray={dash} />
-      <path d="M3 5V19A9 3 0 0 0 21 19V5" strokeDasharray={dash} />
-      <path d="M3 12A9 3 0 0 0 21 12" strokeDasharray={dash} />
-      {/* view badge: eye */}
-      {isView && !isSecure && (
-        <>
-          <circle cx="18" cy="18.5" r="4.3" fill="#fff" stroke={color} strokeWidth="1.6" />
-          <circle cx="18" cy="18.5" r="1.4" fill={color} />
-        </>
-      )}
-      {/* secure view badge: lock */}
-      {isSecure && (
-        <>
-          <rect x="14.8" y="17.3" width="6.4" height="5" rx="1" fill="#fff" stroke={color} strokeWidth="1.6" />
-          <path d="M16.3 17.3v-1.1a1.7 1.7 0 0 1 3.4 0v1.1" fill="none" stroke={color} strokeWidth="1.6" />
-        </>
-      )}
+    <svg {...common}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M3 10h18M3 16h18M10 3v18" />
     </svg>
   )
 }
@@ -111,10 +144,10 @@ function layoutNodes(nodes: LineageNode[], edges: LineageEdge[]): LineageNode[] 
     layerGroups.get(layer)!.push(id)
   }
 
-  const LAYER_X = 290
-  const START_X = 60
-  const START_Y = 80
-  const GAP_Y = 90
+  const LAYER_X = 200
+  const START_X = 40
+  const START_Y = 50
+  const GAP_Y = 56
 
   return nodes.map(n => {
     const layer = layers.get(n.id) ?? 0
@@ -693,11 +726,11 @@ export default function LineagePage() {
           {/* Layer labels at top */}
           {Object.entries(layerLabels).map(([layerStr, label]) => {
             const layer = Number(layerStr)
-            const x = 60 + layer * 290 + NODE_W / 2
+            const x = 40 + layer * 200 + NODE_W / 2
             return (
               <g key={layerStr}>
-                <text x={x} y={30} textAnchor="middle" fontSize="11" fontWeight="600" fill="#94a3b8" letterSpacing="1.5" fontFamily="system-ui,sans-serif">{label}</text>
-                <line x1={x - 60} y1={42} x2={x + 60} y2={42} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 3" />
+                <text x={x} y={20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#94a3b8" letterSpacing="1.2" fontFamily="system-ui,sans-serif">{label}</text>
+                <line x1={x - 45} y1={28} x2={x + 45} y2={28} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 3" />
               </g>
             )
           })}
@@ -736,9 +769,9 @@ export default function LineagePage() {
             const to = nodeMap.get(edge.to)
             if (!from || !to) return null
             const fx = (from.x ?? 0) + NODE_W - 4
-            const fy = (from.y ?? 0) + NODE_H / 2 + 10
+            const fy = (from.y ?? 0) + NODE_H / 2 + 7
             const tx = (to.x ?? 0) + 4
-            const ty = (to.y ?? 0) + NODE_H / 2 + 10
+            const ty = (to.y ?? 0) + NODE_H / 2 + 7
             const midX = (fx + tx) / 2
             return (
               <g key={`col-edge-${i}`}>
@@ -771,38 +804,38 @@ export default function LineagePage() {
               <g key={node.id} style={{ cursor: 'pointer' }} onClick={() => selectNode(node.id)}>
                 {/* Column lineage glow ring */}
                 {isInColLineage && (
-                  <rect x={nx - 3} y={ny - 3} width={NODE_W + 6} height={NODE_H + 6} rx={12}
-                    fill="none" stroke="#8b5cf6" strokeWidth={2} opacity={0.5}
+                  <rect x={nx - 2} y={ny - 2} width={NODE_W + 4} height={NODE_H + 4} rx={8}
+                    fill="none" stroke="#8b5cf6" strokeWidth={1.5} opacity={0.5}
                     strokeDasharray="6 3"
                     style={{ animation: 'dashFlow 2s linear infinite' }}
                   />
                 )}
-                <rect x={nx} y={ny} width={NODE_W} height={NODE_H} rx={10}
+                <rect x={nx} y={ny} width={NODE_W} height={NODE_H} rx={7}
                   fill={isInColLineage ? '#faf5ff' : cfg.bg}
                   stroke={isInColLineage ? '#8b5cf6' : isSel ? '#2563eb' : cfg.border}
-                  strokeWidth={isInColLineage ? 2.5 : isSel ? 2.5 : 1.5}
+                  strokeWidth={isInColLineage ? 2 : isSel ? 2 : 1}
                   opacity={isDimmed && !isInColLineage ? 0.2 : 1}
                   filter={isInColLineage ? 'drop-shadow(0 0 8px rgba(139,92,246,0.3))' : isSel ? 'drop-shadow(0 0 8px rgba(37,99,235,0.3))' : undefined}
                   style={{ transition: 'all 0.2s' }}
                 />
                 <g opacity={isDimmed && !isInColLineage ? 0.2 : 1}>
-                  <DbTypeIcon tableType={node.tableType} size={18} x={nx + 12} y={ny + 18} />
+                  <DbTypeIcon tableType={node.tableType} size={12} x={nx + 8} y={ny + 11} />
                 </g>
-                <text x={nx + 36} y={ny + 28} fontSize="12" fontWeight={isSel || isInColLineage ? 700 : 600} fill={isInColLineage ? '#6d28d9' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.2 : 1} fontFamily="system-ui,sans-serif">
-                  {node.label.length > 22 ? node.label.slice(0, 20) + '…' : node.label}
+                <text x={nx + 24} y={ny + 18} fontSize="7" fontWeight={isSel || isInColLineage ? 700 : 600} fill={isInColLineage ? '#6d28d9' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.2 : 1} fontFamily="system-ui,sans-serif">
+                  {node.label.length > 18 ? node.label.slice(0, 16) + '…' : node.label}
                 </text>
-                <text x={nx + 36} y={ny + 46} fontSize="10" fill={isInColLineage ? '#8b5cf6' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.1 : 0.55} fontFamily="system-ui,sans-serif">
+                <text x={nx + 24} y={ny + 31} fontSize="6" fill={isInColLineage ? '#8b5cf6' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.1 : 0.55} fontFamily="system-ui,sans-serif">
                   {node.rowCount ? `${node.rowCount.toLocaleString()} rows · ` : ''}{node.sub}
                 </text>
                 {/* Column lineage badge on node */}
                 {isInColLineage && (
                   <g>
-                    <rect x={nx + NODE_W - 42} y={ny + NODE_H - 18} width={36} height={14} rx={7} fill="#8b5cf6" />
-                    <text x={nx + NODE_W - 24} y={ny + NODE_H - 9} textAnchor="middle" fontSize="8" fill="#fff" fontWeight="700" fontFamily="system-ui,sans-serif">COL</text>
+                    <rect x={nx + NODE_W - 30} y={ny + NODE_H - 13} width={26} height={10} rx={5} fill="#8b5cf6" />
+                    <text x={nx + NODE_W - 17} y={ny + NODE_H - 6} textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700" fontFamily="system-ui,sans-serif">COL</text>
                   </g>
                 )}
                 {node.rowCount != null && !isInColLineage && (
-                  <circle cx={nx + NODE_W - 12} cy={ny + 16} r={5} fill="#16a34a" opacity={isDimmed ? 0.1 : 0.8} />
+                  <circle cx={nx + NODE_W - 8} cy={ny + 10} r={3.5} fill="#16a34a" opacity={isDimmed ? 0.1 : 0.8} />
                 )}
               </g>
             )
