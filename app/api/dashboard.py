@@ -887,16 +887,28 @@ async def quality_dimensions(
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
-    """Return quality scores grouped by data quality dimension for today's runs."""
+    """Return quality scores grouped by data quality dimension for the most recent day of runs."""
     if domain_id:
         check_domain_access(user, domain_id)
     domain_scope = domain_id or get_domain_filter(user)
-    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+
+    latest_q = (
+        select(func.max(func.date(DQRuleRun.created_at)))
+        .join(DQRule, DQRule.rule_id == DQRuleRun.rule_id)
+        .where(DQRule.is_active == True)
+    )
+    if domain_scope:
+        latest_q = latest_q.where(DQRule.domain_id == domain_scope)
+    latest_date = (await db.execute(latest_q)).scalar()
+
+    if latest_date is None:
+        return {dim: None for dim in
+                ("completeness", "accuracy", "uniqueness", "validity", "timeliness", "consistency")}
 
     q = (
         select(DQRule.rule_type, DQRuleRun.status)
         .join(DQRuleRun, DQRule.rule_id == DQRuleRun.rule_id)
-        .where(func.date(DQRuleRun.created_at) == today)
+        .where(func.date(DQRuleRun.created_at) == latest_date)
         .where(DQRule.is_active == True)
     )
     if domain_scope:
