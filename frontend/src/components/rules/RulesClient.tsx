@@ -611,7 +611,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
           )}
           <div style={{ width: '86px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Category</div>
           <div style={{ width: '64px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Severity</div>
-          <div style={{ width: '86px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</div>
+          <div style={{ width: '120px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Status</div>
           <div style={{ width: '60px', fontSize: '9.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Last Run</div>
           <div style={{ width: '96px' }} />
         </div>
@@ -779,7 +779,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                   <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'inline-block', maxWidth: '100%' }}>{sev.label}</span>
                 </div>
 
-                <div style={{ width: '86px', flexShrink: 0 }}>
+                <div style={{ width: '120px', flexShrink: 0 }}>
                   <StatusDropdown rule={rule} stat={stat} onUpdate={updateRuleStatus} />
                 </div>
 
@@ -1169,7 +1169,7 @@ function StatusDropdown({ rule, stat, onUpdate }: {
       <button onClick={() => setOpen(o => !o)} style={{
         display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '20px',
         background: stat.bg, color: stat.color, border: `1px solid ${stat.border}`,
-        fontSize: '10.5px', fontWeight: 600, cursor: 'pointer'
+        fontSize: '10.5px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap'
       }}>
         {stat.label}
         <span style={{ fontSize: '8px', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
