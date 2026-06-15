@@ -29,14 +29,38 @@ const typeConfig: Record<string, { bg: string; border: string; color: string; la
   output:    { bg: '#faf5ff', border: '#d8b4fe', color: '#7c3aed', label: 'Views' },
 }
 
-/* ─── Object-type icon, based on the underlying table type ─── */
-function tableTypeIcon(tableType?: string | null): string {
+/* ─── Object-type icon: a database symbol for every object, styled by table/view/materialized/secure/external ─── */
+function DbTypeIcon({ tableType, size = 16, x, y }: { tableType?: string | null; size?: number; x?: number; y?: number }) {
   const t = (tableType ?? '').toUpperCase()
-  if (t.includes('MATERIALIZED')) return '🧱'
-  if (t.includes('SECURE')) return '🔒'
-  if (t.includes('EXTERNAL')) return '🌐'
-  if (t.includes('VIEW')) return '👁'
-  return '🗃️'
+  const isMaterialized = t.includes('MATERIALIZED')
+  const isExternal = t.includes('EXTERNAL')
+  const isSecure = t.includes('SECURE')
+  const isView = t.includes('VIEW')
+  const color = isMaterialized ? '#d97706' : isView ? '#7c3aed' : isExternal ? '#64748b' : '#2563eb'
+  const dash = isExternal ? '2 1.5' : undefined
+  return (
+    <svg x={x} y={y} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}
+      strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block', flexShrink: 0 }}>
+      {/* database cylinder — the shared base shape for every object type */}
+      <ellipse cx="12" cy="5" rx="9" ry="3" fill={isMaterialized ? color : 'none'} fillOpacity={isMaterialized ? 0.25 : 0} strokeDasharray={dash} />
+      <path d="M3 5V19A9 3 0 0 0 21 19V5" strokeDasharray={dash} />
+      <path d="M3 12A9 3 0 0 0 21 12" strokeDasharray={dash} />
+      {/* view badge: eye */}
+      {isView && !isSecure && (
+        <>
+          <circle cx="18" cy="18.5" r="4.3" fill="#fff" stroke={color} strokeWidth="1.6" />
+          <circle cx="18" cy="18.5" r="1.4" fill={color} />
+        </>
+      )}
+      {/* secure view badge: lock */}
+      {isSecure && (
+        <>
+          <rect x="14.8" y="17.3" width="6.4" height="5" rx="1" fill="#fff" stroke={color} strokeWidth="1.6" />
+          <path d="M16.3 17.3v-1.1a1.7 1.7 0 0 1 3.4 0v1.1" fill="none" stroke={color} strokeWidth="1.6" />
+        </>
+      )}
+    </svg>
+  )
 }
 
 function tableTypeLabel(tableType?: string | null): string {
@@ -179,10 +203,6 @@ export default function LineagePage() {
       if (res.ok) {
         const json = await res.json()
         if (json.nodes && json.nodes.length > 0) {
-          json.nodes = json.nodes.map((n: LineageNode) => ({
-            ...n,
-            icon: tableTypeIcon(n.tableType),
-          }))
           setData(json); setIsLive(true); setLastRefresh(new Date())
           if (!silent) setLoading(false)
           return
@@ -467,7 +487,7 @@ export default function LineagePage() {
                     onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0 }}>{m.icon}</div>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><DbTypeIcon tableType={m.tableType} size={15} /></div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600, fontSize: '11.5px', color: 'var(--foreground)' }}>{m.label}</div>
                       <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.sub}</div>
@@ -512,7 +532,7 @@ export default function LineagePage() {
           }}>
             {/* Popup Header */}
             <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f1f5f9' }}>
-              <span style={{ fontSize: '18px' }}>{selectedNode.icon}</span>
+              <DbTypeIcon tableType={selectedNode.tableType} size={18} />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: '14px', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.label}</div>
                 <div style={{ fontSize: '11px', color: '#94a3b8' }}>
@@ -757,7 +777,9 @@ export default function LineagePage() {
                   filter={isInColLineage ? 'drop-shadow(0 0 8px rgba(139,92,246,0.3))' : isSel ? 'drop-shadow(0 0 8px rgba(37,99,235,0.3))' : undefined}
                   style={{ transition: 'all 0.2s' }}
                 />
-                <text x={nx + 14} y={ny + 28} fontSize="16" opacity={isDimmed && !isInColLineage ? 0.2 : 1}>{node.icon}</text>
+                <g opacity={isDimmed && !isInColLineage ? 0.2 : 1}>
+                  <DbTypeIcon tableType={node.tableType} size={18} x={nx + 12} y={ny + 18} />
+                </g>
                 <text x={nx + 36} y={ny + 28} fontSize="12" fontWeight={isSel || isInColLineage ? 700 : 600} fill={isInColLineage ? '#6d28d9' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.2 : 1} fontFamily="system-ui,sans-serif">
                   {node.label.length > 22 ? node.label.slice(0, 20) + '…' : node.label}
                 </text>
@@ -794,7 +816,7 @@ export default function LineagePage() {
                 background: (typeConfig[selectedNode.type] ?? typeConfig.warehouse).bg,
                 border: `2px solid ${(typeConfig[selectedNode.type] ?? typeConfig.warehouse).border}`,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
-              }}>{selectedNode.icon}</div>
+              }}><DbTypeIcon tableType={selectedNode.tableType} size={22} /></div>
               <div>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>{selectedNode.label}</div>
                 <div style={{ fontSize: '13px', color: '#64748b' }}>{selectedNode.schema} · {tableTypeLabel(selectedNode.tableType)}</div>
@@ -839,7 +861,7 @@ export default function LineagePage() {
                           padding: '5px 10px', borderRadius: '8px', border: `1px solid ${cfg.border}`,
                           background: cfg.bg, cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: cfg.color,
                         }}>
-                          <span style={{ fontSize: '13px' }}>{n.icon}</span>
+                          <DbTypeIcon tableType={n.tableType} size={13} />
                           {n.label}
                           <span style={{ fontSize: '10px', color: '#94a3b8' }}>{cfg.label}</span>
                         </button>
@@ -871,7 +893,7 @@ export default function LineagePage() {
                           padding: '5px 10px', borderRadius: '8px', border: `1px solid ${cfg.border}`,
                           background: cfg.bg, cursor: 'pointer', fontSize: '12px', fontWeight: 500, color: cfg.color,
                         }}>
-                          <span style={{ fontSize: '13px' }}>{n.icon}</span>
+                          <DbTypeIcon tableType={n.tableType} size={13} />
                           {n.label}
                           <span style={{ fontSize: '10px', color: '#94a3b8' }}>{cfg.label}</span>
                         </button>
