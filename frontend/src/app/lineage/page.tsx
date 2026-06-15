@@ -72,6 +72,15 @@ function tableTypeLabel(tableType?: string | null): string {
   return 'Table'
 }
 
+/* ─── Build the query string for /api/snowflake/columns, which requires database+schema+table ─── */
+function columnsQuery(node: LineageNode): string {
+  return new URLSearchParams({
+    table: node.label,
+    database: node.database ?? '',
+    schema: node.schema ?? '',
+  }).toString()
+}
+
 /* ─── Layout engine ─── */
 function layoutNodes(nodes: LineageNode[], edges: LineageEdge[]): LineageNode[] {
   const adjOut = new Map<string, string[]>()
@@ -231,9 +240,8 @@ export default function LineagePage() {
     const loadAllCols = async () => {
       const map = new Map<string, string[]>()
       for (const node of data.nodes) {
-        if (node.type === 'source') continue
         try {
-          const res = await fetch(`/api/snowflake/columns?table=${encodeURIComponent(node.label)}`)
+          const res = await fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
           const json = await res.json()
           if (json.columns && json.columns.length > 0) {
             map.set(node.id, json.columns.map((c: ColumnInfo) => c.COLUMN_NAME))
@@ -257,9 +265,9 @@ export default function LineagePage() {
   useEffect(() => {
     if (!selected) { setColumnData(null); return }
     const node = data?.nodes.find(n => n.id === selected)
-    if (!node || node.type === 'source') { setColumnData(null); return }
+    if (!node) { setColumnData(null); return }
     setColumnsLoading(true); setColumnSearch('')
-    fetch(`/api/snowflake/columns?table=${encodeURIComponent(node.label)}`)
+    fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
       .then(r => r.json())
       .then(d => setColumnData(d.columns ?? []))
       .catch(() => { setColumnData([]) })
@@ -517,7 +525,7 @@ export default function LineagePage() {
       {/* SVG Graph */}
       <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
         {/* ── Floating Column Popup on graph ── */}
-        {selectedNode && selectedNode.type !== 'source' && (
+        {selectedNode && (
           <div style={{
             position: 'absolute',
             left: (selectedNode.x ?? 0) + NODE_W + 28,
