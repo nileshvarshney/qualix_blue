@@ -6,13 +6,13 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
   const connectionId = new URL(req.url).searchParams.get('connection_id') ?? await getPrimaryConnectionId()
-  if (!connectionId) return NextResponse.json({ nodes: [], edges: [] })
+  if (!connectionId) return NextResponse.json({ edges: [] })
   try {
-    const res = await fetch(`${BACKEND}/lineage?connection_id=${connectionId}`, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json({ nodes: [], edges: [] })
+    const res = await fetch(`${BACKEND}/lineage/columns?connection_id=${connectionId}`, { cache: 'no-store' })
+    if (!res.ok) return NextResponse.json({ edges: [] })
     return NextResponse.json(await res.json())
   } catch {
-    return NextResponse.json({ nodes: [], edges: [] })
+    return NextResponse.json({ edges: [] })
   }
 }
 

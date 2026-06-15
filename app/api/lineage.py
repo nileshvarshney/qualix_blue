@@ -4,6 +4,7 @@ import asyncio
 import logging
 import sqlglot
 import sqlglot.expressions as exp
+from sqlglot.lineage import lineage as sqlglot_lineage
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
@@ -114,6 +115,231 @@ def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: Asset) -> Opti
     except Exception as exc:
         logger.debug("view_definition fetch failed: %s", exc)
         return None
+
+
+async def _resolve_connection_id(connection_id: Optional[str], db: AsyncSession) -> Optional[str]:
+    if connection_id:
+        return connection_id
+    result = await db.execute(
+        select(SnowflakeConnection.connection_id)
+        .where(SnowflakeConnection.is_active == True)
+        .order_by(SnowflakeConnection.is_primary_target.desc(), SnowflakeConnection.created_at.asc())
+        .limit(1)
+    )
+    return result.scalar()
+
+
+def _classify_node_type(table_type: Optional[str]) -> str:
+    if table_type and "VIEW" in table_type.upper():
+        return "output"
+    return "warehouse"
+
+
+@router.get("")
+async def get_lineage_graph(
+    connection_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Connection-wide lineage graph: nodes + table-level edges."""
+    empty_meta = {"edgeMethods": {"fk": 0, "ddl": 0, "heuristic": 0}, "totalTables": 0, "totalEdges": 0}
+    empty_conn = {"name": "", "database": "", "schema": "", "warehouse": "", "status": "empty"}
+
+    conn_id = await _resolve_connection_id(connection_id, db)
+    if not conn_id:
+        return {"nodes": [], "edges": [], "connection": empty_conn, "meta": empty_meta}
+
+    conn = await db.get(SnowflakeConnection, conn_id)
+    conn_info = {
+        "name": conn.connection_name if conn else "",
+        "database": conn.default_database if conn else "",
+        "schema": conn.default_schema if conn else "",
+        "warehouse": conn.warehouse if conn else "",
+        "status": "active" if (conn and conn.is_active) else "inactive",
+    } if conn else empty_conn
+
+    result = await db.execute(
+        select(Asset)
+        .join(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+        .where(
+            Asset.connection_id == conn_id,
+            Asset.asset_type.in_(["table", "view"]),
+            Asset.is_active == True,
+        )
+    )
+    assets = list(result.scalars().all())
+    if not assets:
+        return {"nodes": [], "edges": [], "connection": conn_info, "meta": empty_meta}
+
+    enriched_list = await asyncio.gather(*[_enrich(a, db) for a in assets])
+
+    table_name_to_asset_id: dict[str, str] = {}
+    for a in assets:
+        meta = a.source_meta
+        name = (meta.sf_table_name if meta else a.physical_name) or ""
+        if name:
+            table_name_to_asset_id[name.upper()] = a.asset_id
+
+    nodes = []
+    for a, enr in zip(assets, enriched_list):
+        meta = a.source_meta
+        table_type = enr["table_type"]
+        schema_name = enr["sf_schema_name"] or ""
+        database_name = enr["sf_database_name"] or ""
+        nodes.append({
+            "id": a.asset_id,
+            "label": enr["sf_table_name"] or a.physical_name,
+            "sub": ".".join(p for p in (schema_name, database_name) if p),
+            "type": _classify_node_type(table_type),
+            "icon": "📄",
+            "schema": schema_name,
+            "database": database_name,
+            "tableType": table_type,
+            "rowCount": enr["row_count"],
+            "columnCount": enr["column_count"],
+            "lastAltered": meta.last_modified_at.isoformat() if meta and meta.last_modified_at else None,
+            "comment": enr["table_description"],
+        })
+
+    edges: list[dict] = []
+    edge_set: set[tuple[str, str]] = set()
+    ddl_count = 0
+    for a in assets:
+        meta = a.source_meta
+        if not meta or not meta.view_definition:
+            continue
+        for ref in extract_table_refs(meta.view_definition):
+            src_id = table_name_to_asset_id.get(ref)
+            if src_id and src_id != a.asset_id and (src_id, a.asset_id) not in edge_set:
+                edge_set.add((src_id, a.asset_id))
+                edges.append({"from": src_id, "to": a.asset_id, "relationship": "derives"})
+                ddl_count += 1
+
+    fk_result = await db.execute(
+        select(ColumnMetadata.asset_id, ColumnMetadata.references_table).where(
+            and_(
+                ColumnMetadata.asset_id.in_([a.asset_id for a in assets]),
+                ColumnMetadata.is_foreign_key == True,
+                ColumnMetadata.references_table.isnot(None),
+            )
+        )
+    )
+    fk_count = 0
+    for asset_id_, ref_table in fk_result.all():
+        ref_id = table_name_to_asset_id.get((ref_table or "").upper())
+        if ref_id and ref_id != asset_id_ and (ref_id, asset_id_) not in edge_set:
+            edge_set.add((ref_id, asset_id_))
+            edges.append({"from": ref_id, "to": asset_id_, "relationship": "fk"})
+            fk_count += 1
+
+    has_incoming = {e["to"] for e in edges}
+    for n in nodes:
+        if n["type"] == "warehouse" and n["id"] not in has_incoming:
+            n["type"] = "source"
+
+    meta = {
+        "edgeMethods": {"fk": fk_count, "ddl": ddl_count, "heuristic": 0},
+        "totalTables": len(nodes),
+        "totalEdges": len(edges),
+    }
+    return {"nodes": nodes, "edges": edges, "connection": conn_info, "meta": meta}
+
+
+@router.get("/columns")
+async def get_column_lineage(
+    connection_id: Optional[str] = None,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Connection-wide column-to-column lineage edges, derived from view SQL via sqlglot."""
+    conn_id = await _resolve_connection_id(connection_id, db)
+    if not conn_id:
+        return {"edges": []}
+
+    try:
+        result = await db.execute(
+            select(Asset)
+            .join(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+            .where(
+                Asset.connection_id == conn_id,
+                Asset.asset_type.in_(["table", "view"]),
+                Asset.is_active == True,
+            )
+        )
+        assets = list(result.scalars().all())
+        if not assets:
+            return {"edges": []}
+
+        asset_ids = [a.asset_id for a in assets]
+        table_name_to_asset_id: dict[str, str] = {}
+        for a in assets:
+            meta = a.source_meta
+            name = (meta.sf_table_name if meta else a.physical_name) or ""
+            if name:
+                table_name_to_asset_id[name.upper()] = a.asset_id
+
+        col_result = await db.execute(
+            select(ColumnMetadata.asset_id, ColumnMetadata.column_name, ColumnMetadata.data_type)
+            .where(ColumnMetadata.asset_id.in_(asset_ids))
+        )
+        columns_by_asset: dict[str, list[tuple[str, str]]] = {}
+        for asset_id_, col_name, data_type in col_result.all():
+            columns_by_asset.setdefault(asset_id_, []).append((col_name, data_type or "VARCHAR"))
+
+        schema: dict[str, dict[str, str]] = {}
+        for a in assets:
+            meta = a.source_meta
+            table_name = (meta.sf_table_name if meta else a.physical_name) or ""
+            cols = columns_by_asset.get(a.asset_id) or []
+            if table_name and cols:
+                schema[table_name.upper()] = {c: dt for c, dt in cols}
+
+        edges: list[dict] = []
+        edge_set: set[tuple[str, str, str, str]] = set()
+        for a in assets:
+            meta = a.source_meta
+            if not meta or not meta.sf_table_type or "VIEW" not in meta.sf_table_type.upper():
+                continue
+            if not meta.view_definition:
+                continue
+
+            output_cols = [c for c, _ in (columns_by_asset.get(a.asset_id) or [])]
+            if not output_cols:
+                try:
+                    tree = sqlglot.parse_one(meta.view_definition, dialect="snowflake")
+                    output_cols = [s.alias_or_name.upper() for s in tree.selects if s.alias_or_name]
+                except Exception as exc:
+                    logger.debug("column projection parse failed for %s: %s", a.asset_id, exc)
+                    continue
+
+            for col in output_cols:
+                try:
+                    root = sqlglot_lineage(col, meta.view_definition, schema=schema, dialect="snowflake")
+                except Exception as exc:
+                    logger.debug("column lineage failed for %s.%s: %s", a.asset_id, col, exc)
+                    continue
+                for leaf in root.walk():
+                    if not isinstance(leaf.expression, exp.Table):
+                        continue
+                    src_table = leaf.expression.name
+                    src_asset_id = table_name_to_asset_id.get((src_table or "").upper())
+                    if not src_asset_id or src_asset_id == a.asset_id:
+                        continue
+                    src_col = leaf.name.split(".")[-1]
+                    key = (src_asset_id, src_col, a.asset_id, col)
+                    if key not in edge_set:
+                        edge_set.add(key)
+                        edges.append({
+                            "fromAssetId": src_asset_id,
+                            "fromColumn": src_col,
+                            "toAssetId": a.asset_id,
+                            "toColumn": col,
+                        })
+
+        return {"edges": edges}
+    except Exception as exc:
+        logger.warning("column lineage computation failed for connection %s: %s", conn_id, exc)
+        return {"edges": []}
 
 
 @router.get("/{asset_id}")

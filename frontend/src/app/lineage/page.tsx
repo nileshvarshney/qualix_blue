@@ -15,6 +15,7 @@ interface ConnectionInfo { name: string; database: string; schema: string; wareh
 interface LineageMeta { edgeMethods?: { fk: number; ddl: number; heuristic: number }; totalTables?: number; totalEdges?: number }
 interface LineageData { nodes: LineageNode[]; edges: LineageEdge[]; connection: ConnectionInfo; meta?: LineageMeta }
 interface ColumnInfo { COLUMN_NAME: string; DATA_TYPE: string; IS_NULLABLE: string; ORDINAL_POSITION: number; CHARACTER_MAXIMUM_LENGTH?: number; NUMERIC_PRECISION?: number; COLUMN_DEFAULT?: string; COMMENT?: string }
+interface ColumnLineageEdge { fromAssetId: string; fromColumn: string; toAssetId: string; toColumn: string }
 
 
 /* ─── Node visual config ─── */
@@ -156,6 +157,7 @@ export default function LineagePage() {
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [allTableColumns, setAllTableColumns] = useState<Map<string, string[]>>(new Map())
+  const [columnEdges, setColumnEdges] = useState<ColumnLineageEdge[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
 
   const fetchLineage = useCallback(async (silent = false) => {
@@ -209,6 +211,11 @@ export default function LineagePage() {
       setAllTableColumns(map)
     }
     loadAllCols()
+
+    fetch('/api/snowflake/column-lineage')
+      .then(r => r.json())
+      .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
+      .catch(() => setColumnEdges([]))
   }, [data])
 
   // Clear selected column when table selection changes
@@ -231,57 +238,85 @@ export default function LineagePage() {
   const laidOut = useMemo(() => data ? layoutNodes(data.nodes, data.edges) : [], [data])
   const nodeMap = useMemo(() => new Map(laidOut.map(n => [n.id, n])), [laidOut])
 
-  // ─── Column-level lineage computation ───
+  // ─── Column-level lineage computation (backend-derived column-to-column edges) ───
   const columnLineage = useMemo(() => {
-    const empty = { tables: new Set<string>(), edges: [] as LineageEdge[], path: [] as { tableId: string; label: string; role: string }[] }
-    if (!selectedColumn || !data) return empty
+    type ColPath = { tableId: string; label: string; column: string; role: string }
+    const empty = { tables: new Set<string>(), edges: [] as { from: string; to: string }[], path: [] as ColPath[] }
+    if (!selectedColumn || !selected || !data) return empty
 
-    // Find all tables that have this column
-    const tablesWithColumn = new Set<string>()
-    for (const [tableId, cols] of allTableColumns) {
-      if (cols.includes(selectedColumn)) tablesWithColumn.add(tableId)
+    type Pair = { tableId: string; column: string }
+    const pairKey = (p: Pair) => `${p.tableId}::${p.column}`
+
+    // BFS outward (both directions) from the selected table/column through column edges
+    const visited = new Map<string, Pair>()
+    const visitedEdges: ColumnLineageEdge[] = []
+    const start: Pair = { tableId: selected, column: selectedColumn }
+    visited.set(pairKey(start), start)
+    const queue: Pair[] = [start]
+    while (queue.length > 0) {
+      const cur = queue.shift()!
+      for (const e of columnEdges) {
+        if (e.fromAssetId === cur.tableId && e.fromColumn === cur.column) {
+          visitedEdges.push(e)
+          const next = { tableId: e.toAssetId, column: e.toColumn }
+          if (!visited.has(pairKey(next))) { visited.set(pairKey(next), next); queue.push(next) }
+        }
+        if (e.toAssetId === cur.tableId && e.toColumn === cur.column) {
+          visitedEdges.push(e)
+          const next = { tableId: e.fromAssetId, column: e.fromColumn }
+          if (!visited.has(pairKey(next))) { visited.set(pairKey(next), next); queue.push(next) }
+        }
+      }
     }
 
-    // Filter edges: only edges where BOTH endpoints have this column
-    const colEdges = data.edges.filter(e =>
-      tablesWithColumn.has(e.from) && tablesWithColumn.has(e.to)
-    )
+    const nodes = [...visited.values()]
+    if (nodes.length <= 1) {
+      // No resolved backend lineage for this column — graceful single-node fallback
+      const node = nodeMap.get(selected)
+      return {
+        tables: new Set([selected]),
+        edges: [],
+        path: node ? [{ tableId: selected, label: node.label, column: selectedColumn, role: 'reference' as const }] : [],
+      }
+    }
 
-    // Build ordered path following the column through the graph
-    const path: { tableId: string; label: string; role: string }[] = []
+    const hasOutgoing = (p: Pair) => visitedEdges.some(e => e.fromAssetId === p.tableId && e.fromColumn === p.column)
+    const hasIncoming = (p: Pair) => visitedEdges.some(e => e.toAssetId === p.tableId && e.toColumn === p.column)
+
+    const path: ColPath[] = []
     const pathVisited = new Set<string>()
-
-    // Find root tables for this column (tables that have it but no incoming column-edge)
-    const hasIncoming = new Set(colEdges.map(e => e.to))
-    const roots = [...tablesWithColumn].filter(t => !hasIncoming.has(t))
-
-    // BFS from roots
-    const queue = [...roots]
-    for (const r of queue) {
-      if (pathVisited.has(r)) continue
-      pathVisited.add(r)
-      const node = nodeMap.get(r)
+    const roots = nodes.filter(n => !hasIncoming(n))
+    const queue2 = [...roots]
+    while (queue2.length > 0) {
+      const cur = queue2.shift()!
+      const k = pairKey(cur)
+      if (pathVisited.has(k)) continue
+      pathVisited.add(k)
+      const node = nodeMap.get(cur.tableId)
       if (node) {
-        const isRoot = roots.includes(r)
-        const hasOut = colEdges.some(e => e.from === r)
-        const role = isRoot ? 'origin' : hasOut ? 'passthrough' : 'consumer'
-        path.push({ tableId: r, label: node.label, role })
+        const role = !hasIncoming(cur) ? 'origin' : hasOutgoing(cur) ? 'passthrough' : 'consumer'
+        path.push({ tableId: cur.tableId, label: node.label, column: cur.column, role })
       }
-      // Add downstream neighbors
-      for (const e of colEdges) {
-        if (e.from === r && !pathVisited.has(e.to)) queue.push(e.to)
+      for (const e of visitedEdges) {
+        if (e.fromAssetId === cur.tableId && e.fromColumn === cur.column) {
+          const next = { tableId: e.toAssetId, column: e.toColumn }
+          if (!pathVisited.has(pairKey(next))) queue2.push(next)
+        }
       }
     }
-    // Also add any isolated tables with the column
-    for (const t of tablesWithColumn) {
-      if (!pathVisited.has(t)) {
-        const node = nodeMap.get(t)
-        if (node) path.push({ tableId: t, label: node.label, role: 'reference' })
+    for (const n of nodes) {
+      if (!pathVisited.has(pairKey(n))) {
+        const node = nodeMap.get(n.tableId)
+        if (node) path.push({ tableId: n.tableId, label: node.label, column: n.column, role: 'reference' })
       }
     }
 
-    return { tables: tablesWithColumn, edges: colEdges, path }
-  }, [selectedColumn, allTableColumns, data, nodeMap])
+    return {
+      tables: new Set(nodes.map(n => n.tableId)),
+      edges: visitedEdges.map(e => ({ from: e.fromAssetId, to: e.toAssetId })),
+      path,
+    }
+  }, [selectedColumn, selected, columnEdges, data, nodeMap])
 
   if (loading) {
     return (
@@ -504,7 +539,9 @@ export default function LineagePage() {
                 const dt = dtIcon(col.DATA_TYPE)
                 const isColSelected = selectedColumn === col.COLUMN_NAME
                 // Count how many other tables have this column
-                const colTableCount = [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
+                const colTableCount = selectedColumn === col.COLUMN_NAME
+                  ? columnLineage.tables.size
+                  : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
                 return (
                   <div key={i}
                     onClick={() => setSelectedColumn(isColSelected ? null : col.COLUMN_NAME)}
@@ -924,7 +961,9 @@ export default function LineagePage() {
                   const dt = dtIcon(col.DATA_TYPE)
                   const isPK = col.ORDINAL_POSITION === 1 && col.IS_NULLABLE === 'NO'
                   const isColSel = selectedColumn === col.COLUMN_NAME
-                  const colTableCount = [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
+                  const colTableCount = selectedColumn === col.COLUMN_NAME
+                  ? columnLineage.tables.size
+                  : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
                   return (
                     <div key={i}
                       onClick={() => setSelectedColumn(isColSel ? null : col.COLUMN_NAME)}
