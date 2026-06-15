@@ -29,11 +29,23 @@ const typeConfig: Record<string, { bg: string; border: string; color: string; la
   output:    { bg: '#faf5ff', border: '#d8b4fe', color: '#7c3aed', label: 'Views' },
 }
 
-const nodeIcon: Record<string, string> = {
-  CARRIERS: '🚛', CUSTOMERS: '👥', PRODUCTS: '🧳', PRODUCT_CATEGORIES: '📦',
-  SUPPLIERS: '🏭', WAREHOUSES: '🏪', FINANCE_TRANSACTIONS: '⚙️', INVENTORY: '📊',
-  PURCHASE_ORDERS: '📋', PURCHASE_ORDER_ITEMS: '📋', RETURNS: '↩️', SALES_ORDERS: '💰',
-  CUSTOMER_CREDIT_VIEW: '👁', USA_CUSTOMERS_VIEW: '👁',
+/* ─── Object-type icon, based on the underlying table type ─── */
+function tableTypeIcon(tableType?: string | null): string {
+  const t = (tableType ?? '').toUpperCase()
+  if (t.includes('MATERIALIZED')) return '🧱'
+  if (t.includes('SECURE')) return '🔒'
+  if (t.includes('EXTERNAL')) return '🌐'
+  if (t.includes('VIEW')) return '👁'
+  return '🗃️'
+}
+
+function tableTypeLabel(tableType?: string | null): string {
+  const t = (tableType ?? '').toUpperCase()
+  if (t.includes('MATERIALIZED')) return 'Materialized View'
+  if (t.includes('SECURE') && t.includes('VIEW')) return 'Secure View'
+  if (t.includes('EXTERNAL')) return 'External Table'
+  if (t.includes('VIEW')) return 'View'
+  return 'Table'
 }
 
 /* ─── Layout engine ─── */
@@ -169,7 +181,7 @@ export default function LineagePage() {
         if (json.nodes && json.nodes.length > 0) {
           json.nodes = json.nodes.map((n: LineageNode) => ({
             ...n,
-            icon: nodeIcon[n.label] || n.icon,
+            icon: tableTypeIcon(n.tableType),
           }))
           setData(json); setIsLive(true); setLastRefresh(new Date())
           if (!silent) setLoading(false)
@@ -785,7 +797,7 @@ export default function LineagePage() {
               }}>{selectedNode.icon}</div>
               <div>
                 <div style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>{selectedNode.label}</div>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>{selectedNode.schema} · {selectedNode.tableType === 'VIEW' ? 'View' : selectedNode.tableType === 'MATERIALIZED VIEW' ? 'Materialized View' : 'Table'}</div>
+                <div style={{ fontSize: '13px', color: '#64748b' }}>{selectedNode.schema} · {tableTypeLabel(selectedNode.tableType)}</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
