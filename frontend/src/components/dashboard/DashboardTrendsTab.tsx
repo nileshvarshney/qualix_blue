@@ -56,7 +56,7 @@ export default function DashboardTrendsTab() {
   }, [days, domainId])
 
   return (
-    <div style={{ padding: '16px 24px', maxWidth: '1300px' }}>
+    <div style={{ padding: '16px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
         <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Quality, alert &amp; anomaly trends</div>
         <div style={{ display: 'flex', gap: '6px' }}>

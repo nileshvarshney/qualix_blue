@@ -22,11 +22,12 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
     )
   }
 
-  const w = 600, h = 180, pad = { top: 20, right: 20, bottom: 30, left: 35 }
+  const w = 600, h = 240, pad = { top: 20, right: 20, bottom: 30, left: 35 }
   const chartW = w - pad.left - pad.right, chartH = h - pad.top - pad.bottom
   const scores = validPts.map(d => d.score)
   const min = Math.max(0, Math.floor(Math.min(...scores) / 5) * 5 - 5)
   const max = 100
+  const gridLines = Array.from({ length: 5 }, (_, i) => Math.round((min + (max - min) * (i / 4)) * 10) / 10)
 
   const pts = validPts.map((d, i) => ({
     x: pad.left + (i / Math.max(validPts.length - 1, 1)) * chartW,
@@ -61,7 +62,7 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
             <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
           </linearGradient>
         </defs>
-        {[100, 95, 90, 85].map(v => {
+        {gridLines.map(v => {
           const y = pad.top + chartH - ((v - min) / (max - min)) * chartH
           return <g key={v}><line x1={pad.left} x2={w - pad.right} y1={y} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3 3" /><text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9ca3af">{v}</text></g>
         })}
