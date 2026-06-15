@@ -6,14 +6,19 @@ import {
   Gauge, AlertTriangle, Database, ShieldCheck, Activity, GitCompare, Fingerprint,
   Target, ListChecks, Clock, ChevronRight, Play, CheckCircle2, XCircle, TrendingUp,
 } from 'lucide-react'
-import { DashboardStats, DimensionScores } from '@/lib/types'
+import { DashboardStats, DimensionScores, TrendPoint } from '@/lib/types'
 import { formatNumber } from '@/lib/utils'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
-import DashboardTrendsTab from './DashboardTrendsTab'
+import TrendDrilldownPanel from '@/components/shared/TrendDrilldownPanel'
 
 
-const TIME_OPTIONS = ['Last 1 hour','Last 6 hours','Last 24 hours','Last 7 days','Last 14 days','Last 30 days']
-const DOMAIN_OPTIONS = ['All domains','Finance','Marketing','Sales','Engineering','Supply Chain','Data Platform']
+const TIME_OPTIONS = [
+  { label: 'Last 7 days', days: 7 },
+  { label: 'Last 14 days', days: 14 },
+  { label: 'Last 30 days', days: 30 },
+  { label: 'Last 60 days', days: 60 },
+  { label: 'Last 90 days', days: 90 },
+]
 
 /* ─── Score helpers ─── */
 function scoreColor(value: number | null): string {
@@ -93,15 +98,22 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
 }
 
 interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
+interface DomainOption { domain_id: string; domain_name: string }
 
 export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const [running, setRunning] = useState(false)
   const [timeFilter, setTimeFilter] = useState('Last 7 days')
   const [domainFilter, setDomainFilter] = useState('All domains')
+  const [domains, setDomains] = useState<DomainOption[]>([])
+  const [trend, setTrend] = useState<TrendPoint[]>(stats.trend)
+  const [trendLoading, setTrendLoading] = useState(false)
+  const [drilldownDate, setDrilldownDate] = useState<string | null>(null)
   const [activeMetric, setActiveMetric] = useState<string | null>(null)
-  const [activeView, setActiveView] = useState<'overview' | 'trends'>('overview')
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null)
   const router = useRouter()
+
+  const days = TIME_OPTIONS.find(o => o.label === timeFilter)?.days ?? 7
+  const domainId = domains.find(d => d.domain_name === domainFilter)?.domain_id ?? ''
 
   useEffect(() => {
     fetch('/api/alerts')
@@ -117,6 +129,32 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       .catch(() => {})
   }, [])
 
+  useEffect(() => {
+    fetch('/api/domains-list')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        if (!Array.isArray(data)) return
+        setDomains(
+          data
+            .map(d => ({ domain_id: String(d.domain_id ?? ''), domain_name: String(d.domain_name ?? d.name ?? '') }))
+            .filter(d => d.domain_id)
+        )
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    setTrendLoading(true)
+    const url = domainId
+      ? `/api/dashboard/history/domain/${domainId}?days=${days}`
+      : `/api/dashboard/trend?days=${days}`
+    fetch(url)
+      .then(r => r.json())
+      .then((data: { trend?: TrendPoint[]; history?: TrendPoint[] }) => setTrend(data.trend ?? data.history ?? []))
+      .catch(() => setTrend([]))
+      .finally(() => setTrendLoading(false))
+  }, [days, domainId])
+
   async function runCheck() {
     setRunning(true)
     await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
@@ -125,7 +163,6 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   }
 
   const score = stats.overallScore
-  const trendData = stats.trend
   const healthyAssets = Math.max(stats.totalAssets - stats.atRiskTables.length, 0)
 
   return (
@@ -158,8 +195,6 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <Dropdown label="time" options={TIME_OPTIONS} value={timeFilter} onChange={setTimeFilter} />
-          <Dropdown label="domain" options={DOMAIN_OPTIONS} value={domainFilter} onChange={setDomainFilter} />
           <button onClick={runCheck} disabled={running} style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)', border: 'none', padding: '7px 16px',
@@ -172,27 +207,6 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         </div>
       </div>
 
-      {/* view tabs */}
-      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '16px' }}>
-        {(['overview', 'trends'] as const).map(view => (
-          <button
-            key={view}
-            onClick={() => setActiveView(view)}
-            style={{
-              padding: '7px 16px', fontSize: '12.5px',
-              fontWeight: activeView === view ? 600 : 400,
-              color: activeView === view ? 'var(--foreground)' : 'var(--text-muted)',
-              background: 'transparent', border: 'none',
-              borderBottom: activeView === view ? '2px solid var(--accent)' : '2px solid transparent',
-              cursor: 'pointer', marginBottom: '-1px', transition: 'color 0.15s',
-            }}
-          >
-            {view === 'overview' ? 'Overview' : 'Trends & Monitoring'}
-          </button>
-        ))}
-      </div>
-
-      {activeView === 'overview' && (<>
       {/* Hero: score gauge + KPI tiles */}
       <div style={{ ...card, display: 'flex', alignItems: 'stretch', gap: '24px', padding: '20px 24px', marginBottom: '12px', flexWrap: 'wrap' }}>
         {/* Overall score gauge */}
@@ -396,14 +410,48 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       {/* Trend + Failing Rules */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '12px', marginBottom: '12px' }}>
         <div style={card}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <SectionHeader icon={<Activity size={13} strokeWidth={2.4} />} title={`Quality Trend · ${timeFilter}`} />
-            <div style={{ display: 'flex', gap: '14px', fontSize: '11.5px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '3px', background: '#3b82f6', borderRadius: '2px' }} /><span style={{ color: 'var(--text-secondary)' }}>Score</span></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', opacity: 0.75 }} /><span style={{ color: 'var(--text-secondary)' }}>Incidents</span></div>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '28px', height: '28px', borderRadius: '8px',
+                background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(45,90,158,0.25)',
+              }}>
+                <Activity size={14} strokeWidth={2.4} />
+              </div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.2px', lineHeight: 1.2 }}>
+                  {days}-Day Quality Trend
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  {timeFilter}
+                  {domainFilter !== 'All domains' && (
+                    <span style={{
+                      marginLeft: '6px', background: 'var(--accent-bg)', color: 'var(--accent)',
+                      padding: '1px 6px', borderRadius: '4px', fontWeight: 600, fontSize: '10.5px',
+                    }}>
+                      {domainFilter}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '14px', fontSize: '11.5px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '3px', background: '#3b82f6', borderRadius: '2px' }} /><span style={{ color: 'var(--text-secondary)' }}>Score</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: '10px', height: '10px', background: '#ef4444', borderRadius: '2px', opacity: 0.75 }} /><span style={{ color: 'var(--text-secondary)' }}>Failed runs</span></div>
+              </div>
+              <Dropdown label="time" options={TIME_OPTIONS.map(o => o.label)} value={timeFilter} onChange={setTimeFilter} />
+              <Dropdown label="domain" options={['All domains', ...domains.map(d => d.domain_name)]} value={domainFilter} onChange={setDomainFilter} />
             </div>
           </div>
-          <TrendChart data={trendData} />
+          {trendLoading
+            ? <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
+            : <TrendChart data={trend} onPointClick={setDrilldownDate} />}
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+            Click any point on the chart to see that day&apos;s failed runs, alerts, and anomalies.
+          </div>
         </div>
 
         <div style={card}>
@@ -536,8 +584,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </table>
         </div>
       )}
-      </>)}
-      {activeView === 'trends' && <DashboardTrendsTab />}
+      <TrendDrilldownPanel date={drilldownDate} scope={domainId ? { domainId } : {}} onClose={() => setDrilldownDate(null)} />
     </div>
   )
 }
