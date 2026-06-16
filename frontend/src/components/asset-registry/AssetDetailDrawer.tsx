@@ -99,6 +99,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
     try {
       const res = await fetch(`/api/subdomains?domain_id=${encodeURIComponent(domainId)}`)
       if (res.ok) setSubdomains(await res.json())
+      else setError('Failed to load subdomains')
     } catch {
       setError('Failed to load subdomains')
     }
@@ -112,11 +113,16 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
     setError(null)
     setEditing(true)
     if (!domainsLoaded) {
-      const res = await fetch('/api/domains-list')
-      if (res.ok) {
-        const data = await res.json()
-        setDomains(data)
-        setDomainsLoaded(true)
+      try {
+        const res = await fetch('/api/domains-list')
+        if (res.ok) {
+          setDomains(await res.json())
+          setDomainsLoaded(true)
+        } else {
+          setError('Failed to load domains')
+        }
+      } catch {
+        setError('Failed to load domains')
       }
     }
     if (asset.domain_id) await loadSubdomains(asset.domain_id)
