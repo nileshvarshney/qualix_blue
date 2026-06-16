@@ -221,8 +221,14 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
         </div>
 
+        {error && (
+          <div style={{ margin: '8px 14px 0', padding: '6px 10px', borderRadius: '4px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '11px' }}>
+            {error}
+          </div>
+        )}
+
         {/* Location — always read-only */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
           {([['Connection', asset.connection_name], ['Database', asset.sf_database_name], ['Schema', asset.sf_schema_name]] as [string, string | undefined][]).map(([l, v], i) => (
             <div key={l} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
               <div style={labelStyle}>{l}</div>
@@ -327,12 +333,6 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
               </div>
           }
         </div>
-
-        {error && (
-          <div style={{ margin: '6px 14px 0', padding: '6px 10px', borderRadius: '4px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '11px' }}>
-            {error}
-          </div>
-        )}
 
         <div style={{ height: '12px' }} />
       </div>
