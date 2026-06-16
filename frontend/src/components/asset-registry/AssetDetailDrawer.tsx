@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export type Asset = {
   asset_id: string
@@ -86,10 +86,22 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
   const [selectedDomainName, setSelectedDomainName] = useState(asset.domain_name ?? '')
   const [selectedSubdomainName, setSelectedSubdomainName] = useState(asset.subdomain_name ?? '')
 
+  useEffect(() => {
+    setEditing(false)
+    setError(null)
+    setEditForm(initialForm(asset))
+    setSelectedDomainName(asset.domain_name ?? '')
+    setSelectedSubdomainName(asset.subdomain_name ?? '')
+  }, [asset.asset_id])
+
   async function loadSubdomains(domainId: string) {
     if (!domainId) { setSubdomains([]); return }
-    const res = await fetch(`/api/subdomains?domain_id=${encodeURIComponent(domainId)}`)
-    if (res.ok) setSubdomains(await res.json())
+    try {
+      const res = await fetch(`/api/subdomains?domain_id=${encodeURIComponent(domainId)}`)
+      if (res.ok) setSubdomains(await res.json())
+    } catch {
+      setError('Failed to load subdomains')
+    }
   }
 
   async function openEdit() {
@@ -115,7 +127,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
     setEditForm(f => ({ ...f, domain_id: domainId, subdomain_id: '' }))
     setSelectedDomainName(domain?.domain_name ?? '')
     setSelectedSubdomainName('')
-    loadSubdomains(domainId)
+    loadSubdomains(domainId).catch(() => setError('Failed to load subdomains'))
   }
 
   function handleSubdomainChange(subdomainId: string) {
@@ -138,6 +150,11 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
       if (editForm.owner_name !== orig.owner_name) body.owner_name = editForm.owner_name
       if (editForm.technical_owner_name !== orig.technical_owner_name) body.technical_owner_name = editForm.technical_owner_name
       if (editForm.description !== orig.description) body.description = editForm.description
+
+      if (Object.keys(body).length === 0) {
+        setEditing(false)
+        return
+      }
 
       const res = await fetch(`/api/asset-registry/${asset.asset_id}`, {
         method: 'PUT',
