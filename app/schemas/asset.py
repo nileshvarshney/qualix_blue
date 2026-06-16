@@ -90,6 +90,7 @@ class AssetUpdate(BaseModel):
     sf_table_name: Optional[str] = None
     table_type: Optional[str] = None
     table_description: Optional[str] = None
+    description: Optional[str] = None
     view_definition: Optional[str] = None
     owner_name: Optional[str] = None
     owner_email: Optional[str] = None
@@ -110,6 +111,8 @@ class AssetUpdate(BaseModel):
     steward_user_id: Optional[str] = None
     domain: Optional[str] = None
     sensitivity: Optional[str] = None
+    domain_id: Optional[str] = None
+    subdomain_id: Optional[str] = None
 
 
 class AssetCertifyRequest(BaseModel):

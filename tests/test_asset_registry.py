@@ -1,5 +1,6 @@
 # tests/test_asset_registry.py
 from app.services.asset_registry import stable_asset_id
+from app.schemas.asset import AssetUpdate
 
 
 def test_stable_asset_id_is_deterministic():
@@ -56,3 +57,22 @@ async def test_effective_description_none_when_empty_lineage():
     db.execute.return_value.scalar_one_or_none.return_value = asset
     result = await effective_description("orphan-123", db)
     assert result is None
+
+
+def test_asset_update_accepts_description():
+    u = AssetUpdate(description="A new description")
+    assert u.description == "A new description"
+
+
+def test_asset_update_accepts_domain_and_subdomain():
+    u = AssetUpdate(domain_id="d-123", subdomain_id="s-456")
+    assert u.domain_id == "d-123"
+    assert u.subdomain_id == "s-456"
+
+
+def test_asset_update_exclude_none_omits_unset():
+    u = AssetUpdate(criticality="high")
+    dumped = u.model_dump(exclude_none=True)
+    assert "description" not in dumped
+    assert "domain_id" not in dumped
+    assert dumped == {"criticality": "high"}
