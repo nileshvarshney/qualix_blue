@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
       ? `${BACKEND}/subdomains?domain_id=${encodeURIComponent(domainId)}`
       : `${BACKEND}/subdomains`
     const res = await fetch(url, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json([], { status: res.status })
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : [])
   } catch {
