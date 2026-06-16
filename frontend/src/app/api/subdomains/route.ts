@@ -6,7 +6,7 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
   try {
-    const domainId = req.nextUrl.searchParams.get('domain_id') ?? ''
+    const domainId = req.nextUrl.searchParams.get('domain_id')
     const url = domainId
       ? `${BACKEND}/subdomains?domain_id=${encodeURIComponent(domainId)}`
       : `${BACKEND}/subdomains`
