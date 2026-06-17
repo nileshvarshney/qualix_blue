@@ -58,3 +58,18 @@ export async function PUT(
     return NextResponse.json({ error: String(e) }, { status: 500 })
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ path: string[] }> }
+) {
+  try {
+    const { path } = await params
+    const pathStr = path.join('/')
+    const res = await fetch(`${BACKEND}/asset-registry/${pathStr}`, { method: 'DELETE' })
+    const data = await res.json().catch(() => ({}))
+    return NextResponse.json(data, { status: res.status })
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
+}

@@ -197,6 +197,38 @@ class DiscoveryTableResult(BaseModel):
     subdomain_name: Optional[str] = None
 
 
+class AssetDocumentCreate(BaseModel):
+    title: str
+    url: str
+
+
+class AssetDocumentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    doc_id: str
+    asset_id: str
+    title: str
+    url: str
+    created_at: datetime
+
+
+class AssetOwnerCreate(BaseModel):
+    owner_type: Literal["owner", "technical_owner"]
+    name: str
+    email: Optional[str] = None
+
+
+class AssetOwnerResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    owner_id: str
+    asset_id: str
+    owner_type: str
+    name: str
+    email: Optional[str] = None
+    created_at: datetime
+
+
 # Backward-compatibility aliases
 DataAssetCreate = AssetCreate
 DataAssetUpdate = AssetUpdate

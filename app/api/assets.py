@@ -3,12 +3,17 @@ from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
-from app.db.models import Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta
+from app.db.models import (
+    Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta,
+    AssetDocument, AssetOwner, Tag, AssetTag,
+)
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
     AssetStatusUpdate, AssetRegistryDiscoveryRequest, AssetTreeNode,
     AssetSourceMetaResponse, LogicalDatasetCreate,
+    AssetDocumentCreate, AssetDocumentResponse, AssetOwnerCreate, AssetOwnerResponse,
 )
 from app.services.asset_registry import register_logical_dataset
 from app.core.security import get_current_user, get_domain_filter
@@ -800,3 +805,219 @@ async def get_effective_description(
     desc = await effective_description(asset_id, db)
     source = "own" if asset.description else "inherited"
     return {"asset_id": asset_id, "description": desc, "source": source}
+
+
+async def _get_asset_or_404(asset_id: str, db: AsyncSession) -> Asset:
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    asset = result.scalar_one_or_none()
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    return asset
+
+
+# ── Documentation links ───────────────────────────────────────────────────────
+
+@router.get("/{asset_id}/documents", response_model=list[AssetDocumentResponse])
+async def list_asset_documents(asset_id: str, db: AsyncSession = Depends(get_db)):
+    await _get_asset_or_404(asset_id, db)
+    result = await db.execute(
+        select(AssetDocument).where(AssetDocument.asset_id == asset_id).order_by(AssetDocument.created_at)
+    )
+    return result.scalars().all()
+
+
+@router.post("/{asset_id}/documents", response_model=AssetDocumentResponse)
+async def create_asset_document(
+    asset_id: str,
+    payload: AssetDocumentCreate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    await _get_asset_or_404(asset_id, db)
+    doc = AssetDocument(
+        doc_id=str(uuid.uuid4()),
+        asset_id=asset_id,
+        title=payload.title,
+        url=payload.url,
+        created_by=user.get("email"),
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+@router.delete("/{asset_id}/documents/{doc_id}")
+async def delete_asset_document(
+    asset_id: str,
+    doc_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(AssetDocument).where(AssetDocument.doc_id == doc_id, AssetDocument.asset_id == asset_id)
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    await db.delete(doc)
+    await db.commit()
+    return {"message": "Document removed"}
+
+
+# ── Additional owners ─────────────────────────────────────────────────────────
+
+@router.get("/{asset_id}/owners", response_model=list[AssetOwnerResponse])
+async def list_asset_owners(
+    asset_id: str,
+    owner_type: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_asset_or_404(asset_id, db)
+    q = select(AssetOwner).where(AssetOwner.asset_id == asset_id)
+    if owner_type:
+        q = q.where(AssetOwner.owner_type == owner_type)
+    result = await db.execute(q.order_by(AssetOwner.created_at))
+    return result.scalars().all()
+
+
+@router.post("/{asset_id}/owners", response_model=AssetOwnerResponse)
+async def create_asset_owner(
+    asset_id: str,
+    payload: AssetOwnerCreate,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    await _get_asset_or_404(asset_id, db)
+    owner = AssetOwner(
+        owner_id=str(uuid.uuid4()),
+        asset_id=asset_id,
+        owner_type=payload.owner_type,
+        name=payload.name,
+        email=payload.email,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    db.add(owner)
+    await db.commit()
+    await db.refresh(owner)
+    return owner
+
+
+@router.delete("/{asset_id}/owners/{owner_id}")
+async def delete_asset_owner(
+    asset_id: str,
+    owner_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(AssetOwner).where(AssetOwner.owner_id == owner_id, AssetOwner.asset_id == asset_id)
+    )
+    owner = result.scalar_one_or_none()
+    if not owner:
+        raise HTTPException(404, "Owner not found")
+    await db.delete(owner)
+    await db.commit()
+    return {"message": "Owner removed"}
+
+
+# ── Tags (asset-scoped, mirrors app/api/tags.py's /assets/{id}/tags logic) ─────
+
+@router.get("/{asset_id}/tags")
+async def list_asset_registry_tags(asset_id: str, db: AsyncSession = Depends(get_db)):
+    await _get_asset_or_404(asset_id, db)
+    result = await db.execute(
+        select(AssetTag).where(AssetTag.entity_type == "asset", AssetTag.entity_id == asset_id)
+    )
+    asset_tags = result.scalars().all()
+    tag_ids = [at.tag_id for at in asset_tags]
+    if not tag_ids:
+        return []
+
+    tags_result = await db.execute(select(Tag).where(Tag.tag_id.in_(tag_ids)))
+    tags_by_id = {t.tag_id: t for t in tags_result.scalars().all()}
+
+    return [
+        {
+            "id": at.id,
+            "tag_id": at.tag_id,
+            "tag_name": tags_by_id[at.tag_id].tag_name if at.tag_id in tags_by_id else None,
+            "color": tags_by_id[at.tag_id].color if at.tag_id in tags_by_id else None,
+        }
+        for at in asset_tags
+    ]
+
+
+@router.post("/{asset_id}/tags")
+async def apply_asset_registry_tags(
+    asset_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    await _get_asset_or_404(asset_id, db)
+    tag_ids = payload.get("tag_ids", [])
+    if not tag_ids:
+        raise HTTPException(422, "tag_ids list is required and must not be empty")
+
+    tags_result = await db.execute(select(Tag).where(Tag.tag_id.in_(tag_ids)))
+    found_ids = {t.tag_id for t in tags_result.scalars().all()}
+    missing = set(tag_ids) - found_ids
+    if missing:
+        raise HTTPException(404, f"Tags not found: {list(missing)}")
+
+    existing_result = await db.execute(
+        select(AssetTag).where(
+            AssetTag.entity_type == "asset",
+            AssetTag.entity_id == asset_id,
+            AssetTag.tag_id.in_(tag_ids),
+        )
+    )
+    existing_tag_ids = {at.tag_id for at in existing_result.scalars().all()}
+
+    applied = []
+    for tag_id in tag_ids:
+        if tag_id in existing_tag_ids:
+            continue
+        db.add(AssetTag(
+            id=str(uuid.uuid4()),
+            tag_id=tag_id,
+            entity_type="asset",
+            entity_id=asset_id,
+            created_by=user.get("email"),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        ))
+        applied.append(tag_id)
+
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        # Lost the race to a concurrent request applying the same tag(s) — not an error.
+        return {"applied": [], "already_present": list(existing_tag_ids | set(applied))}
+
+    return {"applied": applied, "already_present": list(existing_tag_ids)}
+
+
+@router.delete("/{asset_id}/tags/{tag_id}")
+async def remove_asset_registry_tag(
+    asset_id: str,
+    tag_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    await _get_asset_or_404(asset_id, db)
+    result = await db.execute(
+        select(AssetTag).where(
+            AssetTag.entity_type == "asset",
+            AssetTag.entity_id == asset_id,
+            AssetTag.tag_id == tag_id,
+        )
+    )
+    at = result.scalar_one_or_none()
+    if not at:
+        raise HTTPException(404, "Tag not applied to this asset")
+    await db.delete(at)
+    await db.commit()
+    return {"message": "Tag removed from asset"}

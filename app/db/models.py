@@ -820,6 +820,28 @@ class CustomAttribute(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 
 
+class AssetDocument(Base):
+    __tablename__ = "asset_documents"
+
+    doc_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    url: Mapped[str] = mapped_column(String(2000), nullable=False)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class AssetOwner(Base):
+    __tablename__ = "asset_owners"
+
+    owner_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
+    owner_type: Mapped[str] = mapped_column(String(30), nullable=False)  # 'owner' | 'technical_owner'
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    email: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class AnomalyDetector(Base):
     __tablename__ = "anomaly_detectors"
 

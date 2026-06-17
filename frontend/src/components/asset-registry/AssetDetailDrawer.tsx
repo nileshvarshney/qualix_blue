@@ -1,5 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
+import AssetTagsSection from './AssetTagsSection'
+import AssetDocumentsSection from './AssetDocumentsSection'
+import AssetOwnersSection from './AssetOwnersSection'
 
 export type Asset = {
   asset_id: string
@@ -275,6 +278,8 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           </div>
         </div>
 
+        <AssetTagsSection assetId={asset.asset_id} editing={editing} />
+
         {/* Domain / Subdomain */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
           <div style={{ padding: '6px 8px', borderRight: '1px solid var(--border)' }}>
@@ -317,6 +322,9 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           </div>
         </div>
 
+        <AssetOwnersSection assetId={asset.asset_id} ownerType="owner" label="Additional Owners" editing={editing} />
+        <AssetOwnersSection assetId={asset.asset_id} ownerType="technical_owner" label="Additional Technical Owners" editing={editing} />
+
         {/* Description */}
         <div style={{ margin: '6px 14px 0', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px' }}>
           <div style={{ ...labelStyle, marginBottom: '4px' }}>Description</div>
@@ -333,6 +341,8 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
               </div>
           }
         </div>
+
+        <AssetDocumentsSection assetId={asset.asset_id} editing={editing} />
 
         <div style={{ height: '12px' }} />
       </div>
