@@ -477,8 +477,6 @@ export default function LineagePage() {
     inputRef.current?.focus()
   }
 
-  const highlighted = chainIds
-
   const selectedNode = selected ? nodeMap.get(selected) : null
   const upstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'up') : []
   const downstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'down') : []
@@ -782,8 +780,8 @@ export default function LineagePage() {
               const ty = (to.y ?? 0) + NODE_H / 2
               const midX = (fx + tx) / 2
 
-              const isUpstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.to === selected && e.from === edge.from)
-              const isDownstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.from === selected && e.to === edge.to)
+              const isUpstream = selected && data.edges.some(e => e.to === selected && e.from === edge.from)
+              const isDownstream = selected && data.edges.some(e => e.from === selected && e.to === edge.to)
 
               return (
                 <path key={i}
