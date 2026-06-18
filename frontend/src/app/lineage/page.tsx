@@ -507,15 +507,18 @@ export default function LineagePage() {
           <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: isLive ? 'var(--status-ok-text)' : 'var(--status-warn-text)', display: 'inline-block', animation: isLive ? 'pulse 2s infinite' : 'none' }} />
           {isLive ? 'LIVE' : 'DEMO'}
         </span>
-        {isLive && (
+        {isLive && selected && (
           <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-            {laidOut.length} objects · {data.edges.length} edges
+            {laidOut.length} objects in chain · {visibleEdges.length} edges
             {data.meta?.edgeMethods && <> · {[
               data.meta.edgeMethods.fk > 0 && `${data.meta.edgeMethods.fk} FK`,
               data.meta.edgeMethods.ddl > 0 && `${data.meta.edgeMethods.ddl} DDL`,
               data.meta.edgeMethods.heuristic > 0 && `${data.meta.edgeMethods.heuristic} inferred`,
             ].filter(Boolean).join(', ')}</>}
           </span>
+        )}
+        {isLive && !selected && (
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{data.nodes.length} objects available · search to view lineage</span>
         )}
         {!isLive && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Demo mode · connect Snowflake for live lineage</span>}
         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Auto-refresh 30s{timeSinceRefresh > 5 ? ` · ${timeSinceRefresh}s ago` : ''}</span>
@@ -570,8 +573,8 @@ export default function LineagePage() {
           )}
         </div>
 
-        {/* legend pills — same row as search */}
-        {Object.entries(typeConfig).map(([type, cfg]) => (
+        {/* legend pills — same row as search, only shown once a table is selected */}
+        {selected && Object.entries(typeConfig).map(([type, cfg]) => (
           <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>
             <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.border }} />
             <span style={{ fontSize: '9.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
@@ -579,9 +582,18 @@ export default function LineagePage() {
         ))}
       </div>
 
-      {/* SVG Graph */}
-      <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
-        {/* ── Floating Column Popup on graph ── */}
+      {!selected && (
+        <div style={{ padding: '64px 24px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔍</div>
+          <div style={{ fontSize: '13px' }}>Search for a table or view above to see its full upstream and downstream lineage</div>
+        </div>
+      )}
+
+      {selected && (
+        <>
+          {/* SVG Graph */}
+          <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
+            {/* ── Floating Column Popup on graph ── */}
         {selectedNode && (
           <div style={{
             position: 'absolute',
@@ -866,6 +878,8 @@ export default function LineagePage() {
           })}
         </svg>
       </div>
+        </>
+      )}
 
       {/* ── Full-width Detail Panel (below graph, matching Data-Quality reference) ── */}
       {selectedNode && (
