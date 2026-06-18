@@ -14,9 +14,10 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
     const body = action === 'reject' ? await req.json() : {}
+    const auth = req.headers.get('Authorization')
     const res = await fetch(`${BACKEND}/glossary/terms/${termId}/${action}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: auth } : {}) },
       body: JSON.stringify(body),
     })
     const data = await res.json()

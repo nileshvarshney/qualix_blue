@@ -118,3 +118,25 @@ async def test_reject_term_empty_note_raises_422():
     with pytest.raises(HTTPException) as exc_info:
         await reject_term("term-001", {"review_note": "  "}, db, user)
     assert exc_info.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_approve_term_viewer_raises_403():
+    from app.api.glossary import approve_term
+    term = _make_term(status="pending_review", domain_id=None)
+    db = _make_db(term)
+    user = {"email": "viewer@example.com", "role": "viewer", "domain_id": None}
+    with pytest.raises(HTTPException) as exc_info:
+        await approve_term("term-001", db, user)
+    assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reject_term_viewer_raises_403():
+    from app.api.glossary import reject_term
+    term = _make_term(status="pending_review", domain_id=None)
+    db = _make_db(term)
+    user = {"email": "viewer@example.com", "role": "viewer", "domain_id": None}
+    with pytest.raises(HTTPException) as exc_info:
+        await reject_term("term-001", {"review_note": "Needs work"}, db, user)
+    assert exc_info.value.status_code == 403

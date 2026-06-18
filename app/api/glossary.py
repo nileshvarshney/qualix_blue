@@ -237,6 +237,8 @@ async def approve_term(
     user: dict = Depends(require_reviewer),
 ):
     """Approve a pending_review term, moving it to active."""
+    if user.get("role") not in ("admin", "domain_owner"):
+        raise HTTPException(403, "Only admins and domain owners can approve terms")
     result = await db.execute(select(GlossaryTerm).where(GlossaryTerm.term_id == term_id))
     term = result.scalar_one_or_none()
     if not term:
@@ -268,6 +270,8 @@ async def reject_term(
     user: dict = Depends(require_reviewer),
 ):
     """Reject a pending_review term, returning it to draft with a required note."""
+    if user.get("role") not in ("admin", "domain_owner"):
+        raise HTTPException(403, "Only admins and domain owners can reject terms")
     review_note = (payload.get("review_note") or "").strip()
     if not review_note:
         raise HTTPException(422, "review_note is required for rejection")

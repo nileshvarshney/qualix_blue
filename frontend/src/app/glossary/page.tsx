@@ -147,7 +147,7 @@ export default function GlossaryPage() {
     }
   }
 
-  const doAction = async (termId: string, action: string, body: object = {}) => {
+  const doAction = async (termId: string, action: string, body: object = {}): Promise<boolean> => {
     setActionLoading(termId)
     setActionError(null)
     try {
@@ -156,9 +156,9 @@ export default function GlossaryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.status === 403) { setActionError("You don't have permission to perform this action"); return }
-      if (res.status === 400) { setActionError('This term is no longer in the expected state — refresh and try again'); return }
-      if (!res.ok) { setActionError('Action failed — please try again'); return }
+      if (res.status === 403) { setActionError("You don't have permission to perform this action"); return false }
+      if (res.status === 400) { setActionError('This term is no longer in the expected state — refresh and try again'); return false }
+      if (!res.ok) { setActionError('Action failed — please try again'); return false }
       const updated = await res.json()
       setTerms(prev => prev.map(t => t.id === termId ? {
         ...t,
@@ -167,7 +167,8 @@ export default function GlossaryPage() {
         reviewNote: String(updated.review_note ?? ''),
         reviewedAt: String(updated.reviewed_at ?? ''),
       } : t))
-    } catch { setActionError('Action failed — please try again') }
+      return true
+    } catch { setActionError('Action failed — please try again'); return false }
     finally { setActionLoading(null) }
   }
 
@@ -483,9 +484,8 @@ export default function GlossaryPage() {
               </button>
               <button
                 onClick={async () => {
-                  await doAction(rejectTarget.id, 'reject', { review_note: rejectNote })
-                  setRejectTarget(null)
-                  setRejectNote('')
+                  const ok = await doAction(rejectTarget.id, 'reject', { review_note: rejectNote })
+                  if (ok) { setRejectTarget(null); setRejectNote('') }
                 }}
                 disabled={!rejectNote.trim() || actionLoading === rejectTarget.id}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (!rejectNote.trim() || actionLoading === rejectTarget.id) ? 'not-allowed' : 'pointer', opacity: (!rejectNote.trim() || actionLoading === rejectTarget.id) ? 0.6 : 1 }}>

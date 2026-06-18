@@ -161,7 +161,7 @@ export default function GovernancePage() {
     } catch { /* leave empty */ }
   }, [])
 
-  const govDoAction = async (termId: string, action: string, body: object = {}) => {
+  const govDoAction = async (termId: string, action: string, body: object = {}): Promise<boolean> => {
     setGovActionLoading(termId)
     setGovActionError(null)
     try {
@@ -170,11 +170,12 @@ export default function GovernancePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.status === 403) { setGovActionError("You don't have permission to perform this action"); return }
-      if (res.status === 400) { setGovActionError('This term is no longer in the expected state — refresh and try again'); return }
-      if (!res.ok) { setGovActionError('Action failed — please try again'); return }
+      if (res.status === 403) { setGovActionError("You don't have permission to perform this action"); return false }
+      if (res.status === 400) { setGovActionError('This term is no longer in the expected state — refresh and try again'); return false }
+      if (!res.ok) { setGovActionError('Action failed — please try again'); return false }
       setPendingTerms(prev => prev.filter(t => t.id !== termId))
-    } catch { setGovActionError('Action failed — please try again') }
+      return true
+    } catch { setGovActionError('Action failed — please try again'); return false }
     finally { setGovActionLoading(null) }
   }
 
@@ -675,9 +676,8 @@ export default function GovernancePage() {
               </button>
               <button
                 onClick={async () => {
-                  await govDoAction(govRejectTarget.id, 'reject', { review_note: govRejectNote })
-                  setGovRejectTarget(null)
-                  setGovRejectNote('')
+                  const ok = await govDoAction(govRejectTarget.id, 'reject', { review_note: govRejectNote })
+                  if (ok) { setGovRejectTarget(null); setGovRejectNote('') }
                 }}
                 disabled={!govRejectNote.trim() || govActionLoading === govRejectTarget.id}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (!govRejectNote.trim() || govActionLoading === govRejectTarget.id) ? 'not-allowed' : 'pointer', opacity: (!govRejectNote.trim() || govActionLoading === govRejectTarget.id) ? 0.6 : 1 }}>
