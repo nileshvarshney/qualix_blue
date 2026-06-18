@@ -99,7 +99,7 @@ class Settings(BaseSettings):
     auto_rules_enabled: bool = True
     auto_rules_max_per_table: int = 10
 
-    model_config = {"case_sensitive": False}
+    model_config = {"case_sensitive": False, "env_file": ".env", "env_file_encoding": "utf-8"}
 
     def is_weak_secret_key(self) -> bool:
         return self.secret_key.lower() in _WEAK_SECRET_KEYS or len(self.secret_key) < 32

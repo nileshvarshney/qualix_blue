@@ -78,6 +78,9 @@ def _fmt_policy(p: GovernancePolicy) -> dict:
         "description": p.description,
         "severity": p.severity,
         "is_active": p.is_active,
+        # UI-friendly aliases
+        "status": "active" if p.is_active else "draft",
+        "enforcement": "enforced" if p.severity == "high" else "advisory",
         "config": p.config,
         "created_by": p.created_by,
         "created_at": p.created_at.isoformat() if p.created_at else None,
@@ -130,7 +133,14 @@ async def list_policies(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(GovernancePolicy).where(GovernancePolicy.is_active == True)
     )
-    return [_fmt_policy(p) for p in result.scalars().all()]
+    policies = result.scalars().all()
+    if not policies:
+        await _seed_default_policies(db)
+        result = await db.execute(
+            select(GovernancePolicy).where(GovernancePolicy.is_active == True)
+        )
+        policies = result.scalars().all()
+    return [_fmt_policy(p) for p in policies]
 
 
 @router.post("/policies")

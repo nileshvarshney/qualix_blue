@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface DomainScore {
   id: string; name: string; icon: string
@@ -24,7 +24,10 @@ type ScorecardFilter = 'all' | 'healthy' | 'at-risk'
 type PolicyFilter = 'all' | 'active' | 'draft' | 'enforced'
 
 const SCORE_DIMENSIONS = ['quality', 'documentation', 'classification', 'ownership', 'certification', 'sla'] as const
-const DIM_LABELS: Record<string, string> = { quality: 'Data Quality', documentation: 'Documentation', classification: 'Classification', ownership: 'Ownership', certification: 'Certification', sla: 'SLA Compliance' }
+const DIM_LABELS: Record<string, string> = {
+  quality: 'Data Quality', documentation: 'Documentation', classification: 'Classification',
+  ownership: 'Ownership', certification: 'Certification', sla: 'SLA Compliance',
+}
 const DIM_DESCRIPTIONS: Record<string, string> = {
   quality: 'Based on rule pass rate across all tables in this domain',
   documentation: 'Percentage of tables/columns with descriptions and metadata',
@@ -34,10 +37,23 @@ const DIM_DESCRIPTIONS: Record<string, string> = {
   sla: 'Percentage of freshness and delivery SLAs met in last 30 days',
 }
 
+const SCORECARD_COLS = '1fr 72px 88px 90px 78px 82px 52px 70px'
+const SCORECARD_HEADERS = ['Domain', 'Quality', 'Documentation', 'Classification', 'Ownership', 'Certification', 'SLA', 'Overall']
+const POLICY_COLS = '70px 1fr 90px 80px 50px 80px'
+const POLICY_HEADERS = ['Status', 'Policy', 'Domain', 'Enforcement', 'Rules', 'Last Eval']
+
+const DOMAIN_ICONS = ['📊', '🛡️', '👥', '💰', '🏥', '📈', '🔧', '📦', '🌐', '🔬']
+function domainIcon(name: string): string {
+  let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % DOMAIN_ICONS.length
+  return DOMAIN_ICONS[Math.abs(h)]
+}
+
 function scoreColor(s: number): string { return s >= 90 ? 'var(--status-ok-text)' : s >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)' }
 function scoreBg(s: number): string { return s >= 90 ? 'var(--status-ok-bg)' : s >= 75 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)' }
 function policyStatusColor(s: string): string { return s === 'active' ? 'var(--status-ok-text)' : s === 'review' ? 'var(--status-warn-text)' : 'var(--text-muted)' }
 function policyStatusBg(s: string): string { return s === 'active' ? 'var(--status-ok-bg)' : s === 'review' ? 'var(--status-warn-bg)' : 'var(--surface-muted)' }
+
+const emptyForm = { name: '', description: '', domain: 'All', enforcement: 'enforced' as 'enforced' | 'advisory', status: 'draft' as 'active' | 'draft' | 'review' }
 
 export default function GovernancePage() {
   const [tab, setTab] = useState<GovernanceTab>('scorecards')
@@ -45,80 +61,123 @@ export default function GovernancePage() {
   const [policyFilter, setPolicyFilter] = useState<PolicyFilter>('all')
   const [selectedDomain, setSelectedDomain] = useState<DomainScore | null>(null)
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyItem | null>(null)
-  const [showCreatePolicy, setShowCreatePolicy] = useState(false)
+  const [showPolicyModal, setShowPolicyModal] = useState(false)
+  const [editingPolicy, setEditingPolicy] = useState<PolicyItem | null>(null)
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false)
   const [policies, setPolicies] = useState<PolicyItem[]>([])
   const [domains, setDomains] = useState<DomainScore[]>([])
-  const [loadingPolicies, setLoadingPolicies] = useState(true)
-  const [policyForm, setPolicyForm] = useState({ name: '', description: '', domain: 'All', enforcement: 'enforced' as 'enforced' | 'advisory', status: 'draft' as 'active' | 'draft' | 'review' })
+  const [loading, setLoading] = useState(true)
+  const [evaluating, setEvaluating] = useState(false)
+  const [evalResult, setEvalResult] = useState<{ violations_found: number; assets_evaluated: number } | null>(null)
+  const [policyForm, setPolicyForm] = useState(emptyForm)
 
-  useEffect(() => {
-    fetch('/api/governance')
-      .then(r => r.json())
-      .then(data => {
-        const items = Array.isArray(data) ? data : []
-        setPolicies(items.map((p: Record<string, unknown>) => ({
-          id: String(p.policy_id ?? p.id ?? ''),
-          name: String(p.policy_name ?? p.name ?? ''),
-          description: String(p.description ?? ''),
-          domain: String(p.domain ?? 'All'),
-          status: (['active', 'draft', 'review'] as const).includes(p.status as 'active' | 'draft' | 'review') ? (p.status as 'active' | 'draft' | 'review') : 'draft',
-          enforcement: (['enforced', 'advisory'] as const).includes(p.enforcement as 'enforced' | 'advisory') ? (p.enforcement as 'enforced' | 'advisory') : 'advisory',
-          rulesCount: Number(p.rules_count ?? p.rulesCount ?? 0),
-          lastEval: String(p.last_evaluated ?? p.lastEval ?? 'Never'),
-          rules: [],
-        })))
-        setLoadingPolicies(false)
-      })
-      .catch(() => setLoadingPolicies(false))
+  const loadData = useCallback(async () => {
+    setLoading(true)
+    const [policiesRes, scorecardsRes] = await Promise.allSettled([
+      fetch('/api/governance').then(r => r.json()).catch(() => []),
+      fetch('/api/governance/scorecards').then(r => r.json()).catch(() => []),
+    ])
+    const rawPolicies = policiesRes.status === 'fulfilled' ? (Array.isArray(policiesRes.value) ? policiesRes.value : []) : []
+    const rawScores = scorecardsRes.status === 'fulfilled' ? (Array.isArray(scorecardsRes.value) ? scorecardsRes.value : []) : []
+
+    setPolicies(rawPolicies.map((p: Record<string, unknown>) => ({
+      id: String(p.policy_id ?? p.id ?? ''),
+      name: String(p.policy_name ?? p.name ?? ''),
+      description: String(p.description ?? ''),
+      domain: String(p.domain ?? 'All'),
+      status: (['active', 'draft', 'review'] as const).includes(p.status as 'active' | 'draft' | 'review')
+        ? (p.status as 'active' | 'draft' | 'review')
+        : (p.is_active ? 'active' : 'draft'),
+      enforcement: (['enforced', 'advisory'] as const).includes(p.enforcement as 'enforced' | 'advisory')
+        ? (p.enforcement as 'enforced' | 'advisory')
+        : (p.severity === 'high' ? 'enforced' : 'advisory'),
+      rulesCount: Number(p.rules_count ?? p.rulesCount ?? 0),
+      lastEval: String(p.last_evaluated ?? p.lastEval ?? 'Never'),
+      rules: [],
+    })))
+
+    setDomains(rawScores.map((d: Record<string, unknown>) => ({
+      id: String(d.domain_id ?? d.id ?? ''),
+      name: String(d.domain_name ?? d.name ?? ''),
+      icon: domainIcon(String(d.domain_name ?? d.name ?? '')),
+      quality: Math.round(Number(d.quality_score ?? d.quality ?? 0)),
+      documentation: Math.round(Number(d.documentation_score ?? d.documentation ?? 0)),
+      classification: Math.round(Number(d.classification_score ?? d.classification ?? 0)),
+      ownership: Math.round(Number(d.ownership_score ?? d.ownership ?? 0)),
+      certification: Math.round(Number(d.certification_score ?? d.certification ?? 0)),
+      sla: Math.round(Number(d.sla_score ?? d.sla ?? 0)),
+      overall: Math.round(Number(d.overall_score ?? d.overall ?? 0)),
+      tables: [], rulesPassed: 0, rulesTotal: 0,
+    })))
+    setLoading(false)
   }, [])
 
-  const createPolicy = async () => {
+  useEffect(() => { loadData() }, [loadData])
+
+  const runEvaluation = async () => {
+    setEvaluating(true); setEvalResult(null)
+    try {
+      const res = await fetch('/api/governance/evaluate', { method: 'POST' })
+      if (res.ok) { setEvalResult(await res.json()); await loadData() }
+    } finally { setEvaluating(false) }
+  }
+
+  const openCreate = () => { setEditingPolicy(null); setPolicyForm(emptyForm); setShowPolicyModal(true) }
+
+  const openEdit = (p: PolicyItem) => {
+    setSelectedPolicy(null)
+    setEditingPolicy(p)
+    setPolicyForm({ name: p.name, description: p.description, domain: p.domain, enforcement: p.enforcement, status: p.status })
+    setShowPolicyModal(true)
+  }
+
+  const savePolicy = async () => {
     if (!policyForm.name) return
     try {
-      const res = await fetch('/api/governance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          policy_name: policyForm.name, description: policyForm.description,
-          policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory',
-          severity: 'medium', is_active: policyForm.status === 'active',
-        }),
-      })
-      const created = await res.json()
-      const newPolicy: PolicyItem = {
-        id: String(created.policy_id ?? `p${Date.now()}`), name: policyForm.name,
-        description: policyForm.description, domain: policyForm.domain,
-        status: policyForm.status, enforcement: policyForm.enforcement,
-        rulesCount: 0, lastEval: 'Never', rules: [],
+      if (editingPolicy) {
+        const res = await fetch('/api/governance', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingPolicy.id, policy_name: policyForm.name, description: policyForm.description,
+            severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium',
+            is_active: policyForm.status === 'active',
+          }),
+        })
+        if (res.ok) await loadData()
+      } else {
+        const res = await fetch('/api/governance', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            policy_name: policyForm.name, description: policyForm.description,
+            policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory',
+            severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium',
+            is_active: policyForm.status === 'active',
+          }),
+        })
+        if (res.ok) await loadData()
+        else setPolicies(prev => [...prev, { id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description, domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement, rulesCount: 0, lastEval: 'Never', rules: [] }])
       }
-      setPolicies(prev => [...prev, newPolicy])
     } catch {
-      setPolicies(prev => [...prev, {
-        id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description,
-        domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement,
-        rulesCount: 0, lastEval: 'Never', rules: [],
-      }])
+      if (!editingPolicy) setPolicies(prev => [...prev, { id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description, domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement, rulesCount: 0, lastEval: 'Never', rules: [] }])
     }
-    setShowCreatePolicy(false)
-    setPolicyForm({ name: '', description: '', domain: 'All', enforcement: 'enforced', status: 'draft' })
+    setShowPolicyModal(false); setEditingPolicy(null); setPolicyForm(emptyForm)
+  }
+
+  const deactivatePolicy = async (id: string) => {
+    const res = await fetch(`/api/governance?id=${id}`, { method: 'DELETE' })
+    if (res.ok) { setSelectedPolicy(null); setConfirmDeactivate(false); await loadData() }
   }
 
   const activeCount = policies.filter(p => p.status === 'active').length
   const enforcedCount = policies.filter(p => p.enforcement === 'enforced').length
+  const govScore = domains.length > 0 ? Math.round(domains.reduce((s, d) => s + d.overall, 0) / domains.length) : null
+  const avgOwnership = domains.length > 0 ? Math.round(domains.reduce((s, d) => s + d.ownership, 0) / domains.length) : null
+  const avgClassification = domains.length > 0 ? Math.round(domains.reduce((s, d) => s + d.classification, 0) / domains.length) : null
 
-  const filteredDomains = domains.filter(d => {
-    if (scorecardFilter === 'healthy') return d.overall >= 90
-    if (scorecardFilter === 'at-risk') return d.overall < 75
-    return true
-  })
+  const filteredDomains = domains.filter(d => scorecardFilter === 'healthy' ? d.overall >= 90 : scorecardFilter === 'at-risk' ? d.overall < 75 : true)
+  const filteredPolicies = policies.filter(p => policyFilter === 'active' ? p.status === 'active' : policyFilter === 'draft' ? p.status === 'draft' : policyFilter === 'enforced' ? p.enforcement === 'enforced' : true)
 
-  const filteredPolicies = policies.filter(p => {
-    if (policyFilter === 'active') return p.status === 'active'
-    if (policyFilter === 'draft') return p.status === 'draft'
-    if (policyFilter === 'enforced') return p.enforcement === 'enforced'
-    return true
-  })
-
-  const closePopups = () => { setSelectedDomain(null); setSelectedPolicy(null) }
+  const closePopups = () => { setSelectedDomain(null); setSelectedPolicy(null); setConfirmDeactivate(false) }
 
   return (
     <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
@@ -126,21 +185,28 @@ export default function GovernancePage() {
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Governance</span>
-        <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>Score: —</span>
+        {govScore !== null
+          ? <span style={{ background: scoreBg(govScore), color: scoreColor(govScore), padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>Score: {govScore}</span>
+          : <span style={{ background: 'var(--surface-muted)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>Score: —</span>
+        }
         {activeCount > 0 && <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{activeCount} active</span>}
         {enforcedCount > 0 && <span style={{ background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{enforcedCount} enforced</span>}
-        <div style={{ marginLeft: 'auto' }}>
-          <button onClick={() => setShowCreatePolicy(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Policy</button>
+        {evalResult && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{evalResult.violations_found} violations · {evalResult.assets_evaluated} assets</span>}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+          <button onClick={runEvaluation} disabled={evaluating} style={{ background: evaluating ? 'var(--surface-muted)' : 'var(--surface)', color: evaluating ? 'var(--text-muted)' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: evaluating ? 'default' : 'pointer' }}>
+            {evaluating ? 'Evaluating…' : '▶ Evaluate'}
+          </button>
+          <button onClick={openCreate} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Policy</button>
         </div>
       </div>
 
-      {/* mini KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
         {[
-          ['Governance Score', '—'],
+          ['Governance Score', govScore !== null ? String(govScore) : '—'],
           ['Policies Active', String(activeCount)],
-          ['Assets Classified', '—'],
-          ['Ownership Coverage', '—'],
+          ['Assets Classified', avgClassification !== null ? `${avgClassification}%` : '—'],
+          ['Ownership Coverage', avgOwnership !== null ? `${avgOwnership}%` : '—'],
         ].map(([l, v], i) => (
           <div key={i} style={{ padding: '5px 10px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
             <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>{l}</div>
@@ -149,46 +215,33 @@ export default function GovernancePage() {
         ))}
       </div>
 
-      {/* tabs + filter pills */}
+      {/* tabs + filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
         {(['scorecards', 'policies'] as GovernanceTab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
-            padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-            background: tab === t ? '#1a1a1a' : 'var(--surface-muted)',
-            color: tab === t ? '#fff' : 'var(--text-secondary)',
-            fontWeight: tab === t ? 600 : 400, fontSize: '11px', textTransform: 'capitalize',
-          }}>
+          <button key={t} onClick={() => setTab(t)} style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: tab === t ? '#1a1a1a' : 'var(--surface-muted)', color: tab === t ? '#fff' : 'var(--text-secondary)', fontWeight: tab === t ? 600 : 400, fontSize: '11px', textTransform: 'capitalize' }}>
             {t === 'scorecards' ? `Scorecards (${filteredDomains.length})` : `Policies (${filteredPolicies.length})`}
           </button>
         ))}
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
         {tab === 'scorecards' && ([['all', 'All'], ['healthy', 'Healthy'], ['at-risk', 'At-Risk']] as [ScorecardFilter, string][]).map(([f, l]) => (
-          <button key={f} onClick={() => setScorecardFilter(f)} style={{
-            padding: '3px 8px', borderRadius: '5px', border: `1px solid ${scorecardFilter === f ? 'var(--accent)' : 'var(--border)'}`,
-            background: scorecardFilter === f ? 'var(--accent-bg)' : 'transparent',
-            color: scorecardFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer',
-          }}>{l}</button>
+          <button key={f} onClick={() => setScorecardFilter(f)} style={{ padding: '3px 8px', borderRadius: '5px', border: `1px solid ${scorecardFilter === f ? 'var(--accent)' : 'var(--border)'}`, background: scorecardFilter === f ? 'var(--accent-bg)' : 'transparent', color: scorecardFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>{l}</button>
         ))}
         {tab === 'policies' && ([['all', 'All'], ['active', 'Active'], ['draft', 'Draft'], ['enforced', 'Enforced']] as [PolicyFilter, string][]).map(([f, l]) => (
-          <button key={f} onClick={() => setPolicyFilter(f)} style={{
-            padding: '3px 8px', borderRadius: '5px', border: `1px solid ${policyFilter === f ? 'var(--accent)' : 'var(--border)'}`,
-            background: policyFilter === f ? 'var(--accent-bg)' : 'transparent',
-            color: policyFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer',
-          }}>{l}</button>
+          <button key={f} onClick={() => setPolicyFilter(f)} style={{ padding: '3px 8px', borderRadius: '5px', border: `1px solid ${policyFilter === f ? 'var(--accent)' : 'var(--border)'}`, background: policyFilter === f ? 'var(--accent-bg)' : 'transparent', color: policyFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>{l}</button>
         ))}
       </div>
 
       {/* column headers */}
-      {tab === 'scorecards' && !loadingPolicies && filteredDomains.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 45px 45px 55px 50px 50px 45px 65px', gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Domain', 'Qual', 'Docs', 'Class', 'Own', 'Cert', 'SLA', 'Overall'].map(h => (
-            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+      {tab === 'scorecards' && !loading && filteredDomains.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: SCORECARD_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {SCORECARD_HEADERS.map(h => (
+            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: '1.3', whiteSpace: 'normal', wordBreak: 'break-word' }}>{h}</span>
           ))}
         </div>
       )}
-      {tab === 'policies' && !loadingPolicies && filteredPolicies.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 90px 80px 50px 80px', gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Status', 'Policy', 'Domain', 'Enforcement', 'Rules', 'Last Eval'].map(h => (
+      {tab === 'policies' && !loading && filteredPolicies.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: POLICY_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {POLICY_HEADERS.map(h => (
             <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
           ))}
         </div>
@@ -196,15 +249,14 @@ export default function GovernancePage() {
 
       {/* scrollable list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loadingPolicies && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
+        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
 
-        {/* scorecards tab */}
-        {tab === 'scorecards' && !loadingPolicies && filteredDomains.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No domain scorecard data yet</div>
+        {tab === 'scorecards' && !loading && filteredDomains.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No domain scorecard data yet — add domains in Asset Registry first</div>
         )}
-        {tab === 'scorecards' && !loadingPolicies && filteredDomains.map(d => (
+        {tab === 'scorecards' && !loading && filteredDomains.map(d => (
           <div key={d.id} onClick={() => setSelectedDomain(d)}
-            style={{ display: 'grid', gridTemplateColumns: '1fr 45px 45px 55px 50px 50px 45px 65px', gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${scoreColor(d.overall)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
+            style={{ display: 'grid', gridTemplateColumns: SCORECARD_COLS, gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${scoreColor(d.overall)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
             onMouseLeave={e => (e.currentTarget.style.background = '')}
           >
@@ -216,13 +268,12 @@ export default function GovernancePage() {
           </div>
         ))}
 
-        {/* policies tab */}
-        {tab === 'policies' && !loadingPolicies && filteredPolicies.length === 0 && (
+        {tab === 'policies' && !loading && filteredPolicies.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No policies yet</div>
         )}
-        {tab === 'policies' && !loadingPolicies && filteredPolicies.map(p => (
+        {tab === 'policies' && !loading && filteredPolicies.map(p => (
           <div key={p.id} onClick={() => setSelectedPolicy(p)}
-            style={{ display: 'grid', gridTemplateColumns: '70px 1fr 90px 80px 50px 80px', gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${policyStatusColor(p.status)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
+            style={{ display: 'grid', gridTemplateColumns: POLICY_COLS, gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${policyStatusColor(p.status)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
             onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
             onMouseLeave={e => (e.currentTarget.style.background = '')}
           >
@@ -236,7 +287,7 @@ export default function GovernancePage() {
         ))}
       </div>
 
-      {/* slide-in domain scorecard panel */}
+      {/* domain scorecard panel */}
       {selectedDomain && (
         <>
           <div onClick={closePopups} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
@@ -264,95 +315,113 @@ export default function GovernancePage() {
                   </div>
                 )
               })}
-              {selectedDomain.tables.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Tables in Domain</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {selectedDomain.tables.map(t => (
-                      <span key={t} style={{ background: 'var(--accent-bg)', color: 'var(--accent)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 500, fontFamily: 'monospace' }}>{t}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {selectedDomain.rulesTotal > 0 && (
-                <div style={{ padding: '10px 12px', background: 'var(--status-ok-bg)', borderRadius: '6px', border: '1px solid var(--status-ok-text)' }}>
-                  <div style={{ fontSize: '9px', color: 'var(--status-ok-text)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Rules Coverage</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
-                    <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--status-ok-text)' }}>{selectedDomain.rulesPassed}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>/ {selectedDomain.rulesTotal} passing</span>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </>
       )}
 
-      {/* slide-in policy panel */}
+      {/* policy detail panel */}
       {selectedPolicy && (
         <>
           <div onClick={closePopups} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
-          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
+          <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200 }}>
+            {/* header */}
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <span style={{ background: policyStatusBg(selectedPolicy.status), color: policyStatusColor(selectedPolicy.status), padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'capitalize' }}>{selectedPolicy.status}</span>
-              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{selectedPolicy.name}</span>
+              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPolicy.name}</span>
               <button onClick={closePopups} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
-              {[['Domain', selectedPolicy.domain], ['Enforcement', selectedPolicy.enforcement], ['Rules', String(selectedPolicy.rulesCount)]].map(([l, v], i) => (
-                <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v || '—'}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
-              {[['Last Evaluated', selectedPolicy.lastEval], ['Tables', [...new Set(selectedPolicy.rules.map(r => r.table))].length + ' tables']].map(([l, v], i) => (
-                <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v}</div>
-                </div>
-              ))}
-            </div>
-            {selectedPolicy.description && (
-              <div style={{ padding: '12px 14px' }}>
-                <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
-                  <div style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', padding: '7px 12px' }}>
-                    <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>📋 DESCRIPTION</span>
+
+            {/* meta grid */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
+                {[['Domain', selectedPolicy.domain], ['Enforcement', selectedPolicy.enforcement], ['Rules', String(selectedPolicy.rulesCount)]].map(([l, v], i) => (
+                  <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
+                    <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                    <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', textTransform: 'capitalize' }}>{v || '—'}</div>
                   </div>
-                  <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{selectedPolicy.description}</div>
-                </div>
+                ))}
               </div>
-            )}
-            {selectedPolicy.rules.length > 0 && (
-              <div style={{ padding: '0 14px 12px' }}>
-                <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Policy Rules ({selectedPolicy.rules.length})</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  {selectedPolicy.rules.map((r, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: r.status === 'pass' ? 'var(--status-ok-bg)' : r.status === 'fail' ? 'var(--status-error-bg)' : 'var(--status-warn-bg)', borderRadius: '6px', border: `1px solid ${r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)'}` }}>
-                      <span style={{ fontSize: '12px' }}>{r.status === 'pass' ? '✅' : r.status === 'fail' ? '❌' : '⚠️'}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{r.name}</div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.table} · {r.type}</div>
-                      </div>
-                      <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', color: r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)' }}>{r.status}</span>
+              <div style={{ padding: '6px 14px 0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+                  {[['Last Evaluated', selectedPolicy.lastEval], ['Tables', `${[...new Set(selectedPolicy.rules.map(r => r.table))].length} tables`]].map(([l, v], i) => (
+                    <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
+                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v}</div>
                     </div>
                   ))}
                 </div>
               </div>
-            )}
+              {selectedPolicy.description && (
+                <div style={{ padding: '12px 14px 0' }}>
+                  <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
+                    <div style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', padding: '7px 12px' }}>
+                      <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>📋 DESCRIPTION</span>
+                    </div>
+                    <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{selectedPolicy.description}</div>
+                  </div>
+                </div>
+              )}
+              {selectedPolicy.rules.length > 0 && (
+                <div style={{ padding: '12px 14px 0' }}>
+                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Policy Rules ({selectedPolicy.rules.length})</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    {selectedPolicy.rules.map((r, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: r.status === 'pass' ? 'var(--status-ok-bg)' : r.status === 'fail' ? 'var(--status-error-bg)' : 'var(--status-warn-bg)', borderRadius: '6px', border: `1px solid ${r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)'}` }}>
+                        <span style={{ fontSize: '12px' }}>{r.status === 'pass' ? '✅' : r.status === 'fail' ? '❌' : '⚠️'}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{r.name}</div>
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.table} · {r.type}</div>
+                        </div>
+                        <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', color: r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)' }}>{r.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* action footer */}
+            <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+              {!confirmDeactivate ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => openEdit(selectedPolicy)}
+                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    ✏️ Edit Policy
+                  </button>
+                  <button
+                    onClick={() => setConfirmDeactivate(true)}
+                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    🚫 Deactivate
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    Deactivate <strong>{selectedPolicy.name}</strong>? This cannot be undone from the UI.
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button onClick={() => setConfirmDeactivate(false)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => deactivatePolicy(selectedPolicy.id)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Yes, Deactivate</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}
 
-      {/* Create Policy Modal — keep existing logic, update colors to CSS vars */}
-      {showCreatePolicy && (
+      {/* create / edit policy modal */}
+      {showPolicyModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowCreatePolicy(false)} />
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => { setShowPolicyModal(false); setEditingPolicy(null); setPolicyForm(emptyForm) }} />
           <div style={{ background: 'var(--surface)', borderRadius: '14px', width: '480px', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative', zIndex: 1 }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>Create Governance Policy</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Define a new policy to enforce data governance standards</div>
+              <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>{editingPolicy ? 'Edit Policy' : 'Create Governance Policy'}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{editingPolicy ? 'Update policy details and enforcement settings' : 'Define a new policy to enforce data governance standards'}</div>
             </div>
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>
@@ -380,29 +449,19 @@ export default function GovernancePage() {
                 </div>
               </div>
               <div>
-                <label style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Initial Status</label>
+                <label style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Status</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '8px' }}>
                   {(['draft', 'review', 'active'] as const).map(s => (
-                    <button key={s} type="button" onClick={() => setPolicyForm(f => ({ ...f, status: s }))} style={{
-                      padding: '8px', borderRadius: '8px', cursor: 'pointer', textAlign: 'center',
-                      border: policyForm.status === s ? `2px solid ${policyStatusColor(s)}` : `1px solid var(--border)`,
-                      background: policyForm.status === s ? policyStatusBg(s) : 'var(--surface-muted)',
-                      fontSize: '12px', fontWeight: policyForm.status === s ? 700 : 500,
-                      color: policyForm.status === s ? policyStatusColor(s) : 'var(--text-secondary)',
-                      textTransform: 'capitalize',
-                    }}>{s}</button>
+                    <button key={s} type="button" onClick={() => setPolicyForm(f => ({ ...f, status: s }))} style={{ padding: '8px', borderRadius: '8px', cursor: 'pointer', textAlign: 'center', border: policyForm.status === s ? `2px solid ${policyStatusColor(s)}` : `1px solid var(--border)`, background: policyForm.status === s ? policyStatusBg(s) : 'var(--surface-muted)', fontSize: '12px', fontWeight: policyForm.status === s ? 700 : 500, color: policyForm.status === s ? policyStatusColor(s) : 'var(--text-secondary)', textTransform: 'capitalize' }}>{s}</button>
                   ))}
                 </div>
               </div>
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowCreatePolicy(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={createPolicy} disabled={!policyForm.name} style={{
-                flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600,
-                cursor: policyForm.name ? 'pointer' : 'not-allowed',
-                background: policyForm.name ? 'var(--accent)' : 'var(--border)',
-                color: policyForm.name ? '#fff' : 'var(--text-muted)',
-              }}>Create Policy</button>
+              <button onClick={() => { setShowPolicyModal(false); setEditingPolicy(null); setPolicyForm(emptyForm) }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={savePolicy} disabled={!policyForm.name} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: policyForm.name ? 'pointer' : 'not-allowed', background: policyForm.name ? 'var(--accent)' : 'var(--border)', color: policyForm.name ? '#fff' : 'var(--text-muted)' }}>
+                {editingPolicy ? 'Save Changes' : 'Create Policy'}
+              </button>
             </div>
           </div>
         </div>
