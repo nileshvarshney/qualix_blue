@@ -33,14 +33,6 @@ const SECTIONS: Section[] = [
     ],
   },
   {
-    key: 'alerts',
-    tabs: [
-      { href: '/alerts',     label: 'Alerts' },
-      { href: '/incidents',  label: 'Incidents' },
-      { href: '/audit-logs', label: 'Audit Logs' },
-    ],
-  },
-  {
     key: 'explore',
     tabs: [
       { href: '/data-browser', label: 'Data Browser' },
@@ -61,6 +53,9 @@ const SECTIONS: Section[] = [
     tabs: [
       { href: '/scan-jobs',   label: 'Scan Jobs' },
       { href: '/run-history', label: 'Run History' },
+      { href: '/alerts',      label: 'Alerts' },
+      { href: '/incidents',   label: 'Incidents' },
+      { href: '/audit-logs',  label: 'Audit Logs' },
     ],
   },
   {

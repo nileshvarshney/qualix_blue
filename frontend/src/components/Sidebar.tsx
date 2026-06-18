@@ -212,10 +212,6 @@ const sections: Section[] = [
     railIconD: 'M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z',
   },
   {
-    key: 'alerts', label: 'Alerts', defaultHref: '/alerts',
-    railIconD: 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1',
-  },
-  {
     key: 'operations', label: 'Operations', defaultHref: '/scan-jobs',
     railIconD: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
   },
@@ -239,7 +235,7 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/anomalies': 'quality', '/schedules': 'quality', '/execution-logs': 'quality',
   '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
   '/glossary': 'govern', '/contracts': 'govern', '/data-products': 'govern', '/slas': 'govern', '/domains': 'govern',
-  '/alerts': 'alerts', '/incidents': 'alerts', '/audit-logs': 'alerts',
+  '/alerts': 'operations', '/incidents': 'operations', '/audit-logs': 'operations',
   '/data-browser': 'explore', '/spot-check': 'explore', '/reports': 'explore',
   '/executive': 'explore',
   '/ai-assistant': 'ai',
