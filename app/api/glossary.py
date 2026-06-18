@@ -36,6 +36,9 @@ def _fmt_term(
         "linked_asset_count": linked_asset_count,
         "created_at": term.created_at.isoformat() if term.created_at else None,
         "updated_at": term.updated_at.isoformat() if term.updated_at else None,
+        "reviewed_by": term.reviewed_by,
+        "review_note": term.review_note,
+        "reviewed_at": term.reviewed_at.isoformat() if term.reviewed_at else None,
     }
 
 
