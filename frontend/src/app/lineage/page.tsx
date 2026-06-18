@@ -238,6 +238,7 @@ export default function LineagePage() {
   const [columnData, setColumnData] = useState<ColumnInfo[] | null>(null)
   const [columnsLoading, setColumnsLoading] = useState(false)
   const [columnSearch, setColumnSearch] = useState('')
+  const [columnPopupOpen, setColumnPopupOpen] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
   const [columnEdges, setColumnEdges] = useState<ColumnLineageEdge[]>([])
@@ -537,7 +538,12 @@ export default function LineagePage() {
     : []
 
   function selectNode(id: string) {
-    setSelected(prev => prev === id ? null : id)
+    if (selected === id) {
+      setColumnPopupOpen(open => !open)
+    } else {
+      setSelected(id)
+      setColumnPopupOpen(true)
+    }
     setShowDropdown(false)
   }
 
@@ -710,7 +716,7 @@ export default function LineagePage() {
           </div>
 
           {/* ── Floating Column Popup on graph ── */}
-          {selectedNode && (
+          {selectedNode && columnPopupOpen && (
             <div style={{
               position: 'absolute',
               left: pan.x + ((selectedNode.x ?? 0) + NODE_W + 28) * zoom,
@@ -739,7 +745,7 @@ export default function LineagePage() {
                 {/* Status */}
                 <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' }}>✓</span>
                 {/* Close */}
-                <button onClick={() => setSelected(null)}
+                <button onClick={() => setColumnPopupOpen(false)}
                   style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>✕</button>
               </div>
 
