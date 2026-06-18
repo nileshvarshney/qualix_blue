@@ -38,6 +38,7 @@
   --status-warn-bg: #fffbeb;     --status-warn-text: #92400e;
   --status-error-bg: #fef2f2;    --status-error-text: #991b1b;
   --status-neutral-bg: #e2e8f0;  --status-neutral-text: #334155;
+  --status-info-bg: #eff6ff;     --status-info-text: #1d4ed8;
 
   /* ── Typography scale (each step -1px from current) ── */
   --text-xs:   11px;
@@ -102,6 +103,7 @@
   --status-error-text: #f87171;
   --status-neutral-bg: rgba(51, 65, 85, 0.5);
   --status-neutral-text:#94a3b8;
+  --status-info-bg:  rgba(59, 130, 246, 0.15);  --status-info-text: #60a5fa;
 }
 
 html {

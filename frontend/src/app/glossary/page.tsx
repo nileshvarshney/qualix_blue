@@ -4,36 +4,51 @@ import { useState, useEffect } from 'react'
 interface GlossaryTerm {
   id: string; name: string; definition: string; domain: string
   synonyms: string[]; owner: string; linkedAssets: number
-  status: 'approved' | 'draft' | 'deprecated'
+  status: 'approved' | 'active' | 'draft' | 'deprecated' | 'pending_review'
+  reviewedBy: string; reviewNote: string; reviewedAt: string
 }
 
-const DOMAINS = ['All', 'Finance', 'Sales', 'Marketing', 'Supply Chain', 'Engineering']
-type StatusFilter = 'all' | 'approved' | 'draft' | 'deprecated'
+const DOMAINS = ['All', 'Revenue', 'Finance', 'Operations', 'Planning', 'GTM', 'HR', 'Others']
+type StatusFilter = 'all' | 'approved' | 'pending_review' | 'draft' | 'deprecated'
 
 function statusBadge(s: string): { bg: string; color: string } {
-  if (s === 'approved') return { bg: 'var(--status-ok-bg)', color: 'var(--status-ok-text)' }
+  if (s === 'approved' || s === 'active') return { bg: 'var(--status-ok-bg)', color: 'var(--status-ok-text)' }
+  if (s === 'pending_review') return { bg: 'var(--status-info-bg)', color: 'var(--status-info-text)' }
   if (s === 'draft') return { bg: 'var(--status-warn-bg)', color: 'var(--status-warn-text)' }
-  return { bg: 'var(--surface-muted)', color: 'var(--text-muted)' }
+  return { bg: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)' }
 }
 
 function leftBorderColor(s: string): string {
-  if (s === 'approved') return 'var(--status-ok-text)'
+  if (s === 'approved' || s === 'active') return 'var(--status-ok-text)'
+  if (s === 'pending_review') return 'var(--status-info-text)'
   if (s === 'draft') return 'var(--status-warn-text)'
   return 'var(--border)'
+}
+
+function statusLabel(s: string): string {
+  if (s === 'active') return 'approved'
+  if (s === 'pending_review') return 'pending review'
+  return s
 }
 
 export default function GlossaryPage() {
   const [domain, setDomain] = useState('All')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [search, setSearch] = useState('')
   const [terms, setTerms] = useState<GlossaryTerm[]>([])
   const [loading, setLoading] = useState(true)
   const [showAdd, setShowAdd] = useState(false)
   const [popup, setPopup] = useState<GlossaryTerm | null>(null)
-  const [termForm, setTermForm] = useState({ name: '', definition: '', domain: 'Finance', synonyms: '', owner: '', status: 'draft' as 'approved' | 'draft' | 'deprecated' })
+  const [termForm, setTermForm] = useState({ name: '', definition: '', domain: 'Revenue', synonyms: '', owner: '', status: 'draft' as 'approved' | 'draft' | 'deprecated' })
   const [editTerm, setEditTerm] = useState<GlossaryTerm | null>(null)
   const [editForm, setEditForm] = useState<{ name: string; definition: string; domain: string; synonyms: string; owner: string; status: 'approved' | 'draft' | 'deprecated' }>({ name: '', definition: '', domain: '', synonyms: '', owner: '', status: 'draft' })
   const [editSaving, setEditSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ role: string; domain_id: string | null } | null>(null)
+  const [rejectTarget, setRejectTarget] = useState<GlossaryTerm | null>(null)
+  const [rejectNote, setRejectNote] = useState('')
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/glossary')
@@ -44,15 +59,31 @@ export default function GlossaryPage() {
           id: String(t.term_id ?? t.id ?? i),
           name: String(t.term_name ?? t.name ?? ''),
           definition: String(t.definition ?? ''),
-          domain: String(t.domain ?? ''),
-          synonyms: Array.isArray(t.synonyms) ? t.synonyms as string[] : [],
-          owner: String(t.owner ?? ''),
-          linkedAssets: Number(t.linked_assets ?? t.linkedAssets ?? 0),
-          status: (['approved', 'draft', 'deprecated'] as const).includes(t.status as 'approved' | 'draft' | 'deprecated') ? (t.status as 'approved' | 'draft' | 'deprecated') : 'draft',
+          domain: String(t.domain_name ?? t.domain ?? ''),
+          synonyms: Array.isArray(t.synonyms)
+            ? t.synonyms as string[]
+            : (typeof t.synonyms === 'string' && t.synonyms
+                ? t.synonyms.split(',').map((s: string) => s.trim()).filter(Boolean)
+                : []),
+          owner: String(t.owner_email ?? t.owner ?? ''),
+          linkedAssets: Number(t.linked_asset_count ?? t.linked_assets ?? t.linkedAssets ?? 0),
+          status: (['approved', 'active', 'draft', 'deprecated', 'pending_review'] as const).includes(
+            t.status as 'approved' | 'active' | 'draft' | 'deprecated' | 'pending_review'
+          ) ? (t.status as GlossaryTerm['status']) : 'draft',
+          reviewedBy: String(t.reviewed_by ?? ''),
+          reviewNote: String(t.review_note ?? ''),
+          reviewedAt: String(t.reviewed_at ?? ''),
         })))
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/me')
+      .then(r => r.json())
+      .then(data => setCurrentUser({ role: data.role ?? 'viewer', domain_id: data.domain_id ?? null }))
+      .catch(() => setCurrentUser({ role: 'viewer', domain_id: null }))
   }, [])
 
   const addTerm = async () => {
@@ -72,6 +103,7 @@ export default function GlossaryPage() {
         definition: termForm.definition, domain: termForm.domain,
         synonyms: termForm.synonyms.split(',').map(s => s.trim()).filter(Boolean),
         owner: termForm.owner || 'Unassigned', linkedAssets: 0, status: termForm.status,
+        reviewedBy: '', reviewNote: '', reviewedAt: '',
       }
       setTerms(prev => [newTerm, ...prev])
     } catch {
@@ -80,6 +112,7 @@ export default function GlossaryPage() {
         domain: termForm.domain,
         synonyms: termForm.synonyms.split(',').map(s => s.trim()).filter(Boolean),
         owner: termForm.owner || 'Unassigned', linkedAssets: 0, status: termForm.status,
+        reviewedBy: '', reviewNote: '', reviewedAt: '',
       }
       setTerms(prev => [newTerm, ...prev])
     }
@@ -114,6 +147,30 @@ export default function GlossaryPage() {
     }
   }
 
+  const doAction = async (termId: string, action: string, body: object = {}) => {
+    setActionLoading(termId)
+    setActionError(null)
+    try {
+      const res = await fetch(`/api/glossary/${termId}?action=${action}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.status === 403) { setActionError("You don't have permission to perform this action"); return }
+      if (res.status === 400) { setActionError('This term is no longer in the expected state — refresh and try again'); return }
+      if (!res.ok) { setActionError('Action failed — please try again'); return }
+      const updated = await res.json()
+      setTerms(prev => prev.map(t => t.id === termId ? {
+        ...t,
+        status: updated.status as GlossaryTerm['status'],
+        reviewedBy: String(updated.reviewed_by ?? ''),
+        reviewNote: String(updated.review_note ?? ''),
+        reviewedAt: String(updated.reviewed_at ?? ''),
+      } : t))
+    } catch { setActionError('Action failed — please try again') }
+    finally { setActionLoading(null) }
+  }
+
   const deleteTerm = async (term: GlossaryTerm) => {
     if (!confirm(`Delete term "${term.name}"?`)) return
     setDeletingId(term.id)
@@ -131,12 +188,23 @@ export default function GlossaryPage() {
 
   const filtered = terms.filter(t => {
     if (domain !== 'All' && t.domain !== domain) return false
-    if (statusFilter !== 'all' && t.status !== statusFilter) return false
+    if (statusFilter !== 'all') {
+      if (statusFilter === 'approved') {
+        if (t.status !== 'approved' && t.status !== 'active') return false
+      } else {
+        if (t.status !== statusFilter) return false
+      }
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      if (!t.name.toLowerCase().includes(q) && !t.definition.toLowerCase().includes(q)) return false
+    }
     return true
   })
 
-  const approved = terms.filter(t => t.status === 'approved').length
+  const approved = terms.filter(t => t.status === 'approved' || t.status === 'active').length
   const draft = terms.filter(t => t.status === 'draft').length
+  const isReviewer = currentUser?.role === 'admin' || currentUser?.role === 'domain_owner'
 
   return (
     <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
@@ -147,7 +215,9 @@ export default function GlossaryPage() {
         <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{terms.length} terms</span>
         {approved > 0 && <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{approved} approved</span>}
         {draft > 0 && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{draft} draft</span>}
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search terms…"
+            style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '11px', outline: 'none', width: '140px' }} />
           <button onClick={() => setShowAdd(true)} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Term</button>
         </div>
       </div>
@@ -163,7 +233,7 @@ export default function GlossaryPage() {
           }}>{d}</button>
         ))}
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
-        {([['all', 'All'], ['approved', 'Approved'], ['draft', 'Draft'], ['deprecated', 'Deprecated']] as [StatusFilter, string][]).map(([f, l]) => (
+        {([['all', 'All'], ['approved', 'Approved'], ['pending_review', 'Pending Review'], ['draft', 'Draft'], ['deprecated', 'Deprecated']] as [StatusFilter, string][]).map(([f, l]) => (
           <button key={f} onClick={() => setStatusFilter(f)} style={{
             padding: '3px 8px', borderRadius: '5px', border: `1px solid ${statusFilter === f ? 'var(--accent)' : 'var(--border)'}`,
             background: statusFilter === f ? 'var(--accent-bg)' : 'transparent',
@@ -171,6 +241,13 @@ export default function GlossaryPage() {
           }}>{l}</button>
         ))}
       </div>
+
+      {actionError && (
+        <div style={{ padding: '6px 10px', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', borderRadius: '6px', fontSize: '11px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {actionError}
+          <button onClick={() => setActionError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '14px', lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       {/* column headers */}
       {!loading && filtered.length > 0 && (
@@ -203,7 +280,30 @@ export default function GlossaryPage() {
                   <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.definition}</div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px', marginLeft: 'auto', flexShrink: 0 }}>
-                  <button onClick={e => { e.stopPropagation(); setEditTerm(term); setEditForm({ name: term.name, definition: term.definition, domain: term.domain, synonyms: term.synonyms.join(', '), owner: term.owner, status: term.status }) }}
+                  {term.status === 'draft' && (
+                    <button
+                      onClick={e => { e.stopPropagation(); doAction(term.id, 'submit') }}
+                      disabled={actionLoading === term.id}
+                      style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--status-info-text)', background: 'var(--status-info-bg)', fontSize: '10px', cursor: actionLoading === term.id ? 'not-allowed' : 'pointer', color: 'var(--status-info-text)', opacity: actionLoading === term.id ? 0.6 : 1 }}>
+                      {actionLoading === term.id ? '…' : 'Submit'}
+                    </button>
+                  )}
+                  {term.status === 'pending_review' && isReviewer && (
+                    <>
+                      <button
+                        onClick={e => { e.stopPropagation(); doAction(term.id, 'approve') }}
+                        disabled={actionLoading === term.id}
+                        style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: 'var(--status-ok-bg)', fontSize: '10px', cursor: actionLoading === term.id ? 'not-allowed' : 'pointer', color: 'var(--status-ok-text)', opacity: actionLoading === term.id ? 0.6 : 1 }}>
+                        {actionLoading === term.id ? '…' : 'Approve'}
+                      </button>
+                      <button
+                        onClick={e => { e.stopPropagation(); setRejectTarget(term); setRejectNote('') }}
+                        style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: 'pointer', color: 'var(--status-error-text)' }}>
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  <button onClick={e => { e.stopPropagation(); setEditTerm(term); setEditForm({ name: term.name, definition: term.definition, domain: term.domain, synonyms: term.synonyms.join(', '), owner: term.owner, status: term.status === 'active' ? 'approved' : term.status === 'pending_review' ? 'draft' : term.status }) }}
                     style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: 'pointer', color: 'var(--text-secondary)' }}>Edit</button>
                   <button onClick={e => { e.stopPropagation(); deleteTerm(term) }} disabled={deletingId === term.id}
                     style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: deletingId === term.id ? 'not-allowed' : 'pointer', color: 'var(--status-error-text)', opacity: deletingId === term.id ? 0.6 : 1 }}>
@@ -212,7 +312,7 @@ export default function GlossaryPage() {
                 </div>
               </div>
               <span style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.domain}</span>
-              <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textTransform: 'capitalize', display: 'inline-block' }}>{term.status}</span>
+              <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textTransform: 'capitalize', display: 'inline-block' }}>{statusLabel(term.status)}</span>
               <span style={{ fontSize: '11px', fontWeight: 700, color: term.linkedAssets > 0 ? 'var(--accent)' : 'var(--text-muted)' }}>{term.linkedAssets}</span>
             </div>
           )
@@ -225,7 +325,7 @@ export default function GlossaryPage() {
           <div onClick={() => setPopup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              {(() => { const st = statusBadge(popup.status); return <span style={{ background: st.bg, color: st.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'capitalize' }}>{popup.status}</span> })()}
+              {(() => { const st = statusBadge(popup.status); return <span style={{ background: st.bg, color: st.color, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'capitalize' }}>{statusLabel(popup.status)}</span> })()}
               <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popup.name}</span>
               <button onClick={() => setPopup(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
@@ -244,6 +344,17 @@ export default function GlossaryPage() {
                 </div>
                 <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{popup.definition || '—'}</div>
               </div>
+              {popup.status === 'draft' && popup.reviewNote && (
+                <div style={{ borderRadius: '6px', border: '1px solid var(--status-warn-text)', background: 'var(--status-warn-bg)', padding: '8px 12px' }}>
+                  <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--status-warn-text)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '4px' }}>Returned with feedback</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-secondary)', lineHeight: '1.5' }}>{popup.reviewNote}</div>
+                  {popup.reviewedBy && (
+                    <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      — {popup.reviewedBy}{popup.reviewedAt ? ` on ${popup.reviewedAt.slice(0, 10)}` : ''}
+                    </div>
+                  )}
+                </div>
+              )}
               {popup.synonyms.length > 0 && (
                 <div>
                   <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Synonyms</div>
@@ -281,7 +392,7 @@ export default function GlossaryPage() {
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Domain</label>
                   <select value={termForm.domain} onChange={e => setTermForm(f => ({ ...f, domain: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', outline: 'none', background: 'var(--surface)', color: 'var(--foreground)' }}>
-                    {DOMAINS.filter(d => d !== 'All').map(d => <option key={d} value={d}>{d}</option>)}
+                    {DOMAINS.filter(d => d !== 'All').map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
@@ -341,6 +452,44 @@ export default function GlossaryPage() {
               <button onClick={updateTerm} disabled={editSaving || !editForm.name}
                 style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (editSaving || !editForm.name) ? 'not-allowed' : 'pointer', opacity: (editSaving || !editForm.name) ? 0.6 : 1 }}>
                 {editSaving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rejectTarget && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Reject Term</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+              Returning <strong>{rejectTarget.name}</strong> to draft. Explain what needs to change.
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Feedback (required)</label>
+              <textarea
+                value={rejectNote}
+                onChange={e => setRejectNote(e.target.value)}
+                rows={3}
+                placeholder="Explain what needs to be revised..."
+                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const }}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setRejectTarget(null); setRejectNote('') }}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await doAction(rejectTarget.id, 'reject', { review_note: rejectNote })
+                  setRejectTarget(null)
+                  setRejectNote('')
+                }}
+                disabled={!rejectNote.trim() || actionLoading === rejectTarget.id}
+                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (!rejectNote.trim() || actionLoading === rejectTarget.id) ? 'not-allowed' : 'pointer', opacity: (!rejectNote.trim() || actionLoading === rejectTarget.id) ? 0.6 : 1 }}>
+                {actionLoading === rejectTarget.id ? 'Rejecting…' : 'Reject'}
               </button>
             </div>
           </div>
