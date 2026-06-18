@@ -32,6 +32,29 @@ async def evaluate_policies(db: AsyncSession) -> int:
         select(Asset).where(Asset.is_active == True)
     )
     assets = assets_res.scalars().all()
+    asset_ids = [a.asset_id for a in assets]
+
+    # Active rule counts per asset, fetched once instead of once per (policy, asset).
+    rule_counts_res = await db.execute(
+        select(DQRule.asset_id, func.count()).where(
+            DQRule.asset_id.in_(asset_ids), DQRule.is_active == True
+        ).group_by(DQRule.asset_id)
+    )
+    rule_counts = dict(rule_counts_res.all())
+
+    # All open violations for these policies, fetched once instead of once per (policy, asset).
+    policy_ids = [p.policy_id for p in policies]
+    existing_res = await db.execute(
+        select(PolicyViolation).where(
+            PolicyViolation.policy_id.in_(policy_ids),
+            PolicyViolation.entity_type == "asset",
+            PolicyViolation.entity_id.in_(asset_ids),
+            PolicyViolation.status == "open",
+        )
+    )
+    existing_by_key = {
+        (v.policy_id, v.entity_id): v for v in existing_res.scalars().all()
+    }
 
     violation_count = 0
 
@@ -51,12 +74,7 @@ async def evaluate_policies(db: AsyncSession) -> int:
                     detail = f"Table '{asset.sf_table_name}' is uncertified"
 
             elif policy.policy_type == "no_rules_defined":
-                rule_count_res = await db.execute(
-                    select(func.count()).select_from(DQRule).where(
-                        DQRule.asset_id == asset.asset_id, DQRule.is_active == True
-                    )
-                )
-                rule_count = rule_count_res.scalar() or 0
+                rule_count = rule_counts.get(asset.asset_id, 0)
                 if rule_count == 0:
                     violated = True
                     detail = f"Table '{asset.sf_table_name}' has no active rules"
@@ -66,17 +84,8 @@ async def evaluate_policies(db: AsyncSession) -> int:
                     violated = True
                     detail = f"Table '{asset.sf_table_name}' has no description"
 
+            existing = existing_by_key.get((policy.policy_id, asset.asset_id))
             if violated:
-                # Check if violation already exists
-                existing_res = await db.execute(
-                    select(PolicyViolation).where(
-                        PolicyViolation.policy_id == policy.policy_id,
-                        PolicyViolation.entity_type == "asset",
-                        PolicyViolation.entity_id == asset.asset_id,
-                        PolicyViolation.status == "open",
-                    )
-                )
-                existing = existing_res.scalar_one_or_none()
                 if not existing:
                     v = PolicyViolation(
                         violation_id=str(uuid.uuid4()),
@@ -90,16 +99,6 @@ async def evaluate_policies(db: AsyncSession) -> int:
                     db.add(v)
                     violation_count += 1
             else:
-                # Auto-resolve any existing open violations for this policy+asset
-                existing_res = await db.execute(
-                    select(PolicyViolation).where(
-                        PolicyViolation.policy_id == policy.policy_id,
-                        PolicyViolation.entity_type == "asset",
-                        PolicyViolation.entity_id == asset.asset_id,
-                        PolicyViolation.status == "open",
-                    )
-                )
-                existing = existing_res.scalar_one_or_none()
                 if existing:
                     existing.status = "resolved"
                     existing.resolved_at = _utcnow()

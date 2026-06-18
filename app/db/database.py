@@ -151,25 +151,43 @@ class SnowflakeAsyncSession:
         self._s.expunge_all()
 
 
+_WAREHOUSE_RECHECK_SECONDS = 60.0
+_warehouse_resume_lock = asyncio.Lock()
+_last_warehouse_resume_check = 0.0
+
+
 async def _resume_warehouse(session: Session) -> None:
     """Resume the platform warehouse if it is suspended.
 
     Snowflake SHOW/DESCRIBE commands work without an active warehouse but DML
     (INSERT/UPDATE/DELETE) requires one.  When the warehouse is suspended we get
-    a ProgrammingError 57P03 which surfaces as an opaque 500.  Running this once
-    at session-open time is a cheap no-op when the warehouse is already running.
+    a ProgrammingError 57P03 which surfaces as an opaque 500.
+
+    This is called on every session open (i.e. every request), so it is throttled
+    to once per _WAREHOUSE_RECHECK_SECONDS — otherwise every request pays an extra
+    Snowflake round trip just to confirm a warehouse that's almost always already
+    running. On failure the timestamp is left unset so the next request retries
+    immediately rather than waiting out the full window.
     """
-    try:
-        await asyncio.to_thread(
-            session.execute,
-            text(f"ALTER WAREHOUSE {settings.sf_platform_warehouse} RESUME IF SUSPENDED"),
-        )
-    except Exception as e:
-        _log.error(
-            "Failed to auto-resume warehouse %s — queries will fail until it is resumed "
-            "manually (ALTER WAREHOUSE %s RESUME): %s: %s",
-            settings.sf_platform_warehouse, settings.sf_platform_warehouse, type(e).__name__, e,
-        )
+    global _last_warehouse_resume_check
+    loop = asyncio.get_event_loop()
+    if loop.time() - _last_warehouse_resume_check < _WAREHOUSE_RECHECK_SECONDS:
+        return
+    async with _warehouse_resume_lock:
+        if loop.time() - _last_warehouse_resume_check < _WAREHOUSE_RECHECK_SECONDS:
+            return
+        try:
+            await asyncio.to_thread(
+                session.execute,
+                text(f"ALTER WAREHOUSE {settings.sf_platform_warehouse} RESUME IF SUSPENDED"),
+            )
+            _last_warehouse_resume_check = loop.time()
+        except Exception as e:
+            _log.error(
+                "Failed to auto-resume warehouse %s — queries will fail until it is resumed "
+                "manually (ALTER WAREHOUSE %s RESUME): %s: %s",
+                settings.sf_platform_warehouse, settings.sf_platform_warehouse, type(e).__name__, e,
+            )
 
 
 async def get_db():

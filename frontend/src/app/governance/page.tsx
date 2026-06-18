@@ -11,23 +11,27 @@ interface DomainScore {
 interface PolicyItem {
   id: string; name: string; description: string; domain: string
   status: 'active' | 'draft' | 'review'; enforcement: 'enforced' | 'advisory'
-  rulesCount: number; lastEval: string
-  rules: PolicyRule[]
+  rulesCount: number; lastEval: string; rules: PolicyRule[]
 }
 
-interface PolicyRule {
-  name: string; table: string; type: string; status: 'pass' | 'fail' | 'warn'
+interface PolicyRule { name: string; table: string; type: string; status: 'pass' | 'fail' | 'warn' }
+
+interface Violation {
+  id: string; policyId: string; policyName: string
+  entityType: string; entityId: string; detail: string
+  severity: string; status: 'open' | 'resolved'
+  detectedAt: string; resolvedAt: string | null
+  tableName: string | null; schemaName: string | null; databaseName: string | null
+  domainName: string | null; subdomainName: string | null
 }
 
-type GovernanceTab = 'scorecards' | 'policies'
+type GovernanceTab = 'scorecards' | 'policies' | 'violations'
 type ScorecardFilter = 'all' | 'healthy' | 'at-risk'
 type PolicyFilter = 'all' | 'active' | 'draft' | 'enforced'
+type ViolationFilter = 'open' | 'resolved' | 'high' | 'medium' | 'all'
 
 const SCORE_DIMENSIONS = ['quality', 'documentation', 'classification', 'ownership', 'certification', 'sla'] as const
-const DIM_LABELS: Record<string, string> = {
-  quality: 'Data Quality', documentation: 'Documentation', classification: 'Classification',
-  ownership: 'Ownership', certification: 'Certification', sla: 'SLA Compliance',
-}
+const DIM_LABELS: Record<string, string> = { quality: 'Data Quality', documentation: 'Documentation', classification: 'Classification', ownership: 'Ownership', certification: 'Certification', sla: 'SLA Compliance' }
 const DIM_DESCRIPTIONS: Record<string, string> = {
   quality: 'Based on rule pass rate across all tables in this domain',
   documentation: 'Percentage of tables/columns with descriptions and metadata',
@@ -41,6 +45,8 @@ const SCORECARD_COLS = '1fr 72px 88px 90px 78px 82px 52px 70px'
 const SCORECARD_HEADERS = ['Domain', 'Quality', 'Documentation', 'Classification', 'Ownership', 'Certification', 'SLA', 'Overall']
 const POLICY_COLS = '70px 1fr 90px 80px 50px 80px'
 const POLICY_HEADERS = ['Status', 'Policy', 'Domain', 'Enforcement', 'Rules', 'Last Eval']
+const VIOLATION_COLS = '52px 1fr 1fr 90px 80px 62px'
+const VIOLATION_HEADERS = ['Severity', 'Policy', 'Detail / Table', 'Domain', 'Detected', 'Action']
 
 const DOMAIN_ICONS = ['📊', '🛡️', '👥', '💰', '🏥', '📈', '🔧', '📦', '🌐', '🔬']
 function domainIcon(name: string): string {
@@ -48,10 +54,18 @@ function domainIcon(name: string): string {
   return DOMAIN_ICONS[Math.abs(h)]
 }
 
-function scoreColor(s: number): string { return s >= 90 ? 'var(--status-ok-text)' : s >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)' }
-function scoreBg(s: number): string { return s >= 90 ? 'var(--status-ok-bg)' : s >= 75 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)' }
-function policyStatusColor(s: string): string { return s === 'active' ? 'var(--status-ok-text)' : s === 'review' ? 'var(--status-warn-text)' : 'var(--text-muted)' }
-function policyStatusBg(s: string): string { return s === 'active' ? 'var(--status-ok-bg)' : s === 'review' ? 'var(--status-warn-bg)' : 'var(--surface-muted)' }
+function scoreColor(s: number) { return s >= 90 ? 'var(--status-ok-text)' : s >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)' }
+function scoreBg(s: number) { return s >= 90 ? 'var(--status-ok-bg)' : s >= 75 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)' }
+function policyStatusColor(s: string) { return s === 'active' ? 'var(--status-ok-text)' : s === 'review' ? 'var(--status-warn-text)' : 'var(--text-muted)' }
+function policyStatusBg(s: string) { return s === 'active' ? 'var(--status-ok-bg)' : s === 'review' ? 'var(--status-warn-bg)' : 'var(--surface-muted)' }
+function sevColor(s: string) { return s === 'high' ? 'var(--status-error-text)' : s === 'medium' ? 'var(--status-warn-text)' : 'var(--text-muted)' }
+function sevBg(s: string) { return s === 'high' ? 'var(--status-error-bg)' : s === 'medium' ? 'var(--status-warn-bg)' : 'var(--surface-muted)' }
+
+function fmtDate(iso: string | null) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
 
 const emptyForm = { name: '', description: '', domain: 'All', enforcement: 'enforced' as 'enforced' | 'advisory', status: 'draft' as 'active' | 'draft' | 'review' }
 
@@ -59,6 +73,7 @@ export default function GovernancePage() {
   const [tab, setTab] = useState<GovernanceTab>('scorecards')
   const [scorecardFilter, setScorecardFilter] = useState<ScorecardFilter>('all')
   const [policyFilter, setPolicyFilter] = useState<PolicyFilter>('all')
+  const [violationFilter, setViolationFilter] = useState<ViolationFilter>('open')
   const [selectedDomain, setSelectedDomain] = useState<DomainScore | null>(null)
   const [selectedPolicy, setSelectedPolicy] = useState<PolicyItem | null>(null)
   const [showPolicyModal, setShowPolicyModal] = useState(false)
@@ -66,9 +81,13 @@ export default function GovernancePage() {
   const [confirmDeactivate, setConfirmDeactivate] = useState(false)
   const [policies, setPolicies] = useState<PolicyItem[]>([])
   const [domains, setDomains] = useState<DomainScore[]>([])
+  const [violations, setViolations] = useState<Violation[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingViolations, setLoadingViolations] = useState(false)
+  const [violationsLoaded, setViolationsLoaded] = useState(false)
   const [evaluating, setEvaluating] = useState(false)
   const [evalResult, setEvalResult] = useState<{ violations_found: number; assets_evaluated: number } | null>(null)
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [policyForm, setPolicyForm] = useState(emptyForm)
 
   const loadData = useCallback(async () => {
@@ -85,10 +104,10 @@ export default function GovernancePage() {
       name: String(p.policy_name ?? p.name ?? ''),
       description: String(p.description ?? ''),
       domain: String(p.domain ?? 'All'),
-      status: (['active', 'draft', 'review'] as const).includes(p.status as 'active' | 'draft' | 'review')
+      status: (['active', 'draft', 'review'] as const).includes(p.status as never)
         ? (p.status as 'active' | 'draft' | 'review')
         : (p.is_active ? 'active' : 'draft'),
-      enforcement: (['enforced', 'advisory'] as const).includes(p.enforcement as 'enforced' | 'advisory')
+      enforcement: (['enforced', 'advisory'] as const).includes(p.enforcement as never)
         ? (p.enforcement as 'enforced' | 'advisory')
         : (p.severity === 'high' ? 'enforced' : 'advisory'),
       rulesCount: Number(p.rules_count ?? p.rulesCount ?? 0),
@@ -112,18 +131,59 @@ export default function GovernancePage() {
     setLoading(false)
   }, [])
 
+  const loadViolations = useCallback(async () => {
+    setLoadingViolations(true)
+    try {
+      const res = await fetch('/api/governance/violations?limit=500')
+      const data = await res.json()
+      const arr = Array.isArray(data) ? data : []
+      setViolations(arr.map((v: Record<string, unknown>) => ({
+        id: String(v.violation_id ?? ''),
+        policyId: String(v.policy_id ?? ''),
+        policyName: String(v.policy_name ?? ''),
+        entityType: String(v.entity_type ?? ''),
+        entityId: String(v.entity_id ?? ''),
+        detail: String(v.violation_detail ?? ''),
+        severity: String(v.severity ?? 'medium'),
+        status: v.status === 'resolved' ? 'resolved' : 'open',
+        detectedAt: String(v.detected_at ?? ''),
+        resolvedAt: v.resolved_at ? String(v.resolved_at) : null,
+        tableName: v.sf_table_name ? String(v.sf_table_name) : null,
+        schemaName: v.sf_schema_name ? String(v.sf_schema_name) : null,
+        databaseName: v.sf_database_name ? String(v.sf_database_name) : null,
+        domainName: v.domain_name ? String(v.domain_name) : null,
+        subdomainName: v.subdomain_name ? String(v.subdomain_name) : null,
+      })))
+      setViolationsLoaded(true)
+    } finally { setLoadingViolations(false) }
+  }, [])
+
   useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { if (tab === 'violations' && !violationsLoaded) loadViolations() }, [tab, violationsLoaded, loadViolations])
 
   const runEvaluation = async () => {
     setEvaluating(true); setEvalResult(null)
     try {
       const res = await fetch('/api/governance/evaluate', { method: 'POST' })
-      if (res.ok) { setEvalResult(await res.json()); await loadData() }
+      if (res.ok) {
+        setEvalResult(await res.json())
+        setViolationsLoaded(false)
+        await loadData()
+      }
     } finally { setEvaluating(false) }
   }
 
-  const openCreate = () => { setEditingPolicy(null); setPolicyForm(emptyForm); setShowPolicyModal(true) }
+  const resolveViolation = async (id: string) => {
+    setResolvingId(id)
+    try {
+      const res = await fetch(`/api/governance/violations/${id}/resolve`, { method: 'POST' })
+      if (res.ok) {
+        setViolations(prev => prev.map(v => v.id === id ? { ...v, status: 'resolved', resolvedAt: new Date().toISOString() } : v))
+      }
+    } finally { setResolvingId(null) }
+  }
 
+  const openCreate = () => { setEditingPolicy(null); setPolicyForm(emptyForm); setShowPolicyModal(true) }
   const openEdit = (p: PolicyItem) => {
     setSelectedPolicy(null)
     setEditingPolicy(p)
@@ -135,25 +195,10 @@ export default function GovernancePage() {
     if (!policyForm.name) return
     try {
       if (editingPolicy) {
-        const res = await fetch('/api/governance', {
-          method: 'PUT', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: editingPolicy.id, policy_name: policyForm.name, description: policyForm.description,
-            severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium',
-            is_active: policyForm.status === 'active',
-          }),
-        })
+        const res = await fetch('/api/governance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingPolicy.id, policy_name: policyForm.name, description: policyForm.description, severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
         if (res.ok) await loadData()
       } else {
-        const res = await fetch('/api/governance', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            policy_name: policyForm.name, description: policyForm.description,
-            policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory',
-            severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium',
-            is_active: policyForm.status === 'active',
-          }),
-        })
+        const res = await fetch('/api/governance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ policy_name: policyForm.name, description: policyForm.description, policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory', severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
         if (res.ok) await loadData()
         else setPolicies(prev => [...prev, { id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description, domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement, rulesCount: 0, lastEval: 'Never', rules: [] }])
       }
@@ -174,8 +219,18 @@ export default function GovernancePage() {
   const avgOwnership = domains.length > 0 ? Math.round(domains.reduce((s, d) => s + d.ownership, 0) / domains.length) : null
   const avgClassification = domains.length > 0 ? Math.round(domains.reduce((s, d) => s + d.classification, 0) / domains.length) : null
 
+  const openViolations = violations.filter(v => v.status === 'open')
+  const highViolations = violations.filter(v => v.severity === 'high' && v.status === 'open')
+
   const filteredDomains = domains.filter(d => scorecardFilter === 'healthy' ? d.overall >= 90 : scorecardFilter === 'at-risk' ? d.overall < 75 : true)
   const filteredPolicies = policies.filter(p => policyFilter === 'active' ? p.status === 'active' : policyFilter === 'draft' ? p.status === 'draft' : policyFilter === 'enforced' ? p.enforcement === 'enforced' : true)
+  const filteredViolations = violations.filter(v =>
+    violationFilter === 'open' ? v.status === 'open' :
+    violationFilter === 'resolved' ? v.status === 'resolved' :
+    violationFilter === 'high' ? v.severity === 'high' && v.status === 'open' :
+    violationFilter === 'medium' ? v.severity === 'medium' && v.status === 'open' :
+    true
+  )
 
   const closePopups = () => { setSelectedDomain(null); setSelectedPolicy(null); setConfirmDeactivate(false) }
 
@@ -191,7 +246,8 @@ export default function GovernancePage() {
         }
         {activeCount > 0 && <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{activeCount} active</span>}
         {enforcedCount > 0 && <span style={{ background: 'var(--accent-bg)', color: 'var(--accent)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{enforcedCount} enforced</span>}
-        {evalResult && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{evalResult.violations_found} violations · {evalResult.assets_evaluated} assets</span>}
+        {violationsLoaded && openViolations.length > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{openViolations.length} open violations</span>}
+        {evalResult && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{evalResult.violations_found} new · {evalResult.assets_evaluated} assets</span>}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
           <button onClick={runEvaluation} disabled={evaluating} style={{ background: evaluating ? 'var(--surface-muted)' : 'var(--surface)', color: evaluating ? 'var(--text-muted)' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: evaluating ? 'default' : 'pointer' }}>
             {evaluating ? 'Evaluating…' : '▶ Evaluate'}
@@ -205,21 +261,21 @@ export default function GovernancePage() {
         {[
           ['Governance Score', govScore !== null ? String(govScore) : '—'],
           ['Policies Active', String(activeCount)],
-          ['Assets Classified', avgClassification !== null ? `${avgClassification}%` : '—'],
-          ['Ownership Coverage', avgOwnership !== null ? `${avgOwnership}%` : '—'],
+          ['Open Violations', violationsLoaded ? String(openViolations.length) : '—'],
+          ['High Severity', violationsLoaded ? String(highViolations.length) : '—'],
         ].map(([l, v], i) => (
           <div key={i} style={{ padding: '5px 10px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
             <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>{l}</div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: v === '—' ? 'var(--text-muted)' : 'var(--foreground)', marginTop: '1px' }}>{v}</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: v === '—' ? 'var(--text-muted)' : (i >= 2 && v !== '0') ? 'var(--status-error-text)' : 'var(--foreground)', marginTop: '1px' }}>{v}</div>
           </div>
         ))}
       </div>
 
       {/* tabs + filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
-        {(['scorecards', 'policies'] as GovernanceTab[]).map(t => (
+        {(['scorecards', 'policies', 'violations'] as GovernanceTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: tab === t ? '#1a1a1a' : 'var(--surface-muted)', color: tab === t ? '#fff' : 'var(--text-secondary)', fontWeight: tab === t ? 600 : 400, fontSize: '11px', textTransform: 'capitalize' }}>
-            {t === 'scorecards' ? `Scorecards (${filteredDomains.length})` : `Policies (${filteredPolicies.length})`}
+            {t === 'scorecards' ? `Scorecards (${filteredDomains.length})` : t === 'policies' ? `Policies (${filteredPolicies.length})` : `Violations (${violationsLoaded ? filteredViolations.length : '…'})`}
           </button>
         ))}
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
@@ -229,31 +285,36 @@ export default function GovernancePage() {
         {tab === 'policies' && ([['all', 'All'], ['active', 'Active'], ['draft', 'Draft'], ['enforced', 'Enforced']] as [PolicyFilter, string][]).map(([f, l]) => (
           <button key={f} onClick={() => setPolicyFilter(f)} style={{ padding: '3px 8px', borderRadius: '5px', border: `1px solid ${policyFilter === f ? 'var(--accent)' : 'var(--border)'}`, background: policyFilter === f ? 'var(--accent-bg)' : 'transparent', color: policyFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>{l}</button>
         ))}
+        {tab === 'violations' && ([['open', 'Open'], ['high', 'High'], ['medium', 'Medium'], ['resolved', 'Resolved'], ['all', 'All']] as [ViolationFilter, string][]).map(([f, l]) => (
+          <button key={f} onClick={() => setViolationFilter(f)} style={{ padding: '3px 8px', borderRadius: '5px', border: `1px solid ${violationFilter === f ? 'var(--accent)' : 'var(--border)'}`, background: violationFilter === f ? 'var(--accent-bg)' : 'transparent', color: violationFilter === f ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>{l}</button>
+        ))}
       </div>
 
       {/* column headers */}
       {tab === 'scorecards' && !loading && filteredDomains.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: SCORECARD_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {SCORECARD_HEADERS.map(h => (
-            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: '1.3', whiteSpace: 'normal', wordBreak: 'break-word' }}>{h}</span>
-          ))}
+          {SCORECARD_HEADERS.map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: '1.3', whiteSpace: 'normal', wordBreak: 'break-word' }}>{h}</span>)}
         </div>
       )}
       {tab === 'policies' && !loading && filteredPolicies.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: POLICY_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {POLICY_HEADERS.map(h => (
-            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
-          ))}
+          {POLICY_HEADERS.map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+        </div>
+      )}
+      {tab === 'violations' && !loadingViolations && filteredViolations.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: VIOLATION_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {VIOLATION_HEADERS.map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
 
       {/* scrollable list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
-
-        {tab === 'scorecards' && !loading && filteredDomains.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No domain scorecard data yet — add domains in Asset Registry first</div>
+        {(loading || (tab === 'violations' && loadingViolations)) && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>
         )}
+
+        {/* scorecards */}
+        {tab === 'scorecards' && !loading && filteredDomains.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No domain scorecard data yet — add domains in Asset Registry first</div>}
         {tab === 'scorecards' && !loading && filteredDomains.map(d => (
           <div key={d.id} onClick={() => setSelectedDomain(d)}
             style={{ display: 'grid', gridTemplateColumns: SCORECARD_COLS, gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${scoreColor(d.overall)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
@@ -268,9 +329,8 @@ export default function GovernancePage() {
           </div>
         ))}
 
-        {tab === 'policies' && !loading && filteredPolicies.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No policies yet</div>
-        )}
+        {/* policies */}
+        {tab === 'policies' && !loading && filteredPolicies.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No policies yet</div>}
         {tab === 'policies' && !loading && filteredPolicies.map(p => (
           <div key={p.id} onClick={() => setSelectedPolicy(p)}
             style={{ display: 'grid', gridTemplateColumns: POLICY_COLS, gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${policyStatusColor(p.status)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
@@ -285,6 +345,41 @@ export default function GovernancePage() {
             <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.lastEval}</span>
           </div>
         ))}
+
+        {/* violations */}
+        {tab === 'violations' && !loadingViolations && violationsLoaded && filteredViolations.length === 0 && (
+          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No violations found — run Evaluate to check policies against assets</div>
+        )}
+        {tab === 'violations' && !loadingViolations && filteredViolations.map(v => (
+          <div key={v.id}
+            style={{ display: 'grid', gridTemplateColumns: VIOLATION_COLS, gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${v.status === 'resolved' ? 'var(--status-ok-text)' : sevColor(v.severity)}`, borderBottom: '1px solid var(--surface-muted)', opacity: v.status === 'resolved' ? 0.55 : 1 }}
+          >
+            <span style={{ background: v.status === 'resolved' ? 'var(--status-ok-bg)' : sevBg(v.severity), color: v.status === 'resolved' ? 'var(--status-ok-text)' : sevColor(v.severity), padding: '1px 4px', borderRadius: '3px', fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', textAlign: 'center' }}>
+              {v.status === 'resolved' ? 'resolved' : v.severity}
+            </span>
+            <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.policyName}>{v.policyName}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '10.5px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={v.detail}>{v.detail}</div>
+              {v.tableName && <div style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.tableName}</div>}
+            </div>
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.domainName ?? '—'}</span>
+            <span style={{ fontSize: '9.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(v.detectedAt)}</span>
+            <div>
+              {v.status === 'open' && (
+                <button
+                  onClick={() => resolveViolation(v.id)}
+                  disabled={resolvingId === v.id}
+                  style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--status-ok-text)', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontSize: '9px', fontWeight: 600, cursor: resolvingId === v.id ? 'default' : 'pointer', opacity: resolvingId === v.id ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                >
+                  {resolvingId === v.id ? '…' : '✓ Resolve'}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {tab === 'violations' && violationsLoaded && filteredViolations.length >= 500 && (
+          <div style={{ padding: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)' }}>Showing first 500 violations — use filters to narrow results</div>
+        )}
       </div>
 
       {/* domain scorecard panel */}
@@ -325,14 +420,11 @@ export default function GovernancePage() {
         <>
           <div onClick={closePopups} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200 }}>
-            {/* header */}
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <span style={{ background: policyStatusBg(selectedPolicy.status), color: policyStatusColor(selectedPolicy.status), padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textTransform: 'capitalize' }}>{selectedPolicy.status}</span>
               <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedPolicy.name}</span>
               <button onClick={closePopups} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
-
-            {/* meta grid */}
             <div style={{ overflowY: 'auto', flex: 1 }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
                 {[['Domain', selectedPolicy.domain], ['Enforcement', selectedPolicy.enforcement], ['Rules', String(selectedPolicy.rulesCount)]].map(([l, v], i) => (
@@ -341,16 +433,6 @@ export default function GovernancePage() {
                     <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', textTransform: 'capitalize' }}>{v || '—'}</div>
                   </div>
                 ))}
-              </div>
-              <div style={{ padding: '6px 14px 0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
-                  {[['Last Evaluated', selectedPolicy.lastEval], ['Tables', `${[...new Set(selectedPolicy.rules.map(r => r.table))].length} tables`]].map(([l, v], i) => (
-                    <div key={i} style={{ padding: '6px 8px', borderRight: i === 0 ? '1px solid var(--border)' : 'none' }}>
-                      <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{l}</div>
-                      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px' }}>{v}</div>
-                    </div>
-                  ))}
-                </div>
               </div>
               {selectedPolicy.description && (
                 <div style={{ padding: '12px 14px 0' }}>
@@ -362,47 +444,36 @@ export default function GovernancePage() {
                   </div>
                 </div>
               )}
-              {selectedPolicy.rules.length > 0 && (
-                <div style={{ padding: '12px 14px 0' }}>
-                  <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Policy Rules ({selectedPolicy.rules.length})</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {selectedPolicy.rules.map((r, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: r.status === 'pass' ? 'var(--status-ok-bg)' : r.status === 'fail' ? 'var(--status-error-bg)' : 'var(--status-warn-bg)', borderRadius: '6px', border: `1px solid ${r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)'}` }}>
-                        <span style={{ fontSize: '12px' }}>{r.status === 'pass' ? '✅' : r.status === 'fail' ? '❌' : '⚠️'}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{r.name}</div>
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{r.table} · {r.type}</div>
+              {/* violations for this policy */}
+              {violationsLoaded && (() => {
+                const pv = violations.filter(v => v.policyId === selectedPolicy.id && v.status === 'open')
+                if (!pv.length) return null
+                return (
+                  <div style={{ padding: '12px 14px 0' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Open Violations ({pv.length})</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '200px', overflowY: 'auto' }}>
+                      {pv.slice(0, 20).map(viol => (
+                        <div key={viol.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: sevBg(viol.severity), borderRadius: '5px', border: `1px solid ${sevColor(viol.severity)}` }}>
+                          <span style={{ fontSize: '9px', fontWeight: 700, color: sevColor(viol.severity), textTransform: 'uppercase', flexShrink: 0 }}>{viol.severity}</span>
+                          <span style={{ fontSize: '10.5px', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viol.detail}</span>
+                          {viol.tableName && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>{viol.tableName}</span>}
                         </div>
-                        <span style={{ fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', color: r.status === 'pass' ? 'var(--status-ok-text)' : r.status === 'fail' ? 'var(--status-error-text)' : 'var(--status-warn-text)' }}>{r.status}</span>
-                      </div>
-                    ))}
+                      ))}
+                      {pv.length > 20 && <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '4px 8px' }}>+{pv.length - 20} more — see Violations tab</div>}
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
             </div>
-
-            {/* action footer */}
             <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
               {!confirmDeactivate ? (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => openEdit(selectedPolicy)}
-                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    ✏️ Edit Policy
-                  </button>
-                  <button
-                    onClick={() => setConfirmDeactivate(true)}
-                    style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    🚫 Deactivate
-                  </button>
+                  <button onClick={() => openEdit(selectedPolicy)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>✏️ Edit Policy</button>
+                  <button onClick={() => setConfirmDeactivate(true)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}>🚫 Deactivate</button>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                    Deactivate <strong>{selectedPolicy.name}</strong>? This cannot be undone from the UI.
-                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', textAlign: 'center' }}>Deactivate <strong>{selectedPolicy.name}</strong>?</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={() => setConfirmDeactivate(false)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
                     <button onClick={() => deactivatePolicy(selectedPolicy.id)} style={{ flex: 1, padding: '8px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>Yes, Deactivate</button>

@@ -125,26 +125,28 @@ async def list_domains_with_stats(
     from sqlalchemy import func
     domains_res = await db.execute(select(Domain))
     domains = domains_res.scalars().all()
+    domain_ids = [d.domain_id for d in domains]
+
+    asset_counts = dict((await db.execute(
+        select(Asset.domain_id, func.count()).where(Asset.domain_id.in_(domain_ids)).group_by(Asset.domain_id)
+    )).all())
+    rule_counts = dict((await db.execute(
+        select(DQRule.domain_id, func.count()).where(DQRule.domain_id.in_(domain_ids)).group_by(DQRule.domain_id)
+    )).all())
+    run_counts = dict((await db.execute(
+        select(DQRuleRun.domain_id, func.count()).where(DQRuleRun.domain_id.in_(domain_ids)).group_by(DQRuleRun.domain_id)
+    )).all())
 
     result = []
     for d in domains:
-        asset_count = (await db.execute(
-            select(func.count()).select_from(Asset).where(Asset.domain_id == d.domain_id)
-        )).scalar() or 0
-        rule_count = (await db.execute(
-            select(func.count()).select_from(DQRule).where(DQRule.domain_id == d.domain_id)
-        )).scalar() or 0
-        run_count = (await db.execute(
-            select(func.count()).select_from(DQRuleRun).where(DQRuleRun.domain_id == d.domain_id)
-        )).scalar() or 0
         result.append({
             "domain_id":   d.domain_id,
             "domain_name": d.domain_name,
             "is_active":   d.is_active,
             "owner_email": d.owner_email,
-            "asset_count": asset_count,
-            "rule_count":  rule_count,
-            "run_count":   run_count,
+            "asset_count": asset_counts.get(d.domain_id, 0),
+            "rule_count":  rule_counts.get(d.domain_id, 0),
+            "run_count":   run_counts.get(d.domain_id, 0),
         })
     return result
 
