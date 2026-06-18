@@ -7,10 +7,11 @@ from typing import Optional
 import uuid
 
 from app.db.database import get_db
-from app.db.models import GlossaryTerm, GlossaryTermAsset, Asset, Domain
-from app.core.security import get_current_user
+from app.db.models import GlossaryTerm, GlossaryTermAsset, Asset, Domain, AuditLog
+from app.core.security import get_current_user, require_roles
 
 router = APIRouter(prefix="/glossary", tags=["Glossary"])
+require_reviewer = require_roles("admin", "domain_owner")
 
 
 def _now() -> datetime:
@@ -187,6 +188,107 @@ async def update_term(
         if field in payload:
             setattr(term, field, payload[field] or None if field in ("examples", "synonyms", "domain_id", "owner_email") else payload[field])
     term.updated_at = _now()
+    await db.commit()
+    await db.refresh(term)
+    return _fmt_term(term)
+
+
+def _check_glossary_reviewer(user: dict, term_domain_id: str | None) -> None:
+    """Raise 403 if a domain_owner tries to act on a term outside their domain."""
+    if user.get("role") == "domain_owner":
+        user_domain = user.get("domain_id")
+        if term_domain_id is not None and term_domain_id != user_domain:
+            raise HTTPException(403, "You can only review terms in your assigned domain")
+
+
+@router.post("/terms/{term_id}/submit")
+async def submit_term(
+    term_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Submit a draft term for review."""
+    result = await db.execute(select(GlossaryTerm).where(GlossaryTerm.term_id == term_id))
+    term = result.scalar_one_or_none()
+    if not term:
+        raise HTTPException(404, "Glossary term not found")
+    if term.status != "draft":
+        raise HTTPException(400, f"Term cannot be submitted from status '{term.status}'")
+    term.status = "pending_review"
+    term.reviewed_by = None
+    term.review_note = None
+    term.reviewed_at = None
+    term.updated_at = _now()
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()), user_email=user.get("email"),
+        action="SUBMIT", entity_type="glossary_term", entity_id=term_id,
+        old_value={"status": "draft"},
+        new_value={"status": "pending_review"},
+    ))
+    await db.commit()
+    await db.refresh(term)
+    return _fmt_term(term)
+
+
+@router.post("/terms/{term_id}/approve")
+async def approve_term(
+    term_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_reviewer),
+):
+    """Approve a pending_review term, moving it to active."""
+    result = await db.execute(select(GlossaryTerm).where(GlossaryTerm.term_id == term_id))
+    term = result.scalar_one_or_none()
+    if not term:
+        raise HTTPException(404, "Glossary term not found")
+    _check_glossary_reviewer(user, term.domain_id)
+    if term.status != "pending_review":
+        raise HTTPException(400, f"Term cannot be approved from status '{term.status}'")
+    term.status = "active"
+    term.reviewed_by = user.get("email")
+    term.review_note = None
+    term.reviewed_at = _now()
+    term.updated_at = _now()
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()), user_email=user.get("email"),
+        action="APPROVE", entity_type="glossary_term", entity_id=term_id,
+        old_value={"status": "pending_review"},
+        new_value={"status": "active", "reviewed_by": user.get("email")},
+    ))
+    await db.commit()
+    await db.refresh(term)
+    return _fmt_term(term)
+
+
+@router.post("/terms/{term_id}/reject")
+async def reject_term(
+    term_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(require_reviewer),
+):
+    """Reject a pending_review term, returning it to draft with a required note."""
+    review_note = (payload.get("review_note") or "").strip()
+    if not review_note:
+        raise HTTPException(422, "review_note is required for rejection")
+    result = await db.execute(select(GlossaryTerm).where(GlossaryTerm.term_id == term_id))
+    term = result.scalar_one_or_none()
+    if not term:
+        raise HTTPException(404, "Glossary term not found")
+    _check_glossary_reviewer(user, term.domain_id)
+    if term.status != "pending_review":
+        raise HTTPException(400, f"Term cannot be rejected from status '{term.status}'")
+    term.status = "draft"
+    term.reviewed_by = user.get("email")
+    term.review_note = review_note
+    term.reviewed_at = _now()
+    term.updated_at = _now()
+    db.add(AuditLog(
+        audit_id=str(uuid.uuid4()), user_email=user.get("email"),
+        action="REJECT", entity_type="glossary_term", entity_id=term_id,
+        old_value={"status": "pending_review"},
+        new_value={"status": "draft", "reviewed_by": user.get("email"), "review_note": review_note},
+    ))
     await db.commit()
     await db.refresh(term)
     return _fmt_term(term)
