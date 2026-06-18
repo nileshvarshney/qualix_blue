@@ -267,30 +267,6 @@ export default function LineagePage() {
     return () => clearInterval(timer)
   }, [fetchLineage])
 
-  // Load all table columns for column-level lineage
-  useEffect(() => {
-    if (!data) return
-    const loadAllCols = async () => {
-      const map = new Map<string, string[]>()
-      for (const node of data.nodes) {
-        try {
-          const res = await fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
-          const json = await res.json()
-          if (json.columns && json.columns.length > 0) {
-            map.set(node.id, json.columns.map((c: ColumnInfo) => c.COLUMN_NAME))
-          }
-        } catch { /* no columns yet */ }
-      }
-      setAllTableColumns(map)
-    }
-    loadAllCols()
-
-    fetch('/api/snowflake/column-lineage')
-      .then(r => r.json())
-      .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
-      .catch(() => setColumnEdges([]))
-  }, [data])
-
   // Clear selected column when table selection changes
   useEffect(() => { setSelectedColumn(null) }, [selected])
 
@@ -328,6 +304,34 @@ export default function LineagePage() {
     () => (chainIds && data) ? data.edges.filter(e => chainIds.has(e.from) && chainIds.has(e.to)) : [],
     [chainIds, data]
   )
+
+  // Load columns for the visible chain only, once a table is selected (lazy)
+  useEffect(() => {
+    if (!selected || visibleNodes.length === 0) {
+      setAllTableColumns(new Map())
+      setColumnEdges([])
+      return
+    }
+    const loadAllCols = async () => {
+      const map = new Map<string, string[]>()
+      for (const node of visibleNodes) {
+        try {
+          const res = await fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
+          const json = await res.json()
+          if (json.columns && json.columns.length > 0) {
+            map.set(node.id, json.columns.map((c: ColumnInfo) => c.COLUMN_NAME))
+          }
+        } catch { /* no columns yet */ }
+      }
+      setAllTableColumns(map)
+    }
+    loadAllCols()
+
+    fetch('/api/snowflake/column-lineage')
+      .then(r => r.json())
+      .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
+      .catch(() => setColumnEdges([]))
+  }, [selected, visibleNodes])
 
   // ─── Derived layout (always computed, hooks-safe) ───
   const laidOut = useMemo(() => layoutNodes(visibleNodes, visibleEdges), [visibleNodes, visibleEdges])
