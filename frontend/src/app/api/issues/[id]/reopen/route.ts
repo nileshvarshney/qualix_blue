@@ -10,9 +10,13 @@ export async function POST(
   const { id } = await params
   try {
     const body = await req.json().catch(() => ({}))
+    const auth = req.headers.get('Authorization')
     const res = await fetch(`${BACKEND}/issues/${id}/reopen`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? { Authorization: auth } : {}),
+      },
       body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))

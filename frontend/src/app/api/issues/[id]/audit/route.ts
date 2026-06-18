@@ -9,7 +9,11 @@ export async function GET(
 ) {
   const { id } = await params
   try {
-    const res = await fetch(`${BACKEND}/issues/${id}/audit`, { cache: 'no-store' })
+    const auth = req.headers.get('Authorization')
+    const res = await fetch(`${BACKEND}/issues/${id}/audit`, {
+      cache: 'no-store',
+      headers: { ...(auth ? { Authorization: auth } : {}) },
+    })
     const data = await res.json().catch(() => ({ items: [] }))
     return NextResponse.json(data, { status: res.status })
   } catch (e) {
