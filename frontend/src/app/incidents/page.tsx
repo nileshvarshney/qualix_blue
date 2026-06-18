@@ -5,7 +5,7 @@ interface Incident {
   id: string; title: string; asset: string; severity: 'critical' | 'high' | 'medium' | 'low'
   status: 'open' | 'investigating' | 'resolved'
   createdAt: string; resolvedAt: string | null
-  description: string; owner: string; ttrMinutes: number | null
+  description: string; owner: string; ttrMinutes: number | null; alertId: string | null
 }
 
 const SEV: Record<string, { bg: string; color: string; border: string }> = {
@@ -34,18 +34,22 @@ export default function IncidentsPage() {
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
-        setIncidents(items.map((inc: Record<string, unknown>, i: number) => ({
-          id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
-          title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
-          asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
-          severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
-          status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
-          createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
-          resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
-          description: String(inc.description ?? inc.message ?? ''),
-          owner: String(inc.owner ?? inc.assigned_to ?? ''),
-          ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
-        })))
+        setIncidents(items.map((inc: Record<string, unknown>, i: number) => {
+          const rcaReport = inc.rca_report as Record<string, unknown> | null
+          return {
+            id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
+            title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
+            asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
+            severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
+            status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
+            createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
+            resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
+            description: String(inc.description ?? rcaReport?.description ?? inc.message ?? ''),
+            owner: String(inc.owner ?? inc.assigned_to ?? ''),
+            ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
+            alertId: inc.alert_id ? String(inc.alert_id) : null,
+          }
+        }))
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -70,18 +74,22 @@ export default function IncidentsPage() {
       if (!listRes.ok) throw new Error('Failed to reload incidents')
       const data2: Record<string, unknown>[] = await listRes.json()
       const items = Array.isArray(data2) ? data2 : []
-      setIncidents(items.map((inc: Record<string, unknown>, i: number) => ({
-        id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
-        title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
-        asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
-        severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
-        status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
-        createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
-        resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
-        description: String(inc.description ?? inc.message ?? ''),
-        owner: String(inc.owner ?? inc.assigned_to ?? ''),
-        ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
-      })))
+      setIncidents(items.map((inc: Record<string, unknown>, i: number) => {
+        const rcaReport = inc.rca_report as Record<string, unknown> | null
+        return {
+          id: String(inc.incident_id ?? inc.id ?? `INC-${i + 1}`),
+          title: String(inc.title ?? inc.incident_title ?? inc.name ?? ''),
+          asset: String(inc.asset_name ?? inc.asset ?? inc.sf_table_name ?? ''),
+          severity: (['critical','high','medium','low'] as const).includes(inc.severity as 'critical') ? (inc.severity as Incident['severity']) : 'medium',
+          status: (['open','investigating','resolved'] as const).includes(inc.status as 'open') ? (inc.status as Incident['status']) : 'open',
+          createdAt: String(inc.created_at ?? inc.createdAt ?? ''),
+          resolvedAt: inc.resolved_at ? String(inc.resolved_at) : null,
+          description: String(inc.description ?? rcaReport?.description ?? inc.message ?? ''),
+          owner: String(inc.owner ?? inc.assigned_to ?? ''),
+          ttrMinutes: inc.ttr_minutes != null ? Number(inc.ttr_minutes) : null,
+          alertId: inc.alert_id ? String(inc.alert_id) : null,
+        }
+      }))
       setShowCreate(false)
       setIncForm({ title: '', severity: 'medium', asset: '', description: '' })
     } catch (err) {
@@ -89,6 +97,25 @@ export default function IncidentsPage() {
     } finally {
       setIncSaving(false)
     }
+  }
+
+  async function updateIncidentStatus(id: string, action: 'investigate' | 'resolve') {
+    try {
+      await fetch('/api/incidents', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      })
+      setIncidents(prev => prev.map(inc => {
+        if (inc.id !== id) return inc
+        const status = action === 'investigate' ? 'investigating' : 'resolved'
+        return { ...inc, status: status as Incident['status'] }
+      }))
+      setPopup(prev => {
+        if (!prev || prev.id !== id) return prev
+        const status = action === 'investigate' ? 'investigating' : 'resolved'
+        return { ...prev, status: status as Incident['status'] }
+      })
+    } catch (err) { console.error(err) }
   }
 
   const openCount          = incidents.filter(i => i.status === 'open').length
@@ -238,6 +265,20 @@ export default function IncidentsPage() {
                 ✅ Resolved in {popup.ttrMinutes} minutes
               </div>
             )}
+            <div style={{ margin: '12px 14px 14px', display: 'flex', gap: '6px' }}>
+              {popup.status === 'open' && (
+                <button onClick={() => updateIncidentStatus(popup.id, 'investigate')}
+                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fef3c7', color: '#d97706', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  🔍 Investigate
+                </button>
+              )}
+              {popup.status !== 'resolved' && (
+                <button onClick={() => updateIncidentStatus(popup.id, 'resolve')}
+                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #86efac', background: '#f0fdf4', color: '#16a34a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  ✅ Resolve
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}

@@ -12,10 +12,30 @@ export async function GET() {
   } catch { return NextResponse.json([]) }
 }
 
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const res = await fetch(`${BACKEND}/incidents`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+    return NextResponse.json(data, { status: res.status })
+  } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }) }
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
-    const { id, ...rest } = body
+    const { id, action, ...rest } = body
+    if (action === 'investigate' || action === 'resolve') {
+      const res = await fetch(`${BACKEND}/incidents/${id}/${action}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await res.json()
+      return NextResponse.json(data, { status: res.status })
+    }
     const res = await fetch(`${BACKEND}/incidents/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rest),

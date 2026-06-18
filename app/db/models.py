@@ -895,7 +895,7 @@ class QualityIncident(Base):
 
     incident_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
     title: Mapped[Optional[str]] = mapped_column(String(200))
-    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True)
     severity: Mapped[Optional[str]] = mapped_column(String(20))
     status: Mapped[str] = mapped_column(String(20), default="open")
     trigger_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)

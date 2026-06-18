@@ -95,13 +95,44 @@ async def create_incident(
     user=Depends(get_current_user),
 ):
     from app.db.models import gen_uuid, now as model_now
+
+    # Resolve asset_id — accept explicit UUID or look up by free-text name
+    asset_id = body.get("asset_id")
+    if not asset_id and body.get("asset"):
+        from sqlalchemy import or_
+        from app.db.models import AssetSourceMeta
+        q = (
+            select(Asset)
+            .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+            .where(
+                or_(
+                    Asset.display_name.ilike(f"%{body['asset']}%"),
+                    AssetSourceMeta.sf_table_name.ilike(f"%{body['asset']}%"),
+                )
+            )
+            .limit(1)
+        )
+        row = (await db.execute(q)).scalar_one_or_none()
+        if row:
+            asset_id = row.asset_id
+
+    if not asset_id:
+        raise HTTPException(422, "Could not resolve asset_id — provide a valid asset_id or an asset name that matches a known asset")
+
+    # Store description in rca_report if provided
+    rca = body.get("rca_report")
+    if not rca and body.get("description"):
+        rca = {"description": body["description"]}
+
     incident = QualityIncident(
         incident_id=gen_uuid(),
-        asset_id=body["asset_id"],
+        asset_id=asset_id,
         title=body.get("title"),
         severity=body.get("severity", "medium"),
         status="open",
         trigger_run_id=body.get("trigger_run_id"),
+        alert_id=body.get("alert_id"),
+        rca_report=rca,
         created_at=model_now(),
     )
     db.add(incident)

@@ -19,6 +19,7 @@ def _fmt(alert: DQAlert, extra: dict = {}) -> dict:
         "domain_id":         alert.domain_id,
         "subdomain_id":      alert.subdomain_id,
         "asset_id":          alert.asset_id,
+        "alert_type":        alert.alert_type,
         "severity":          alert.severity,
         "alert_status":      alert.alert_status,
         "alert_message":     alert.alert_message,
@@ -66,10 +67,10 @@ async def list_alerts_enriched(
     """Returns alerts joined with rule, asset, domain, and subdomain details."""
     q = (
         select(DQAlert, DQRule, Asset, Domain, Subdomain)
-        .join(DQRule,    DQAlert.rule_id      == DQRule.rule_id)
-        .join(Asset, DQAlert.asset_id     == Asset.asset_id)
-        .join(Domain,    DQAlert.domain_id    == Domain.domain_id)
-        .join(Subdomain, DQAlert.subdomain_id == Subdomain.subdomain_id)
+        .outerjoin(DQRule,    DQAlert.rule_id      == DQRule.rule_id)
+        .outerjoin(Asset,     DQAlert.asset_id     == Asset.asset_id)
+        .outerjoin(Domain,    DQAlert.domain_id    == Domain.domain_id)
+        .outerjoin(Subdomain, DQAlert.subdomain_id == Subdomain.subdomain_id)
     )
     if status:
         q = q.where(DQAlert.alert_status == status)
@@ -82,14 +83,15 @@ async def list_alerts_enriched(
     result = await db.execute(q)
     return [
         _fmt(alert, {
-            "rule_name":        rule.rule_name,
-            "rule_description": rule.rule_description,
-            "rule_type":        rule.rule_type,
-            "sf_database_name": asset.sf_database_name,
-            "sf_schema_name":   asset.sf_schema_name,
-            "sf_table_name":    asset.sf_table_name,
-            "domain_name":      domain.domain_name,
-            "subdomain_name":   subdomain.subdomain_name,
+            "rule_name":        rule.rule_name if rule else None,
+            "rule_description": rule.rule_description if rule else None,
+            "rule_type":        rule.rule_type if rule else None,
+            "sf_database_name": asset.sf_database_name if asset else None,
+            "sf_schema_name":   asset.sf_schema_name if asset else None,
+            "sf_table_name":    asset.sf_table_name if asset else None,
+            "asset_name":       (asset.display_name or asset.sf_table_name) if asset else None,
+            "domain_name":      domain.domain_name if domain else None,
+            "subdomain_name":   subdomain.subdomain_name if subdomain else None,
         })
         for alert, rule, asset, domain, subdomain in result.all()
     ]

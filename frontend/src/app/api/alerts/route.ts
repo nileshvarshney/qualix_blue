@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
     const qs = searchParams.toString()
-    const url = qs ? `${BACKEND}/alerts?${qs}&limit=100` : `${BACKEND}/alerts?limit=100`
+    const url = qs ? `${BACKEND}/alerts/enriched?${qs}&limit=100` : `${BACKEND}/alerts/enriched?limit=100`
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()

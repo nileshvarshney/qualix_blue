@@ -242,31 +242,38 @@ export default function AlertsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [showCreateIssue, setShowCreateIssue] = useState(false)
   const [issueCreatedMsg, setIssueCreatedMsg] = useState<string | null>(null)
+  const [incidentCreatedMsg, setIncidentCreatedMsg] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/alerts')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
-        setAlerts(items.map((a: Record<string, unknown>, i: number) => ({
-          id: String(a.alert_id ?? a.id ?? i),
-          rule: String(a.rule_name ?? a.rule ?? 'Alert'),
-          dataset: String(a.asset_name ?? a.sf_table_name ?? a.dataset ?? ''),
-          severity: (['critical','high','medium','info'] as const).includes(a.severity as Severity) ? (a.severity as Severity) : 'info',
-          message: String(a.alert_message ?? a.message ?? ''),
-          channel: String(a.notification_channel ?? a.channel ?? 'System'),
-          ts: String(a.created_at ?? a.ts ?? ''),
-          ack: a.alert_status === 'acknowledged' || a.alert_status === 'closed' || Boolean(a.ack),
-          rootCause: String(a.root_cause ?? ''),
-          impact: String(a.impact ?? ''),
-          recommendation: String(a.recommendation ?? ''),
-          affectedRecords: Number(a.affected_records ?? 0),
-          pipeline: String(a.pipeline ?? ''),
-          alertType: String(a.alert_type ?? 'rule_failure'),
-          runId: a.run_id ? String(a.run_id) : null,
-          assetId: a.asset_id ? String(a.asset_id) : null,
-          ruleId: a.rule_id ? String(a.rule_id) : null,
-        })))
+        setAlerts(items.map((a: Record<string, unknown>, i: number) => {
+          const db = a.sf_database_name ? String(a.sf_database_name) : ''
+          const schema = a.sf_schema_name ? String(a.sf_schema_name) : ''
+          const table = a.sf_table_name ? String(a.sf_table_name) : ''
+          const dataPath = [db, schema, table].filter(Boolean).join('.') || String(a.asset_name ?? a.dataset ?? '')
+          return {
+            id: String(a.alert_id ?? a.id ?? i),
+            rule: String(a.rule_name ?? a.rule ?? 'Alert'),
+            dataset: dataPath,
+            severity: (['critical','high','medium','info'] as const).includes(a.severity as Severity) ? (a.severity as Severity) : 'info',
+            message: String(a.alert_message ?? a.message ?? ''),
+            channel: String(a.notification_channel ?? a.channel ?? 'System'),
+            ts: String(a.created_at ?? a.ts ?? ''),
+            ack: a.alert_status === 'acknowledged' || a.alert_status === 'closed' || Boolean(a.ack),
+            rootCause: String(a.root_cause ?? ''),
+            impact: String(a.impact ?? ''),
+            recommendation: String(a.recommendation ?? ''),
+            affectedRecords: Number(a.affected_records ?? 0),
+            pipeline: String(a.pipeline ?? ''),
+            alertType: String(a.alert_type ?? 'rule_failure'),
+            runId: a.run_id ? String(a.run_id) : null,
+            assetId: a.asset_id ? String(a.asset_id) : null,
+            ruleId: a.rule_id ? String(a.rule_id) : null,
+          }
+        }))
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -340,7 +347,26 @@ export default function AlertsPage() {
     return true
   }).filter(r => !search || r.name.toLowerCase().includes(lowerSearch) || r.trigger_type.includes(lowerSearch))
 
-  const closePopup = () => { setPopupAlert(null); setPopupRule(null); setShowCreateIssue(false); setIssueCreatedMsg(null) }
+  const closePopup = () => { setPopupAlert(null); setPopupRule(null); setShowCreateIssue(false); setIssueCreatedMsg(null); setIncidentCreatedMsg(null) }
+
+  async function createIncidentFromAlert(alert: RecentAlert) {
+    try {
+      const res = await fetch('/api/incidents', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: `Alert: ${alert.rule}`,
+          severity: alert.severity === 'info' ? 'low' : alert.severity,
+          asset_id: alert.assetId,
+          asset: alert.dataset,
+          description: alert.message,
+          alert_id: alert.id,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed')
+      const inc = await res.json()
+      setIncidentCreatedMsg(`Incident ${String(inc.incident_id ?? '').slice(0, 8)} created`)
+    } catch { setIncidentCreatedMsg('Failed to create incident') }
+  }
 
   function fmtTs(ts: string | null) {
     if (!ts) return '—'
@@ -398,8 +424,8 @@ export default function AlertsPage() {
 
       {/* column headers */}
       {tab === 'recent' && !loading && filteredAlerts.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Severity','Rule / Asset','Time',''].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+        <div style={{ display: 'grid', gridTemplateColumns: '58px 1fr 1fr 112px 40px', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {['Sev','Rule','Asset','Time',''].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
       {tab === 'rules' && !rulesLoading && filteredRules.length > 0 && (
@@ -423,19 +449,17 @@ export default function AlertsPage() {
           const ss = SEV[a.severity]
           return (
             <div key={a.id} onClick={() => setPopupAlert(a)}
-              style={{ display: 'grid', gridTemplateColumns: '64px 1fr auto auto', gap: '0 8px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${!a.ack ? ss.color : 'var(--border)'}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', opacity: a.ack ? 0.65 : 1 }}
+              style={{ display: 'grid', gridTemplateColumns: '58px 1fr 1fr 112px 40px', gap: '0 8px', alignItems: 'center', padding: '3px 6px', borderLeft: `2px solid ${!a.ack ? ss.color : 'var(--border)'}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', opacity: a.ack ? 0.6 : 1 }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
             >
-              <span style={{ background: ss.bg, color: ss.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600, textAlign: 'center' }}>{a.severity}</span>
-              <div style={{ overflow: 'hidden' }}>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.rule}</div>
-                {a.dataset && <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.dataset}</div>}
-              </div>
+              <span style={{ background: ss.bg, color: ss.color, padding: '1px 4px', borderRadius: '3px', fontSize: '9px', fontWeight: 700, textAlign: 'center', letterSpacing: '0.02em' }}>{a.severity}</span>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.rule}</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.dataset || '—'}</span>
               <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTs(a.ts)}</span>
               {!a.ack
-                ? <button onClick={e => ack(a.id, e)} style={{ fontSize: '9px', border: '1px solid var(--border)', background: 'var(--surface)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Ack</button>
-                : <span style={{ fontSize: '9px', color: 'var(--status-ok-text)' }}>✓</span>
+                ? <button onClick={e => ack(a.id, e)} style={{ fontSize: '9px', border: '1px solid var(--border)', background: 'var(--surface)', padding: '1px 5px', borderRadius: '4px', color: 'var(--text-secondary)', cursor: 'pointer' }}>Ack</button>
+                : <span style={{ fontSize: '10px', color: 'var(--status-ok-text)', textAlign: 'center' }}>✓</span>
               }
             </div>
           )
@@ -524,9 +548,17 @@ export default function AlertsPage() {
                       <button onClick={() => setShowCreateIssue(true)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
                         🐞 Create Issue
                       </button>
+                      {!incidentCreatedMsg && (
+                        <button onClick={() => createIncidentFromAlert(popupAlert)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#dc2626', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
+                          🚨 Create Incident
+                        </button>
+                      )}
                     </div>
                     {issueCreatedMsg && (
                       <div style={{ fontSize: '11px', color: 'var(--status-ok-text)' }}>{issueCreatedMsg}</div>
+                    )}
+                    {incidentCreatedMsg && (
+                      <div style={{ fontSize: '11px', color: incidentCreatedMsg.startsWith('Failed') ? 'var(--status-error-text)' : 'var(--status-ok-text)' }}>{incidentCreatedMsg}</div>
                     )}
                   </div>
                 </>
