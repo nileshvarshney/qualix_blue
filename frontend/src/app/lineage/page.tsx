@@ -307,8 +307,30 @@ export default function LineagePage() {
       .finally(() => setColumnsLoading(false))
   }, [selected, isLive, data])
 
+  // ─── Chain selection: only the selected table's full upstream+downstream closure is shown ───
+  const rawNodeMap = useMemo(() => new Map((data?.nodes ?? []).map(n => [n.id, n])), [data])
+
+  const chainIds = useMemo(() => {
+    if (!selected || !data) return null
+    const ids = new Set<string>([selected])
+    for (const direction of ['up', 'down'] as const) {
+      const hops = buildChain(selected, data.edges, rawNodeMap, direction)
+      for (const hop of hops) for (const n of hop.nodes) ids.add(n.id)
+    }
+    return ids
+  }, [selected, data, rawNodeMap])
+
+  const visibleNodes = useMemo(
+    () => (chainIds && data) ? data.nodes.filter(n => chainIds.has(n.id)) : [],
+    [chainIds, data]
+  )
+  const visibleEdges = useMemo(
+    () => (chainIds && data) ? data.edges.filter(e => chainIds.has(e.from) && chainIds.has(e.to)) : [],
+    [chainIds, data]
+  )
+
   // ─── Derived layout (always computed, hooks-safe) ───
-  const laidOut = useMemo(() => data ? layoutNodes(data.nodes, data.edges) : [], [data])
+  const laidOut = useMemo(() => layoutNodes(visibleNodes, visibleEdges), [visibleNodes, visibleEdges])
   const nodeMap = useMemo(() => new Map(laidOut.map(n => [n.id, n])), [laidOut])
 
   // ─── Column-level lineage computation (backend-derived column-to-column edges) ───
