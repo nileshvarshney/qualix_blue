@@ -2,13 +2,21 @@ from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
-from datetime import datetime, timezone
+from sqlalchemy import select, desc, func
+from datetime import datetime, timezone, timedelta, date
 from app.db.database import get_db
 from app.db.models import DataContract, Asset, DQQualityScore, DQRule, DQRuleRun
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/contracts", tags=["Contracts"])
+
+
+def _sla_status(adherence: float, min_score: float) -> str:
+    if adherence >= min_score:
+        return "active"
+    if adherence >= min_score * 0.95:
+        return "warning"
+    return "violated"
 
 
 def _fmt_contract(c: DataContract, asset: Optional[Asset] = None) -> dict:
@@ -38,6 +46,74 @@ def _fmt_contract(c: DataContract, asset: Optional[Asset] = None) -> dict:
     }
 
 
+async def _enrich_contract(c: DataContract, asset: Optional[Asset], db: AsyncSession) -> dict:
+    """Return contract dict enriched with real quality data from DQRuleRun."""
+    base = _fmt_contract(c, asset)
+    asset_id = c.asset_id
+    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+    cutoff_7d = today - timedelta(days=7)
+    cutoff_30d = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=30)
+
+    # ── Fetch last 7 days of runs for this asset ──────────────────────────────
+    runs_result = await db.execute(
+        select(DQRuleRun)
+        .where(
+            DQRuleRun.asset_id == asset_id,
+            DQRuleRun.created_at >= cutoff_30d,
+        )
+        .order_by(DQRuleRun.created_at.asc())
+    )
+    all_runs = runs_result.scalars().all()
+
+    # Aggregate by day
+    by_day: dict = {}
+    breach_count = 0
+    for r in all_runs:
+        run_date = r.created_at.date()
+        if run_date not in by_day:
+            by_day[run_date] = {"total": 0, "passed": 0, "failed": 0}
+        by_day[run_date]["total"] += 1
+        if r.status == "passed":
+            by_day[run_date]["passed"] += 1
+        elif r.status in ("failed", "error"):
+            by_day[run_date]["failed"] += 1
+            breach_count += 1
+
+    # Build 7-day trend
+    trend = []
+    for i in range(7):
+        d = cutoff_7d + timedelta(days=i)
+        if d in by_day:
+            day = by_day[d]
+            score = round(day["passed"] / day["total"] * 100, 1) if day["total"] else None
+            if score is not None:
+                trend.append(score)
+
+    # Latest adherence: most recent day with data
+    adherence: Optional[float] = None
+    for d in sorted(by_day.keys(), reverse=True):
+        day = by_day[d]
+        if day["total"] > 0:
+            adherence = round(day["passed"] / day["total"] * 100, 1)
+            break
+
+    # Derive SLA status from adherence vs threshold
+    min_score = c.min_quality_score or 95.0
+    if adherence is not None:
+        computed_status = _sla_status(adherence, min_score)
+    else:
+        computed_status = c.status
+
+    base.update({
+        "adherence": adherence,
+        "current": f"{adherence}%" if adherence is not None else None,
+        "trend": trend,
+        "breaches": breach_count,
+        "status": computed_status,
+    })
+    return base
+
+
 @router.get("")
 async def list_contracts(
     asset_id: Optional[str] = Query(None),
@@ -50,7 +126,8 @@ async def list_contracts(
     if status:
         q = q.where(DataContract.status == status)
     result = await db.execute(q.order_by(desc(DataContract.created_at)))
-    return [_fmt_contract(c, a) for c, a in result.all()]
+    rows = result.all()
+    return [await _enrich_contract(c, a, db) for c, a in rows]
 
 
 @router.post("")

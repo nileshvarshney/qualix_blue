@@ -26,8 +26,11 @@ const statusBg = (s: SLAStatus) =>
 
 function MiniTrend({ data, color, h = 28 }: { data: number[]; color: string; h?: number }) {
   const w = h <= 18 ? 60 : 80
-  const max = 100, min = Math.min(...data) - 2
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / (max - min)) * h}`)
+  if (!data || data.length < 2) {
+    return <svg width={w} height={h} style={{ display: 'block' }}><line x1="0" y1={h / 2} x2={w} y2={h / 2} stroke="var(--border)" strokeWidth="1" strokeDasharray="3,2" /></svg>
+  }
+  const max = 100, min = Math.max(0, Math.min(...data) - 2)
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / (max - min + 0.001)) * h}`)
   return (
     <svg width={w} height={h} style={{ display: 'block' }}>
       <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -39,7 +42,8 @@ const COLS = '1fr 110px 72px 88px 62px 68px 40px 78px 80px auto'
 
 function mapSlaStatus(s: unknown): SLAStatus {
   if (s === 'violated' || s === 'breached') return 'breached'
-  if (s === 'draft' || s === 'warning' || s === 'at-risk') return 'at-risk'
+  if (s === 'warning' || s === 'at-risk' || s === 'draft') return 'at-risk'
+  if (s === 'active') return 'healthy'
   return 'healthy'
 }
 
@@ -61,27 +65,35 @@ export default function SLAsPage() {
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
-        setAllSlas(items.map((s: Record<string, unknown>, i: number) => ({
-          id: String(s.contract_id ?? s.id ?? i),
-          name: String(s.contract_name ?? s.name ?? ''),
-          dataset: String(s.dataset ?? s.asset_name ?? ''),
-          type: String(s.type ?? s.sla_type ?? 'Freshness'),
-          target: String(s.sla_description ?? s.target ?? ''),
-          current: String(s.current ?? 'Pending'),
-          adherence: Number(s.adherence ?? s.compliance ?? s.min_quality_score ?? 100),
-          status: mapSlaStatus(s.status),
-          owner: String(s.producer_team ?? s.owner ?? ''),
-          connection: String(s.asset_name ?? s.connection ?? ''),
-          domain: String(s.domain ?? ''),
-          breaches: Number(s.breaches ?? 0),
-          trend: Array.isArray(s.trend) ? s.trend as number[] : [100, 100, 100, 100, 100, 100, 100],
-          rootCause: String(s.root_cause ?? s.rootCause ?? ''),
-          impact: String(s.impact ?? ''),
-          recommendation: String(s.recommendation ?? ''),
-          affectedPipelines: Array.isArray(s.affected_pipelines) ? s.affected_pipelines as string[] : [],
-          lastBreachDate: s.last_breach_date ? String(s.last_breach_date) : undefined,
-          nextReview: String(s.next_review ?? s.nextReview ?? ''),
-        })))
+        setAllSlas(items.map((s: Record<string, unknown>, i: number) => {
+          const minScore = Number(s.min_quality_score ?? 95)
+          const rawAdherence = s.adherence != null ? Number(s.adherence) : null
+          const adherence = rawAdherence ?? minScore
+          const rawTrend = Array.isArray(s.trend) && (s.trend as number[]).length > 0
+            ? s.trend as number[]
+            : null
+          return {
+            id: String(s.contract_id ?? s.id ?? i),
+            name: String(s.contract_name ?? s.name ?? ''),
+            dataset: String(s.asset_name ?? s.dataset ?? ''),
+            type: String(s.type ?? s.sla_type ?? 'Quality Score'),
+            target: String(s.sla_description ?? s.target ?? `≥ ${minScore}%`),
+            current: s.current ? String(s.current) : rawAdherence != null ? `${rawAdherence}%` : 'No data',
+            adherence,
+            status: mapSlaStatus(s.status),
+            owner: String(s.producer_team ?? s.owner ?? ''),
+            connection: String(s.asset_name ?? s.connection ?? ''),
+            domain: String(s.domain ?? ''),
+            breaches: Number(s.breaches ?? 0),
+            trend: rawTrend ?? [],
+            rootCause: String(s.root_cause ?? s.rootCause ?? ''),
+            impact: String(s.impact ?? ''),
+            recommendation: String(s.recommendation ?? ''),
+            affectedPipelines: Array.isArray(s.affected_pipelines) ? s.affected_pipelines as string[] : [],
+            lastBreachDate: s.last_breach_date ? String(s.last_breach_date) : undefined,
+            nextReview: String(s.next_review ?? s.nextReview ?? ''),
+          }
+        }))
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -328,21 +340,25 @@ export default function SLAsPage() {
               {/* 7-day bar chart */}
               <div style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '8px 10px' }}>
                 <div style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: '8px' }}>7-Day Adherence</div>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '40px' }}>
-                  {selected.trend.map((v, i) => {
-                    const bc = v >= 95 ? 'var(--status-ok-text)' : v >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
-                    const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
-                    return (
-                      <div key={days[i] ?? i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                        <div style={{ fontSize: '9px', fontWeight: 600, color: bc }}>{v}%</div>
-                        <div style={{ width: '100%', height: '20px', display: 'flex', alignItems: 'flex-end' }}>
-                          <div style={{ width: '100%', height: `${v}%`, background: bc, borderRadius: '2px' }} />
+                {selected.trend.length === 0 ? (
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', padding: '8px 0' }}>No quality score history yet</div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '40px' }}>
+                    {selected.trend.map((v, i) => {
+                      const bc = v >= 95 ? 'var(--status-ok-text)' : v >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
+                      const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
+                      return (
+                        <div key={days[i] ?? i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                          <div style={{ fontSize: '9px', fontWeight: 600, color: bc }}>{v}%</div>
+                          <div style={{ width: '100%', height: '20px', display: 'flex', alignItems: 'flex-end' }}>
+                            <div style={{ width: '100%', height: `${Math.max(v, 2)}%`, background: bc, borderRadius: '2px' }} />
+                          </div>
+                          <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{days[i]}</div>
                         </div>
-                        <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{days[i]}</div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
