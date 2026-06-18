@@ -472,9 +472,7 @@ export default function LineagePage() {
     inputRef.current?.focus()
   }
 
-  const highlighted = selected
-    ? new Set([selected, ...data.edges.filter(e => e.from === selected || e.to === selected).flatMap(e => [e.from, e.to])])
-    : null
+  const highlighted = chainIds
 
   const selectedNode = selected ? nodeMap.get(selected) : null
   const upstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'up') : []
@@ -758,7 +756,7 @@ export default function LineagePage() {
           })}
 
           {/* Edges */}
-          {data.edges.map((edge, i) => {
+          {visibleEdges.map((edge, i) => {
             const from = nodeMap.get(edge.from)
             const to = nodeMap.get(edge.to)
             if (!from || !to) return null
