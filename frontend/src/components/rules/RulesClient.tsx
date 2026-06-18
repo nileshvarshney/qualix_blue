@@ -1,10 +1,20 @@
 'use client'
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { Database, Layers, Table2 } from 'lucide-react'
 import { Rule, RuleCategory, RuleType, RuleStatus, Connection, AssetTreeNode } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import { useRulesGrouping } from './useRulesGrouping'
 import RuleFailedRecordsTab from './RuleFailedRecordsTab'
+
+function getGroupIcon(icon: string) {
+  const s = { flexShrink: 0 as const, color: 'var(--text-secondary)' }
+  const sm = { flexShrink: 0 as const, color: 'var(--text-muted)' }
+  if (icon === 'database') return <Database size={13} style={s} />
+  if (icon === 'schema') return <Layers size={12} style={sm} />
+  if (icon === 'table') return <Table2 size={12} style={sm} />
+  return null
+}
 
 /* ── Categories ──────────────────────────────────────────────────── */
 
@@ -657,9 +667,14 @@ export default function RulesClient({ initialRules, connections }: Props) {
                     ) : <span />}
                   </div>
 
-                  <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s', flexShrink: 0, width: '10px' }}>▶</span>
-                  {g.icon && <span style={{ fontSize: '12px', flexShrink: 0 }}>{g.icon}</span>}
-                  <span style={{ fontWeight: g.level === 0 ? 700 : 600, fontSize: g.level === 0 ? '12px' : '11.5px', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', transform: isExpanded ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform 0.15s', flexShrink: 0, width: '10px' }}>▶</span>
+                  {getGroupIcon(g.icon)}
+                  <span style={{
+                    fontFamily: groupMode === 'db-table' ? 'monospace' : 'inherit',
+                    fontWeight: g.level === 0 ? 700 : 600,
+                    fontSize: g.level === 0 ? '12px' : g.level === 1 ? '11.5px' : '11px',
+                    color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0,
+                  }}>
                     {ruleTypeDef?.label || g.label}
                   </span>
 

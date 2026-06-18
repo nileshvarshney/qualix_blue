@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { Database, Layers, Table2, Eye, Server, FileText, List } from 'lucide-react'
 
 interface TreeNode {
   asset_id: string
@@ -13,10 +14,21 @@ interface TreeNode {
   _loaded?: boolean
 }
 
-const TYPE_ICON: Record<string, string> = {
-  source: 'S', database: 'D', schema: 'Sc', table: 'T', view: 'V',
-  column: 'C', file: 'F', dataset: 'Ds', logical_dataset: 'L',
+function getTypeIcon(assetType: string) {
+  const s = { flexShrink: 0 as const, color: 'var(--text-secondary)' }
+  const sm = { flexShrink: 0 as const, color: 'var(--text-muted)' }
+  switch (assetType) {
+    case 'source': return <Server size={13} style={s} />
+    case 'database': return <Database size={13} style={s} />
+    case 'schema': return <Layers size={12} style={sm} />
+    case 'table': return <Table2 size={12} style={sm} />
+    case 'view': return <Eye size={12} style={sm} />
+    case 'file': return <FileText size={12} style={sm} />
+    case 'column': return <List size={11} style={sm} />
+    default: return <Database size={12} style={sm} />
+  }
 }
+
 const STATUS_DOT: Record<string, string> = {
   active: '#16a34a', missing: '#d97706', deprecated: '#94a3b8',
   scan_failed: '#dc2626', disabled: '#94a3b8',
@@ -53,26 +65,38 @@ function NodeRow({
   const canExpand = node.asset_type !== 'column'
   const label = node.display_name || node.physical_name || node.asset_id
   const dot = STATUS_DOT[node.status] ?? '#94a3b8'
-  const icon = TYPE_ICON[node.asset_type] ?? '?'
+  const isSource = node.asset_type === 'source'
+  const isDatabase = node.asset_type === 'database'
+  const isSchema = node.asset_type === 'schema'
+  const defaultBg = isSource ? 'var(--surface)' : 'transparent'
 
   return (
     <div>
       <div
         onClick={() => { onSelect(node.asset_id); if (canExpand) onToggle(node.asset_id) }}
+        onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'var(--surface-muted)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'var(--accent-bg)' : defaultBg }}
         style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
-          paddingLeft: `${12 + depth * 14}px`, paddingRight: '8px',
-          paddingTop: '4px', paddingBottom: '4px',
-          cursor: 'pointer', borderRadius: '4px', userSelect: 'none',
-          background: isSelected ? 'var(--accent-bg)' : 'transparent',
+          display: 'flex', alignItems: 'center', gap: '6px',
+          paddingLeft: `${8 + depth * 14}px`, paddingRight: '8px',
+          paddingTop: isSource ? '6px' : '4px',
+          paddingBottom: isSource ? '6px' : '4px',
+          cursor: 'pointer', userSelect: 'none',
+          borderBottom: isSource ? '1px solid var(--border)' : '1px solid var(--surface-muted)',
+          background: isSelected ? 'var(--accent-bg)' : defaultBg,
           color: isSelected ? 'var(--accent)' : 'var(--foreground)',
         }}
       >
-        <span style={{ fontSize: '9px', width: '10px', color: 'var(--text-muted)', flexShrink: 0 }}>
-          {canExpand ? (node._expanded ? 'v' : '>') : ''}
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)', width: '10px', flexShrink: 0 }}>
+          {canExpand ? (node._expanded ? '▼' : '▶') : ''}
         </span>
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)', flexShrink: 0, fontWeight: 600, minWidth: '14px' }}>{icon}</span>
-        <span style={{ fontSize: 'var(--text-sm)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {getTypeIcon(node.asset_type)}
+        <span style={{
+          fontFamily: (isSource || isDatabase || isSchema) ? 'monospace' : 'inherit',
+          fontSize: isSource ? '12px' : isDatabase ? '11.5px' : '11px',
+          fontWeight: isSource ? 700 : isDatabase ? 700 : isSchema ? 600 : 500,
+          flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
           {label}
         </span>
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot, flexShrink: 0 }} />

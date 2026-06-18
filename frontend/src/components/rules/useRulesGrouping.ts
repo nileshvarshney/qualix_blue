@@ -110,7 +110,7 @@ export function useRulesGrouping(
       const dbRules = Array.from(schemas.values()).flatMap(s => Array.from(s.values()).flat())
       const dbKey = `db::${db}`
       rows.push({
-        kind: 'group', key: dbKey, label: db, level: 0, icon: '🗄',
+        kind: 'group', key: dbKey, label: db, level: 0, icon: 'database',
         rules: dbRules, stats: computeStats(dbRules, testResults),
       })
       if (!expandedGroups.has(dbKey)) continue
@@ -119,7 +119,7 @@ export function useRulesGrouping(
         const schemaRules = Array.from(tables.values()).flat()
         const schemaKey = `${dbKey}::${schema}`
         rows.push({
-          kind: 'group', key: schemaKey, label: schema, level: 1, icon: '📂',
+          kind: 'group', key: schemaKey, label: schema, level: 1, icon: 'schema',
           rules: schemaRules, stats: computeStats(schemaRules, testResults),
         })
         if (!expandedGroups.has(schemaKey)) continue
@@ -127,7 +127,7 @@ export function useRulesGrouping(
         for (const [table, tableRules] of Array.from(tables.entries()).sort((a, b) => a[0].localeCompare(b[0]))) {
           const tableKey = `${schemaKey}::${table}`
           rows.push({
-            kind: 'group', key: tableKey, label: table, level: 2, icon: '⬜',
+            kind: 'group', key: tableKey, label: table, level: 2, icon: 'table',
             rules: tableRules, stats: computeStats(tableRules, testResults),
           })
           if (!expandedGroups.has(tableKey)) continue
