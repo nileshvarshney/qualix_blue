@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
-from app.api.lineage import extract_table_refs
+from unittest.mock import AsyncMock
+from app.api.lineage import extract_table_refs, _ensure_view_definitions
 
 
 def test_simple_from_join():
@@ -81,3 +82,61 @@ async def test_extract_refs_used_for_upstream():
     sql = "SELECT o.*, c.name FROM ORDERS o JOIN CUSTOMERS c ON o.cust_id = c.id"
     refs = extract_table_refs(sql)
     assert set(refs) == {"ORDERS", "CUSTOMERS"}
+
+
+class _FakeSourceMeta:
+    def __init__(self, sf_table_type=None, view_definition=None):
+        self.sf_table_type = sf_table_type
+        self.view_definition = view_definition
+
+
+class _FakeAsset:
+    def __init__(self, asset_id, source_meta):
+        self.asset_id = asset_id
+        self.source_meta = source_meta
+
+
+@pytest.mark.asyncio
+async def test_ensure_view_definitions_skips_when_none_missing(monkeypatch):
+    """No view is missing its DDL — never touch Snowflake or the DB."""
+    assets = [_FakeAsset("a1", _FakeSourceMeta("VIEW", "SELECT 1"))]
+    db = AsyncMock()
+
+    called = False
+    def _bulk_fetch(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return {}
+    monkeypatch.setattr("app.api.lineage._sync_fetch_view_definitions_bulk", _bulk_fetch)
+
+    await _ensure_view_definitions(assets, "conn-1", db)
+
+    assert called is False
+    db.get.assert_not_called()
+    db.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_view_definitions_backfills_missing(monkeypatch):
+    """A view missing its DDL gets backfilled, persisted, and is then usable for lineage extraction."""
+    view_asset = _FakeAsset("a1", _FakeSourceMeta("VIEW", None))
+    table_asset = _FakeAsset("a2", _FakeSourceMeta("TABLE", None))
+    assets = [view_asset, table_asset]
+
+    db = AsyncMock()
+    db.get = AsyncMock(return_value=object())  # stand-in SnowflakeConnection
+    db.commit = AsyncMock()
+
+    def _bulk_fetch(_conn, missing_assets):
+        assert [a.asset_id for a in missing_assets] == ["a1"]  # TABLE asset never queried
+        return {"a1": "CREATE VIEW v AS SELECT * FROM upstream_table"}
+    monkeypatch.setattr("app.api.lineage._sync_fetch_view_definitions_bulk", _bulk_fetch)
+
+    await _ensure_view_definitions(assets, "conn-1", db)
+
+    assert view_asset.source_meta.view_definition == "CREATE VIEW v AS SELECT * FROM upstream_table"
+    assert table_asset.source_meta.view_definition is None
+    db.commit.assert_awaited_once()
+
+    refs = extract_table_refs(view_asset.source_meta.view_definition)
+    assert "UPSTREAM_TABLE" in refs

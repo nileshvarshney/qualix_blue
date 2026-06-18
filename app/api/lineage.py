@@ -90,6 +90,75 @@ async def _enrich(asset: Asset, db: AsyncSession) -> dict:
     }
 
 
+async def _bulk_enrich(assets: list[Asset], db: AsyncSession) -> dict[str, dict]:
+    """Same output as calling _enrich() per asset, but in 4 queries total instead of 4xN.
+
+    asyncio.gather(*[_enrich(a, db) for a in assets]) shares one AsyncSession across
+    concurrent coroutines, so the driver actually serializes every query — for a
+    connection with 50+ assets that's 200+ sequential round trips and dominates page
+    load time. Batching with IN-clauses fixes both the serialization and the N+1.
+    """
+    asset_ids = [a.asset_id for a in assets]
+    if not asset_ids:
+        return {}
+
+    col_counts: dict[str, int] = {}
+    col_result = await db.execute(
+        select(ColumnMetadata.asset_id, func.count())
+        .where(ColumnMetadata.asset_id.in_(asset_ids))
+        .group_by(ColumnMetadata.asset_id)
+    )
+    for asset_id_, cnt in col_result.all():
+        col_counts[asset_id_] = cnt
+
+    row_counts: dict[str, Optional[int]] = {}
+    row_result = await db.execute(
+        select(ColumnProfileHistory.asset_id, ColumnProfileHistory.row_count)
+        .where(ColumnProfileHistory.asset_id.in_(asset_ids))
+        .order_by(ColumnProfileHistory.asset_id, ColumnProfileHistory.profile_date.desc())
+    )
+    for asset_id_, row_count in row_result.all():
+        if asset_id_ not in row_counts:  # first row per asset_id is the latest (ordered desc)
+            row_counts[asset_id_] = row_count
+
+    classifications: dict[str, list[str]] = {}
+    cls_result = await db.execute(
+        select(DataClassification.asset_id, DataClassification.classification)
+        .where(DataClassification.asset_id.in_(asset_ids))
+        .distinct()
+    )
+    for asset_id_, cls in cls_result.all():
+        classifications.setdefault(asset_id_, []).append(cls)
+
+    terms: dict[str, list[str]] = {}
+    terms_result = await db.execute(
+        select(GlossaryTermAsset.asset_id, GlossaryTerm.term_name)
+        .join(GlossaryTerm, GlossaryTerm.term_id == GlossaryTermAsset.term_id)
+        .where(GlossaryTermAsset.asset_id.in_(asset_ids))
+    )
+    for asset_id_, term_name in terms_result.all():
+        terms.setdefault(asset_id_, []).append(term_name)
+
+    out: dict[str, dict] = {}
+    for a in assets:
+        meta = a.source_meta
+        out[a.asset_id] = {
+            "asset_id": a.asset_id,
+            "sf_table_name": meta.sf_table_name if meta else a.physical_name,
+            "sf_schema_name": meta.sf_schema_name if meta else None,
+            "sf_database_name": meta.sf_database_name if meta else None,
+            "table_type": meta.sf_table_type if meta else a.table_type,
+            "table_description": a.description or a.table_description,
+            "owner_name": a.owner_name,
+            "technical_owner_name": a.technical_owner_name,
+            "column_count": col_counts.get(a.asset_id, 0),
+            "row_count": (meta.row_count if meta else None) or row_counts.get(a.asset_id),
+            "classifications": classifications.get(a.asset_id, []),
+            "terms": terms.get(a.asset_id, []),
+        }
+    return out
+
+
 def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: Asset) -> Optional[str]:
     """Synchronous Snowflake call — run via asyncio.to_thread."""
     meta = asset.source_meta
@@ -115,6 +184,74 @@ def _sync_fetch_view_definition(conn: SnowflakeConnection, asset: Asset) -> Opti
     except Exception as exc:
         logger.debug("view_definition fetch failed: %s", exc)
         return None
+
+
+def _sync_fetch_view_definitions_bulk(conn: SnowflakeConnection, assets: list[Asset]) -> dict[str, str]:
+    """Fetch GET_DDL for many views over a single Snowflake connection — run via asyncio.to_thread."""
+    from app.api.connections import _open_connector
+    results: dict[str, str] = {}
+    try:
+        sf = _open_connector(conn)
+    except Exception as exc:
+        logger.debug("bulk view_definition connect failed: %s", exc)
+        return results
+    try:
+        cur = sf.cursor()
+        for asset in assets:
+            meta = asset.source_meta
+            if not meta or not meta.sf_table_name:
+                continue
+            try:
+                db_part = f'"{meta.sf_database_name}".' if meta.sf_database_name else ""
+                cur.execute(
+                    f"SELECT GET_DDL('VIEW', '{db_part}\"{meta.sf_schema_name}\".\"{meta.sf_table_name}\"')"
+                )
+                row = cur.fetchone()
+                if row and row[0]:
+                    results[asset.asset_id] = row[0]
+            except Exception as exc:
+                logger.debug("bulk view_definition fetch failed for %s: %s", meta.sf_table_name, exc)
+        cur.close()
+    finally:
+        sf.close()
+    return results
+
+
+VIEW_DEFINITION_BACKFILL_LIMIT = 8
+
+
+async def _ensure_view_definitions(assets: list[Asset], conn_id: str, db: AsyncSession) -> None:
+    """Backfill missing view_definition on VIEW assets so DDL/column lineage can be derived.
+
+    view_definition is only ever lazily fetched one asset at a time (in get_lineage,
+    below), which the connection-wide graph endpoints never call — so without this,
+    most views never get a DDL and contribute zero lineage edges.
+
+    Capped per request: a connection with many uncached views would otherwise make a
+    single page load issue dozens of sequential GET_DDL calls and risk timing out.
+    Remaining views are picked up on the next 30s auto-refresh, so coverage still
+    converges to complete without blocking any one request for long.
+    """
+    missing = [
+        a for a in assets
+        if a.source_meta and a.source_meta.sf_table_type
+        and "VIEW" in a.source_meta.sf_table_type.upper()
+        and not a.source_meta.view_definition
+    ]
+    if not missing:
+        return
+    batch = missing[:VIEW_DEFINITION_BACKFILL_LIMIT]
+    sf_conn = await db.get(SnowflakeConnection, conn_id)
+    if not sf_conn:
+        return
+    fetched = await asyncio.to_thread(_sync_fetch_view_definitions_bulk, sf_conn, batch)
+    if not fetched:
+        return
+    for asset in batch:
+        view_def = fetched.get(asset.asset_id)
+        if view_def:
+            asset.source_meta.view_definition = view_def
+    await db.commit()
 
 
 async def _resolve_connection_id(connection_id: Optional[str], db: AsyncSession) -> Optional[str]:
@@ -171,7 +308,10 @@ async def get_lineage_graph(
     if not assets:
         return {"nodes": [], "edges": [], "connection": conn_info, "meta": empty_meta}
 
-    enriched_list = await asyncio.gather(*[_enrich(a, db) for a in assets])
+    await _ensure_view_definitions(assets, conn_id, db)
+
+    enriched_map = await _bulk_enrich(assets, db)
+    enriched_list = [enriched_map[a.asset_id] for a in assets]
 
     table_name_to_asset_id: dict[str, str] = {}
     for a in assets:
@@ -269,6 +409,8 @@ async def get_column_lineage(
         assets = list(result.scalars().all())
         if not assets:
             return {"edges": []}
+
+        await _ensure_view_definitions(assets, conn_id, db)
 
         asset_ids = [a.asset_id for a in assets]
         table_name_to_asset_id: dict[str, str] = {}

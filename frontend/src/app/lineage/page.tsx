@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, type WheelEvent, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
 
 /* ─── Types ─── */
 interface LineageNode {
@@ -20,6 +20,15 @@ interface ColumnLineageEdge { fromAssetId: string; fromColumn: string; toAssetId
 
 /* ─── Node visual config ─── */
 const NODE_W = 160, NODE_H = 46
+
+/* ─── Graph zoom/pan config ─── */
+const ZOOM_MIN = 0.3, ZOOM_MAX = 3, ZOOM_STEP = 0.2
+
+const toolbarBtnStyle: CSSProperties = {
+  width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff',
+  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  fontSize: '13px', color: '#475569', fontWeight: 600, padding: 0,
+}
 
 const typeConfig: Record<string, { bg: string; border: string; color: string; label: string }> = {
   source:    { bg: '#eff6ff', border: '#93c5fd', color: '#1d4ed8', label: 'Source' },
@@ -218,9 +227,6 @@ function buildChain(startId: string, edges: LineageEdge[], nodeMap: Map<string, 
   return hops
 }
 
-/* ─── Auto-refresh interval ─── */
-const REFRESH_INTERVAL = 30000
-
 /* ─── Main ─── */
 export default function LineagePage() {
   const [data, setData] = useState<LineageData | null>(null)
@@ -234,41 +240,63 @@ export default function LineagePage() {
   const [columnSearch, setColumnSearch] = useState('')
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
   const [selectedColumn, setSelectedColumn] = useState<string | null>(null)
-  const [allTableColumns, setAllTableColumns] = useState<Map<string, string[]>>(new Map())
   const [columnEdges, setColumnEdges] = useState<ColumnLineageEdge[]>([])
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [nodePositions, setNodePositions] = useState<Map<string, { x: number; y: number }>>(new Map())
   const inputRef = useRef<HTMLInputElement>(null)
+  const hasLoadedRef = useRef(false)
+  const graphContainerRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
+  const dragNodeRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const nodeDraggedRef = useRef(false)
 
-  const fetchLineage = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
+  const fetchLineage = useCallback(async () => {
+    setLoading(true)
     try {
       const res = await fetch('/api/snowflake/lineage')
       if (res.ok) {
         const json = await res.json()
         if (json.nodes && json.nodes.length > 0) {
+          hasLoadedRef.current = true
           setData(json); setIsLive(true); setLastRefresh(new Date())
-          if (!silent) setLoading(false)
+          setLoading(false)
           return
         }
       }
-    } catch { /* no lineage yet */ }
-    setData({
-      nodes: [], edges: [],
-      connection: { name: '', database: '', schema: '', warehouse: '', status: 'empty' },
-    })
-    setIsLive(false); setLastRefresh(new Date())
-    if (!silent) setLoading(false)
+    } catch { /* transient network error — fall through */ }
+    if (!hasLoadedRef.current) {
+      setData({
+        nodes: [], edges: [],
+        connection: { name: '', database: '', schema: '', warehouse: '', status: 'empty' },
+      })
+      setIsLive(false)
+    }
+    setLastRefresh(new Date())
+    setLoading(false)
   }, [])
 
+  // Load once on mount only — no auto-refresh. The user can hit "Refresh" manually.
   useEffect(() => { fetchLineage() }, [fetchLineage])
-
-  // Auto-refresh every 30s
-  useEffect(() => {
-    const timer = setInterval(() => { fetchLineage(true) }, REFRESH_INTERVAL)
-    return () => clearInterval(timer)
-  }, [fetchLineage])
 
   // Clear selected column when table selection changes
   useEffect(() => { setSelectedColumn(null) }, [selected])
+
+  // Reset zoom/pan/manual node positions whenever a new table is selected (the graph is re-laid-out)
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setZoom(1); setPan({ x: 0, y: 0 }); setNodePositions(new Map())
+  }, [selected])
+
+  // Track native fullscreen state (also changes if the user presses Esc)
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(document.fullscreenElement === graphContainerRef.current)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
 
   // Fetch columns when a node is selected
   useEffect(() => {
@@ -305,37 +333,30 @@ export default function LineagePage() {
     [chainIds, data]
   )
 
-  // Load columns for the visible chain only, once a table is selected (lazy)
+  // Fetch column-to-column lineage edges once a table is selected — a single
+  // connection-wide request, not a per-table loop. Columns for OTHER chain tables
+  // are never fetched up front; each table's own columns load only when it's clicked.
   useEffect(() => {
-    if (!selected || visibleNodes.length === 0) {
+    if (!selected) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAllTableColumns(new Map())
       setColumnEdges([])
       return
     }
-    const loadAllCols = async () => {
-      const map = new Map<string, string[]>()
-      for (const node of visibleNodes) {
-        try {
-          const res = await fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
-          const json = await res.json()
-          if (json.columns && json.columns.length > 0) {
-            map.set(node.id, json.columns.map((c: ColumnInfo) => c.COLUMN_NAME))
-          }
-        } catch { /* no columns yet */ }
-      }
-      setAllTableColumns(map)
-    }
-    loadAllCols()
-
     fetch('/api/snowflake/column-lineage')
       .then(r => r.json())
       .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
       .catch(() => setColumnEdges([]))
-  }, [selected, visibleNodes])
+  }, [selected])
 
   // ─── Derived layout (always computed, hooks-safe) ───
-  const laidOut = useMemo(() => layoutNodes(visibleNodes, visibleEdges), [visibleNodes, visibleEdges])
+  const laidOut = useMemo(() => {
+    const base = layoutNodes(visibleNodes, visibleEdges)
+    if (nodePositions.size === 0) return base
+    return base.map(n => {
+      const override = nodePositions.get(n.id)
+      return override ? { ...n, x: override.x, y: override.y } : n
+    })
+  }, [visibleNodes, visibleEdges, nodePositions])
   const nodeMap = useMemo(() => new Map(laidOut.map(n => [n.id, n])), [laidOut])
 
   // ─── Column-level lineage computation (backend-derived column-to-column edges) ───
@@ -418,6 +439,54 @@ export default function LineagePage() {
     }
   }, [selectedColumn, selected, columnEdges, data, rawNodeMap])
 
+  function zoomIn() { setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2))) }
+  function zoomOut() { setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2))) }
+  function zoomReset() { setZoom(1); setPan({ x: 0, y: 0 }) }
+
+  function handleWheel(e: WheelEvent<SVGSVGElement>) {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP
+    setZoom(z => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))))
+  }
+
+  function handleSvgMouseDown(e: ReactMouseEvent<SVGSVGElement>) {
+    panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
+    setIsPanning(true)
+  }
+  function handleSvgMouseMove(e: ReactMouseEvent<SVGSVGElement>) {
+    if (dragNodeRef.current) {
+      const drag = dragNodeRef.current
+      const dx = (e.clientX - drag.startX) / zoom
+      const dy = (e.clientY - drag.startY) / zoom
+      if (Math.abs(dx) > 2 || Math.abs(dy) > 2) nodeDraggedRef.current = true
+      setNodePositions(prev => {
+        const next = new Map(prev)
+        next.set(drag.id, { x: drag.origX + dx, y: drag.origY + dy })
+        return next
+      })
+      return
+    }
+    if (!isPanning) return
+    const dx = e.clientX - panStartRef.current.x
+    const dy = e.clientY - panStartRef.current.y
+    setPan({ x: panStartRef.current.panX + dx, y: panStartRef.current.panY + dy })
+  }
+  function handleSvgMouseUp() { setIsPanning(false); dragNodeRef.current = null }
+
+  // Drag a node freely on the canvas — separate from canvas panning (stopPropagation
+  // keeps the svg's own mousedown pan handler from also firing on the node).
+  function handleNodeMouseDown(e: ReactMouseEvent<SVGGElement>, node: LineageNode) {
+    e.stopPropagation()
+    nodeDraggedRef.current = false
+    dragNodeRef.current = { id: node.id, startX: e.clientX, startY: e.clientY, origX: node.x ?? 0, origY: node.y ?? 0 }
+  }
+
+  async function toggleFullscreen() {
+    if (!graphContainerRef.current) return
+    if (document.fullscreenElement) await document.exitFullscreen()
+    else await graphContainerRef.current.requestFullscreen()
+  }
+
   if (loading) {
     return (
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
@@ -483,6 +552,38 @@ export default function LineagePage() {
   const totalUpstream = upstreamChain.reduce((s, h) => s + h.nodes.length, 0)
   const totalDownstream = downstreamChain.reduce((s, h) => s + h.nodes.length, 0)
 
+  function captureGraph() {
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    const width = svgEl.viewBox.baseVal.width || svgEl.clientWidth
+    const height = svgEl.viewBox.baseVal.height || svgEl.clientHeight
+    const svgString = new XMLSerializer().serializeToString(svgEl)
+    const svgUrl = URL.createObjectURL(new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' }))
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = width * 2
+      canvas.height = height * 2
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.scale(2, 2)
+        ctx.fillStyle = '#fafaf9'
+        ctx.fillRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => {
+          if (!blob) return
+          const link = document.createElement('a')
+          link.href = URL.createObjectURL(blob)
+          link.download = `lineage-${selectedNode?.label ?? 'graph'}.png`
+          link.click()
+          URL.revokeObjectURL(link.href)
+        })
+      }
+      URL.revokeObjectURL(svgUrl)
+    }
+    img.src = svgUrl
+  }
+
   const filteredColumns = columnData?.filter(c =>
     !columnSearch || c.COLUMN_NAME.toLowerCase().includes(columnSearch.toLowerCase())
   )
@@ -520,7 +621,7 @@ export default function LineagePage() {
           <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{data.nodes.length} objects available · search to view lineage</span>
         )}
         {!isLive && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Demo mode · connect Snowflake for live lineage</span>}
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Auto-refresh 30s{timeSinceRefresh > 5 ? ` · ${timeSinceRefresh}s ago` : ''}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{timeSinceRefresh > 5 ? `Updated ${timeSinceRefresh}s ago` : 'Updated just now'}</span>
         <button onClick={() => fetchLineage()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: 'auto' }}>🔄 Refresh</button>
         <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } } @keyframes dashFlow { to { stroke-dashoffset: -24 } }`}</style>
       </div>
@@ -590,13 +691,30 @@ export default function LineagePage() {
 
       {selected && (
         /* SVG Graph */
-        <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
+        <div ref={graphContainerRef} style={{
+          background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px',
+          overflow: 'auto', position: 'relative',
+          height: isFullscreen ? '100vh' : undefined,
+        }}>
+          {/* Zoom / fullscreen / capture toolbar */}
+          <div style={{
+            position: 'absolute', top: 12, right: 12, zIndex: 60, display: 'flex', gap: '4px',
+            background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '4px',
+            boxShadow: '0 2px 8px rgba(15,23,42,0.08)',
+          }}>
+            <button onClick={zoomOut} title="Zoom out" style={toolbarBtnStyle}>−</button>
+            <button onClick={zoomReset} title="Reset zoom" style={{ ...toolbarBtnStyle, width: 'auto', padding: '0 6px', fontSize: '9px' }}>{Math.round(zoom * 100)}%</button>
+            <button onClick={zoomIn} title="Zoom in" style={toolbarBtnStyle}>+</button>
+            <button onClick={toggleFullscreen} title={isFullscreen ? 'Exit full screen' : 'Full screen'} style={toolbarBtnStyle}>{isFullscreen ? '⤡' : '⛶'}</button>
+            <button onClick={captureGraph} title="Capture as PNG" style={toolbarBtnStyle}>📷</button>
+          </div>
+
           {/* ── Floating Column Popup on graph ── */}
           {selectedNode && (
             <div style={{
               position: 'absolute',
-              left: (selectedNode.x ?? 0) + NODE_W + 28,
-              top: (selectedNode.y ?? 0) + 16,
+              left: pan.x + ((selectedNode.x ?? 0) + NODE_W + 28) * zoom,
+              top: pan.y + ((selectedNode.y ?? 0) + 16) * zoom,
               width: 320, maxHeight: 480,
               background: '#fafaf9', borderRadius: '10px',
               border: '1px solid #e2e8f0',
@@ -645,10 +763,9 @@ export default function LineagePage() {
                 ) : filteredColumns && filteredColumns.length > 0 ? filteredColumns.map((col, i) => {
                   const dt = dtIcon(col.DATA_TYPE)
                   const isColSelected = selectedColumn === col.COLUMN_NAME
-                  // Count how many other tables have this column
-                  const colTableCount = selectedColumn === col.COLUMN_NAME
-                    ? columnLineage.tables.size
-                    : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
+                  // Only known once this column is actively selected — its lineage is
+                  // resolved via columnEdges, not by pre-fetching every other table's columns.
+                  const colTableCount = isColSelected ? columnLineage.tables.size : 0
                   return (
                     <div key={i}
                       onClick={() => setSelectedColumn(isColSelected ? null : col.COLUMN_NAME)}
@@ -748,14 +865,30 @@ export default function LineagePage() {
             </div>
           )}
 
-          <svg width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`} style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px` }}>
+          <svg
+            ref={svgRef}
+            width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`}
+            style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px`, cursor: isPanning ? 'grabbing' : 'grab' }}
+            onWheel={handleWheel}
+            onMouseDown={handleSvgMouseDown}
+            onMouseMove={handleSvgMouseMove}
+            onMouseUp={handleSvgMouseUp}
+            onMouseLeave={handleSvgMouseUp}
+          >
             <defs>
               <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#cbd5e1" /></marker>
               <marker id="arrow-hl" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#2563eb" /></marker>
               <marker id="arrow-up" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#16a34a" /></marker>
               <marker id="arrow-dn" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#ea580c" /></marker>
               <marker id="arrow-col" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#64748b" /></marker>
+              <pattern id="dotted-bg" width="16" height="16" patternUnits="userSpaceOnUse" patternTransform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
+                <circle cx="2" cy="2" r="1.1" fill="#d8dce3" />
+              </pattern>
             </defs>
+
+            <rect x="0" y="0" width="100%" height="100%" fill="url(#dotted-bg)" />
+
+            <g transform={`translate(${pan.x},${pan.y}) scale(${zoom})`}>
 
             {/* Layer labels at top */}
             {Object.entries(layerLabels).map(([layerStr, label]) => {
@@ -833,7 +966,10 @@ export default function LineagePage() {
               const nx = node.x ?? 0
               const ny = node.y ?? 0
               return (
-                <g key={node.id} style={{ cursor: 'pointer' }} onClick={() => selectNode(node.id)}>
+                <g key={node.id} style={{ cursor: 'move' }}
+                  onMouseDown={e => handleNodeMouseDown(e, node)}
+                  onClick={() => { if (nodeDraggedRef.current) { nodeDraggedRef.current = false; return } selectNode(node.id) }}
+                >
                   {/* Column lineage glow ring */}
                   {isInColLineage && (
                     <rect x={nx - 2} y={ny - 2} width={NODE_W + 4} height={NODE_H + 4} rx={8}
@@ -872,6 +1008,7 @@ export default function LineagePage() {
                 </g>
               )
             })}
+            </g>
           </svg>
         </div>
       )}
@@ -1069,9 +1206,7 @@ export default function LineagePage() {
                   const dt = dtIcon(col.DATA_TYPE)
                   const isPK = col.ORDINAL_POSITION === 1 && col.IS_NULLABLE === 'NO'
                   const isColSel = selectedColumn === col.COLUMN_NAME
-                  const colTableCount = selectedColumn === col.COLUMN_NAME
-                  ? columnLineage.tables.size
-                  : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
+                  const colTableCount = isColSel ? columnLineage.tables.size : 0
                   return (
                     <div key={i}
                       onClick={() => setSelectedColumn(isColSel ? null : col.COLUMN_NAME)}
