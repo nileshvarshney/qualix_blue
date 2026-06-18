@@ -56,7 +56,7 @@ function matchesSearch(issue: Issue, q: string): boolean {
   )
 }
 
-const COL = '72px 1fr 220px 100px 120px 82px'
+const COL = '68px 1fr 280px 90px 105px 78px'
 
 export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([])
