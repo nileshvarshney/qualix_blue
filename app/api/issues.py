@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException, Body
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from app.db.database import get_db
-from app.db.models import Issue, ISSUE_TRANSITIONS, Asset, AssetSourceMeta, DQRule, Team, AuditLog, gen_uuid, now as model_now
+from app.db.models import Issue, ISSUE_TRANSITIONS, Asset, AssetSourceMeta, DQRule, Team, SnowflakeConnection, AuditLog, gen_uuid, now as model_now
 from app.core.security import get_current_user, require_write, check_domain_access, apply_domain_filter
 
 router = APIRouter(prefix="/issues", tags=["Issues"])
@@ -40,21 +40,24 @@ def _fmt_issue(issue: Issue, extra: Optional[dict] = None) -> dict:
 
 def _enrich_query():
     return (
-        select(Issue, Asset, AssetSourceMeta, DQRule, Team)
+        select(Issue, Asset, AssetSourceMeta, DQRule, Team, SnowflakeConnection)
         .outerjoin(Asset, Issue.asset_id == Asset.asset_id)
         .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
         .outerjoin(DQRule, Issue.rule_id == DQRule.rule_id)
         .outerjoin(Team, Issue.assigned_team_id == Team.team_id)
+        .outerjoin(SnowflakeConnection, Issue.source_id == SnowflakeConnection.connection_id)
     )
 
 
-def _enrich_extra(asset, source_meta, rule, team) -> dict:
+def _enrich_extra(asset, source_meta, rule, team, connection=None) -> dict:
     return {
-        "asset_name":       (asset.display_name or asset.physical_name) if asset else None,
-        "sf_database_name": source_meta.sf_database_name if source_meta else None,
-        "sf_schema_name":   source_meta.sf_schema_name if source_meta else None,
-        "sf_table_name":    source_meta.sf_table_name if source_meta else None,
-        "rule_name":        rule.rule_name if rule else None,
+        "asset_name":         (asset.display_name or asset.physical_name) if asset else None,
+        "connection_name":    connection.connection_name if connection else None,
+        "sf_database_name":   source_meta.sf_database_name if source_meta else None,
+        "sf_schema_name":     source_meta.sf_schema_name if source_meta else None,
+        "sf_table_name":      source_meta.sf_table_name if source_meta else None,
+        "sf_table_type":      source_meta.sf_table_type if source_meta else None,
+        "rule_name":          rule.rule_name if rule else None,
         "assigned_team_name": team.team_name if team else None,
     }
 
@@ -142,8 +145,8 @@ async def list_issues_enriched(
 
     result = await db.execute(q)
     return [
-        _fmt_issue(issue, _enrich_extra(asset, source_meta, rule, team))
-        for issue, asset, source_meta, rule, team in result.all()
+        _fmt_issue(issue, _enrich_extra(asset, source_meta, rule, team, connection))
+        for issue, asset, source_meta, rule, team, connection in result.all()
     ]
 
 
@@ -227,9 +230,9 @@ async def get_issue(issue_id: str, db: AsyncSession = Depends(get_db), user=Depe
     row = result.first()
     if not row:
         raise HTTPException(404, "Issue not found")
-    issue, asset, source_meta, rule, team = row
+    issue, asset, source_meta, rule, team, connection = row
     check_domain_access(user, issue.domain_id)
-    return _fmt_issue(issue, _enrich_extra(asset, source_meta, rule, team))
+    return _fmt_issue(issue, _enrich_extra(asset, source_meta, rule, team, connection))
 
 
 @router.put("/{issue_id}")

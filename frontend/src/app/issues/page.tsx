@@ -24,7 +24,6 @@ const ST_CFG: Record<IssueStatus, { bg: string; color: string; label: string }> 
 
 const STATUS_FILTERS: (IssueStatus | 'all')[] = ['all', 'new', 'confirmed', 'in_progress', 'blocked', 'resolved', 'closed', 'reopened']
 const SEV_FILTERS: (IssueSeverity | 'all')[] = ['all', 'critical', 'high', 'medium', 'low']
-
 const IN_PROGRESS_STATUSES: IssueStatus[] = ['confirmed', 'in_progress', 'blocked', 'reopened']
 
 const pillStyle = (active: boolean): CSSProperties => ({
@@ -34,6 +33,16 @@ const pillStyle = (active: boolean): CSSProperties => ({
   color: active ? 'var(--accent)' : 'var(--text-muted)',
   textTransform: 'capitalize',
 })
+
+function buildAssetPath(issue: Issue): string {
+  const parts: string[] = []
+  if (issue.connection_name) parts.push(issue.connection_name)
+  if (issue.sf_database_name) parts.push(issue.sf_database_name)
+  if (issue.sf_schema_name) parts.push(issue.sf_schema_name)
+  if (issue.sf_table_name) parts.push(issue.sf_table_name)
+  if (parts.length > 0) return parts.join(' › ')
+  return issue.asset_name || 'Unassigned'
+}
 
 export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([])
@@ -56,13 +65,6 @@ export default function IssuesPage() {
     (statusF === 'all' || i.status === statusF) &&
     (sevF === 'all' || i.severity === sevF)
   )
-
-  const groups = new Map<string, Issue[]>()
-  for (const i of filtered) {
-    const key = i.asset_name || (i.sf_table_name ? `${i.sf_schema_name}.${i.sf_table_name}` : 'Unassigned')
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(i)
-  }
 
   const counts = {
     new: issues.filter(i => i.status === 'new').length,
@@ -125,36 +127,71 @@ export default function IssuesPage() {
       ) : filtered.length === 0 ? (
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No issues yet</div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {Array.from(groups.entries()).map(([dataset, items]) => (
-            <div key={dataset}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
-                {dataset} ({items.length})
+        <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+          {/* Header */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '80px 1fr 280px 110px 130px 90px',
+            gap: '8px',
+            padding: '8px 12px',
+            background: 'var(--surface-muted)',
+            borderBottom: '1px solid var(--border)',
+            fontSize: '10px',
+            fontWeight: 700,
+            color: 'var(--text-muted)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+          }}>
+            <span>Severity</span>
+            <span>Issue</span>
+            <span>Source</span>
+            <span>Status</span>
+            <span>Assigned To</span>
+            <span style={{ textAlign: 'right' }}>Created</span>
+          </div>
+          {/* Rows */}
+          {filtered.map((issue, idx) => {
+            const sev = SEV_CFG[issue.severity]
+            const st = ST_CFG[issue.status]
+            const assetPath = buildAssetPath(issue)
+            return (
+              <div
+                key={issue.issue_id}
+                onClick={() => setSelected(issue)}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '80px 1fr 280px 110px 130px 90px',
+                  gap: '8px',
+                  alignItems: 'center',
+                  padding: '9px 12px',
+                  borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface-muted)' : 'none',
+                  cursor: 'pointer',
+                  background: 'var(--surface)',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover, var(--accent-bg))')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+              >
+                <span style={{ background: sev.bg, color: sev.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  {sev.label}
+                </span>
+                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {issue.title}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }} title={assetPath}>
+                  {assetPath}
+                </span>
+                <span style={{ background: st.bg, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                  {st.label}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {issue.assigned_to || issue.assigned_team_name || '—'}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                  {new Date(issue.created_at).toLocaleDateString()}
+                </span>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {items.map(issue => {
-                  const sev = SEV_CFG[issue.severity]
-                  const st = ST_CFG[issue.status]
-                  return (
-                    <div
-                      key={issue.issue_id}
-                      onClick={() => setSelected(issue)}
-                      style={{
-                        display: 'grid', gridTemplateColumns: '90px 1fr 120px 140px 100px', gap: '8px', alignItems: 'center',
-                        padding: '8px 10px', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer',
-                      }}
-                    >
-                      <span style={{ background: sev.bg, color: sev.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center' }}>{sev.label}</span>
-                      <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{issue.title}</span>
-                      <span style={{ background: st.bg, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center' }}>{st.label}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{issue.assigned_to || issue.assigned_team_name || 'Unassigned'}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>{new Date(issue.created_at).toLocaleDateString()}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 

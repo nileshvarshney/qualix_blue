@@ -294,9 +294,11 @@ export interface Issue {
   reopen_count: number
   resolution_note: string | null
   asset_name?: string | null
+  connection_name?: string | null
   sf_database_name?: string | null
   sf_schema_name?: string | null
   sf_table_name?: string | null
+  sf_table_type?: string | null
   rule_name?: string | null
   assigned_team_name?: string | null
 }
