@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import AsyncSessionLocal, create_tables
-from app.db.models import Domain, Subdomain, User, ComplianceFramework, ComplianceRequirement, GovernancePolicy
+from app.db.models import Domain, Subdomain, User, ComplianceFramework, ComplianceRequirement, GovernancePolicy, GlossaryTerm
 
 # Requirements per framework: (req_code, req_name, description, dq_rule_types)
 COMPLIANCE_REQUIREMENTS: dict[str, list[tuple]] = {
@@ -180,6 +180,68 @@ GOVERNANCE_POLICIES = [
 ]
 
 
+async def seed_glossary_terms(db: AsyncSession, domain_map: dict):
+    """Seed sample glossary terms if none exist (idempotent)."""
+    from sqlalchemy import select, func
+
+    count = (await db.execute(select(func.count()).select_from(GlossaryTerm))).scalar() or 0
+    if count > 0:
+        return
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    revenue_id = domain_map.get("Revenue", {}).domain_id if "Revenue" in domain_map else None
+    finance_id = domain_map.get("Finance", {}).domain_id if "Finance" in domain_map else None
+    hr_id = domain_map.get("HR", {}).domain_id if "HR" in domain_map else None
+    gtm_id = domain_map.get("GTM", {}).domain_id if "GTM" in domain_map else None
+
+    SAMPLE_TERMS = [
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Invoice",
+            definition="A formal document issued by a seller to a buyer listing goods or services, quantities, and prices. Basis for revenue recognition.",
+            synonyms="Bill, Receipt, Statement", domain_id=revenue_id,
+            status="active", owner_email="revenue@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="MRR",
+            definition="Monthly Recurring Revenue — predictable total revenue from all active subscriptions in a given month. A key SaaS metric that must be positive.",
+            synonyms="Monthly Recurring Revenue, Subscription Revenue", domain_id=revenue_id,
+            status="active", owner_email="revenue@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Quality Score",
+            definition="A 0–100 score representing the percentage of data quality rules that passed for a given table or domain. Calculated as: 100 − (weighted_penalty_sum).",
+            synonyms="DQ Score, Health Score, Data Health", domain_id=None,
+            status="active", owner_email="platform@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Journal Entry",
+            definition="A financial record in the General Ledger documenting a business transaction. Every entry must have equal debit and credit amounts.",
+            synonyms="GL Entry, Ledger Entry, Accounting Entry", domain_id=finance_id,
+            status="active", owner_email="finance@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Employee ID",
+            definition="A unique alphanumeric identifier assigned to each employee upon joining. Must never be null or duplicated. Format: EMP-NNN.",
+            synonyms="Staff ID, Worker ID, Personnel Number", domain_id=hr_id,
+            status="active", owner_email="hr@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Lead Conversion Rate",
+            definition="The percentage of leads that convert to paying customers. Must be between 0 and 100.",
+            synonyms="Win Rate, Conversion Percentage", domain_id=gtm_id,
+            status="active", owner_email="gtm@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="PII",
+            definition="Personally Identifiable Information — any data that can identify an individual. Includes name, email, phone, salary. Must be classified and protected.",
+            synonyms="Personal Data, Personal Information, Sensitive Personal Data", domain_id=None,
+            status="active", owner_email="platform@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="Data Contract",
+            definition="A formal agreement between a data producer and consumer specifying guaranteed schema, quality thresholds, and SLA commitments.",
+            synonyms="SLA Agreement, Quality SLA, Data SLA", domain_id=None,
+            status="draft", owner_email="platform@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="SLA Breach",
+            definition="A quality threshold breach when a table or domain quality score falls below its configured minimum (default 95%). Triggers automatic alerting.",
+            synonyms="Quality Breach, Threshold Violation", domain_id=None,
+            status="active", owner_email="platform@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+        GlossaryTerm(term_id=str(uuid.uuid4()), term_name="ARR",
+            definition="Annual Recurring Revenue — the annualized value of recurring subscription revenue. Equals MRR × 12.",
+            synonyms="Annual Recurring Revenue, Annual Revenue Run Rate", domain_id=revenue_id,
+            status="draft", owner_email="revenue@example.com", created_by="admin@example.com", created_at=now, updated_at=now),
+    ]
+    for term in SAMPLE_TERMS:
+        db.add(term)
+    await db.flush()
+    print(f"Seeded {len(SAMPLE_TERMS)} glossary terms.")
+
+
 async def seed_compliance_frameworks(db: AsyncSession):
     """Seed compliance frameworks, requirements, and governance policies if not present (idempotent)."""
     from sqlalchemy import select
@@ -339,6 +401,7 @@ async def seed(db: AsyncSession):
     # ── Step 3: Seed subdomains (first run only) ─────────────────────────────────
     if not seeding_fresh:
         print("Domains already exist — skipping subdomain seed.")
+        await seed_glossary_terms(db, domain_map)
         await db.commit()
         # Still seed compliance frameworks and policies on every run (idempotent)
         await seed_compliance_frameworks(db)
@@ -359,8 +422,9 @@ async def seed(db: AsyncSession):
             db.add(sub)
     await db.flush()
 
+    await seed_glossary_terms(db, domain_map)
     await db.commit()
-    print("Seeding complete: domains, subdomains, and all 5 role users created.")
+    print("Seeding complete: domains, subdomains, glossary terms, and all 5 role users created.")
 
     # Seed compliance frameworks and governance policies (always idempotent)
     await seed_compliance_frameworks(db)
