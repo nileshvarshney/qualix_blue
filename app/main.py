@@ -96,6 +96,14 @@ async def lifespan(app: FastAPI):
         from app.services.config_service import seed_config
         async with AsyncSessionLocal() as db:
             await seed_config(db)
+        # Ensure compliance frameworks (real regulatory definitions) are initialized
+        try:
+            from app.db.seed import seed_compliance_frameworks
+            async with AsyncSessionLocal() as db:
+                await seed_compliance_frameworks(db)
+                await db.commit()
+        except Exception as _ce:
+            logger.warning("Compliance framework init skipped: %s", _ce)
         start_scheduler()
         from app.services.scheduler_service import load_all_schedules
         async with AsyncSessionLocal() as db:

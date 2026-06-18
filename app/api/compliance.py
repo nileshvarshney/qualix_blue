@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func
 from app.db.database import get_db
 from app.db.models import (
     ComplianceFramework, ComplianceRequirement, ComplianceMapping,
@@ -11,6 +11,17 @@ from app.db.models import (
 from app.core.security import get_current_user, require_admin
 
 router = APIRouter(prefix="/compliance", tags=["Compliance"])
+
+
+def _framework_status(passed: int, total: int) -> str:
+    if total == 0:
+        return "partial"
+    pct = passed / total
+    if pct >= 1.0:
+        return "compliant"
+    if pct >= 0.5:
+        return "partial"
+    return "non-compliant"
 
 
 def _fmt_framework(f: ComplianceFramework) -> dict:
@@ -50,10 +61,69 @@ def _fmt_mapping(m: ComplianceMapping) -> dict:
 
 @router.get("/frameworks")
 async def list_frameworks(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
+    fw_result = await db.execute(
         select(ComplianceFramework).where(ComplianceFramework.is_active == True)
     )
-    return [_fmt_framework(f) for f in result.scalars().all()]
+    frameworks = fw_result.scalars().all()
+
+    # Compute per-framework stats from requirements + mappings
+    out = []
+    for f in frameworks:
+        # Count requirements
+        req_count = (await db.execute(
+            select(func.count()).select_from(ComplianceRequirement)
+            .where(ComplianceRequirement.framework_id == f.framework_id)
+        )).scalar() or 0
+
+        # Count compliant mappings (distinct req_id with status='compliant')
+        passed_count = (await db.execute(
+            select(func.count(func.distinct(ComplianceMapping.req_id)))
+            .where(
+                ComplianceMapping.framework_id == f.framework_id,
+                ComplianceMapping.status == "compliant",
+            )
+        )).scalar() or 0
+
+        # Count gap mappings (distinct req_id with status='gap', not already compliant)
+        gap_count = (await db.execute(
+            select(func.count(func.distinct(ComplianceMapping.req_id)))
+            .where(
+                ComplianceMapping.framework_id == f.framework_id,
+                ComplianceMapping.status == "gap",
+                ComplianceMapping.req_id.notin_(
+                    select(ComplianceMapping.req_id).where(
+                        ComplianceMapping.framework_id == f.framework_id,
+                        ComplianceMapping.status == "compliant",
+                    )
+                ),
+            )
+        )).scalar() or 0
+
+        # Check if any assessment has been done at all
+        any_mapped = (await db.execute(
+            select(func.count()).select_from(ComplianceMapping)
+            .where(ComplianceMapping.framework_id == f.framework_id)
+        )).scalar() or 0
+
+        # Status: "partial" means not yet assessed; only show non-compliant if gaps exist
+        if any_mapped == 0:
+            computed_status = "partial"
+        else:
+            computed_status = _framework_status(passed_count, req_count)
+
+        out.append({
+            "framework_id": f.framework_id,
+            "framework_name": f.framework_name,
+            "version": f.version,
+            "description": f.description,
+            "is_active": f.is_active,
+            "controls_total": req_count,
+            "controls_passed": passed_count,
+            "controls_failed": gap_count,
+            "status": computed_status,
+        })
+
+    return out
 
 
 @router.post("/seed")
@@ -92,6 +162,74 @@ async def list_requirements(framework_id: str, db: AsyncSession = Depends(get_db
         select(ComplianceRequirement).where(ComplianceRequirement.framework_id == framework_id)
     )
     return [_fmt_requirement(r) for r in result.scalars().all()]
+
+
+@router.get("/frameworks/{framework_id}/controls")
+async def list_controls(framework_id: str, db: AsyncSession = Depends(get_db)):
+    """Return requirements for a framework enriched with their best mapping status."""
+    fw_result = await db.execute(
+        select(ComplianceFramework).where(ComplianceFramework.framework_id == framework_id)
+    )
+    framework = fw_result.scalar_one_or_none()
+    if not framework:
+        raise HTTPException(404, "Framework not found")
+
+    reqs_result = await db.execute(
+        select(ComplianceRequirement).where(ComplianceRequirement.framework_id == framework_id)
+    )
+    requirements = reqs_result.scalars().all()
+
+    controls = []
+    for req in requirements:
+        # Find the best mapping status for this requirement
+        best_mapping_result = await db.execute(
+            select(ComplianceMapping)
+            .where(
+                ComplianceMapping.framework_id == framework_id,
+                ComplianceMapping.req_id == req.req_id,
+            )
+            .order_by(
+                # compliant > gap > mapped (best status first)
+                ComplianceMapping.status
+            )
+        )
+        mappings = best_mapping_result.scalars().all()
+        # Determine best status: compliant wins, then mapped, then gap
+        status = "not-assessed"
+        rules_mapped = 0
+        last_assessed = None
+        evidence = ""
+        for m in mappings:
+            rules_mapped += 1 if m.rule_id else 0
+            if m.status == "compliant":
+                status = "passed"
+            elif m.status == "mapped" and status != "passed":
+                status = "not-assessed"
+            elif m.status == "gap" and status not in ("passed", "not-assessed"):
+                status = "failed"
+            if m.created_at and (last_assessed is None or m.created_at > last_assessed):
+                last_assessed = m.created_at
+            if m.evidence_note:
+                evidence = m.evidence_note
+
+        # Determine if gap: any gap mapping with no compliant mapping
+        if any(m.status == "gap" for m in mappings) and not any(m.status == "compliant" for m in mappings):
+            status = "failed"
+
+        controls.append({
+            "req_id": req.req_id,
+            "req_code": req.req_code,
+            "req_name": req.req_name,
+            "req_description": req.req_description,
+            "dq_rule_types": req.dq_rule_types,
+            "framework_name": framework.framework_name,
+            "status": status,
+            "rules_mapped": rules_mapped,
+            "last_assessed": last_assessed.isoformat() if last_assessed else None,
+            "evidence": evidence,
+        })
+
+    return controls
 
 
 @router.post("/frameworks/{framework_id}/assess/{asset_id}")
