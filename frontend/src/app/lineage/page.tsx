@@ -437,7 +437,7 @@ export default function LineagePage() {
   const maxY = Math.max(...laidOut.map(n => (n.y ?? 0) + NODE_H)) + 80
 
   const matches = search.trim().length > 0
-    ? laidOut.filter(n => n.label.toLowerCase().includes(search.toLowerCase()) || n.sub.toLowerCase().includes(search.toLowerCase()))
+    ? data.nodes.filter(n => n.label.toLowerCase().includes(search.toLowerCase()) || n.sub.toLowerCase().includes(search.toLowerCase()))
     : []
 
   function selectNode(id: string) {
