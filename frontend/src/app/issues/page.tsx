@@ -27,22 +27,36 @@ const SEV_FILTERS: (IssueSeverity | 'all')[] = ['all', 'critical', 'high', 'medi
 const IN_PROGRESS_STATUSES: IssueStatus[] = ['confirmed', 'in_progress', 'blocked', 'reopened']
 
 const pillStyle = (active: boolean): CSSProperties => ({
-  padding: '4px 10px', fontSize: '11px', borderRadius: '12px', cursor: 'pointer',
+  padding: '3px 9px', fontSize: '10.5px', borderRadius: '12px', cursor: 'pointer',
   border: active ? '1px solid var(--accent)' : '1px solid var(--border)',
   background: active ? 'var(--accent-bg)' : 'transparent',
   color: active ? 'var(--accent)' : 'var(--text-muted)',
-  textTransform: 'capitalize',
+  textTransform: 'capitalize', whiteSpace: 'nowrap',
 })
 
-function buildAssetPath(issue: Issue): string {
+function buildAssetPath(issue: Issue): { full: string; parts: string[] } {
   const parts: string[] = []
   if (issue.connection_name) parts.push(issue.connection_name)
   if (issue.sf_database_name) parts.push(issue.sf_database_name)
   if (issue.sf_schema_name) parts.push(issue.sf_schema_name)
   if (issue.sf_table_name) parts.push(issue.sf_table_name)
-  if (parts.length > 0) return parts.join(' › ')
-  return issue.asset_name || 'Unassigned'
+  if (parts.length === 0 && issue.asset_name) parts.push(issue.asset_name)
+  return { full: parts.join(' › '), parts }
 }
+
+function matchesSearch(issue: Issue, q: string): boolean {
+  if (!q) return true
+  const lower = q.toLowerCase()
+  return (
+    (issue.sf_table_name?.toLowerCase().includes(lower) ?? false) ||
+    (issue.sf_schema_name?.toLowerCase().includes(lower) ?? false) ||
+    (issue.sf_database_name?.toLowerCase().includes(lower) ?? false) ||
+    (issue.connection_name?.toLowerCase().includes(lower) ?? false) ||
+    (issue.asset_name?.toLowerCase().includes(lower) ?? false)
+  )
+}
+
+const COL = '72px 1fr 260px 100px 120px 82px'
 
 export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([])
@@ -50,6 +64,7 @@ export default function IssuesPage() {
   const [error, setError] = useState<string | null>(null)
   const [statusF, setStatusF] = useState<IssueStatus | 'all'>('all')
   const [sevF, setSevF] = useState<IssueSeverity | 'all'>('all')
+  const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Issue | null>(null)
   const [showCreate, setShowCreate] = useState(false)
 
@@ -63,7 +78,8 @@ export default function IssuesPage() {
 
   const filtered = issues.filter(i =>
     (statusF === 'all' || i.status === statusF) &&
-    (sevF === 'all' || i.severity === sevF)
+    (sevF === 'all' || i.severity === sevF) &&
+    matchesSearch(i, search)
   )
 
   const counts = {
@@ -83,64 +99,99 @@ export default function IssuesPage() {
   ]
 
   return (
-    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
+      {/* Title + Create */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, margin: 0, color: 'var(--foreground)' }}>Issues</h1>
         <button
           onClick={() => setShowCreate(true)}
-          style={{ padding: '7px 14px', fontSize: '12px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', cursor: 'pointer', fontWeight: 600 }}
+          style={{ padding: '6px 13px', fontSize: '12px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: 'var(--accent-text)', cursor: 'pointer', fontWeight: 600 }}
         >
           + Create Issue
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px' }}>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
         {CARDS.map(c => (
-          <div key={c.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px' }}>
-            <div style={{ fontSize: '10px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>{c.label}</div>
-            <div style={{ fontSize: '22px', fontWeight: 700, color: c.color }}>{c.value}</div>
+          <div key={c.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
+            <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>{c.label}</div>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: c.color }}>{c.value}</div>
           </div>
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {/* Filters + Search */}
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+        {/* Source search */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <svg style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4, pointerEvents: 'none' }} width="13" height="13" viewBox="0 0 20 20" fill="none">
+            <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="2"/>
+            <path d="M13 13l3.5 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by table, schema, database…"
+            style={{
+              paddingLeft: '28px', paddingRight: '10px', paddingTop: '5px', paddingBottom: '5px',
+              fontSize: '11.5px', borderRadius: '6px', border: '1px solid var(--border)',
+              background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', width: '230px',
+            }}
+          />
+        </div>
+
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+
+        {/* Status pills */}
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
           {STATUS_FILTERS.map(s => (
             <button key={s} onClick={() => setStatusF(s)} style={pillStyle(statusF === s)}>
               {s === 'all' ? 'All Statuses' : ST_CFG[s].label}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', flexShrink: 0 }} />
+
+        {/* Severity pills */}
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
           {SEV_FILTERS.map(s => (
             <button key={s} onClick={() => setSevF(s)} style={pillStyle(sevF === s)}>
-              {s === 'all' ? 'All Severities' : SEV_CFG[s].label}
+              {s === 'all' ? 'All Sev.' : SEV_CFG[s].label}
             </button>
           ))}
         </div>
+
+        {(search || statusF !== 'all' || sevF !== 'all') && (
+          <button
+            onClick={() => { setSearch(''); setStatusF('all'); setSevF('all') }}
+            style={{ fontSize: '10.5px', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '3px 6px', borderRadius: '4px' }}
+          >
+            Clear ✕
+          </button>
+        )}
       </div>
 
+      {/* Table */}
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Loading issues…</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>Loading issues…</div>
       ) : error ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--status-error-text)', fontSize: '13px' }}>{error}</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--status-error-text)', fontSize: '12px' }}>{error}</div>
       ) : filtered.length === 0 ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>No issues yet</div>
+        <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+          {issues.length === 0 ? 'No issues yet' : 'No issues match the current filters'}
+        </div>
       ) : (
         <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
           {/* Header */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: '80px 1fr 280px 110px 130px 90px',
-            gap: '8px',
-            padding: '8px 12px',
-            background: 'var(--surface-muted)',
-            borderBottom: '1px solid var(--border)',
-            fontSize: '10px',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.05em',
+            display: 'grid', gridTemplateColumns: COL, gap: '8px',
+            padding: '6px 12px',
+            background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)',
+            fontSize: '9.5px', fontWeight: 700, color: 'var(--text-muted)',
+            textTransform: 'uppercase', letterSpacing: '0.06em',
           }}>
             <span>Severity</span>
             <span>Issue</span>
@@ -149,44 +200,62 @@ export default function IssuesPage() {
             <span>Assigned To</span>
             <span style={{ textAlign: 'right' }}>Created</span>
           </div>
+
           {/* Rows */}
           {filtered.map((issue, idx) => {
             const sev = SEV_CFG[issue.severity]
             const st = ST_CFG[issue.status]
-            const assetPath = buildAssetPath(issue)
+            const { full: assetPath, parts } = buildAssetPath(issue)
+            const tableName = parts[parts.length - 1] ?? assetPath
+            const prefix = parts.slice(0, -1).join(' › ')
+
             return (
               <div
                 key={issue.issue_id}
                 onClick={() => setSelected(issue)}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: '80px 1fr 280px 110px 130px 90px',
-                  gap: '8px',
-                  alignItems: 'center',
-                  padding: '9px 12px',
+                  display: 'grid', gridTemplateColumns: COL, gap: '8px',
+                  alignItems: 'center', padding: '7px 12px',
                   borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface-muted)' : 'none',
-                  cursor: 'pointer',
-                  background: 'var(--surface)',
+                  cursor: 'pointer', background: 'var(--surface)',
                 }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-hover, var(--accent-bg))')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
               >
-                <span style={{ background: sev.bg, color: sev.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {/* Severity */}
+                <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>
                   {sev.label}
                 </span>
-                <span style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+                {/* Issue title */}
+                <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={issue.title}>
                   {issue.title}
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }} title={assetPath}>
-                  {assetPath}
-                </span>
-                <span style={{ background: st.bg, color: st.color, padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+
+                {/* Source — prefix dimmed, table name bold */}
+                <div style={{ overflow: 'hidden', display: 'flex', alignItems: 'baseline', gap: '2px', minWidth: 0 }} title={assetPath}>
+                  {prefix && (
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', flexShrink: 1, minWidth: 0 }}>
+                      {prefix} ›
+                    </span>
+                  )}
+                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', fontFamily: 'monospace', flexShrink: 0 }}>
+                    {tableName}
+                  </span>
+                </div>
+
+                {/* Status */}
+                <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>
                   {st.label}
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+
+                {/* Assigned */}
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {issue.assigned_to || issue.assigned_team_name || '—'}
                 </span>
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+
+                {/* Date */}
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
                   {new Date(issue.created_at).toLocaleDateString()}
                 </span>
               </div>
