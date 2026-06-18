@@ -56,7 +56,7 @@ function matchesSearch(issue: Issue, q: string): boolean {
   )
 }
 
-const COL = '72px 1fr 260px 100px 120px 82px'
+const COL = '72px 1fr 220px 100px 120px 82px'
 
 export default function IssuesPage() {
   const [issues, setIssues] = useState<Issue[]>([])
@@ -215,7 +215,7 @@ export default function IssuesPage() {
                 onClick={() => setSelected(issue)}
                 style={{
                   display: 'grid', gridTemplateColumns: COL, gap: '8px',
-                  alignItems: 'center', padding: '7px 12px',
+                  alignItems: 'start', padding: '7px 12px',
                   borderBottom: idx < filtered.length - 1 ? '1px solid var(--surface-muted)' : 'none',
                   cursor: 'pointer', background: 'var(--surface)',
                 }}
@@ -223,39 +223,39 @@ export default function IssuesPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
               >
                 {/* Severity */}
-                <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                <span style={{ background: sev.bg, color: sev.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', marginTop: '1px' }}>
                   {sev.label}
                 </span>
 
                 {/* Issue title */}
-                <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={issue.title}>
+                <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingTop: '1px' }} title={issue.title}>
                   {issue.title}
                 </span>
 
-                {/* Source — prefix dimmed, table name bold */}
-                <div style={{ overflow: 'hidden', display: 'flex', alignItems: 'baseline', gap: '2px', minWidth: 0 }} title={assetPath}>
-                  {prefix && (
-                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontFamily: 'monospace', flexShrink: 1, minWidth: 0 }}>
-                      {prefix} ›
-                    </span>
-                  )}
-                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', fontFamily: 'monospace', flexShrink: 0 }}>
+                {/* Source — table name + breadcrumb on second line */}
+                <div style={{ minWidth: 0, overflow: 'hidden' }} title={assetPath}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {tableName}
-                  </span>
+                  </div>
+                  {prefix && (
+                    <div style={{ fontSize: '9.5px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '1px' }}>
+                      {prefix}
+                    </div>
+                  )}
                 </div>
 
                 {/* Status */}
-                <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                <span style={{ background: st.bg, color: st.color, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', marginTop: '1px' }}>
                   {st.label}
                 </span>
 
                 {/* Assigned */}
-                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingTop: '1px' }}>
                   {issue.assigned_to || issue.assigned_team_name || '—'}
                 </span>
 
                 {/* Date */}
-                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', textAlign: 'right', whiteSpace: 'nowrap', paddingTop: '1px' }}>
                   {new Date(issue.created_at).toLocaleDateString()}
                 </span>
               </div>
