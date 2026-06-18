@@ -308,6 +308,7 @@ export default function LineagePage() {
   // Load columns for the visible chain only, once a table is selected (lazy)
   useEffect(() => {
     if (!selected || visibleNodes.length === 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAllTableColumns(new Map())
       setColumnEdges([])
       return
@@ -371,7 +372,7 @@ export default function LineagePage() {
     const nodes = [...visited.values()]
     if (nodes.length <= 1) {
       // No resolved backend lineage for this column — graceful single-node fallback
-      const node = nodeMap.get(selected)
+      const node = rawNodeMap.get(selected)
       return {
         tables: new Set([selected]),
         edges: [],
@@ -391,7 +392,7 @@ export default function LineagePage() {
       const k = pairKey(cur)
       if (pathVisited.has(k)) continue
       pathVisited.add(k)
-      const node = nodeMap.get(cur.tableId)
+      const node = rawNodeMap.get(cur.tableId)
       if (node) {
         const role = !hasIncoming(cur) ? 'origin' : hasOutgoing(cur) ? 'passthrough' : 'consumer'
         path.push({ tableId: cur.tableId, label: node.label, column: cur.column, role })
@@ -405,7 +406,7 @@ export default function LineagePage() {
     }
     for (const n of nodes) {
       if (!pathVisited.has(pairKey(n))) {
-        const node = nodeMap.get(n.tableId)
+        const node = rawNodeMap.get(n.tableId)
         if (node) path.push({ tableId: n.tableId, label: node.label, column: n.column, role: 'reference' })
       }
     }
@@ -415,7 +416,7 @@ export default function LineagePage() {
       edges: visitedEdges.map(e => ({ from: e.fromAssetId, to: e.toAssetId })),
       path,
     }
-  }, [selectedColumn, selected, columnEdges, data, nodeMap])
+  }, [selectedColumn, selected, columnEdges, data, rawNodeMap])
 
   if (loading) {
     return (
