@@ -36,15 +36,13 @@ async def list_audit_logs(
     if action:
         q = q.where(AuditLog.action == action)
 
-    total_res = await db.execute(
-        select(func.count()).select_from(AuditLog)
-        .where(*[c for c in q.whereclause.clauses] if hasattr(q, 'whereclause') and q.whereclause is not None else [])
-    )
+    count_res = await db.execute(select(func.count()).select_from(q.subquery()))
+    total = count_res.scalar_one()
 
     result = await db.execute(q.order_by(desc(AuditLog.created_at)).limit(limit).offset(offset))
     logs = result.scalars().all()
     return {
-        "total": len(logs),
+        "total": total,
         "limit": limit,
         "offset": offset,
         "logs": [

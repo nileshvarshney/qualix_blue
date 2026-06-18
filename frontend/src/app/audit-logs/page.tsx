@@ -10,16 +10,51 @@ interface AuditLog {
 }
 
 const catColor: Record<string, { bg: string; color: string }> = {
-  connection: { bg: '#eff6ff', color: '#2563eb' }, rule: { bg: '#f5f3ff', color: '#7c3aed' },
-  schedule:   { bg: '#f0fdf4', color: '#16a34a' }, alert: { bg: '#fee2e2', color: '#dc2626' },
-  auth:       { bg: '#fff7ed', color: '#ea580c' }, report: { bg: '#fef9c3', color: '#ca8a04' },
-  contract:   { bg: '#f0fdfa', color: '#0d9488' }, sla: { bg: '#fdf4ff', color: '#a21caf' },
-  anomaly:    { bg: '#fff1f2', color: '#e11d48' },
+  connection: { bg: '#eff6ff', color: '#2563eb' }, rule:      { bg: '#f5f3ff', color: '#7c3aed' },
+  schedule:   { bg: '#f0fdf4', color: '#16a34a' }, alert:     { bg: '#fee2e2', color: '#dc2626' },
+  auth:       { bg: '#fff7ed', color: '#ea580c' }, report:    { bg: '#fef9c3', color: '#ca8a04' },
+  contract:   { bg: '#f0fdfa', color: '#0d9488' }, sla:       { bg: '#fdf4ff', color: '#a21caf' },
+  anomaly:    { bg: '#fff1f2', color: '#e11d48' }, issue:     { bg: '#fef9c3', color: '#b45309' },
+  asset:      { bg: '#eff6ff', color: '#1d4ed8' }, domain:    { bg: '#f0fdf4', color: '#15803d' },
+  glossary:   { bg: '#fdf4ff', color: '#7e22ce' }, team:      { bg: '#fff7ed', color: '#c2410c' },
+  user:       { bg: '#f0fdfa', color: '#0f766e' }, ownership: { bg: '#fef3c7', color: '#92400e' },
 }
-const avatarColors: Record<string, string> = {
-  'Bhaskar R.': '#6366f1', 'Priya M.': '#ec4899',
-  'Rajan S.': '#f59e0b',   'Anil K.': '#10b981', 'System': '#94a3b8',
+
+const AVATAR_PALETTE = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#14b8a6']
+function avatarColor(user: string) {
+  if (user === 'System') return '#94a3b8'
+  let h = 0
+  for (let i = 0; i < user.length; i++) h = (h * 31 + user.charCodeAt(i)) >>> 0
+  return AVATAR_PALETTE[h % AVATAR_PALETTE.length]
 }
+
+function userInitials(user: string) {
+  if (user === 'System') return '⚙'
+  if (user.includes('@')) return user.split('@')[0].slice(0, 2).toUpperCase()
+  return user.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
+}
+
+function shortId(id: string) {
+  const clean = id.replace(/-/g, '')
+  return clean.length > 8 ? clean.slice(0, 8) : clean
+}
+
+function fmtTime(ts: string) {
+  if (!ts) return '—'
+  try {
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z')
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+  } catch { return ts }
+}
+
+function tsToDay(ts: string) {
+  try {
+    const d = new Date(ts.includes('Z') || ts.includes('+') ? ts : ts + 'Z')
+    return d.toISOString().slice(0, 10)
+  } catch { return '' }
+}
+
+const COL = '150px 110px 1fr 148px 72px'
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -27,6 +62,8 @@ export default function AuditLogsPage() {
   const [filter, setFilter] = useState<FilterType>('all')
   const [category, setCategory] = useState('all')
   const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo]     = useState('')
   const [popup, setPopup] = useState<AuditLog | null>(null)
 
   useEffect(() => {
@@ -34,39 +71,53 @@ export default function AuditLogsPage() {
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
-        setLogs(items.map((l: Record<string, unknown>, i: number) => ({
-          id: String(l.audit_id ?? l.id ?? i),
-          user: String(l.user_name ?? l.user ?? 'System'),
-          action: String(l.action ?? l.action_type ?? ''),
-          resource: String(l.resource ?? l.resource_name ?? ''),
-          ip: String(l.ip_address ?? l.ip ?? 'internal'),
-          ts: String(l.created_at ?? l.ts ?? l.timestamp ?? ''),
-          category: String(l.category ?? l.event_type ?? 'system'),
-          result: l.result === 'failed' || l.status === 'failed' ? 'failed' : 'success',
-          detail: String(l.detail ?? l.description ?? ''),
-          context: String(l.context ?? l.notes ?? ''),
-          sessionId: String(l.session_id ?? l.sessionId ?? ''),
-          duration: l.duration_ms ? `${l.duration_ms}ms` : String(l.duration ?? ''),
-        })))
+        setLogs(items.map((l: Record<string, unknown>, i: number) => {
+          const entityType = String(l.entity_type ?? '')
+          const entityId   = String(l.entity_id ?? '')
+          const resourceStr = l.resource ?? l.resource_name
+            ?? (entityId ? `${entityType}/${entityId}` : entityType)
+
+          let detail = String(l.detail ?? l.description ?? '')
+          if (!detail) {
+            const parts: string[] = []
+            if (l.old_value && typeof l.old_value === 'object')
+              parts.push(`Before: ${JSON.stringify(l.old_value)}`)
+            if (l.new_value && typeof l.new_value === 'object')
+              parts.push(`After: ${JSON.stringify(l.new_value)}`)
+            detail = parts.join('\n')
+          }
+
+          return {
+            id: String(l.audit_id ?? l.id ?? i),
+            user: String(l.user_email ?? l.user_name ?? l.user ?? 'System'),
+            action: String(l.action ?? l.action_type ?? ''),
+            resource: String(resourceStr),
+            ip: String(l.ip_address ?? l.ip ?? 'internal'),
+            ts: String(l.created_at ?? l.ts ?? l.timestamp ?? ''),
+            category: String(l.entity_type ?? l.category ?? l.event_type ?? 'system'),
+            result: l.result === 'failed' || l.status === 'failed' ? 'failed' : 'success',
+            detail,
+            context: String(l.context ?? l.notes ?? ''),
+            sessionId: String(l.session_id ?? l.sessionId ?? ''),
+            duration: l.duration_ms ? `${l.duration_ms}ms` : String(l.duration ?? ''),
+          }
+        }))
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [])
 
-  const categories    = ['all', ...Array.from(new Set(logs.map(l => l.category)))]
-  const failedEvents  = logs.filter(l => l.result === 'failed').length
-  const usersActive   = new Set(logs.filter(l => l.user !== 'System').map(l => l.user)).size
-  const systemEvents  = logs.filter(l => l.user === 'System').length
+  const categories   = ['all', ...Array.from(new Set(logs.map(l => l.category)))]
+  const failedEvents = logs.filter(l => l.result === 'failed').length
+  const usersActive  = new Set(logs.filter(l => l.user !== 'System').map(l => l.user)).size
+  const systemEvents = logs.filter(l => l.user === 'System').length
 
   function exportAuditCsv(rows: typeof filtered) {
     const headers = ['Timestamp', 'User', 'Action', 'Resource', 'Category', 'Result', 'IP']
-    const lines = rows.map(r => [
-      r.ts ?? '', r.user ?? '', r.action ?? '', r.resource ?? '',
-      r.category ?? '', r.result ?? '', r.ip ?? '',
-    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
-    const csv = [headers.join(','), ...lines].join('\n')
+    const lines = rows.map(r => [r.ts, r.user, r.action, r.resource, r.category, r.result, r.ip]
+      .map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
     const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+    a.href = URL.createObjectURL(new Blob([[headers.join(','), ...lines].join('\n')], { type: 'text/csv' }))
     a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
@@ -79,7 +130,9 @@ export default function AuditLogsPage() {
       filter === 'user'   ? l.user !== 'System' : true
     const matchCat    = category === 'all' || l.category === category
     const matchSearch = !search || [l.user, l.action, l.resource].some(v => v.toLowerCase().includes(search.toLowerCase()))
-    return matchFilter && matchCat && matchSearch
+    const day = tsToDay(l.ts)
+    const matchDate   = (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo)
+    return matchFilter && matchCat && matchSearch && matchDate
   })
 
   return (
@@ -106,22 +159,38 @@ export default function AuditLogsPage() {
         </select>
       </div>
 
-      {/* filter pills */}
-      <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+      {/* filter pills + date range */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
         {(['all','user','system','failed'] as FilterType[]).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-            background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
-            color: filter === f ? '#fff' : 'var(--text-secondary)',
+            background: filter === f ? 'var(--foreground)' : 'var(--surface-muted)',
+            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
             fontWeight: filter === f ? 600 : 400, fontSize: '11px',
           }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Date range:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '3px 6px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer' }} />
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '3px 6px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer' }} />
+          {(dateFrom || dateTo) && (
+            <button onClick={() => { setDateFrom(''); setDateTo('') }}
+              style={{ padding: '3px 7px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              ✕ Clear
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* column header */}
+      {/* column headers */}
       {!loading && filtered.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '24px 90px auto 1fr 70px auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['', 'User', 'Category', 'Action · Resource', 'Time', 'Result'].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
+        <div style={{ display: 'grid', gridTemplateColumns: COL, gap: '0 12px', padding: '0 10px 5px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
+          {['User', 'Action', 'Entity', 'Date & Time', 'Status'].map((h, i) => (
+            <span key={i} style={{ fontSize: '9px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{h}</span>
+          ))}
         </div>
       )}
 
@@ -132,44 +201,71 @@ export default function AuditLogsPage() {
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{logs.length === 0 ? 'No audit logs yet' : 'No events match filters'}</div>
         )}
         {!loading && filtered.map(l => {
-          const cc = catColor[l.category] ?? { bg: '#f8fafc', color: '#64748b' }
+          const cc     = catColor[l.category] ?? { bg: '#f1f5f9', color: '#64748b' }
           const isFail = l.result === 'failed'
-          const avatarColor = avatarColors[l.user] ?? '#64748b'
-          const initials = l.user === 'System' ? '⚙' : l.user.split(' ').map((w: string) => w[0]).join('').slice(0, 2)
+
+          // "issue/abc123-de..." → entityLabel="issue", entityShort="ab12cd34"
+          const slash = l.resource.indexOf('/')
+          const entityLabel = slash >= 0 ? l.resource.slice(0, slash) : l.resource
+          const entityShort = slash >= 0 ? shortId(l.resource.slice(slash + 1)) : ''
+
           return (
             <div key={l.id} onClick={() => setPopup(l)}
-              style={{ display: 'grid', gridTemplateColumns: '24px 90px auto 1fr 70px auto', gap: '0 8px', alignItems: 'center', padding: '4px 6px', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${isFail ? '#fca5a5' : 'transparent'}`, cursor: 'pointer' }}
+              style={{
+                display: 'grid', gridTemplateColumns: COL, gap: '0 12px',
+                alignItems: 'center', padding: '5px 10px',
+                borderBottom: '1px solid var(--surface-muted)',
+                borderLeft: `3px solid ${isFail ? '#fca5a5' : 'transparent'}`,
+                cursor: 'pointer',
+              }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
             >
-              <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: avatarColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: l.user === 'System' ? '11px' : '9px', fontWeight: 700, flexShrink: 0 }}>{initials}</div>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.user}</span>
-              <span style={{ background: cc.bg, color: cc.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600, whiteSpace: 'nowrap' }}>{l.category}</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <strong style={{ color: 'var(--foreground)' }}>{l.action}</strong>{l.resource ? ` · ${l.resource}` : ''}
+              {/* user */}
+              <span style={{ fontSize: '11px', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.user}</span>
+
+              {/* action */}
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--foreground)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.action.replace(/_/g, ' ')}</span>
+
+              {/* entity: colored badge + short ID */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                <span style={{ background: cc.bg, color: cc.color, padding: '2px 7px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {entityLabel || l.category}
+                </span>
+                {entityShort && (
+                  <span style={{ fontSize: '10.5px', color: 'var(--text-muted)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    #{entityShort}
+                  </span>
+                )}
+              </div>
+
+              {/* time */}
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTime(l.ts)}</span>
+
+              {/* status */}
+              <span style={{ background: isFail ? '#fee2e2' : '#f0fdf4', color: isFail ? '#dc2626' : '#16a34a', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                {isFail ? '✕ Failed' : '✓ OK'}
               </span>
-              <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{l.ts}</span>
-              <span style={{ background: isFail ? '#fee2e2' : '#f0fdf4', color: isFail ? '#dc2626' : '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600 }}>{isFail ? '✕ failed' : '✓ ok'}</span>
             </div>
           )
         })}
       </div>
 
-      {/* popup */}
+      {/* detail drawer */}
       {popup && (
         <>
           <div onClick={() => setPopup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popup.action}</span>
-              <span style={{ background: popup.result === 'failed' ? '#fee2e2' : '#f0fdf4', color: popup.result === 'failed' ? '#dc2626' : '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.result}</span>
+              <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, textTransform: 'capitalize' }}>{popup.action.replace(/_/g, ' ')}</span>
+              <span style={{ background: popup.result === 'failed' ? '#fee2e2' : '#f0fdf4', color: popup.result === 'failed' ? '#dc2626' : '#16a34a', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.result}</span>
               <button onClick={() => setPopup(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
               {([['User', popup.user], ['IP Address', popup.ip], ['Category', popup.category]] as [string, string][]).map(([lbl, val], i) => (
                 <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{lbl}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', fontFamily: lbl === 'IP Address' ? 'monospace' : 'inherit' }}>{val || '—'}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', fontFamily: lbl === 'IP Address' ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{val || '—'}</div>
                 </div>
               ))}
             </div>
@@ -177,7 +273,7 @@ export default function AuditLogsPage() {
               {([['Session ID', popup.sessionId], ['Duration', popup.duration], ['Timestamp', popup.ts]] as [string, string][]).map(([lbl, val], i) => (
                 <div key={i} style={{ padding: '6px 8px', borderRight: i < 2 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)' }}>{lbl}</div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', fontFamily: lbl === 'Session ID' ? 'monospace' : 'inherit' }}>{val || '—'}</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '1px', fontFamily: lbl === 'Session ID' ? 'monospace' : 'inherit', wordBreak: 'break-all' }}>{val || '—'}</div>
                 </div>
               ))}
             </div>
@@ -185,15 +281,15 @@ export default function AuditLogsPage() {
               {popup.detail && (
                 <div style={{ borderRadius: '8px', overflow: 'hidden', border: `1px solid ${popup.result === 'failed' ? '#fca5a5' : '#e0e7ff'}` }}>
                   <div style={{ background: popup.result === 'failed' ? '#fee2e2' : 'linear-gradient(90deg,#eef2ff,#f5f3ff)', padding: '7px 12px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '11px', color: popup.result === 'failed' ? '#dc2626' : '#4338ca', letterSpacing: '0.04em' }}>{popup.result === 'failed' ? '🚨 EVENT DETAIL' : '📝 EVENT DETAIL'}</span>
+                    <span style={{ fontWeight: 700, fontSize: '11px', color: popup.result === 'failed' ? '#dc2626' : '#4338ca', letterSpacing: '0.04em' }}>EVENT DETAIL</span>
                   </div>
-                  <div style={{ padding: '10px 12px', fontSize: '12px', color: '#1e293b', lineHeight: '1.6' }}>{popup.detail}</div>
+                  <pre style={{ padding: '10px 12px', fontSize: '11.5px', color: 'var(--foreground)', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace' }}>{popup.detail}</pre>
                 </div>
               )}
               {popup.context && (
                 <div style={{ borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                   <div style={{ background: 'var(--surface-muted)', padding: '7px 12px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '11px', color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>💬 CONTEXT</span>
+                    <span style={{ fontWeight: 700, fontSize: '11px', color: 'var(--text-secondary)', letterSpacing: '0.04em' }}>CONTEXT</span>
                   </div>
                   <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{popup.context}</div>
                 </div>
