@@ -301,6 +301,10 @@ def create_tables():
             "ALTER TABLE column_metadata ADD COLUMN default_value TEXT",
             "ALTER TABLE column_metadata ADD COLUMN is_partition_key BOOLEAN DEFAULT FALSE",
             "ALTER TABLE column_metadata ADD COLUMN partition_key_index INTEGER",
+            # glossary_terms approval workflow fields
+            "ALTER TABLE glossary_terms ADD COLUMN reviewed_by VARCHAR(200)",
+            "ALTER TABLE glossary_terms ADD COLUMN review_note TEXT",
+            "ALTER TABLE glossary_terms ADD COLUMN reviewed_at TIMESTAMP_NTZ",
         ])
         conn.commit()
 
