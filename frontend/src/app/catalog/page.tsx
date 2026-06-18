@@ -1,6 +1,8 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import { Database, Layers, Table2, Eye } from 'lucide-react'
 import AssetDetailDrawer, { Asset } from '@/components/asset-registry/AssetDetailDrawer'
+import { connectionIcons } from '@/lib/utils'
 
 const critColor = (c?: string) =>
   c === 'high' ? 'var(--status-error-text)' : c === 'medium' ? 'var(--status-warn-text)' : 'var(--text-muted)'
@@ -39,7 +41,10 @@ function TableRow({ asset, onClick }: { asset: Asset; onClick: () => void }) {
         cursor: 'pointer',
       }}
     >
-      <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+        {asset.table_type?.toLowerCase() === 'view'
+          ? <Eye size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+          : <Table2 size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />}
         {asset.sf_table_name ?? '—'}
       </span>
       <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -61,6 +66,20 @@ export default function CatalogPage() {
   const [search, setSearch] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [popup, setPopup] = useState<Asset | null>(null)
+  const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    fetch('/api/connections')
+      .then(r => r.json())
+      .then((conns: { name: string; type: string }[]) => {
+        if (Array.isArray(conns)) {
+          const map: Record<string, string> = {}
+          for (const c of conns) if (c.name && c.type) map[c.name] = c.type.toLowerCase()
+          setConnTypeMap(map)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     fetch('/api/catalog')
@@ -176,7 +195,7 @@ export default function CatalogPage() {
                 onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
               >
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', width: '10px' }}>{connOpen ? '▼' : '▶'}</span>
-                <span style={{ fontSize: '13px' }}>🔗</span>
+                <span style={{ fontSize: '13px' }}>{connectionIcons[connTypeMap[conn]] ?? '🔌'}</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>{conn}</span>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px' }}>{connTotal} tables</span>
               </div>
@@ -195,7 +214,7 @@ export default function CatalogPage() {
                       onMouseLeave={e => (e.currentTarget.style.background = 'var(--background)')}
                     >
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)', width: '10px' }}>{dbOpen ? '▼' : '▶'}</span>
-                      <span style={{ fontSize: '12px' }}>📦</span>
+                      <Database size={13} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
                       <span style={{ fontFamily: 'monospace', fontSize: '11.5px', fontWeight: 700, color: 'var(--foreground)' }}>{db}</span>
                       <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px' }}>{dbTotal} tables</span>
                     </div>
@@ -213,7 +232,7 @@ export default function CatalogPage() {
                             onMouseLeave={e => (e.currentTarget.style.background = 'var(--background)')}
                           >
                             <span style={{ fontSize: '10px', color: 'var(--text-muted)', width: '10px' }}>{schemaOpen ? '▼' : '▶'}</span>
-                            <span style={{ fontSize: '12px' }}>📁</span>
+                            <Layers size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                             <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)' }}>{schema}</span>
                             <span style={{ fontSize: '10px', color: 'var(--text-muted)', marginLeft: '4px' }}>{tables.length} tables</span>
                           </div>
