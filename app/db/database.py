@@ -165,7 +165,11 @@ async def _resume_warehouse(session: Session) -> None:
             text(f"ALTER WAREHOUSE {settings.sf_platform_warehouse} RESUME IF SUSPENDED"),
         )
     except Exception as e:
-        _log.debug("Warehouse auto-resume skipped (%s): %s", type(e).__name__, e)
+        _log.error(
+            "Failed to auto-resume warehouse %s — queries will fail until it is resumed "
+            "manually (ALTER WAREHOUSE %s RESUME): %s: %s",
+            settings.sf_platform_warehouse, settings.sf_platform_warehouse, type(e).__name__, e,
+        )
 
 
 async def get_db():
