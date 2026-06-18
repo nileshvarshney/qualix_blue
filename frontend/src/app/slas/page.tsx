@@ -37,6 +37,12 @@ function MiniTrend({ data, color, h = 28 }: { data: number[]; color: string; h?:
 
 const COLS = '1fr 110px 72px 88px 62px 68px 40px 78px 80px auto'
 
+function mapSlaStatus(s: unknown): SLAStatus {
+  if (s === 'violated' || s === 'breached') return 'breached'
+  if (s === 'draft' || s === 'warning' || s === 'at-risk') return 'at-risk'
+  return 'healthy'
+}
+
 export default function SLAsPage() {
   const [filter, setFilter]   = useState<FilterType>('all')
   const [selected, setSelected] = useState<SLA | null>(null)
@@ -60,12 +66,12 @@ export default function SLAsPage() {
           name: String(s.contract_name ?? s.name ?? ''),
           dataset: String(s.dataset ?? s.asset_name ?? ''),
           type: String(s.type ?? s.sla_type ?? 'Freshness'),
-          target: String(s.target ?? ''),
+          target: String(s.sla_description ?? s.target ?? ''),
           current: String(s.current ?? 'Pending'),
-          adherence: Number(s.adherence ?? s.compliance ?? 100),
-          status: (s.status as SLAStatus) ?? 'healthy',
-          owner: String(s.owner ?? ''),
-          connection: String(s.connection ?? ''),
+          adherence: Number(s.adherence ?? s.compliance ?? s.min_quality_score ?? 100),
+          status: mapSlaStatus(s.status),
+          owner: String(s.producer_team ?? s.owner ?? ''),
+          connection: String(s.asset_name ?? s.connection ?? ''),
           domain: String(s.domain ?? ''),
           breaches: Number(s.breaches ?? 0),
           trend: Array.isArray(s.trend) ? s.trend as number[] : [100, 100, 100, 100, 100, 100, 100],
