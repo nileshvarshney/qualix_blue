@@ -52,25 +52,31 @@ export default function ContractsPage() {
   const [hoverId, setHoverId]     = useState<string | null>(null)
   const [cForm, setCForm]         = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
 
+  const mapStatus = (s: unknown): ContractStatus => {
+    if (s === 'violated' || s === 'breached') return 'breached'
+    if (s === 'warning') return 'warning'
+    return 'active'
+  }
+
   useEffect(() => {
-    fetch('/api/slas')
+    fetch('/api/contracts')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
         setAllContracts(items.map((c: Record<string, unknown>, i: number) => ({
           id: String(c.contract_id ?? c.id ?? i),
           name: String(c.contract_name ?? c.name ?? ''),
-          producer: String(c.producer ?? c.source_dataset ?? ''),
-          consumer: String(c.consumer ?? c.target_dataset ?? ''),
-          owner: String(c.owner ?? ''),
-          status: (c.status as ContractStatus) ?? 'active',
+          producer: String(c.producer_team ?? c.producer ?? c.source_dataset ?? ''),
+          consumer: String(c.consumer_team ?? c.consumer ?? c.target_dataset ?? ''),
+          owner: String(c.created_by ?? c.owner ?? ''),
+          status: mapStatus(c.status),
           compliance: Number(c.compliance ?? c.adherence ?? 100),
           checks: Number(c.checks ?? c.check_count ?? 0),
           failures: Number(c.failures ?? c.failure_count ?? 0),
           created: String(c.created_at ?? c.created ?? ''),
-          connection: String(c.connection ?? ''),
-          description: String(c.description ?? ''),
-          sla: String(c.sla ?? c.sla_target ?? ''),
+          connection: String(c.asset_name ?? c.asset_id ?? c.connection ?? ''),
+          description: String(c.sla_description ?? c.description ?? ''),
+          sla: String(c.sla_description ?? c.sla ?? c.sla_target ?? ''),
           terms: Array.isArray(c.terms) ? c.terms as Contract['terms'] : [],
           breachReason: c.breach_reason ? String(c.breach_reason) : undefined,
           breachImpact: c.breach_impact ? String(c.breach_impact) : undefined,
@@ -83,19 +89,27 @@ export default function ContractsPage() {
       .catch(() => setLoading(false))
   }, [])
 
+  const [addError, setAddError] = useState<string | null>(null)
+
   const addContract = async () => {
-    if (!cForm.name) return
+    if (!cForm.name || !cForm.connection) return
+    setAddError(null)
     const payload = {
       contract_name: cForm.name, producer_team: cForm.producer || null,
       consumer_team: cForm.consumer || null, sla_description: cForm.sla,
-      description: cForm.description, status: 'active',
-      asset_id: cForm.connection || null,
+      status: 'active',
+      asset_id: cForm.connection,
     }
     try {
-      const res = await fetch('/api/slas', {
+      const res = await fetch('/api/contracts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setAddError(err.detail ?? err.error ?? 'Failed to create contract')
+        return
+      }
       const created = await res.json()
       const nc: Contract = {
         id: String(created.contract_id ?? `ct${Date.now()}`), name: cForm.name,
@@ -106,17 +120,11 @@ export default function ContractsPage() {
         terms: [], lastChecked: 'Never', trend: '— New',
       }
       setAllContracts(prev => [nc, ...prev])
+      setShowAdd(false)
+      setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
     } catch {
-      setAllContracts(prev => [{
-        id: `ct${Date.now()}`, name: cForm.name, producer: cForm.producer, consumer: cForm.consumer,
-        owner: cForm.owner || 'Unassigned', status: 'active', compliance: 100,
-        checks: 0, failures: 0, created: new Date().toISOString().split('T')[0],
-        connection: cForm.connection, description: cForm.description, sla: cForm.sla,
-        terms: [], lastChecked: 'Never', trend: '— New',
-      }, ...prev])
+      setAddError('Network error — contract not saved')
     }
-    setShowAdd(false)
-    setCForm({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
   }
 
   const total    = allContracts.length
@@ -291,32 +299,36 @@ export default function ContractsPage() {
         </>
       )}
 
-      {/* New Contract Modal — unchanged from original */}
+      {/* New Contract Modal */}
       {showAdd && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowAdd(false)} />
+          <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.3)' }} onClick={() => { setShowAdd(false); setAddError(null) }} />
           <div style={{ background: '#fff', borderRadius: '14px', width: '520px', maxHeight: '85vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative', zIndex: 1 }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df' }}>
               <div style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a1a' }}>New Data Contract</div>
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>Define an agreement between data producer and consumer</div>
             </div>
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {addError && (
+                <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '6px', fontSize: '12px', color: '#dc2626' }}>{addError}</div>
+              )}
               <div>
                 <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Contract Name *</label>
                 <input value={cForm.name} onChange={e => setCForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Orders → Revenue Model" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
               </div>
               <div>
-                <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Description</label>
-                <textarea value={cForm.description} onChange={e => setCForm(f => ({ ...f, description: e.target.value }))} rows={2} placeholder="What this contract enforces..." style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' }} />
+                <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Asset ID *</label>
+                <input value={cForm.connection} onChange={e => setCForm(f => ({ ...f, connection: e.target.value }))} placeholder="Paste asset UUID from Asset Registry" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px' }}>Find asset IDs in the Asset Registry or Catalog pages</div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div>
-                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Producer *</label>
-                  <input value={cForm.producer} onChange={e => setCForm(f => ({ ...f, producer: e.target.value }))} placeholder="source table or dataset" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Producer Team</label>
+                  <input value={cForm.producer} onChange={e => setCForm(f => ({ ...f, producer: e.target.value }))} placeholder="e.g. Data Engineering" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Consumer *</label>
-                  <input value={cForm.consumer} onChange={e => setCForm(f => ({ ...f, consumer: e.target.value }))} placeholder="e.g. finance_report" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box' }} />
+                  <label style={{ fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }}>Consumer Team</label>
+                  <input value={cForm.consumer} onChange={e => setCForm(f => ({ ...f, consumer: e.target.value }))} placeholder="e.g. Finance Analytics" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -336,8 +348,8 @@ export default function ContractsPage() {
               </div>
             </div>
             <div style={{ padding: '16px 24px', borderTop: '1px solid #ebe8df', display: 'flex', gap: '10px' }}>
-              <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={addContract} disabled={!cForm.name || !cForm.producer || !cForm.consumer} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: cForm.name && cForm.producer && cForm.consumer ? 'pointer' : 'not-allowed', background: cForm.name && cForm.producer && cForm.consumer ? '#E8541A' : '#e2e8f0', color: cForm.name && cForm.producer && cForm.consumer ? '#fff' : '#94a3b8' }}>Create Contract</button>
+              <button onClick={() => { setShowAdd(false); setAddError(null) }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+              <button onClick={addContract} disabled={!cForm.name || !cForm.connection} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: cForm.name && cForm.connection ? 'pointer' : 'not-allowed', background: cForm.name && cForm.connection ? '#E8541A' : '#e2e8f0', color: cForm.name && cForm.connection ? '#fff' : '#94a3b8' }}>Create Contract</button>
             </div>
           </div>
         </div>

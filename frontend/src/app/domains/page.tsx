@@ -46,27 +46,37 @@ export default function DomainsPage() {
   const [search, setSearch]       = useState('')
 
   useEffect(() => {
-    fetch('/api/domains-list')
-      .then(r => r.json())
-      .then(data => {
-        const items = Array.isArray(data) ? data : []
-        setDomains(items.map((d: Record<string, unknown>, i: number) => ({
-          id: String(d.domain_id ?? d.id ?? i),
+    Promise.all([
+      fetch('/api/domains-list').then(r => r.json()).catch(() => []),
+      fetch('/api/dashboard/domains').then(r => r.json()).catch(() => []),
+    ]).then(([listData, statsData]) => {
+      const items: Record<string, unknown>[] = Array.isArray(listData) ? listData : []
+      const stats: Record<string, Record<string, unknown>> = {}
+      if (Array.isArray(statsData)) {
+        for (const s of statsData as Record<string, unknown>[]) {
+          if (s.domain_id) stats[String(s.domain_id)] = s
+        }
+      }
+      setDomains(items.map((d: Record<string, unknown>, i: number) => {
+        const id = String(d.domain_id ?? d.id ?? i)
+        const s = stats[id] ?? {}
+        return {
+          id,
           name: String(d.domain_name ?? d.name ?? ''),
           icon: String(d.icon ?? '🌐'),
           color: String(d.color ?? COLORS[i % COLORS.length]),
           owner: String(d.owner ?? d.owner_name ?? ''),
-          datasets: Number(d.datasets ?? d.asset_count ?? 0),
-          rules: Number(d.rules ?? d.rule_count ?? 0),
-          score: Number(d.score ?? d.quality_score ?? 100),
-          issues: Number(d.issues ?? d.issue_count ?? 0),
+          datasets: Number(s.total_assets ?? d.datasets ?? d.asset_count ?? 0),
+          rules: Number(s.total_rules ?? d.rules ?? d.rule_count ?? 0),
+          score: Number(s.quality_score ?? d.score ?? 100),
+          issues: Number(s.failed_rules ?? d.issues ?? d.issue_count ?? 0),
           connection: String(d.connection ?? ''),
           desc: String(d.description ?? d.desc ?? ''),
           tables: Array.isArray(d.tables) ? d.tables as string[] : [],
-        })))
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
+        }
+      }))
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   function openAdd() {

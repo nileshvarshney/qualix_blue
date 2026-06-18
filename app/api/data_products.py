@@ -8,7 +8,7 @@ from typing import Optional
 import uuid
 
 from app.db.database import get_db
-from app.db.models import DataProduct, DataProductAsset, Asset, DQRuleRun
+from app.db.models import DataProduct, DataProductAsset, Asset, DQRuleRun, Domain
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/data-products", tags=["Data Products"])
@@ -18,20 +18,38 @@ def _now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def _fmt_product(p: DataProduct) -> dict:
+def _fmt_product(p: DataProduct, domain_name: str | None = None) -> dict:
+    tags = p.tags
+    if isinstance(tags, str):
+        import json as _json
+        try:
+            tags = _json.loads(tags)
+        except Exception:
+            tags = [t.strip() for t in tags.split(",") if t.strip()] if tags else []
+
+    updated = p.updated_at.isoformat() if p.updated_at else None
     return {
         "product_id": p.product_id,
         "product_name": p.product_name,
         "description": p.description,
         "domain_id": p.domain_id,
+        "domain": domain_name or "",
         "status": p.status,
         "owner_email": p.owner_email,
+        "owner": p.owner_email or "",
+        "tier": getattr(p, "tier", None) or "bronze",
+        "sla": getattr(p, "sla_target", None) or getattr(p, "sla", None) or "",
+        "quality_score": getattr(p, "quality_score", None) or 0,
+        "consumer_count": getattr(p, "consumer_count", None) or 0,
+        "dataset_count": getattr(p, "dataset_count", None) or 0,
+        "freshness": getattr(p, "freshness", None) or "",
         "version": p.version,
-        "tags": p.tags,
+        "tags": tags if isinstance(tags, list) else [],
         "readme": p.readme,
         "created_by": p.created_by,
         "created_at": p.created_at.isoformat() if p.created_at else None,
-        "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        "updated_at": updated,
+        "last_updated": updated,
     }
 
 
@@ -45,13 +63,23 @@ async def list_data_products(
     user: dict = Depends(get_current_user),
 ):
     """List all data products with optional filters."""
-    q = select(DataProduct)
+    q = select(DataProduct).where(DataProduct.status != "deprecated")
     if domain_id:
         q = q.where(DataProduct.domain_id == domain_id)
     if status:
         q = q.where(DataProduct.status == status)
     result = await db.execute(q.order_by(DataProduct.product_name).limit(limit).offset(offset))
-    return [_fmt_product(p) for p in result.scalars().all()]
+    products = result.scalars().all()
+
+    # Resolve domain names in one query
+    domain_ids = list({p.domain_id for p in products if p.domain_id})
+    domain_map: dict[str, str] = {}
+    if domain_ids:
+        dr = await db.execute(select(Domain).where(Domain.domain_id.in_(domain_ids)))
+        for d in dr.scalars().all():
+            domain_map[d.domain_id] = d.domain_name
+
+    return [_fmt_product(p, domain_map.get(p.domain_id or "")) for p in products]
 
 
 @router.post("")
@@ -61,15 +89,37 @@ async def create_data_product(
     user: dict = Depends(get_current_user),
 ):
     """Create a new data product."""
+    # Accept domain by name ("Sales") or by id
+    domain_id = payload.get("domain_id") or None
+    resolved_domain_name: str | None = None
+    domain_name_hint = payload.get("domain") or payload.get("domain_name")
+    if domain_name_hint:
+        dr = await db.execute(select(Domain).where(Domain.domain_name == domain_name_hint))
+        dom = dr.scalar_one_or_none()
+        if dom:
+            domain_id = domain_id or dom.domain_id
+            resolved_domain_name = dom.domain_name
+    if not resolved_domain_name and domain_id:
+        dr = await db.execute(select(Domain).where(Domain.domain_id == domain_id))
+        dom = dr.scalar_one_or_none()
+        if dom:
+            resolved_domain_name = dom.domain_name
+
+    # Store tags as JSON string
+    tags = payload.get("tags")
+    if isinstance(tags, list):
+        import json as _json
+        tags = _json.dumps(tags)
+
     product = DataProduct(
         product_id=str(uuid.uuid4()),
         product_name=payload.get("product_name"),
         description=payload.get("description"),
-        domain_id=payload.get("domain_id") or None,
+        domain_id=domain_id,
         status=payload.get("status", "draft"),
         owner_email=payload.get("owner_email"),
         version=payload.get("version", "1.0"),
-        tags=payload.get("tags"),
+        tags=tags,
         readme=payload.get("readme"),
         created_by=user.get("email"),
         created_at=_now(),
@@ -78,7 +128,7 @@ async def create_data_product(
     db.add(product)
     await db.commit()
     await db.refresh(product)
-    return _fmt_product(product)
+    return _fmt_product(product, resolved_domain_name)
 
 
 @router.get("/{product_id}")
@@ -115,7 +165,14 @@ async def get_data_product(
             "created_at": link.created_at.isoformat() if link.created_at else None,
         })
 
-    return {**_fmt_product(product), "assets": asset_list}
+    domain_name = None
+    if product.domain_id:
+        dr = await db.execute(select(Domain).where(Domain.domain_id == product.domain_id))
+        dom = dr.scalar_one_or_none()
+        if dom:
+            domain_name = dom.domain_name
+
+    return {**_fmt_product(product, domain_name), "assets": asset_list}
 
 
 @router.put("/{product_id}")
@@ -133,6 +190,14 @@ async def update_data_product(
     if not product:
         raise HTTPException(404, "Data product not found")
 
+    # Resolve domain name → id if provided
+    domain_name_hint = payload.get("domain") or payload.get("domain_name")
+    if domain_name_hint and "domain_id" not in payload:
+        dr = await db.execute(select(Domain).where(Domain.domain_name == domain_name_hint))
+        dom = dr.scalar_one_or_none()
+        if dom:
+            payload = {**payload, "domain_id": dom.domain_id}
+
     updatable = ("product_name", "description", "domain_id", "status", "owner_email", "version", "tags", "readme")
     for field in updatable:
         if field in payload:
@@ -140,7 +205,14 @@ async def update_data_product(
     product.updated_at = _now()
     await db.commit()
     await db.refresh(product)
-    return _fmt_product(product)
+
+    domain_name = None
+    if product.domain_id:
+        dr = await db.execute(select(Domain).where(Domain.domain_id == product.domain_id))
+        dom = dr.scalar_one_or_none()
+        if dom:
+            domain_name = dom.domain_name
+    return _fmt_product(product, domain_name)
 
 
 @router.post("/{product_id}/assets")

@@ -26,19 +26,19 @@ function fmtDate(d: string) {
 
 const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }
 const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a', outline: 'none', boxSizing: 'border-box' as const }
-const DOMAINS = ['Sales', 'Finance', 'Marketing', 'Supply Chain', 'Engineering', 'Operations', 'HR']
 const COLS = '20px 1fr 100px 80px 72px 58px 30px'
 
 export default function DataProductsPage() {
   const [products,    setProducts]    = useState<DataProduct[]>([])
   const [loading,     setLoading]     = useState(true)
+  const [domains,     setDomains]     = useState<string[]>([])
   const [filter,      setFilter]      = useState<'all'|'certified'|'published'|'draft'>('all')
   const [search,      setSearch]      = useState('')
   const [selected,    setSelected]    = useState<DataProduct | null>(null)
   const [hoverId,     setHoverId]     = useState<string | null>(null)
   const [showCreate,  setShowCreate]  = useState(false)
   const [form, setForm] = useState({
-    name: '', description: '', domain: 'Sales', owner: '',
+    name: '', description: '', domain: '', owner: '',
     status: 'draft' as DataProduct['status'], tier: 'bronze' as DataProduct['tier'],
     sla: '99.0%', tags: '',
   })
@@ -50,6 +50,19 @@ export default function DataProductsPage() {
   const [editPSaving, setEditPSaving] = useState(false)
 
   useEffect(() => {
+    fetch('/api/domains')
+      .then(r => r.json())
+      .then((data: Record<string, unknown>[]) => {
+        const names = (Array.isArray(data) ? data : [])
+          .map(d => String(d.domain_name ?? d.name ?? ''))
+          .filter(Boolean)
+          .sort()
+        if (names.length > 0) setDomains(names)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     fetch('/api/data-products')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
@@ -58,7 +71,7 @@ export default function DataProductsPage() {
           name:         String(p.product_name ?? p.name ?? ''),
           description:  String(p.description ?? ''),
           domain:       String(p.domain ?? ''),
-          owner:        String(p.owner ?? p.owner_team ?? ''),
+          owner:        String(p.owner ?? p.owner_email ?? p.owner_team ?? ''),
           status:       (p.status as DataProduct['status']) ?? 'draft',
           tier:         (p.tier   as DataProduct['tier'])   ?? 'bronze',
           qualityScore: Number(p.quality_score ?? p.qualityScore ?? 0),
@@ -66,7 +79,7 @@ export default function DataProductsPage() {
           datasets:     Number(p.dataset_count  ?? p.datasets  ?? 0),
           sla:          String(p.sla ?? p.sla_target ?? ''),
           freshness:    String(p.freshness ?? ''),
-          lastUpdated:  String(p.last_updated ?? p.lastUpdated ?? new Date().toISOString()),
+          lastUpdated:  String(p.last_updated ?? p.lastUpdated ?? p.updated_at ?? new Date().toISOString()),
           tags:         Array.isArray(p.tags) ? p.tags as string[] : [],
         }))
         setProducts(items); setLoading(false)
@@ -85,9 +98,8 @@ export default function DataProductsPage() {
           product_name: editPForm.name,
           description: editPForm.description,
           domain: editPForm.domain,
-          owner: editPForm.owner,
+          owner_email: editPForm.owner,
           status: editPForm.status,
-          tier: editPForm.tier,
           sla: editPForm.sla,
         }),
       })
@@ -124,8 +136,10 @@ export default function DataProductsPage() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_name: form.name, description: form.description,
-          status: form.status, owner_email: form.owner || null,
-          tags: tags.length ? tags : null,
+          domain: form.domain,
+          status: form.status, tier: form.tier, sla_target: form.sla,
+          owner_email: form.owner || null,
+          tags: tags.length ? JSON.stringify(tags) : null,
         }),
       })
       const created = await res.json()
@@ -322,7 +336,7 @@ export default function DataProductsPage() {
                 <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Domain</label>
                 <select value={editPForm.domain} onChange={e => setEditPForm(p => ({ ...p, domain: e.target.value }))}
                   style={{ width: '100%', padding: '7px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', boxSizing: 'border-box' as const }}>
-                  {DOMAINS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {domains.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
@@ -374,7 +388,7 @@ export default function DataProductsPage() {
                 <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Describe what this data product provides..." rows={3} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} /></div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div><label style={lbl}>Domain *</label>
-                  <select value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} style={inp}>{DOMAINS.map(d => <option key={d}>{d}</option>)}</select></div>
+                  <select value={form.domain} onChange={e => setForm(f => ({ ...f, domain: e.target.value }))} style={inp}>{domains.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
                 <div><label style={lbl}>Owner</label>
                   <input value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value }))} placeholder="Team or person" style={inp} /></div>
               </div>

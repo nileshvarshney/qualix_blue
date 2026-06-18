@@ -60,6 +60,10 @@ async def create_contract(
     user=Depends(get_current_user),
 ):
     from app.db.models import gen_uuid
+    if not body.get("contract_name"):
+        raise HTTPException(422, "contract_name is required")
+    if not body.get("asset_id"):
+        raise HTTPException(422, "asset_id is required — link this contract to an asset")
     contract = DataContract(
         contract_id=gen_uuid(),
         asset_id=body["asset_id"],
