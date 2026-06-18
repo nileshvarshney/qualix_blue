@@ -25,9 +25,11 @@ const SECTIONS: Section[] = [
       { href: '/catalog',    label: 'Catalog' },
       { href: '/governance', label: 'Governance' },
       { href: '/glossary',   label: 'Glossary' },
-      { href: '/contracts',  label: 'Contracts' },
-      { href: '/slas',       label: 'SLAs' },
-      { href: '/domains',    label: 'Domains' },
+      { href: '/contracts',     label: 'Contracts' },
+      { href: '/data-products', label: 'Data Products' },
+      { href: '/slas',          label: 'SLAs' },
+      { href: '/compliance',    label: 'Compliance' },
+      { href: '/domains',       label: 'Domains' },
     ],
   },
   {
@@ -41,19 +43,16 @@ const SECTIONS: Section[] = [
   {
     key: 'explore',
     tabs: [
-      { href: '/data-browser',  label: 'Data Browser' },
-      { href: '/spot-check',    label: 'Spot Check' },
-      { href: '/reports',       label: 'Reports' },
-      { href: '/executive',     label: 'Executive View' },
-      { href: '/data-products', label: 'Data Products' },
+      { href: '/data-browser', label: 'Data Browser' },
+      { href: '/spot-check',   label: 'Spot Check' },
+      { href: '/reports',      label: 'Reports' },
+      { href: '/executive',    label: 'Executive View' },
     ],
   },
   {
     key: 'settings',
     tabs: [
-      { href: '/ai-assistant', label: 'AI Assistant' },
       { href: '/settings',     label: 'General' },
-      { href: '/compliance',   label: 'Compliance' },
       { href: '/architecture', label: 'User Guide' },
     ],
   },
@@ -67,9 +66,15 @@ const SECTIONS: Section[] = [
   {
     key: 'admin',
     tabs: [
-      { href: '/users',  label: 'Users' },
-      { href: '/teams',  label: 'Teams' },
-      { href: '/roles',  label: 'Roles' },
+      { href: '/users',        label: 'Users' },
+      { href: '/teams',        label: 'Teams' },
+      { href: '/roles',        label: 'Roles' },
+      { href: '/connections',  label: 'Connections' },
+      { href: '/security',     label: 'Security' },
+      { href: '/notifications', label: 'Notifications' },
+      { href: '/api-keys',     label: 'API Keys' },
+      { href: '/integrations', label: 'Integrations' },
+      { href: '/llm',          label: 'LLM / AI' },
     ],
   },
 ]

@@ -216,20 +216,20 @@ const sections: Section[] = [
     railIconD: 'M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0v1a3 3 0 11-6 0v-1',
   },
   {
-    key: 'explore', label: 'Explore', defaultHref: '/data-browser',
-    railIconD: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  },
-  {
-    key: 'settings', label: 'Settings', defaultHref: '/settings',
-    railIconD: 'M10.3 3.5l-.4 1.7a7.5 7.5 0 00-1.6.7L6.6 5l-1.6 1.6 1 1.7c-.3.5-.5 1-.7 1.6l-1.7.4v2.3l1.7.4c.2.6.4 1.1.7 1.6l-1 1.7L6.6 19l1.7-.9c.5.3 1 .5 1.6.7l.4 1.7h2.3l.4-1.7c.6-.2 1.1-.4 1.6-.7l1.7.9 1.6-1.6-.9-1.7c.3-.5.5-1 .7-1.6l1.7-.4v-2.3l-1.7-.4c-.2-.6-.4-1.1-.7-1.6l.9-1.7-1.6-1.6-1.7.9c-.5-.3-1-.5-1.6-.7l-.4-1.7h-2.3zm1.2 5.5a3 3 0 110 6 3 3 0 010-6z',
-  },
-  {
     key: 'operations', label: 'Operations', defaultHref: '/scan-jobs',
     railIconD: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
   },
   {
     key: 'admin', label: 'Admin', defaultHref: '/users',
     railIconD: 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75M9 7a4 4 0 100 8 4 4 0 000-8z',
+  },
+  {
+    key: 'ai', label: 'AI Assistant', defaultHref: '/ai-assistant',
+    railIconD: 'M12 2a2 2 0 012 2v1a7 7 0 014.9 11.9l.6 2.1-2.1-.6A7 7 0 015.1 15H4a2 2 0 01-2-2v-4a2 2 0 012-2h.1A7 7 0 0110 3V4a2 2 0 012-2zm-3 9a1 1 0 102 0 1 1 0 00-2 0zm4 0a1 1 0 102 0 1 1 0 00-2 0zm4 0a1 1 0 102 0 1 1 0 00-2 0z',
+  },
+  {
+    key: 'settings', label: 'Settings', defaultHref: '/settings',
+    railIconD: 'M10.3 3.5l-.4 1.7a7.5 7.5 0 00-1.6.7L6.6 5l-1.6 1.6 1 1.7c-.3.5-.5 1-.7 1.6l-1.7.4v2.3l1.7.4c.2.6.4 1.1.7 1.6l-1 1.7L6.6 19l1.7-.9c.5.3 1 .5 1.6.7l.4 1.7h2.3l.4-1.7c.6-.2 1.1-.4 1.6-.7l1.7.9 1.6-1.6-.9-1.7c.3-.5.5-1 .7-1.6l1.7-.4v-2.3l-1.7-.4c-.2-.6-.4-1.1-.7-1.6l.9-1.7-1.6-1.6-1.7.9c-.5-.3-1-.5-1.6-.7l-.4-1.7h-2.3zm1.2 5.5a3 3 0 110 6 3 3 0 010-6z',
   },
 ]
 
@@ -238,14 +238,17 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/': 'quality', '/rules': 'quality', '/issues': 'quality', '/datasets': 'quality', '/asset-registry': 'quality',
   '/anomalies': 'quality', '/schedules': 'quality', '/execution-logs': 'quality',
   '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
-  '/glossary': 'govern', '/contracts': 'govern', '/slas': 'govern', '/domains': 'govern',
+  '/glossary': 'govern', '/contracts': 'govern', '/data-products': 'govern', '/slas': 'govern', '/domains': 'govern',
   '/alerts': 'alerts', '/incidents': 'alerts', '/audit-logs': 'alerts',
   '/data-browser': 'explore', '/spot-check': 'explore', '/reports': 'explore',
-  '/executive': 'explore', '/data-products': 'explore',
-  '/ai-assistant': 'settings', '/settings': 'settings',
-  '/compliance': 'settings', '/architecture': 'settings',
+  '/executive': 'explore',
+  '/ai-assistant': 'ai',
+  '/settings': 'settings', '/architecture': 'settings',
+  '/compliance': 'govern',
   '/scan-jobs': 'operations', '/run-history': 'operations',
   '/users': 'admin', '/teams': 'admin', '/roles': 'admin',
+  '/connections': 'admin', '/security': 'admin', '/notifications': 'admin',
+  '/api-keys': 'admin', '/integrations': 'admin', '/llm': 'admin',
 }
 
 /* ─── Constants ─── */
