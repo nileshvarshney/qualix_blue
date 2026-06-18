@@ -590,295 +590,291 @@ export default function LineagePage() {
       )}
 
       {selected && (
-        <>
-          {/* SVG Graph */}
-          <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
-            {/* ── Floating Column Popup on graph ── */}
-        {selectedNode && (
-          <div style={{
-            position: 'absolute',
-            left: (selectedNode.x ?? 0) + NODE_W + 28,
-            top: (selectedNode.y ?? 0) + 16,
-            width: 320, maxHeight: 480,
-            background: '#fafaf9', borderRadius: '10px',
-            border: '1px solid #e2e8f0',
-            boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
-            zIndex: 50,
-            display: 'flex', flexDirection: 'column',
-            overflow: 'hidden',
-          }}>
-            {/* Popup Header */}
-            <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #ebe8df' }}>
-              <DbTypeIcon tableType={selectedNode.tableType} size={13} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: '10px', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.label}</div>
-                <div style={{ fontSize: '8px', color: '#94a3b8' }}>
-                  {selectedNode.schema} / {selectedNode.label}
-                  {selectedNode.rowCount != null ? ` · ${selectedNode.rowCount.toLocaleString()} rows` : ''}
-                </div>
-              </div>
-              {/* Search toggle */}
-              <button onClick={() => setColumnSearch(columnSearch ? '' : ' ')}
-                style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: columnSearch ? '#f1f5f9' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>🔍</button>
-              {/* Status */}
-              <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' }}>✓</span>
-              {/* Close */}
-              <button onClick={() => setSelected(null)}
-                style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>✕</button>
-            </div>
-
-            {/* Search input (shown when active) */}
-            {columnSearch !== '' && (
-              <div style={{ padding: '6px 10px', borderBottom: '1px solid #ebe8df' }}>
-                <input
-                  autoFocus
-                  value={columnSearch.trim() === '' ? '' : columnSearch}
-                  onChange={e => setColumnSearch(e.target.value)}
-                  placeholder="Search columns..."
-                  style={{ width: '100%', padding: '4px 8px', borderRadius: '5px', border: '1px solid #e2e8f0', fontSize: '9px', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
-                />
-              </div>
-            )}
-
-            {/* Column list */}
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {columnsLoading ? (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>Loading columns...</div>
-              ) : filteredColumns && filteredColumns.length > 0 ? filteredColumns.map((col, i) => {
-                const dt = dtIcon(col.DATA_TYPE)
-                const isColSelected = selectedColumn === col.COLUMN_NAME
-                // Count how many other tables have this column
-                const colTableCount = selectedColumn === col.COLUMN_NAME
-                  ? columnLineage.tables.size
-                  : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
-                return (
-                  <div key={i}
-                    onClick={() => setSelectedColumn(isColSelected ? null : col.COLUMN_NAME)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '7px',
-                      padding: '5px 10px',
-                      borderBottom: '1px solid #f1efe9',
-                      background: isColSelected ? '#eef2f5' : (i % 2 === 0 ? '#fff' : '#fafaf9'),
-                      borderLeft: isColSelected ? '3px solid #94a3b8' : '3px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={e => { if (!isColSelected) e.currentTarget.style.background = '#f8fafc' }}
-                    onMouseLeave={e => { if (!isColSelected) e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafaf9' }}
-                  >
-                    <span style={{
-                      width: 16, height: 16, borderRadius: 4,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '9px', fontWeight: 700, color: isColSelected ? '#475569' : dt.color,
-                      background: isColSelected ? '#47556914' : dt.color + '12', flexShrink: 0,
-                    }}>{dt.symbol}</span>
-                    <span style={{
-                      flex: 1, fontSize: '10px', fontWeight: isColSelected ? 700 : 500, color: isColSelected ? '#334155' : '#1a1a1a', fontFamily: 'monospace',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>{col.COLUMN_NAME}</span>
-                    {colTableCount > 1 && (
-                      <span style={{
-                        background: isColSelected ? '#475569' : '#e2e8f0',
-                        color: isColSelected ? '#fff' : '#64748b',
-                        padding: '1px 5px', borderRadius: '8px', fontSize: '8px', fontWeight: 600, flexShrink: 0,
-                      }}>{colTableCount}</span>
-                    )}
-                    <span style={{ fontSize: '8px', color: col.IS_NULLABLE === 'NO' ? '#16a34a' : '#cbd5e1', flexShrink: 0 }}>
-                      {col.IS_NULLABLE === 'NO' ? '●' : '○'}
-                    </span>
+        /* SVG Graph */
+        <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px', overflowX: 'auto', position: 'relative' }}>
+          {/* ── Floating Column Popup on graph ── */}
+          {selectedNode && (
+            <div style={{
+              position: 'absolute',
+              left: (selectedNode.x ?? 0) + NODE_W + 28,
+              top: (selectedNode.y ?? 0) + 16,
+              width: 320, maxHeight: 480,
+              background: '#fafaf9', borderRadius: '10px',
+              border: '1px solid #e2e8f0',
+              boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
+              zIndex: 50,
+              display: 'flex', flexDirection: 'column',
+              overflow: 'hidden',
+            }}>
+              {/* Popup Header */}
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #ebe8df' }}>
+                <DbTypeIcon tableType={selectedNode.tableType} size={13} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '10px', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.label}</div>
+                  <div style={{ fontSize: '8px', color: '#94a3b8' }}>
+                    {selectedNode.schema} / {selectedNode.label}
+                    {selectedNode.rowCount != null ? ` · ${selectedNode.rowCount.toLocaleString()} rows` : ''}
                   </div>
-                )
-              }) : (
-                <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>
-                  {columnSearch ? 'No matching columns' : 'No columns available'}
+                </div>
+                {/* Search toggle */}
+                <button onClick={() => setColumnSearch(columnSearch ? '' : ' ')}
+                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: columnSearch ? '#f1f5f9' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>🔍</button>
+                {/* Status */}
+                <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' }}>✓</span>
+                {/* Close */}
+                <button onClick={() => setSelected(null)}
+                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>✕</button>
+              </div>
+
+              {/* Search input (shown when active) */}
+              {columnSearch !== '' && (
+                <div style={{ padding: '6px 10px', borderBottom: '1px solid #ebe8df' }}>
+                  <input
+                    autoFocus
+                    value={columnSearch.trim() === '' ? '' : columnSearch}
+                    onChange={e => setColumnSearch(e.target.value)}
+                    placeholder="Search columns..."
+                    style={{ width: '100%', padding: '4px 8px', borderRadius: '5px', border: '1px solid #e2e8f0', fontSize: '9px', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                  />
                 </div>
               )}
-            </div>
 
-            {/* Column Lineage Panel (when a column is selected) */}
-            {selectedColumn && columnLineage.path.length > 0 && (
-              <div style={{ borderTop: '1px solid #e2e8f0', background: '#f1f5f9', padding: '7px 10px', maxHeight: '120px', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '9px' }}>🔗</span>
-                  <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#475569' }}>
-                    COLUMN LINEAGE: {selectedColumn}
-                  </span>
-                  <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: 'auto' }}>
-                    {columnLineage.path.length} table{columnLineage.path.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  {columnLineage.path.map((item, i) => {
-                    const roleColors: Record<string, { bg: string; color: string; label: string }> = {
-                      origin: { bg: '#dcfce7', color: '#16a34a', label: 'ORIGIN' },
-                      passthrough: { bg: '#dbeafe', color: '#2563eb', label: 'PASS' },
-                      consumer: { bg: '#fef3c7', color: '#d97706', label: 'CONSUMER' },
-                      reference: { bg: '#e2e8f0', color: '#475569', label: 'REF' },
-                    }
-                    const rc = roleColors[item.role] ?? roleColors.reference
-                    return (
-                      <div key={item.tableId} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {i > 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>→</span>}
-                        {i === 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>◆</span>}
-                        <button
-                          onClick={(e) => { e.stopPropagation(); selectNode(item.tableId) }}
-                          style={{
-                            background: '#fff', border: '1px solid #e2e8f0', borderRadius: '5px',
-                            padding: '2px 6px', fontSize: '8.5px', fontWeight: 600, color: '#334155',
-                            cursor: 'pointer', fontFamily: 'monospace',
-                          }}
-                        >{item.label}</button>
+              {/* Column list */}
+              <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+                {columnsLoading ? (
+                  <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>Loading columns...</div>
+                ) : filteredColumns && filteredColumns.length > 0 ? filteredColumns.map((col, i) => {
+                  const dt = dtIcon(col.DATA_TYPE)
+                  const isColSelected = selectedColumn === col.COLUMN_NAME
+                  // Count how many other tables have this column
+                  const colTableCount = selectedColumn === col.COLUMN_NAME
+                    ? columnLineage.tables.size
+                    : [...allTableColumns.values()].filter(cols => cols.includes(col.COLUMN_NAME)).length
+                  return (
+                    <div key={i}
+                      onClick={() => setSelectedColumn(isColSelected ? null : col.COLUMN_NAME)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '7px',
+                        padding: '5px 10px',
+                        borderBottom: '1px solid #f1efe9',
+                        background: isColSelected ? '#eef2f5' : (i % 2 === 0 ? '#fff' : '#fafaf9'),
+                        borderLeft: isColSelected ? '3px solid #94a3b8' : '3px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={e => { if (!isColSelected) e.currentTarget.style.background = '#f8fafc' }}
+                      onMouseLeave={e => { if (!isColSelected) e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafaf9' }}
+                    >
+                      <span style={{
+                        width: 16, height: 16, borderRadius: 4,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '9px', fontWeight: 700, color: isColSelected ? '#475569' : dt.color,
+                        background: isColSelected ? '#47556914' : dt.color + '12', flexShrink: 0,
+                      }}>{dt.symbol}</span>
+                      <span style={{
+                        flex: 1, fontSize: '10px', fontWeight: isColSelected ? 700 : 500, color: isColSelected ? '#334155' : '#1a1a1a', fontFamily: 'monospace',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }}>{col.COLUMN_NAME}</span>
+                      {colTableCount > 1 && (
                         <span style={{
-                          background: rc.bg, color: rc.color, padding: '1px 4px',
-                          borderRadius: '4px', fontSize: '7px', fontWeight: 700,
-                        }}>{rc.label}</span>
-                      </div>
-                    )
-                  })}
+                          background: isColSelected ? '#475569' : '#e2e8f0',
+                          color: isColSelected ? '#fff' : '#64748b',
+                          padding: '1px 5px', borderRadius: '8px', fontSize: '8px', fontWeight: 600, flexShrink: 0,
+                        }}>{colTableCount}</span>
+                      )}
+                      <span style={{ fontSize: '8px', color: col.IS_NULLABLE === 'NO' ? '#16a34a' : '#cbd5e1', flexShrink: 0 }}>
+                        {col.IS_NULLABLE === 'NO' ? '●' : '○'}
+                      </span>
+                    </div>
+                  )
+                }) : (
+                  <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>
+                    {columnSearch ? 'No matching columns' : 'No columns available'}
+                  </div>
+                )}
+              </div>
+
+              {/* Column Lineage Panel (when a column is selected) */}
+              {selectedColumn && columnLineage.path.length > 0 && (
+                <div style={{ borderTop: '1px solid #e2e8f0', background: '#f1f5f9', padding: '7px 10px', maxHeight: '120px', overflowY: 'auto' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
+                    <span style={{ fontSize: '9px' }}>🔗</span>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#475569' }}>
+                      COLUMN LINEAGE: {selectedColumn}
+                    </span>
+                    <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: 'auto' }}>
+                      {columnLineage.path.length} table{columnLineage.path.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    {columnLineage.path.map((item, i) => {
+                      const roleColors: Record<string, { bg: string; color: string; label: string }> = {
+                        origin: { bg: '#dcfce7', color: '#16a34a', label: 'ORIGIN' },
+                        passthrough: { bg: '#dbeafe', color: '#2563eb', label: 'PASS' },
+                        consumer: { bg: '#fef3c7', color: '#d97706', label: 'CONSUMER' },
+                        reference: { bg: '#e2e8f0', color: '#475569', label: 'REF' },
+                      }
+                      const rc = roleColors[item.role] ?? roleColors.reference
+                      return (
+                        <div key={item.tableId} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {i > 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>→</span>}
+                          {i === 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>◆</span>}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); selectNode(item.tableId) }}
+                            style={{
+                              background: '#fff', border: '1px solid #e2e8f0', borderRadius: '5px',
+                              padding: '2px 6px', fontSize: '8.5px', fontWeight: 600, color: '#334155',
+                              cursor: 'pointer', fontFamily: 'monospace',
+                            }}
+                          >{item.label}</button>
+                          <span style={{
+                            background: rc.bg, color: rc.color, padding: '1px 4px',
+                            borderRadius: '4px', fontSize: '7px', fontWeight: 700,
+                          }}>{rc.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Popup Footer */}
+              <div style={{ padding: '6px 10px', borderTop: '1px solid #ebe8df', background: '#fafaf9' }}>
+                <div style={{ fontSize: '8px', color: selectedColumn ? '#475569' : '#94a3b8' }}>
+                  {selectedColumn
+                    ? `🔗 ${selectedColumn} flows through ${columnLineage.path.length} tables`
+                    : `${columnData?.length ?? 0} columns · click any column for lineage`}
                 </div>
               </div>
-            )}
-
-            {/* Popup Footer */}
-            <div style={{ padding: '6px 10px', borderTop: '1px solid #ebe8df', background: '#fafaf9' }}>
-              <div style={{ fontSize: '8px', color: selectedColumn ? '#475569' : '#94a3b8' }}>
-                {selectedColumn
-                  ? `🔗 ${selectedColumn} flows through ${columnLineage.path.length} tables`
-                  : `${columnData?.length ?? 0} columns · click any column for lineage`}
-              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <svg width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`} style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px` }}>
-          <defs>
-            <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#cbd5e1" /></marker>
-            <marker id="arrow-hl" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#2563eb" /></marker>
-            <marker id="arrow-up" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#16a34a" /></marker>
-            <marker id="arrow-dn" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#ea580c" /></marker>
-            <marker id="arrow-col" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#64748b" /></marker>
-          </defs>
+          <svg width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`} style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px` }}>
+            <defs>
+              <marker id="arrow" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#cbd5e1" /></marker>
+              <marker id="arrow-hl" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#2563eb" /></marker>
+              <marker id="arrow-up" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#16a34a" /></marker>
+              <marker id="arrow-dn" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#ea580c" /></marker>
+              <marker id="arrow-col" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#64748b" /></marker>
+            </defs>
 
-          {/* Layer labels at top */}
-          {Object.entries(layerLabels).map(([layerStr, label]) => {
-            const layer = Number(layerStr)
-            const x = 40 + layer * 200 + NODE_W / 2
-            return (
-              <g key={layerStr}>
-                <text x={x} y={20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#94a3b8" letterSpacing="1.2" fontFamily="system-ui,sans-serif">{label}</text>
-                <line x1={x - 45} y1={28} x2={x + 45} y2={28} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 3" />
-              </g>
-            )
-          })}
-
-          {/* Edges */}
-          {visibleEdges.map((edge, i) => {
-            const from = nodeMap.get(edge.from)
-            const to = nodeMap.get(edge.to)
-            if (!from || !to) return null
-            const fx = (from.x ?? 0) + NODE_W - 4
-            const fy = (from.y ?? 0) + NODE_H / 2
-            const tx = (to.x ?? 0) + 4
-            const ty = (to.y ?? 0) + NODE_H / 2
-            const midX = (fx + tx) / 2
-
-            const isUpstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.to === selected && e.from === edge.from)
-            const isDownstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.from === selected && e.to === edge.to)
-            const isHL = highlighted?.has(edge.from) && highlighted?.has(edge.to)
-
-            return (
-              <path key={i}
-                d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
-                fill="none"
-                stroke={isUpstream ? '#16a34a' : isDownstream ? '#ea580c' : isHL ? '#2563eb' : '#e2e8f0'}
-                strokeWidth={isHL ? 2 : 1}
-                markerEnd={isUpstream ? 'url(#arrow-up)' : isDownstream ? 'url(#arrow-dn)' : isHL ? 'url(#arrow-hl)' : 'url(#arrow)'}
-                opacity={highlighted && !isHL ? 0.15 : 1}
-                style={{ transition: 'stroke 0.2s, opacity 0.2s' }}
-              />
-            )
-          })}
-
-          {/* Column-level lineage edges (drawn on top of table edges) */}
-          {selectedColumn && columnLineage.edges.map((edge, i) => {
-            const from = nodeMap.get(edge.from)
-            const to = nodeMap.get(edge.to)
-            if (!from || !to) return null
-            const fx = (from.x ?? 0) + NODE_W - 4
-            const fy = (from.y ?? 0) + NODE_H / 2 + 7
-            const tx = (to.x ?? 0) + 4
-            const ty = (to.y ?? 0) + NODE_H / 2 + 7
-            const midX = (fx + tx) / 2
-            return (
-              <g key={`col-edge-${i}`}>
-                {/* Glow effect */}
-                <path
-                  d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
-                  fill="none" stroke="#64748b" strokeWidth={6} opacity={0.15}
-                />
-                {/* Main line */}
-                <path
-                  d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
-                  fill="none" stroke="#64748b" strokeWidth={2.5}
-                  strokeDasharray="8 4"
-                  markerEnd="url(#arrow-col)" opacity={0.9}
-                  style={{ animation: 'dashFlow 1.5s linear infinite' }}
-                />
-              </g>
-            )
-          })}
-
-          {/* Nodes */}
-          {laidOut.map(node => {
-            const cfg = typeConfig[node.type] ?? typeConfig.warehouse
-            const isSel = selected === node.id
-            const isDimmed = highlighted && !highlighted.has(node.id)
-            const isInColLineage = selectedColumn ? columnLineage.tables.has(node.id) : false
-            const nx = node.x ?? 0
-            const ny = node.y ?? 0
-            return (
-              <g key={node.id} style={{ cursor: 'pointer' }} onClick={() => selectNode(node.id)}>
-                {/* Column lineage glow ring */}
-                {isInColLineage && (
-                  <rect x={nx - 2} y={ny - 2} width={NODE_W + 4} height={NODE_H + 4} rx={8}
-                    fill="none" stroke="#64748b" strokeWidth={1.5} opacity={0.5}
-                    strokeDasharray="6 3"
-                    style={{ animation: 'dashFlow 2s linear infinite' }}
-                  />
-                )}
-                <rect x={nx} y={ny} width={NODE_W} height={NODE_H} rx={7}
-                  fill={isInColLineage ? '#f1f5f9' : cfg.bg}
-                  stroke={isInColLineage ? '#64748b' : isSel ? '#2563eb' : cfg.border}
-                  strokeWidth={isInColLineage ? 2 : isSel ? 2 : 1}
-                  opacity={isDimmed && !isInColLineage ? 0.2 : 1}
-                  filter={isInColLineage ? 'drop-shadow(0 0 8px rgba(100,116,139,0.3))' : isSel ? 'drop-shadow(0 0 8px rgba(37,99,235,0.3))' : undefined}
-                  style={{ transition: 'all 0.2s' }}
-                />
-                <g opacity={isDimmed && !isInColLineage ? 0.2 : 1}>
-                  <DbTypeIcon tableType={node.tableType} size={12} x={nx + 8} y={ny + 11} />
+            {/* Layer labels at top */}
+            {Object.entries(layerLabels).map(([layerStr, label]) => {
+              const layer = Number(layerStr)
+              const x = 40 + layer * 200 + NODE_W / 2
+              return (
+                <g key={layerStr}>
+                  <text x={x} y={20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#94a3b8" letterSpacing="1.2" fontFamily="system-ui,sans-serif">{label}</text>
+                  <line x1={x - 45} y1={28} x2={x + 45} y2={28} stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 3" />
                 </g>
-                <text x={nx + 24} y={ny + 18} fontSize="7" fontWeight={isSel || isInColLineage ? 700 : 600} fill={isInColLineage ? '#475569' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.2 : 1} fontFamily="system-ui,sans-serif">
-                  {node.label.length > 18 ? node.label.slice(0, 16) + '…' : node.label}
-                </text>
-                <text x={nx + 24} y={ny + 31} fontSize="6" fill={isInColLineage ? '#64748b' : cfg.color} opacity={isDimmed && !isInColLineage ? 0.1 : 0.55} fontFamily="system-ui,sans-serif">
-                  {node.rowCount ? `${node.rowCount.toLocaleString()} rows · ` : ''}{node.sub}
-                </text>
-                {/* Column lineage badge on node */}
-                {isInColLineage && (
-                  <g>
-                    <rect x={nx + NODE_W - 30} y={ny + NODE_H - 13} width={26} height={10} rx={5} fill="#64748b" />
-                    <text x={nx + NODE_W - 17} y={ny + NODE_H - 6} textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700" fontFamily="system-ui,sans-serif">COL</text>
+              )
+            })}
+
+            {/* Edges */}
+            {visibleEdges.map((edge, i) => {
+              const from = nodeMap.get(edge.from)
+              const to = nodeMap.get(edge.to)
+              if (!from || !to) return null
+              const fx = (from.x ?? 0) + NODE_W - 4
+              const fy = (from.y ?? 0) + NODE_H / 2
+              const tx = (to.x ?? 0) + 4
+              const ty = (to.y ?? 0) + NODE_H / 2
+              const midX = (fx + tx) / 2
+
+              const isUpstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.to === selected && e.from === edge.from)
+              const isDownstream = selected && highlighted?.has(edge.from) && highlighted?.has(edge.to) && data.edges.some(e => e.from === selected && e.to === edge.to)
+
+              return (
+                <path key={i}
+                  d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
+                  fill="none"
+                  stroke={isUpstream ? '#16a34a' : isDownstream ? '#ea580c' : '#2563eb'}
+                  strokeWidth={2}
+                  markerEnd={isUpstream ? 'url(#arrow-up)' : isDownstream ? 'url(#arrow-dn)' : 'url(#arrow-hl)'}
+                  opacity={1}
+                  style={{ transition: 'stroke 0.2s, opacity 0.2s' }}
+                />
+              )
+            })}
+
+            {/* Column-level lineage edges (drawn on top of table edges) */}
+            {selectedColumn && columnLineage.edges.map((edge, i) => {
+              const from = nodeMap.get(edge.from)
+              const to = nodeMap.get(edge.to)
+              if (!from || !to) return null
+              const fx = (from.x ?? 0) + NODE_W - 4
+              const fy = (from.y ?? 0) + NODE_H / 2 + 7
+              const tx = (to.x ?? 0) + 4
+              const ty = (to.y ?? 0) + NODE_H / 2 + 7
+              const midX = (fx + tx) / 2
+              return (
+                <g key={`col-edge-${i}`}>
+                  {/* Glow effect */}
+                  <path
+                    d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
+                    fill="none" stroke="#64748b" strokeWidth={6} opacity={0.15}
+                  />
+                  {/* Main line */}
+                  <path
+                    d={`M${fx},${fy} C${midX},${fy} ${midX},${ty} ${tx},${ty}`}
+                    fill="none" stroke="#64748b" strokeWidth={2.5}
+                    strokeDasharray="8 4"
+                    markerEnd="url(#arrow-col)" opacity={0.9}
+                    style={{ animation: 'dashFlow 1.5s linear infinite' }}
+                  />
+                </g>
+              )
+            })}
+
+            {/* Nodes */}
+            {laidOut.map(node => {
+              const cfg = typeConfig[node.type] ?? typeConfig.warehouse
+              const isSel = selected === node.id
+              const isInColLineage = selectedColumn ? columnLineage.tables.has(node.id) : false
+              const nx = node.x ?? 0
+              const ny = node.y ?? 0
+              return (
+                <g key={node.id} style={{ cursor: 'pointer' }} onClick={() => selectNode(node.id)}>
+                  {/* Column lineage glow ring */}
+                  {isInColLineage && (
+                    <rect x={nx - 2} y={ny - 2} width={NODE_W + 4} height={NODE_H + 4} rx={8}
+                      fill="none" stroke="#64748b" strokeWidth={1.5} opacity={0.5}
+                      strokeDasharray="6 3"
+                      style={{ animation: 'dashFlow 2s linear infinite' }}
+                    />
+                  )}
+                  <rect x={nx} y={ny} width={NODE_W} height={NODE_H} rx={7}
+                    fill={isInColLineage ? '#f1f5f9' : cfg.bg}
+                    stroke={isInColLineage ? '#64748b' : isSel ? '#2563eb' : cfg.border}
+                    strokeWidth={isInColLineage ? 2 : isSel ? 2 : 1}
+                    opacity={1}
+                    filter={isInColLineage ? 'drop-shadow(0 0 8px rgba(100,116,139,0.3))' : isSel ? 'drop-shadow(0 0 8px rgba(37,99,235,0.3))' : undefined}
+                    style={{ transition: 'all 0.2s' }}
+                  />
+                  <g opacity={1}>
+                    <DbTypeIcon tableType={node.tableType} size={12} x={nx + 8} y={ny + 11} />
                   </g>
-                )}
-                {node.rowCount != null && !isInColLineage && (
-                  <circle cx={nx + NODE_W - 8} cy={ny + 10} r={3.5} fill="#16a34a" opacity={isDimmed ? 0.1 : 0.8} />
-                )}
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-        </>
+                  <text x={nx + 24} y={ny + 18} fontSize="7" fontWeight={isSel || isInColLineage ? 700 : 600} fill={isInColLineage ? '#475569' : cfg.color} opacity={1} fontFamily="system-ui,sans-serif">
+                    {node.label.length > 18 ? node.label.slice(0, 16) + '…' : node.label}
+                  </text>
+                  <text x={nx + 24} y={ny + 31} fontSize="6" fill={isInColLineage ? '#64748b' : cfg.color} opacity={0.55} fontFamily="system-ui,sans-serif">
+                    {node.rowCount ? `${node.rowCount.toLocaleString()} rows · ` : ''}{node.sub}
+                  </text>
+                  {/* Column lineage badge on node */}
+                  {isInColLineage && (
+                    <g>
+                      <rect x={nx + NODE_W - 30} y={ny + NODE_H - 13} width={26} height={10} rx={5} fill="#64748b" />
+                      <text x={nx + NODE_W - 17} y={ny + NODE_H - 6} textAnchor="middle" fontSize="6" fill="#fff" fontWeight="700" fontFamily="system-ui,sans-serif">COL</text>
+                    </g>
+                  )}
+                  {node.rowCount != null && !isInColLineage && (
+                    <circle cx={nx + NODE_W - 8} cy={ny + 10} r={3.5} fill="#16a34a" opacity={0.8} />
+                  )}
+                </g>
+              )
+            })}
+          </svg>
+        </div>
       )}
 
       {/* ── Full-width Detail Panel (below graph, matching Data-Quality reference) ── */}
