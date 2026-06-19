@@ -1089,3 +1089,39 @@ async def patch_column_meta(
     await db.commit()
     await db.refresh(col)
     return {"col_id": col.col_id, "column_name": col.column_name, "description": col.description}
+
+
+@router.get("/{asset_id}/history")
+async def get_asset_history(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return the last 50 audit log entries for an asset, newest first."""
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Asset not found")
+
+    logs_res = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "asset", AuditLog.entity_id == asset_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(50)
+    )
+    logs = logs_res.scalars().all()
+
+    entries = []
+    for log in logs:
+        old = log.old_value or {}
+        new = log.new_value or {}
+        changed_fields = list(set(list(old.keys()) + list(new.keys())))
+        entries.append({
+            "audit_id": log.audit_id,
+            "action": log.action,
+            "user_email": log.user_email,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "changed_fields": changed_fields,
+            "old_value": old,
+            "new_value": new,
+        })
+    return entries
