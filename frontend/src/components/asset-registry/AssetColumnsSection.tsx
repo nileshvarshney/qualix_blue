@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 
 interface Column {
   column_name: string
@@ -16,6 +16,7 @@ interface Props {
   connectionId?: string
   sourceMeta?: { sf_database_name?: string; sf_schema_name?: string; sf_table_name?: string }
   editing?: boolean
+  saveRef?: React.RefObject<(() => Promise<void>) | null>
 }
 
 const headerStyle: React.CSSProperties = {
@@ -35,7 +36,7 @@ const sectionStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-export default function AssetColumnsSection({ assetId, connectionId, sourceMeta, editing }: Props) {
+export default function AssetColumnsSection({ assetId, connectionId, sourceMeta, editing, saveRef }: Props) {
   const [open, setOpen] = useState(false)
   const [columns, setColumns] = useState<Column[] | null>(null)
   const [loadingCols, setLoadingCols] = useState(false)
@@ -53,8 +54,8 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
 
   const hasPendingDescriptions = Object.keys(descDrafts).length > 0
 
-  async function saveDescriptions() {
-    if (!hasPendingDescriptions) return
+  const saveDescriptions = useCallback(async () => {
+    if (Object.keys(descDrafts).length === 0) return
     setSavingDesc(true)
     setDescSaveError(null)
     try {
@@ -78,7 +79,11 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
     } finally {
       setSavingDesc(false)
     }
-  }
+  }, [descDrafts, assetId])
+
+  useEffect(() => {
+    if (saveRef) saveRef.current = hasPendingDescriptions ? saveDescriptions : null
+  }, [saveRef, hasPendingDescriptions, saveDescriptions])
 
   const canSample = Boolean(connectionId && sourceMeta?.sf_table_name)
 

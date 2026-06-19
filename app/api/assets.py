@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
@@ -23,6 +24,21 @@ import logging
 
 logger = logging.getLogger("dq_platform.assets")
 router = APIRouter(prefix="/asset-registry", tags=["Asset Registry"])
+
+
+class ColumnMetaPatch(BaseModel):
+    description: str = Field(..., max_length=2000)
+
+
+_BULK_ALLOWED_FIELDS = frozenset({
+    "criticality", "certification_status", "is_active",
+    "domain_id", "subdomain_id", "owner_name",
+})
+
+
+class BulkUpdatePayload(BaseModel):
+    asset_ids: list[str] = Field(..., min_length=1)
+    patch: dict[str, str] = Field(..., min_length=1)
 
 
 # Snowflake browse is handled by /connections/:id/databases|schemas|tables
@@ -354,6 +370,108 @@ async def create_logical_dataset(
     if asset is None:
         raise HTTPException(status_code=500, detail="Logical dataset creation failed")
     return AssetResponse.model_validate(asset)
+
+
+@router.post("/bulk-update")
+async def bulk_update_assets(
+    payload: BulkUpdatePayload,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Apply a partial patch to multiple assets at once."""
+    asset_ids = payload.asset_ids
+    patch = payload.patch
+
+    invalid = set(patch.keys()) - _BULK_ALLOWED_FIELDS
+    if invalid:
+        raise HTTPException(422, f"Invalid patch fields: {sorted(invalid)}")
+
+    result = await db.execute(select(Asset).where(Asset.asset_id.in_(asset_ids)))
+    assets = result.scalars().all()
+    found_ids = {a.asset_id for a in assets}
+    missing = set(asset_ids) - found_ids
+    if missing:
+        raise HTTPException(404, f"Assets not found: {sorted(missing)[:5]}")
+
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for asset in assets:
+        old_vals = {k: getattr(asset, k, None) for k in patch}
+        for field, value in patch.items():
+            setattr(asset, field, value)
+        asset.updated_at = _now
+        db.add(AuditLog(
+            audit_id=str(uuid.uuid4()),
+            user_email=user.get("email"),
+            action="BULK_UPDATE",
+            entity_type="asset",
+            entity_id=asset.asset_id,
+            old_value=old_vals,
+            new_value=patch,
+        ))
+    await db.commit()
+    return {"updated": len(assets)}
+
+
+@router.get("/{asset_id}/history")
+async def get_asset_history(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Return the last 50 audit log entries for an asset, newest first."""
+    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Asset not found")
+
+    logs_res = await db.execute(
+        select(AuditLog)
+        .where(AuditLog.entity_type == "asset", AuditLog.entity_id == asset_id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(50)
+    )
+    logs = logs_res.scalars().all()
+
+    entries = []
+    for log in logs:
+        old = log.old_value or {}
+        new = log.new_value or {}
+        changed_fields = list(set(old.keys()) & set(new.keys()))
+        entries.append({
+            "audit_id": log.audit_id,
+            "action": log.action,
+            "user_email": log.user_email,
+            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "changed_fields": changed_fields,
+            "old_value": old,
+            "new_value": new,
+        })
+    return entries
+
+
+@router.patch("/{asset_id}/column-meta/{column_name}")
+async def patch_column_meta(
+    asset_id: str,
+    column_name: str,
+    payload: ColumnMetaPatch,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Update a single column's metadata (currently: description)."""
+    result = await db.execute(
+        select(ColumnMetadata).where(
+            ColumnMetadata.asset_id == asset_id,
+            ColumnMetadata.column_name == column_name,
+        )
+    )
+    col = result.scalar_one_or_none()
+    if not col:
+        raise HTTPException(404, "Column metadata not found")
+    col.description = payload.description
+    col.updated_by = user.get("email")
+    col.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.commit()
+    await db.refresh(col)
+    return {"col_id": col.col_id, "column_name": col.column_name, "description": col.description}
 
 
 @router.get("/{asset_id}")
@@ -1064,115 +1182,3 @@ async def remove_asset_registry_tag(
     return {"message": "Tag removed from asset"}
 
 
-@router.patch("/{asset_id}/column-meta/{column_name}")
-async def patch_column_meta(
-    asset_id: str,
-    column_name: str,
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    """Update a single column's metadata (currently: description)."""
-    result = await db.execute(
-        select(ColumnMetadata).where(
-            ColumnMetadata.asset_id == asset_id,
-            ColumnMetadata.column_name == column_name,
-        )
-    )
-    col = result.scalar_one_or_none()
-    if not col:
-        raise HTTPException(404, "Column metadata not found")
-    if "description" in payload:
-        col.description = payload["description"]
-    col.updated_by = user.get("email")
-    col.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
-    await db.commit()
-    await db.refresh(col)
-    return {"col_id": col.col_id, "column_name": col.column_name, "description": col.description}
-
-
-@router.get("/{asset_id}/history")
-async def get_asset_history(
-    asset_id: str,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    """Return the last 50 audit log entries for an asset, newest first."""
-    result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
-    if not result.scalar_one_or_none():
-        raise HTTPException(404, "Asset not found")
-
-    logs_res = await db.execute(
-        select(AuditLog)
-        .where(AuditLog.entity_type == "asset", AuditLog.entity_id == asset_id)
-        .order_by(AuditLog.created_at.desc())
-        .limit(50)
-    )
-    logs = logs_res.scalars().all()
-
-    entries = []
-    for log in logs:
-        old = log.old_value or {}
-        new = log.new_value or {}
-        changed_fields = list(set(list(old.keys()) + list(new.keys())))
-        entries.append({
-            "audit_id": log.audit_id,
-            "action": log.action,
-            "user_email": log.user_email,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
-            "changed_fields": changed_fields,
-            "old_value": old,
-            "new_value": new,
-        })
-    return entries
-
-
-_BULK_ALLOWED_FIELDS = frozenset({
-    "criticality", "certification_status", "is_active",
-    "domain_id", "subdomain_id", "owner_name",
-})
-
-
-@router.post("/bulk-update")
-async def bulk_update_assets(
-    payload: dict,
-    db: AsyncSession = Depends(get_db),
-    user: dict = Depends(get_current_user),
-):
-    """Apply a partial patch to multiple assets at once."""
-    asset_ids: list[str] = payload.get("asset_ids") or []
-    patch: dict = payload.get("patch") or {}
-
-    if not asset_ids:
-        raise HTTPException(422, "asset_ids must be a non-empty list")
-    if not patch:
-        raise HTTPException(422, "patch must be a non-empty object")
-
-    invalid = set(patch.keys()) - _BULK_ALLOWED_FIELDS
-    if invalid:
-        raise HTTPException(422, f"Invalid patch fields: {sorted(invalid)}")
-
-    result = await db.execute(select(Asset).where(Asset.asset_id.in_(asset_ids)))
-    assets = result.scalars().all()
-    found_ids = {a.asset_id for a in assets}
-    missing = set(asset_ids) - found_ids
-    if missing:
-        raise HTTPException(404, f"Assets not found: {sorted(missing)[:5]}")
-
-    _now = datetime.now(timezone.utc).replace(tzinfo=None)
-    for asset in assets:
-        old_vals = {k: getattr(asset, k, None) for k in patch}
-        for field, value in patch.items():
-            setattr(asset, field, value)
-        asset.updated_at = _now
-        db.add(AuditLog(
-            audit_id=str(uuid.uuid4()),
-            user_email=user.get("email"),
-            action="BULK_UPDATE",
-            entity_type="asset",
-            entity_id=asset.asset_id,
-            old_value=old_vals,
-            new_value=patch,
-        ))
-    await db.commit()
-    return {"updated": len(assets)}

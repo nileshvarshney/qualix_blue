@@ -74,6 +74,7 @@ export default function GlossaryPage() {
   const [linkSearch, setLinkSearch] = useState('')
   const [linking, setLinking] = useState(false)
   const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
+  const [linkError, setLinkError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/glossary')
@@ -214,6 +215,7 @@ export default function GlossaryPage() {
 
   async function openPopup(term: GlossaryTerm) {
     setPopup(term)
+    setLinkError(null)
     setPopupLinkedAssets([])
     setPopupLinkedLoading(true)
     try {
@@ -240,7 +242,7 @@ export default function GlossaryPage() {
         ))
       }
     } catch {
-      // silently ignore — list will be stale until popup reopened
+      setLinkError('Failed to unlink asset')
     } finally {
       setUnlinkingId(null)
     }
@@ -287,9 +289,10 @@ export default function GlossaryPage() {
           t.id === termId ? { ...t, linkedAssets: t.linkedAssets + 1 } : t
         ))
         setShowLinkModal(false)
+        setLinkError(null)
       }
     } catch {
-      // silently ignore
+      setLinkError('Failed to link asset')
     } finally {
       setLinking(false)
     }
@@ -489,6 +492,9 @@ export default function GlossaryPage() {
                   + Link Asset
                 </button>
               </div>
+              {linkError && (
+                <div style={{ fontSize: '10px', color: 'var(--status-error-text)', marginBottom: '4px' }}>{linkError}</div>
+              )}
               {popupLinkedLoading && (
                 <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Loading…</div>
               )}
@@ -553,7 +559,7 @@ export default function GlossaryPage() {
                     />
                   </div>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => setShowLinkModal(false)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={() => { setShowLinkModal(false); setLinkError(null) }} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
                     <button
                       onClick={() => submitLink(popup.id)}
                       disabled={!linkAssetId || linking}

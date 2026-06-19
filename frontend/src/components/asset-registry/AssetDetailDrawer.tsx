@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import AssetTagsSection from './AssetTagsSection'
 import AssetDocumentsSection from './AssetDocumentsSection'
 import AssetColumnsSection from './AssetColumnsSection'
@@ -90,6 +90,7 @@ function initialForm(asset: Asset): EditForm {
 }
 
 export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) {
+  const columnsSaveRef = useRef<(() => Promise<void>) | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -161,6 +162,9 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
   }
 
   async function save() {
+    if (columnsSaveRef.current) {
+      await columnsSaveRef.current()
+    }
     setSaving(true)
     setError(null)
     try {
@@ -389,6 +393,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
         <AssetColumnsSection
           assetId={asset.asset_id}
           editing={editing}
+          saveRef={columnsSaveRef}
           sourceMeta={{
             sf_database_name: asset.sf_database_name,
             sf_schema_name: asset.sf_schema_name,
