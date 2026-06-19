@@ -2,12 +2,12 @@ from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.db.models import (
     Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta,
-    AssetDocument, AssetOwner, Tag, AssetTag,
+    AssetDocument, AssetOwner, Tag, AssetTag, DQQualityScore, ColumnMetadata,
 )
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
@@ -60,6 +60,41 @@ async def list_assets_enriched(
         for c in conn_result.scalars().all():
             conn_map[c.connection_id] = c.connection_name
 
+    asset_ids = [asset.asset_id for asset, _, _, _ in rows]
+
+    # Bulk-fetch latest quality score per asset
+    score_map: dict[str, float] = {}
+    if asset_ids:
+        subq = (
+            select(
+                DQQualityScore.asset_id,
+                func.max(DQQualityScore.score_date).label("latest_date"),
+            )
+            .where(DQQualityScore.asset_id.in_(asset_ids))
+            .group_by(DQQualityScore.asset_id)
+            .subquery()
+        )
+        score_res = await db.execute(
+            select(DQQualityScore.asset_id, DQQualityScore.quality_score)
+            .join(
+                subq,
+                (DQQualityScore.asset_id == subq.c.asset_id)
+                & (DQQualityScore.score_date == subq.c.latest_date),
+            )
+        )
+        score_map = {r.asset_id: r.quality_score for r in score_res.all()}
+
+    # Bulk-fetch tag names per asset
+    tag_map: dict[str, list[str]] = {}
+    if asset_ids:
+        tag_res = await db.execute(
+            select(AssetTag.entity_id, Tag.tag_name)
+            .join(Tag, AssetTag.tag_id == Tag.tag_id)
+            .where(AssetTag.entity_type == "asset", AssetTag.entity_id.in_(asset_ids))
+        )
+        for r in tag_res.all():
+            tag_map.setdefault(r.entity_id, []).append(r.tag_name)
+
     return [
         {
             "asset_id": asset.asset_id,
@@ -83,6 +118,8 @@ async def list_assets_enriched(
             "subdomain_id": subdomain.subdomain_id,
             "subdomain_name": subdomain.subdomain_name,
             "created_at": asset.created_at.isoformat(),
+            "quality_score": score_map.get(asset.asset_id),
+            "tag_names": tag_map.get(asset.asset_id, []),
         }
         for asset, domain, subdomain, meta in rows
     ]
