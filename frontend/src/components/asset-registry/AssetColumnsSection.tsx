@@ -8,12 +8,14 @@ interface Column {
   is_nullable?: boolean
   is_primary_key?: boolean
   classification?: string
+  description?: string
 }
 
 interface Props {
   assetId: string
   connectionId?: string
   sourceMeta?: { sf_database_name?: string; sf_schema_name?: string; sf_table_name?: string }
+  editing?: boolean
 }
 
 const headerStyle: React.CSSProperties = {
@@ -33,7 +35,7 @@ const sectionStyle: React.CSSProperties = {
   overflow: 'hidden',
 }
 
-export default function AssetColumnsSection({ assetId, connectionId, sourceMeta }: Props) {
+export default function AssetColumnsSection({ assetId, connectionId, sourceMeta, editing }: Props) {
   const [open, setOpen] = useState(false)
   const [columns, setColumns] = useState<Column[] | null>(null)
   const [loadingCols, setLoadingCols] = useState(false)
@@ -44,6 +46,39 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta 
   const [sampleCols, setSampleCols] = useState<string[]>([])
   const [loadingSamples, setLoadingSamples] = useState(false)
   const [sampleError, setSampleError] = useState<string | null>(null)
+
+  const [descDrafts, setDescDrafts] = useState<Record<string, string>>({})
+  const [savingDesc, setSavingDesc] = useState(false)
+  const [descSaveError, setDescSaveError] = useState<string | null>(null)
+
+  const hasPendingDescriptions = Object.keys(descDrafts).length > 0
+
+  async function saveDescriptions() {
+    if (!hasPendingDescriptions) return
+    setSavingDesc(true)
+    setDescSaveError(null)
+    try {
+      for (const [colName, desc] of Object.entries(descDrafts)) {
+        const res = await fetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: desc }),
+        })
+        if (!res.ok) throw new Error(`Failed to save description for ${colName}`)
+      }
+      // Commit drafts into columns state
+      setColumns(prev => (prev ?? []).map(c =>
+        descDrafts[c.column_name] !== undefined
+          ? { ...c, description: descDrafts[c.column_name] }
+          : c
+      ))
+      setDescDrafts({})
+    } catch (e: unknown) {
+      setDescSaveError((e as Error).message)
+    } finally {
+      setSavingDesc(false)
+    }
+  }
 
   const canSample = Boolean(connectionId && sourceMeta?.sf_table_name)
 
@@ -108,23 +143,41 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta 
           <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>
             {open ? '▼' : '▶'} Columns{columns !== null ? ` (${colCount})` : ''}
           </span>
-          <button
-            onClick={handleViewSamples}
-            disabled={!canSample}
-            style={{
-              fontSize: '11px',
-              padding: '3px 10px',
-              borderRadius: '4px',
-              border: '1px solid var(--border)',
-              background: canSample ? 'var(--accent-bg)' : 'var(--surface)',
-              color: canSample ? 'var(--accent)' : 'var(--text-muted)',
-              cursor: canSample ? 'pointer' : 'not-allowed',
-              fontWeight: 600,
-            }}
-          >
-            View 10 Samples
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} onClick={e => e.stopPropagation()}>
+            {editing && hasPendingDescriptions && (
+              <button
+                onClick={saveDescriptions}
+                disabled={savingDesc}
+                style={{
+                  fontSize: '11px', padding: '3px 10px', borderRadius: '4px',
+                  border: 'none', background: 'var(--accent)', color: '#fff',
+                  cursor: savingDesc ? 'not-allowed' : 'pointer', fontWeight: 600,
+                  opacity: savingDesc ? 0.6 : 1,
+                }}
+              >
+                {savingDesc ? 'Saving…' : 'Save Descriptions'}
+              </button>
+            )}
+            <button
+              onClick={handleViewSamples}
+              disabled={!canSample}
+              style={{
+                fontSize: '11px', padding: '3px 10px', borderRadius: '4px',
+                border: '1px solid var(--border)',
+                background: canSample ? 'var(--accent-bg)' : 'var(--surface)',
+                color: canSample ? 'var(--accent)' : 'var(--text-muted)',
+                cursor: canSample ? 'pointer' : 'not-allowed', fontWeight: 600,
+              }}
+            >
+              View 10 Samples
+            </button>
+          </div>
         </div>
+        {descSaveError && (
+          <div style={{ padding: '4px 10px', fontSize: '10px', color: 'var(--status-error-text)', background: 'var(--status-error-bg)' }}>
+            {descSaveError}
+          </div>
+        )}
 
         {open && (
           <div style={{ overflowX: 'auto' }}>
@@ -147,7 +200,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta 
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['#', 'Name', 'Type', 'Nullable', 'Class'].map(h => (
+                    {['#', 'Name', 'Type', 'Nullable', 'Class', 'Description'].map(h => (
                       <th key={h} style={{ padding: '4px 8px', textAlign: 'left', color: 'var(--text-muted)', fontWeight: 600, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
                         {h}
                       </th>
@@ -182,6 +235,25 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta 
                             color: col.classification === 'PII' ? 'var(--status-error-text)' : 'var(--status-warn-text)',
                           }}>
                             {col.classification}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ padding: '4px 8px', minWidth: '120px', maxWidth: '220px' }}>
+                        {editing ? (
+                          <input
+                            value={descDrafts[col.column_name] ?? col.description ?? ''}
+                            onChange={e => setDescDrafts(prev => ({ ...prev, [col.column_name]: e.target.value }))}
+                            placeholder="Add description…"
+                            style={{
+                              width: '100%', fontSize: '10px', padding: '2px 4px',
+                              border: '1px solid var(--border)', borderRadius: '3px',
+                              background: 'var(--background)', color: 'var(--foreground)', outline: 'none',
+                              boxSizing: 'border-box' as const,
+                            }}
+                          />
+                        ) : (
+                          <span style={{ fontSize: '10px', color: col.description ? 'var(--foreground)' : 'var(--text-muted)' }}>
+                            {col.description || '—'}
                           </span>
                         )}
                       </td>
