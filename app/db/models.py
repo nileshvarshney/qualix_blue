@@ -874,6 +874,7 @@ class AnomalyDetection(Base):
     confidence: Mapped[Optional[float]] = mapped_column(Float)
     detected_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     is_acknowledged: Mapped[bool] = mapped_column(Boolean, default=False)
+    ai_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
 class QualityCostConfig(Base):
