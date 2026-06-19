@@ -1,5 +1,4 @@
 from __future__ import annotations
-import asyncio
 import logging
 import uuid
 from typing import Optional
@@ -129,6 +128,7 @@ async def _auto_create_issue(run, rule, asset, db) -> None:
     existing = await db.execute(
         select(Issue).where(
             Issue.rule_id == rule.rule_id,
+            Issue.asset_id == run.asset_id,
             Issue.status.not_in(["closed", "resolved"]),
         )
     )
