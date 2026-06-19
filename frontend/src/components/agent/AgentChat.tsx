@@ -175,7 +175,7 @@ export default function AgentChat() {
           position: 'fixed', bottom: '80px', right: '20px', width: '400px', height: '580px',
           background: '#fff', borderRadius: '20px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           display: 'flex', flexDirection: 'column', zIndex: 1000,
-          border: '1px solid rgba(99,102,241,0.15)', overflow: 'hidden'
+          border: '1px solid rgba(232,84,26,0.15)', overflow: 'hidden'
         }}>
           {/* Header */}
           <div style={{
@@ -223,7 +223,7 @@ export default function AgentChat() {
                   {msg.toolsUsed && msg.toolsUsed.length > 0 && (
                     <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                       {msg.toolsUsed.map((t, j) => (
-                        <span key={j} style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>
+                        <span key={j} style={{ background: 'rgba(232,84,26,0.1)', color: '#E8541A', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>
                           ⚡ {t.replace(/_/g, ' ')}
                         </span>
                       ))}
