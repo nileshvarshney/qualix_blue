@@ -178,25 +178,27 @@ export default function AgentChat() {
         }}>
           {/* Header */}
           <div style={{
-            padding: '16px 20px', background: 'linear-gradient(135deg, #0f172a, #1e1b4b)',
+            padding: '16px 20px',
+            background: 'linear-gradient(135deg, #7C1A02, #C94015, #E8541A)',
             display: 'flex', alignItems: 'center', gap: '10px'
           }}>
             <div style={{
               width: '38px', height: '38px', borderRadius: '12px',
-              background: 'linear-gradient(135deg, #4f8ef7, #2563eb)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(37,99,235,0.4)'
-            }}><QualixMark size={28} /></div>
+              boxShadow: '0 2px 8px rgba(124,26,2,0.4)'
+            }}>
+              <QualixMark size={38} />
+            </div>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>Qualix AI</div>
-              <div style={{ color: '#10b981', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981' }} />
+              <div style={{ color: '#FFB347', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#FFB347' }} />
                 Online & Ready
               </div>
             </div>
             <button onClick={() => setOpen(false)} style={{
               marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', border: 'none',
-              color: '#94a3b8', width: '28px', height: '28px', borderRadius: '8px',
+              color: '#fff', width: '28px', height: '28px', borderRadius: '8px',
               cursor: 'pointer', fontSize: '14px'
             }}>✕</button>
           </div>
