@@ -149,6 +149,20 @@ export interface AssetQualityHistory {
   history: AssetQualityHistoryPoint[]
 }
 
+export interface ForecastPoint {
+  date: string
+  score: number
+}
+
+export interface ForecastResponse {
+  asset_id: string
+  history: ForecastPoint[]
+  forecast: ForecastPoint[]
+  upper_band: ForecastPoint[]
+  lower_band: ForecastPoint[]
+  insufficient_history: boolean
+}
+
 export interface FailingRule {
   rule_name:  string
   asset_name: string
