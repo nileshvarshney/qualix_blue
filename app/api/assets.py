@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.db.models import (
     Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta,
-    AssetDocument, AssetOwner, Tag, AssetTag, DQQualityScore,
+    AssetDocument, AssetOwner, Tag, AssetTag, DQQualityScore, ColumnMetadata,
 )
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
@@ -1062,3 +1062,30 @@ async def remove_asset_registry_tag(
     await db.delete(at)
     await db.commit()
     return {"message": "Tag removed from asset"}
+
+
+@router.patch("/{asset_id}/column-meta/{column_name}")
+async def patch_column_meta(
+    asset_id: str,
+    column_name: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Update a single column's metadata (currently: description)."""
+    result = await db.execute(
+        select(ColumnMetadata).where(
+            ColumnMetadata.asset_id == asset_id,
+            ColumnMetadata.column_name == column_name,
+        )
+    )
+    col = result.scalar_one_or_none()
+    if not col:
+        raise HTTPException(404, "Column metadata not found")
+    if "description" in payload:
+        col.description = payload["description"]
+    col.updated_by = user.get("email")
+    col.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    await db.commit()
+    await db.refresh(col)
+    return {"col_id": col.col_id, "column_name": col.column_name, "description": col.description}
