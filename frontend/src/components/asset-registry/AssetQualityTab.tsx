@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
-import { AssetQualityScore, AssetQualityHistory, QualityDimension } from '@/lib/types'
+import { AssetQualityScore, AssetQualityHistory, QualityDimension, ForecastResponse } from '@/lib/types'
 
 const DIMENSIONS: QualityDimension[] = [
   'completeness', 'validity', 'uniqueness', 'timeliness', 'consistency', 'integrity',
@@ -21,6 +21,7 @@ const card: React.CSSProperties = { background: 'var(--surface)', borderRadius: 
 export default function AssetQualityTab({ assetId }: { assetId: string }) {
   const [score, setScore] = useState<AssetQualityScore | null>(null)
   const [history, setHistory] = useState<AssetQualityHistory | null>(null)
+  const [forecast, setForecast] = useState<ForecastResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -35,6 +36,13 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
         setLoading(false)
       })
       .catch(() => setLoading(false))
+  }, [assetId])
+
+  useEffect(() => {
+    fetch(`/api/quality-scores/assets/${assetId}/forecast?days=30&horizon=7`)
+      .then(r => r.json())
+      .then((f: ForecastResponse) => setForecast(f))
+      .catch(() => {/* forecast is optional — silently ignore errors */})
   }, [assetId])
 
   if (loading) {
@@ -54,6 +62,7 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
   }
 
   const trendData = (history?.history ?? []).map(h => ({ date: h.date, score: h.overall_score, failed: 0 }))
+  const hasForecast = forecast && !forecast.insufficient_history && forecast.forecast.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -100,8 +109,20 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
       </div>
 
       <div style={card}>
-        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Score trend · last 30 days</div>
-        <TrendChart data={trendData} />
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>
+          Score trend · last 30 days{hasForecast ? ' + 7-day forecast' : ''}
+        </div>
+        {forecast?.insufficient_history && (
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+            Not enough history to forecast — run more quality checks to enable predictions.
+          </div>
+        )}
+        <TrendChart
+          data={trendData}
+          forecastData={hasForecast ? forecast.forecast : undefined}
+          upperBand={hasForecast ? forecast.upper_band : undefined}
+          lowerBand={hasForecast ? forecast.lower_band : undefined}
+        />
       </div>
     </div>
   )
