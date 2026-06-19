@@ -208,7 +208,7 @@ export default function AgentChat() {
             {messages.map((msg, i) => (
               <div key={i} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 {msg.role === 'assistant' && (
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: '8px', marginTop: '2px' }}><QualixMark size={20} /></div>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: '8px', marginTop: '2px' }}><QualixMark size={28} /></div>
                 )}
                 <div style={{
                   maxWidth: '85%',
@@ -234,11 +234,11 @@ export default function AgentChat() {
 
             {loading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><QualixMark size={20} /></div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><QualixMark size={28} /></div>
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px', borderRadius: '16px 16px 16px 4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
                   {[0, 1, 2].map(j => (
                     <div key={j} style={{
-                      width: '6px', height: '6px', borderRadius: '50%', background: '#6366f1',
+                      width: '6px', height: '6px', borderRadius: '50%', background: '#E8541A',
                       animation: `bounce 1.2s ease-in-out ${j * 0.2}s infinite`
                     }} />
                   ))}
