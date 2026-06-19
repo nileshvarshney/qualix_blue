@@ -263,6 +263,7 @@ export default function LineagePage() {
   const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
   const dragNodeRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
   const nodeDraggedRef = useRef(false)
+  const preserveTabRef = useRef(false)
   const [activeTab, setActiveTab] = useState<'chains' | 'impact' | 'columns'>('chains')
 
   const fetchLineage = useCallback(async () => {
@@ -298,6 +299,11 @@ export default function LineagePage() {
 
   // Reset zoom/pan/manual node positions whenever a new table is selected (the graph is re-laid-out)
   useEffect(() => {
+    if (preserveTabRef.current) {
+      preserveTabRef.current = false
+      setZoom(1); setPan({ x: 0, y: 0 }); setNodePositions(new Map())
+      return
+    }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setZoom(1); setPan({ x: 0, y: 0 }); setNodePositions(new Map()); setActiveTab('chains')
   }, [selected])
@@ -314,6 +320,7 @@ export default function LineagePage() {
     if (!selected) { setColumnData(null); return }
     const node = data?.nodes.find(n => n.id === selected)
     if (!node) { setColumnData(null); return }
+    setColumnData(null)  // clear stale count immediately
     setColumnsLoading(true); setColumnSearch('')
     fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
       .then(r => r.json())
@@ -547,7 +554,8 @@ export default function LineagePage() {
     ? data.nodes.filter(n => n.label.toLowerCase().includes(search.toLowerCase()) || n.sub.toLowerCase().includes(search.toLowerCase()))
     : []
 
-  function selectNode(id: string) {
+  function selectNode(id: string, preserveTab = false) {
+    preserveTabRef.current = preserveTab
     if (selected === id) {
       setColumnPopupOpen(open => !open)
     } else {
@@ -563,17 +571,28 @@ export default function LineagePage() {
   }
 
   const selectedNode = selected ? nodeMap.get(selected) : null
-  const upstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'up') : []
-  const downstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'down') : []
+
+  const { upstreamChain, downstreamChain } = useMemo(() => {
+    if (!selected || !data) return { upstreamChain: [], downstreamChain: [] }
+    return {
+      upstreamChain: buildChain(selected, data.edges, nodeMap, 'up'),
+      downstreamChain: buildChain(selected, data.edges, nodeMap, 'down'),
+    }
+  }, [selected, data, nodeMap])
+
   const totalUpstream = upstreamChain.reduce((s, h) => s + h.nodes.length, 0)
   const totalDownstream = downstreamChain.reduce((s, h) => s + h.nodes.length, 0)
-  const impactStats = selected && selectedNode ? (() => {
+
+  const impactStats = useMemo(() => {
+    if (!selected || !selectedNode) return null
     const allDownstream = downstreamChain.flatMap(h => h.nodes)
     const byType: Record<string, LineageNode[]> = {}
     for (const n of allDownstream) {
       if (!byType[n.type]) byType[n.type] = []
       byType[n.type].push(n)
     }
+    const hopNodeMap = new Map<string, number>()
+    downstreamChain.forEach(hop => hop.nodes.forEach(n => hopNodeMap.set(n.id, hop.hop)))
     const severity: 'none' | 'low' | 'medium' | 'high' | 'critical' =
       allDownstream.length === 0 ? 'none'
       : allDownstream.length <= 3 ? 'low'
@@ -587,8 +606,9 @@ export default function LineagePage() {
       businessConsumers: allDownstream.filter(n => n.type === 'output'),
       hopCount: downstreamChain.length,
       allDownstream,
+      hopNodeMap,
     }
-  })() : null
+  }, [selected, selectedNode, downstreamChain, upstreamChain])
 
   function captureGraph() {
     const svgEl = svgRef.current
@@ -1112,8 +1132,8 @@ export default function LineagePage() {
                   <span style={{
                     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                     width: 16, height: 16, borderRadius: '50%',
-                    background: { none: '#e2e8f0', low: '#dcfce7', medium: '#fef3c7', high: '#fee2e2', critical: '#ede9fe' }[impactStats.severity],
-                    color: { none: '#64748b', low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c3aed' }[impactStats.severity],
+                    background: severityConfig[impactStats.severity].bg,
+                    color: severityConfig[impactStats.severity].color,
                     fontSize: '8px', fontWeight: 700, marginRight: 4,
                   }}>{impactStats.total}</span>
                 )}
@@ -1421,12 +1441,13 @@ export default function LineagePage() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {impactStats.businessConsumers.map(n => {
-                      const hopNum = downstreamChain.findIndex(h => h.nodes.some(hn => hn.id === n.id)) + 1
+                      const hopNum = impactStats.hopNodeMap.get(n.id) ?? 0
                       return (
-                        <div key={n.id} style={{
+                        <div key={n.id} onClick={() => selectNode(n.id, true)} style={{
                           display: 'flex', alignItems: 'flex-start', gap: '12px',
                           padding: '10px 14px', borderRadius: '8px',
                           background: 'var(--surface-muted)', border: '1px solid var(--border)',
+                          cursor: 'pointer',
                         }}>
                           <div style={{ marginTop: 2 }}><DbTypeIcon tableType={n.tableType} size={16} /></div>
                           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1474,7 +1495,7 @@ export default function LineagePage() {
                         const cfg = typeConfig[n.type] ?? typeConfig.warehouse
                         return (
                           <div key={n.id}
-                            onClick={() => selectNode(n.id)}
+                            onClick={() => selectNode(n.id, true)}
                             style={{
                               display: 'grid', gridTemplateColumns: '48px 1fr 100px 100px 120px 1fr',
                               padding: '6px 14px', borderBottom: '1px solid var(--surface-muted)',
