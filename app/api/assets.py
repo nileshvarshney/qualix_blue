@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.db.database import get_db
 from app.db.models import (
     Asset, Domain, Subdomain, AuditLog, SnowflakeConnection, AssetSourceMeta,
-    AssetDocument, AssetOwner, Tag, AssetTag, DQQualityScore, ColumnMetadata,
+    AssetDocument, AssetOwner, Tag, AssetTag, DQQualityScore,
 )
 from app.schemas.asset import (
     AssetCreate, AssetUpdate, AssetResponse, AssetCertifyRequest,
@@ -70,7 +70,10 @@ async def list_assets_enriched(
                 DQQualityScore.asset_id,
                 func.max(DQQualityScore.score_date).label("latest_date"),
             )
-            .where(DQQualityScore.asset_id.in_(asset_ids))
+            .where(
+                DQQualityScore.asset_id.in_(asset_ids),
+                DQQualityScore.score_level == "asset",
+            )
             .group_by(DQQualityScore.asset_id)
             .subquery()
         )
@@ -81,6 +84,7 @@ async def list_assets_enriched(
                 (DQQualityScore.asset_id == subq.c.asset_id)
                 & (DQQualityScore.score_date == subq.c.latest_date),
             )
+            .where(DQQualityScore.score_level == "asset")
         )
         score_map = {r.asset_id: r.quality_score for r in score_res.all()}
 
