@@ -130,7 +130,7 @@ export function TrendChart({
             y: pad.top + chartH - ((Math.max(d.score, min) - min) / (max - min)) * chartH,
           }))
           const topPath = uPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
-          const bottomPath = [...lPts].reverse().map((p, i) => `${i === 0 ? 'L' : 'L'}${p.x},${p.y}`).join(' ')
+          const bottomPath = [...lPts].reverse().map((p) => `L${p.x},${p.y}`).join(' ')
           return <path d={`${topPath} ${bottomPath} Z`} fill="#3b82f6" fillOpacity="0.08" />
         })()}
 
