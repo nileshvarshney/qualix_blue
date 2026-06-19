@@ -955,23 +955,23 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
             assets_count = (await db.execute(select(func.count(Asset.asset_id)))).scalar() or 0
             domains_count = (await db.execute(select(func.count(Domain.domain_id)))).scalar() or 0
             open_alerts = (await db.execute(
-                select(func.count(DQAlert.alert_id)).where(DQAlert.status == "open")
+                select(func.count(DQAlert.alert_id)).where(DQAlert.alert_status == "open")
             )).scalar() or 0
             critical_alerts = (await db.execute(
                 select(func.count(DQAlert.alert_id)).where(
-                    DQAlert.status == "open", DQAlert.severity == "critical"
+                    DQAlert.alert_status == "open", DQAlert.severity == "critical"
                 )
             )).scalar() or 0
 
             # Latest global quality score
             latest_score = await db.execute(
                 select(DQQualityScore)
-                .where(DQQualityScore.level == "global")
-                .order_by(desc(DQQualityScore.calculated_at))
+                .where(DQQualityScore.score_level == "global")
+                .order_by(desc(DQQualityScore.created_at))
                 .limit(1)
             )
             score_row = latest_score.scalar_one_or_none()
-            overall_score = score_row.score if score_row else None
+            overall_score = score_row.quality_score if score_row else None
 
             return {
                 "total_rules": rules_count,
@@ -986,7 +986,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
         elif tool_name == "get_alerts":
             stmt = select(DQAlert).order_by(desc(DQAlert.created_at))
             if tool_input.get("status"):
-                stmt = stmt.where(DQAlert.status == tool_input["status"])
+                stmt = stmt.where(DQAlert.alert_status == tool_input["status"])
             if tool_input.get("severity"):
                 stmt = stmt.where(DQAlert.severity == tool_input["severity"])
             stmt = stmt.limit(tool_input.get("limit", 10))
@@ -996,7 +996,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
                 "alerts": [
                     {
                         "id": a.alert_id, "severity": a.severity,
-                        "status": a.status, "message": a.message,
+                        "status": a.alert_status, "message": a.alert_message,
                         "created_at": a.created_at.isoformat() if a.created_at else None,
                     }
                     for a in alerts
@@ -1007,6 +1007,17 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
         elif tool_name == "get_domains":
             result = await db.execute(select(Domain).order_by(Domain.domain_name))
             domains = result.scalars().all()
+            # Fetch latest quality score per domain in one query
+            score_res = await db.execute(
+                select(DQQualityScore)
+                .where(DQQualityScore.score_level == "domain")
+                .order_by(desc(DQQualityScore.created_at))
+            )
+            all_scores = score_res.scalars().all()
+            latest_score_by_domain: dict = {}
+            for s in all_scores:
+                if s.domain_id and s.domain_id not in latest_score_by_domain:
+                    latest_score_by_domain[s.domain_id] = s.quality_score
             domain_data = []
             for d in domains:
                 asset_count = (await db.execute(
@@ -1019,6 +1030,7 @@ async def _execute_agent_tool(tool_name: str, tool_input: dict, db: AsyncSession
                     "id": d.domain_id, "name": d.domain_name,
                     "description": d.description,
                     "asset_count": asset_count, "rule_count": rule_count,
+                    "quality_score": latest_score_by_domain.get(d.domain_id),
                 })
             return {"domains": domain_data, "total": len(domain_data)}
 
@@ -1380,30 +1392,27 @@ async def agent_chat(
     # Get the active LLM provider
     provider_name = await get_value("llm_provider", db) or settings.llm_provider or "ollama"
 
-    system_prompt = """You are DataGuard AI, an expert Data Quality & Governance assistant.
-You have access to tools that let you query the DataGuard platform AND connected data warehouses in real-time.
+    system_prompt = """You are Qualix AI, the DataGuard platform assistant.
 
-PLATFORM TOOLS (metadata, rules, alerts):
-- list_connections → find available warehouse connections
-- get_dashboard_stats → platform health overview
-- list_rules / get_alerts / get_domains / get_recent_runs / search_assets → platform data
+SCOPE: Answer ONLY from live platform data returned by tools. Never invent scores, rule names, table names, or counts.
+Out of scope: general analytics, external business metrics, anything unrelated to this data quality platform.
 
-WAREHOUSE QUERY TOOLS (live data from connected warehouses):
-When users ask analytical questions about their data (e.g., "top 20 sales by region", "average revenue per month"):
-1. Use list_connections to find the connection ID
-2. Use discover_warehouse_schema to browse databases → schemas → tables
-3. Use get_table_columns to see column names, types, and sample data
-4. Use query_warehouse to execute a SQL query and return results
-5. Use explain_columns to describe what columns mean, how views derive them, and column statistics
+AVAILABLE TOOLS:
+- get_dashboard_stats → overall platform health (quality scores, rule counts, alerts)
+- list_rules → data quality rules (filter by severity/status/category)
+- get_alerts → open/resolved quality alerts
+- get_domains → domains with quality scores and asset counts
+- get_recent_runs → latest rule execution results (pass/fail)
+- search_assets → find registered data assets by name
+- list_connections → configured data source connections
+- execute_rules → trigger rule execution for an asset
 
-WORKFLOW for analytical questions:
-- First discover what tables exist, then inspect columns, then write and execute SQL
-- Present results in a clear markdown table
-- Explain what the data shows and how metrics are derived
-- If a table is a VIEW, explain_columns will show the view definition (the SQL that derives the columns)
-
-Be conversational, helpful, and proactive. Format responses with markdown for readability.
-Always explain the data quality impact and recommend next steps."""
+RULES:
+1. Use tools to fetch live data before answering — do not guess.
+2. Answer only what the tool results show. Say "no data available" if tools return nothing.
+3. Be direct and concise. No filler phrases.
+4. Format numbers in **bold**. Use ✅ ≥95% | ⚠️ 80–94% | ❌ <80% for quality scores.
+5. If a question is outside this platform's scope, say so briefly."""
 
     messages = payload.messages
 
@@ -1531,22 +1540,58 @@ async def _agent_loop_fallback(system_prompt: str, messages: list[dict], db: Asy
     """Fallback: use the configured LLM provider without tool use."""
     from app.services.llm_providers import get_provider_from_db
 
-    # Gather some context automatically
-    context_parts = []
-    try:
-        stats = await _execute_agent_tool("get_dashboard_stats", {}, db)
-        context_parts.append(f"Platform stats: {_json.dumps(stats, default=str)}")
-    except Exception:
-        pass
+    # Gather comprehensive platform context from all available tools.
+    # This is critical — without real data the LLM will hallucinate.
+    context_parts: list[str] = []
+    tools_gathered: list[str] = []
+
+    async def _gather(tool: str, args: dict, label: str) -> None:
+        try:
+            result = await _execute_agent_tool(tool, args, db)
+            if result and not result.get("error"):
+                context_parts.append(f"{label}:\n{_json.dumps(result, default=str)}")
+                tools_gathered.append(tool)
+        except Exception:
+            pass
+
+    await _gather("get_dashboard_stats", {}, "Platform statistics")
+    await _gather("get_domains", {}, "Domains with quality scores")
+    await _gather("get_alerts", {"limit": 10}, "Recent alerts (top 10)")
+    await _gather("list_rules", {"limit": 20}, "Data quality rules (top 20)")
+    await _gather("get_recent_runs", {"limit": 10}, "Recent rule runs (top 10)")
+    await _gather("list_connections", {}, "Configured connections")
 
     provider = await get_provider_from_db(None, db)
     user_msg = messages[-1]["content"] if messages else ""
-    ctx = "\n".join(context_parts)
-    prompt = f"Platform context:\n{ctx}\n\nUser question: {user_msg}" if ctx else user_msg
+
+    if context_parts:
+        ctx_block = "\n\n---\n".join(context_parts)
+        fallback_system = (
+            "You are Qualix AI, the DataGuard platform assistant.\n\n"
+            "CRITICAL RULES:\n"
+            "1. Answer ONLY from the platform data provided below. NEVER invent domain names, "
+            "scores, rule names, table names, counts, or timestamps.\n"
+            "2. If the data does not contain the answer, say 'No data available for this query.'\n"
+            "3. Be direct and concise. Format numbers in **bold**.\n"
+            "4. Do not mention tools, JSON, or internal implementation details.\n"
+        )
+        prompt = (
+            f"=== LIVE PLATFORM DATA ===\n{ctx_block}\n\n"
+            f"=== END OF PLATFORM DATA ===\n\n"
+            f"User question: {user_msg}\n\n"
+            f"Answer using only the platform data above."
+        )
+    else:
+        fallback_system = (
+            "You are Qualix AI, the DataGuard platform assistant. "
+            "The platform data could not be retrieved at this time. "
+            "Tell the user you could not fetch live data and suggest they try again."
+        )
+        prompt = user_msg
 
     try:
-        response = await provider.complete(prompt, system=system_prompt, max_tokens=1500)
-        return {"response": response, "tools_used": []}
+        response = await provider.complete(prompt, system=fallback_system, max_tokens=1500)
+        return {"response": response, "tools_used": tools_gathered}
     except Exception as e:
         return {"response": f"AI service error: {str(e)}", "tools_used": []}
 
