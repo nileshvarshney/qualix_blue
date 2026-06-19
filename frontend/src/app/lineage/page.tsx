@@ -39,6 +39,14 @@ const typeConfig: Record<string, { bg: string; border: string; color: string; la
   output:    { bg: '#faf5ff', border: '#d8b4fe', color: '#7c3aed', label: 'Views' },
 }
 
+const severityConfig: Record<string, { label: string; color: string; bg: string; border: string }> = {
+  none:     { label: 'No Impact',       color: '#64748b', bg: '#f1f5f9', border: '#e2e8f0' },
+  low:      { label: 'Low Impact',      color: '#16a34a', bg: '#dcfce7', border: '#86efac' },
+  medium:   { label: 'Medium Impact',   color: '#d97706', bg: '#fef3c7', border: '#fcd34d' },
+  high:     { label: 'High Impact',     color: '#dc2626', bg: '#fee2e2', border: '#fca5a5' },
+  critical: { label: 'Critical Impact', color: '#7c3aed', bg: '#ede9fe', border: '#c4b5fd' },
+}
+
 /* ─── Object-type icon: a distinct database table/view glyph per object type ─── */
 function DbTypeIcon({ tableType, size = 16, x, y }: { tableType?: string | null; size?: number; x?: number; y?: number }) {
   const t = (tableType ?? '').toUpperCase()
@@ -1333,6 +1341,168 @@ export default function LineagePage() {
               </div>
             )}
           </div>
+          )}
+
+          {/* Impact Analysis Tab */}
+          {activeTab === 'impact' && impactStats && (
+            <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+              {/* ── Blast Radius Summary ── */}
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '24px',
+                padding: '20px 24px', borderRadius: '12px',
+                background: severityConfig[impactStats.severity].bg,
+                border: `1px solid ${severityConfig[impactStats.severity].border}`,
+              }}>
+                <div style={{ textAlign: 'center', minWidth: 64 }}>
+                  <div style={{ fontSize: '48px', fontWeight: 800, lineHeight: 1, color: severityConfig[impactStats.severity].color }}>
+                    {impactStats.total}
+                  </div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: 2 }}>affected</div>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <span style={{
+                      background: severityConfig[impactStats.severity].color,
+                      color: '#fff', padding: '2px 10px', borderRadius: '20px',
+                      fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em',
+                    }}>{severityConfig[impactStats.severity].label.toUpperCase()}</span>
+                  </div>
+                  <div style={{ fontSize: '13px', color: 'var(--foreground)', lineHeight: 1.5 }}>
+                    Changing <strong>{selectedNode?.label}</strong> would affect{' '}
+                    <strong>{impactStats.total}</strong> downstream object{impactStats.total !== 1 ? 's' : ''}{' '}
+                    across <strong>{impactStats.hopCount}</strong> hop{impactStats.hopCount !== 1 ? 's' : ''}.
+                  </div>
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    <span>⬇ {impactStats.hopCount} hop{impactStats.hopCount !== 1 ? 's' : ''} to leaf</span>
+                    <span>⬆ {totalUpstream} upstream dependenc{totalUpstream !== 1 ? 'ies' : 'y'}</span>
+                    <span>📊 {impactStats.businessConsumers.length} business consumer{impactStats.businessConsumers.length !== 1 ? 's' : ''}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Type Breakdown ── */}
+              {impactStats.total > 0 && (
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                    Breakdown by Type
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    {Object.entries(impactStats.byType).map(([type, nodes]) => {
+                      const cfg = typeConfig[type] ?? typeConfig.warehouse
+                      return (
+                        <div key={type} style={{
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                          background: cfg.bg, border: `1px solid ${cfg.border}`,
+                          padding: '5px 12px', borderRadius: '20px',
+                        }}>
+                          <span style={{ fontSize: '16px', fontWeight: 800, color: cfg.color }}>{nodes.length}</span>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: cfg.color }}>{cfg.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Business Consumers ── */}
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                  Business Consumers ({impactStats.businessConsumers.length} view{impactStats.businessConsumers.length !== 1 ? 's' : ''})
+                </div>
+                {impactStats.businessConsumers.length === 0 ? (
+                  <div style={{
+                    padding: '16px', textAlign: 'center', fontSize: '12px',
+                    color: 'var(--text-muted)', background: 'var(--surface-muted)',
+                    borderRadius: '8px', border: '1px dashed var(--border)',
+                  }}>
+                    No business consumers identified downstream
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {impactStats.businessConsumers.map(n => {
+                      const hopNum = downstreamChain.findIndex(h => h.nodes.some(hn => hn.id === n.id)) + 1
+                      return (
+                        <div key={n.id} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: '12px',
+                          padding: '10px 14px', borderRadius: '8px',
+                          background: 'var(--surface-muted)', border: '1px solid var(--border)',
+                        }}>
+                          <div style={{ marginTop: 2 }}><DbTypeIcon tableType={n.tableType} size={16} /></div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                              <span style={{ fontWeight: 700, fontSize: '12px', color: 'var(--foreground)', fontFamily: 'monospace' }}>{n.label}</span>
+                              <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{n.schema}</span>
+                              {hopNum > 0 && (
+                                <span style={{ marginLeft: 'auto', background: '#e2e8f0', color: '#475569', padding: '1px 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 600, flexShrink: 0 }}>
+                                  HOP {hopNum}
+                                </span>
+                              )}
+                            </div>
+                            {n.comment && (
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.comment}</div>
+                            )}
+                            {(n.ownerName || n.techOwnerName) && (
+                              <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                                {n.ownerName && <span>Owner: {n.ownerName}</span>}
+                                {n.ownerName && n.techOwnerName && <span> · </span>}
+                                {n.techOwnerName && <span>Tech: {n.techOwnerName}</span>}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Affected Objects Table ── */}
+              {impactStats.total > 0 && (
+                <div>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+                    All Affected Objects ({impactStats.total})
+                  </div>
+                  <div style={{ borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '48px 1fr 100px 100px 120px 1fr', padding: '6px 14px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+                      {['HOP', 'NAME', 'TYPE', 'SCHEMA', 'OWNER', 'DESCRIPTION'].map(h => (
+                        <div key={h} style={{ fontSize: '7px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
+                      ))}
+                    </div>
+                    {downstreamChain.flatMap((hop) =>
+                      hop.nodes.map(n => {
+                        const cfg = typeConfig[n.type] ?? typeConfig.warehouse
+                        return (
+                          <div key={n.id}
+                            onClick={() => selectNode(n.id)}
+                            style={{
+                              display: 'grid', gridTemplateColumns: '48px 1fr 100px 100px 120px 1fr',
+                              padding: '6px 14px', borderBottom: '1px solid var(--surface-muted)',
+                              cursor: 'pointer', transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 600 }}>{hop.hop}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <DbTypeIcon tableType={n.tableType} size={12} />
+                              <span style={{ fontSize: '10px', fontWeight: 600, color: 'var(--foreground)', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.label}</span>
+                            </div>
+                            <div>
+                              <span style={{ background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`, padding: '1px 6px', borderRadius: '4px', fontSize: '8px', fontWeight: 600 }}>{cfg.label}</span>
+                            </div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.schema || '—'}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.ownerName || '—'}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.comment || '—'}</div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+
+            </div>
           )}
 
           {/* Footer bar */}
