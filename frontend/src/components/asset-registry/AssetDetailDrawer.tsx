@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import AssetTagsSection from './AssetTagsSection'
 import AssetDocumentsSection from './AssetDocumentsSection'
+import AssetColumnsSection from './AssetColumnsSection'
 import AssetOwnersSection from './AssetOwnersSection'
 
 export type Asset = {
@@ -27,6 +28,16 @@ export type Asset = {
 
 type Domain = { domain_id: string; domain_name: string }
 type Subdomain = { subdomain_id: string; subdomain_name: string }
+
+type HistoryEntry = {
+  audit_id: string
+  action: string
+  user_email: string | null
+  created_at: string | null
+  changed_fields: string[]
+  old_value: Record<string, unknown>
+  new_value: Record<string, unknown>
+}
 
 type EditForm = {
   is_active: boolean
@@ -88,6 +99,10 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
   const [domainsLoaded, setDomainsLoaded] = useState(false)
   const [selectedDomainName, setSelectedDomainName] = useState(asset.domain_name ?? '')
   const [selectedSubdomainName, setSelectedSubdomainName] = useState(asset.subdomain_name ?? '')
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   useEffect(() => {
     setEditing(false)
@@ -198,6 +213,35 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
   function cancel() {
     setEditing(false)
     setError(null)
+  }
+
+  async function toggleHistory() {
+    const next = !historyOpen
+    setHistoryOpen(next)
+    if (next && history === null && !historyLoading) {
+      setHistoryLoading(true)
+      setHistoryError(null)
+      try {
+        const res = await fetch(`/api/asset-registry/${asset.asset_id}/history`)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        setHistory(await res.json())
+      } catch (e: unknown) {
+        setHistoryError((e as Error).message)
+        setHistory([])
+      } finally {
+        setHistoryLoading(false)
+      }
+    }
+  }
+
+  function relativeTime(iso: string | null): string {
+    if (!iso) return '—'
+    const diff = Date.now() - new Date(iso).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
   }
 
   return (
@@ -342,7 +386,72 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           }
         </div>
 
+        <AssetColumnsSection
+          assetId={asset.asset_id}
+          editing={editing}
+          sourceMeta={{
+            sf_database_name: asset.sf_database_name,
+            sf_schema_name: asset.sf_schema_name,
+            sf_table_name: asset.sf_table_name,
+          }}
+        />
+
         <AssetDocumentsSection assetId={asset.asset_id} editing={editing} />
+
+        {/* History section */}
+        <div style={{ margin: '6px 14px 0', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+          <div
+            onClick={toggleHistory}
+            style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'var(--surface)', userSelect: 'none' }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+          >
+            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{historyOpen ? '▼' : '▶'}</span>
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>History</span>
+            {history !== null && (
+              <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{history.length} entries</span>
+            )}
+          </div>
+
+          {historyOpen && (
+            <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {historyLoading && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Loading…</div>}
+              {historyError && <div style={{ fontSize: '11px', color: 'var(--status-error-text)' }}>{historyError}</div>}
+              {!historyLoading && history !== null && history.length === 0 && (
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No history yet</div>
+              )}
+              {!historyLoading && (history ?? []).map(entry => (
+                <div key={entry.audit_id} style={{ borderLeft: '2px solid var(--border)', paddingLeft: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                    <span style={{
+                      fontSize: '9px', fontWeight: 700, padding: '1px 5px', borderRadius: '3px', textTransform: 'uppercase',
+                      background: entry.action === 'CREATE' ? 'var(--status-ok-bg)' : entry.action === 'BULK_UPDATE' ? 'var(--status-info-bg)' : 'var(--surface-muted)',
+                      color: entry.action === 'CREATE' ? 'var(--status-ok-text)' : entry.action === 'BULK_UPDATE' ? 'var(--status-info-text)' : 'var(--text-secondary)',
+                    }}>
+                      {entry.action}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)', flex: 1 }}>
+                      {entry.user_email ?? 'system'}
+                    </span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{relativeTime(entry.created_at)}</span>
+                  </div>
+                  {entry.changed_fields.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {entry.changed_fields.map(field => (
+                        <div key={field} style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                          <span style={{ color: 'var(--foreground)' }}>{field}</span>
+                          {entry.old_value[field] !== undefined && (
+                            <span> <span style={{ color: 'var(--status-error-text)' }}>{String(entry.old_value[field])}</span> → <span style={{ color: 'var(--status-ok-text)' }}>{String(entry.new_value[field] ?? '—')}</span></span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div style={{ height: '12px' }} />
       </div>
