@@ -8,6 +8,22 @@ interface GlossaryTerm {
   reviewedBy: string; reviewNote: string; reviewedAt: string
 }
 
+interface LinkedAsset {
+  link_id: string
+  asset_id: string
+  column_name: string | null
+  sf_table_name: string | null
+  created_at: string | null
+}
+
+interface CatalogAsset {
+  asset_id: string
+  sf_table_name: string | null
+  sf_schema_name: string | null
+  sf_database_name: string | null
+  connection_name: string | null
+}
+
 const DOMAINS = ['All', 'Revenue', 'Finance', 'Operations', 'Planning', 'GTM', 'HR', 'Others']
 type StatusFilter = 'all' | 'approved' | 'pending_review' | 'draft' | 'deprecated'
 
@@ -49,6 +65,15 @@ export default function GlossaryPage() {
   const [rejectNote, setRejectNote] = useState('')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [popupLinkedAssets, setPopupLinkedAssets] = useState<LinkedAsset[]>([])
+  const [popupLinkedLoading, setPopupLinkedLoading] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [catalogAssets, setCatalogAssets] = useState<CatalogAsset[]>([])
+  const [linkAssetId, setLinkAssetId] = useState('')
+  const [linkColumnName, setLinkColumnName] = useState('')
+  const [linkSearch, setLinkSearch] = useState('')
+  const [linking, setLinking] = useState(false)
+  const [unlinkingId, setUnlinkingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/glossary')
@@ -187,6 +212,89 @@ export default function GlossaryPage() {
     }
   }
 
+  async function openPopup(term: GlossaryTerm) {
+    setPopup(term)
+    setPopupLinkedAssets([])
+    setPopupLinkedLoading(true)
+    try {
+      const res = await fetch(`/api/glossary/${term.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        setPopupLinkedAssets(data.linked_assets ?? [])
+      }
+    } catch {
+      // linked assets will remain empty
+    } finally {
+      setPopupLinkedLoading(false)
+    }
+  }
+
+  async function unlinkAsset(termId: string, linkId: string) {
+    setUnlinkingId(linkId)
+    try {
+      const res = await fetch(`/api/glossary/${termId}?link_id=${linkId}`, { method: 'DELETE' })
+      if (res.ok) {
+        setPopupLinkedAssets(prev => prev.filter(a => a.link_id !== linkId))
+        setTerms(prev => prev.map(t =>
+          t.id === termId ? { ...t, linkedAssets: Math.max(0, t.linkedAssets - 1) } : t
+        ))
+      }
+    } catch {
+      // silently ignore — list will be stale until popup reopened
+    } finally {
+      setUnlinkingId(null)
+    }
+  }
+
+  async function openLinkModal(termId: string) {
+    setShowLinkModal(true)
+    setLinkAssetId('')
+    setLinkColumnName('')
+    setLinkSearch('')
+    if (catalogAssets.length === 0) {
+      try {
+        const res = await fetch('/api/catalog')
+        if (res.ok) {
+          const data = await res.json()
+          setCatalogAssets(Array.isArray(data) ? data : [])
+        }
+      } catch {
+        // catalog assets remain empty
+      }
+    }
+  }
+
+  async function submitLink(termId: string) {
+    if (!linkAssetId) return
+    setLinking(true)
+    try {
+      const res = await fetch(`/api/glossary/${termId}?action=link-asset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_id: linkAssetId, column_name: linkColumnName || null }),
+      })
+      if (res.ok) {
+        const link = await res.json()
+        const asset = catalogAssets.find(a => a.asset_id === linkAssetId)
+        setPopupLinkedAssets(prev => [...prev, {
+          link_id: link.link_id,
+          asset_id: linkAssetId,
+          column_name: linkColumnName || null,
+          sf_table_name: asset?.sf_table_name ?? null,
+          created_at: link.created_at ?? null,
+        }])
+        setTerms(prev => prev.map(t =>
+          t.id === termId ? { ...t, linkedAssets: t.linkedAssets + 1 } : t
+        ))
+        setShowLinkModal(false)
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setLinking(false)
+    }
+  }
+
   const filtered = terms.filter(t => {
     if (domain !== 'All' && t.domain !== domain) return false
     if (statusFilter !== 'all') {
@@ -270,7 +378,7 @@ export default function GlossaryPage() {
         {!loading && filtered.map(term => {
           const st = statusBadge(term.status)
           return (
-            <div key={term.id} onClick={() => setPopup(term)}
+            <div key={term.id} onClick={() => openPopup(term)}
               style={{ display: 'grid', gridTemplateColumns: '1fr 80px 70px 50px', gap: '0 8px', alignItems: 'center', padding: '5px 6px', borderLeft: `2px solid ${leftBorderColor(term.status)}`, borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
               onMouseLeave={e => (e.currentTarget.style.background = '')}
@@ -367,6 +475,96 @@ export default function GlossaryPage() {
                 </div>
               )}
             </div>
+
+            {/* Linked Assets section */}
+            <div style={{ padding: '0 14px 12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                <span style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>
+                  Linked Assets
+                </span>
+                <button
+                  onClick={() => openLinkModal(popup.id)}
+                  style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }}
+                >
+                  + Link Asset
+                </button>
+              </div>
+              {popupLinkedLoading && (
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Loading…</div>
+              )}
+              {!popupLinkedLoading && popupLinkedAssets.length === 0 && (
+                <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>No assets linked yet</div>
+              )}
+              {!popupLinkedLoading && popupLinkedAssets.map(la => (
+                <div key={la.link_id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 0', borderBottom: '1px solid var(--surface-muted)' }}>
+                  <span style={{ fontSize: '11px', fontFamily: 'monospace', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {la.sf_table_name ?? la.asset_id}
+                    {la.column_name && (
+                      <span style={{ color: 'var(--text-muted)' }}>.{la.column_name}</span>
+                    )}
+                  </span>
+                  <button
+                    onClick={() => unlinkAsset(popup.id, la.link_id)}
+                    disabled={unlinkingId === la.link_id}
+                    style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', cursor: unlinkingId === la.link_id ? 'not-allowed' : 'pointer', opacity: unlinkingId === la.link_id ? 0.6 : 1 }}
+                  >
+                    {unlinkingId === la.link_id ? '…' : 'Unlink'}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            {/* Link Asset modal (inline within popup) */}
+            {showLinkModal && (
+              <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                <div style={{ background: 'var(--surface)', borderRadius: '10px', padding: '20px', width: '340px', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
+                  <div style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)' }}>Link Asset to Term</div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Search Assets</label>
+                    <input
+                      value={linkSearch}
+                      onChange={e => setLinkSearch(e.target.value)}
+                      placeholder="Filter by table name…"
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--foreground)', fontSize: '11px', outline: 'none', boxSizing: 'border-box' as const }}
+                    />
+                    <select
+                      value={linkAssetId}
+                      onChange={e => setLinkAssetId(e.target.value)}
+                      size={5}
+                      style={{ width: '100%', marginTop: '4px', padding: '4px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--foreground)', fontSize: '11px', outline: 'none', fontFamily: 'monospace' }}
+                    >
+                      {catalogAssets
+                        .filter(a => !linkSearch || (a.sf_table_name ?? '').toLowerCase().includes(linkSearch.toLowerCase()))
+                        .slice(0, 50)
+                        .map(a => (
+                          <option key={a.asset_id} value={a.asset_id}>
+                            {a.sf_table_name ?? a.asset_id}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Column name (optional)</label>
+                    <input
+                      value={linkColumnName}
+                      onChange={e => setLinkColumnName(e.target.value)}
+                      placeholder="e.g. customer_id"
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--background)', color: 'var(--foreground)', fontSize: '11px', outline: 'none', boxSizing: 'border-box' as const, fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                    <button onClick={() => setShowLinkModal(false)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>Cancel</button>
+                    <button
+                      onClick={() => submitLink(popup.id)}
+                      disabled={!linkAssetId || linking}
+                      style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: (!linkAssetId || linking) ? 'not-allowed' : 'pointer', opacity: (!linkAssetId || linking) ? 0.6 : 1 }}
+                    >
+                      {linking ? 'Linking…' : 'Link'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </>
       )}
