@@ -290,9 +290,11 @@ export default function AgentChat() {
       <button onClick={() => setOpen(!open)} style={{
         position: 'fixed', bottom: '20px', right: '20px',
         width: '62px', height: '62px', borderRadius: '20px', border: 'none',
-        background: open ? 'linear-gradient(145deg, #1e3a5f, #2563eb)' : 'linear-gradient(145deg, #1a2e4a, #1d4ed8)',
+        background: 'linear-gradient(145deg, #FF9050, #A82E06)',
         cursor: 'pointer', zIndex: 1001,
-        boxShadow: open ? '0 8px 28px rgba(29,78,216,0.5)' : '0 8px 32px rgba(29,78,216,0.55)',
+        boxShadow: open
+          ? '0 8px 28px rgba(124,26,2,0.5)'
+          : '0 8px 32px rgba(232,84,26,0.55)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.25s', transform: open ? 'scale(0.9)' : 'scale(1)'
       }}>
