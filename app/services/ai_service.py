@@ -447,6 +447,30 @@ async def explain_failure(
     return await provider.complete(prompt, _SYS_EXPLAIN, max_tokens=800)
 
 
+async def explain_anomaly(
+    detection_info: dict,
+    asset: "Asset",
+    provider_name: Optional[str],
+    db: AsyncSession,
+) -> str:
+    """Generate a 2-3 sentence plain-text explanation for a quality score anomaly."""
+    prompt = (
+        f"Asset: {asset.sf_schema_name}.{asset.sf_table_name}\n"
+        f"Anomaly: quality score dropped to {detection_info.get('observed_value', 'N/A')}\n"
+        f"Expected range: {detection_info.get('mean', 'N/A')} ± {detection_info.get('std', 'N/A')}\n"
+        f"Z-score: {detection_info.get('z_score', 'N/A')} (anomaly threshold: 2.5)\n"
+        f"Confidence: {detection_info.get('confidence', 0):.0%}\n\n"
+        "In 2-3 sentences, explain why the quality score may have deviated from normal "
+        "and what the likely business impact is. Return plain text, no markdown, no bullet points."
+    )
+    _sys_anomaly = (
+        "You are a data quality expert. Explain a quality score anomaly concisely. "
+        "Focus on root cause hypothesis and business impact. Return plain text only."
+    )
+    provider = await get_provider_from_db(provider_name, db)
+    return await provider.complete(prompt, _sys_anomaly, max_tokens=200)
+
+
 # ── SQL generation ────────────────────────────────────────────────────────────
 
 async def generate_sql(
