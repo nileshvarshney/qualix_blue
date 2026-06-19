@@ -389,29 +389,29 @@ export default function SettingsPage() {
                     area: 'Data Quality',
                     icon: '✅',
                     status: 'partial',
-                    exists: '17 rule types built: null_check, uniqueness, duplicate, accepted_values, range, comparison, freshness, volume, schema_drift, referential_integrity, regex, business_rule, custom_sql, semantic_consistency, referential_sanity, business_metric, distribution_consistency, and an LLM semantic check. Rules have scheduling, execution logs, pause/resume, and a full issue status workflow (open → investigating → resolved). Dashboard shows 6-dimension quality scoring (completeness, accuracy, uniqueness, validity, timeliness, consistency). Anomalies page with severity levels and expandable root cause.',
-                    gaps: 'All root cause, business impact, and recommendation text in Issues/Anomalies/Alerts comes from static API data — not AI-generated. No predictive quality scoring (only current state, no forecast). No automated remediation. All detection is schedule-triggered; nothing fires between schedule runs. LLM semantic check exists in the UI but backend execution is unverified.',
+                    exists: '17 rule types built: null_check, uniqueness, duplicate, accepted_values, range, comparison, freshness, volume, schema_drift, referential_integrity, regex, business_rule, custom_sql, semantic_consistency, referential_sanity, business_metric, distribution_consistency, and an LLM semantic check. Rules have scheduling, execution logs, pause/resume, and a full issue status workflow (open → investigating → resolved). Dashboard shows 6-dimension quality scoring (completeness, accuracy, uniqueness, validity, timeliness, consistency). Anomalies page with severity levels and expandable root cause. Backend AI endpoints are now fully implemented: /ai/rca/{run_id} performs root cause analysis over 30-run historical trends, /ai/explain-failure generates failure explanations, /ai/generate-rules translates plain-English descriptions into validated rule definitions, and /ai/generate-sql converts natural language to SQL — all with multi-provider support (Anthropic Claude, OpenAI, Ollama).',
+                    gaps: 'The frontend has not been updated to call the AI backends — Issues and Anomalies pages still display static API text for root cause, business impact, and recommendations. No predictive quality scoring (backend returns only current state, no forecast). No automated remediation. All detection is schedule-triggered; nothing fires between schedule runs. LLM semantic check rule type exists in the UI but the frontend AI assistant page that would orchestrate it remains a placeholder.',
                   },
                   {
                     area: 'Metadata & Catalog',
                     icon: '📦',
                     status: 'partial',
-                    exists: 'Datasets page shows live Snowflake table metadata — column names, types, nullability, row counts, bytes, and a live 20-row data preview loaded lazily on expand. Glossary page manages business terms with definition, domain, owner, synonyms, and status (draft/approved/deprecated). Catalog page lists data assets fetched from the backend.',
-                    gaps: 'Catalog is a minimal flat list — no column descriptions, no quality scores, no tags, no owner display, no expand/detail view. No business context or column-level annotations anywhere. Glossary term-to-asset linking is a display-only count; no UI to attach a term to a specific table or column, and no navigation between terms and their assets. No metadata versioning, history, or bulk editing.',
+                    exists: 'Catalog page now has a tree-view hierarchy (connection → database → schema → table) with asset detail drawer showing ownership badges, certification status, domain assignment, and search across table name, schema, domain, and owner. Datasets page shows live Snowflake table metadata — column names, types, nullability, row counts, bytes, and a live 20-row data preview loaded lazily on expand. Glossary page manages business terms with full CRUD, domain/owner/synonym fields, and a status workflow (draft → pending_review → approved/deprecated) backed by a real /api/glossary endpoint.',
+                    gaps: 'Catalog detail view still lacks column-level descriptions, per-column quality scores, and sensitivity tags. Glossary term-to-asset linking is a display-only count — there is no UI to attach a term to a specific table or column, and no reverse navigation from a Catalog asset to its linked glossary terms. No metadata versioning, change history, or bulk editing. No AI-assisted auto-documentation despite the backend endpoint /ai/classify-table existing.',
                   },
                   {
                     area: 'Lineage & Impact Analysis',
                     icon: '🔗',
-                    status: 'partial',
-                    exists: 'Lineage page is real and sophisticated: SVG graph with 8 node types (source/raw/transform/warehouse/output), layer-based auto-positioning, auto-refresh every 30s. Column-level lineage visible in a sidebar on node selection — showing upstream/downstream chains with roles (origin, passthrough, consumer, reference). Lazily loads column data per node.',
-                    gaps: 'No impact analysis action: given a node, users cannot ask "what breaks downstream if I change this table?" The graph visualises lineage but does not compute or surface blast radius. No cross-connection lineage (only works within one active connection). No dbt model lineage parsing. Business impact (which reports/dashboards/pipelines depend on a table) is not surfaced anywhere.',
+                    status: 'built',
+                    exists: 'Production-ready DAG visualization with pan/zoom/drag, full-text table search, and named layer labels (Source, Raw, Transactions, Master Data, Views). Upstream/downstream chain analysis with explicit hop counts surfaces the full blast radius of any node. Column-level lineage displayed in a sidebar on node selection — shows each column\'s role in the chain (origin, passthrough, consumer, reference) across every hop. Historical row counts per node. Fullscreen mode and one-click PNG export. Auto-refresh every 30s keeps the graph current.',
+                    gaps: 'No cross-connection lineage — the graph only works within a single active connection. No dbt model lineage parsing. Business impact context (which executive dashboards, reports, or BI queries depend on a table) is not surfaced — lineage shows the data path but not the downstream business consumers.',
                   },
                   {
                     area: 'Policy Management',
                     icon: '🛡️',
                     status: 'partial',
-                    exists: 'Governance page has a Policies tab: create policies with name, description, domain, enforcement type (enforced/advisory), and status (draft/review/active). Policy detail drawer shows linked rule pass/fail results and which tables the policy applies to. Enforcement and advisory labels are clearly distinguished.',
-                    gaps: 'The "enforced" label is a display tag only — no engine actually enforces it. Policies have a rules_count field but no live rule evaluation is triggered by a policy. No policy approval workflow (no queue, no reviewer role, no approve/reject action). No policy versioning or change history. No automatic notifications when a policy is violated. No policy library or templates to start from.',
+                    exists: 'Governance page Policies tab: create policies with name, description, domain, enforcement type (enforced/advisory), and status (draft/review/active). Policy detail drawer shows linked rule pass/fail results and which tables the policy applies to. Violation tracking with open/resolved status and a resolution action. Partial stewardship workflow: the Governance page includes a pending glossary term approval queue where authorized users can approve or reject terms with written feedback.',
+                    gaps: 'The "enforced" label is a display tag only — no engine actually blocks non-conforming data or re-evaluates rules when a policy changes. No dedicated approval queue for policies themselves (only glossary terms have this). Rules are created with pending_review status but there is no approval page for a data steward to act on them. No approval workflows for data products, domain ownership assignments, or contract creation. No policy versioning or change history. No notifications when a policy is violated.',
                   },
                   {
                     area: 'Access Control & Security',
@@ -423,23 +423,23 @@ export default function SettingsPage() {
                   {
                     area: 'Classification & Sensitivity',
                     icon: '🏷️',
-                    status: 'missing',
-                    exists: 'Governance scorecard lists "Classification" as one of its six dimensions with the description "Percentage of sensitive columns properly tagged (PII, PHI, etc.) — columns are scanned using pattern matching and AI-based detection." The KPI detail drawer for Assets Classified also references this dimension.',
-                    gaps: 'The Classification score always shows "—" — no scanner exists and no data is fetched. There is no PII tagging UI on any page (not in Catalog, Datasets, or Governance). No column-level sensitivity labels are shown anywhere. The "AI-based detection" mentioned in descriptions is aspirational text — the code does not call any detection API. Sensitivity classification is entirely absent from the working platform.',
+                    status: 'partial',
+                    exists: 'Domain-level classification scores now appear as one of the six governance scorecard dimensions, sourced from classification_score in the /api/governance/scorecards response — they reflect actual backend data rather than showing "—". Backend endpoint /ai/discover-pii/{asset_id} is implemented and can scan column names and data patterns to suggest PII columns using AI-based detection.',
+                    gaps: 'Column-level sensitivity tagging UI does not exist — there is no interface in the Catalog, Datasets, or Governance pages to view or tag individual columns as PII/PHI/confidential. The frontend has no UI to call the /ai/discover-pii endpoint; its output is invisible to users. No sensitivity labels are shown at the column level anywhere in the platform. Remediation (masking, tokenization, anonymization at query or export time) is entirely absent.',
                   },
                   {
                     area: 'Data Protection & Privacy',
                     icon: '🔐',
-                    status: 'missing',
-                    exists: 'Compliance page lists GDPR, HIPAA, and SOC 2 as framework cards with a compliance percentage bar and pass/fail control counts (sourced from API when data exists). The data encryption toggle in Settings implies intent.',
-                    gaps: 'The compliance controls table is always empty — the controls array is never populated from the API. No data masking or anonymization. No right-to-erasure or data subject request workflow. No consent management. No data residency configuration. No query-time dynamic data masking for PII. The compliance page KPIs show "—" whenever no framework data is returned, which is the default state with a fresh connection.',
+                    status: 'partial',
+                    exists: 'Compliance page lists GDPR, HIPAA, and SOC 2 as framework cards with pass/fail counts and a percentage bar. Controls table now fetches from /api/compliance/{framework_id}/controls when a framework is selected — populating rows with control code, name, description, status (passed/failed/not_assessed), rule types covered, number of rules mapped, last assessed date, and evidence links. Filter buttons (all/passed/failed/not-assessed) are functional.',
+                    gaps: 'Controls table is empty when no backend control records exist — there is no seed data or auto-mapping logic to populate controls from existing rules. No data masking or anonymization capability. No right-to-erasure or data subject request workflow. No consent management. No data residency configuration. No query-time dynamic data masking for PII columns. Compliance page KPI summary cards still show "—" when no aggregate data is returned.',
                   },
                   {
                     area: 'Compliance & Audit',
                     icon: '📋',
                     status: 'partial',
-                    exists: 'Audit logs page is real: fetches from /api/audit, displays user, action, resource, IP address, category (connection/rule/schedule/alert/auth/report/contract/sla/anomaly), result (success/failed), timestamp, session ID, duration, and expandable event detail. Filtering by user type, failure, category, and search all work. User avatars are colour-coded per person.',
-                    gaps: 'Audit logging is passive record-keeping from the API — no alerting fires when suspicious patterns appear (e.g. repeated failed logins, unusual data access by an unknown IP). No export to CSV/JSON for auditors. No tamper-evident log storage. Compliance controls table is always empty (see Data Protection). No automated evidence generation for audit reports. No audit coverage metrics (what % of actions are logged).',
+                    exists: 'Audit logs page is real: fetches from /api/audit, displays user, action, resource, IP address, category (connection/rule/schedule/alert/auth/report/contract/sla/anomaly), result (success/failed), timestamp, session ID, duration, and expandable event detail. Filtering by user type, failure, category, and search all work. User avatars are colour-coded per person. Compliance controls table per framework now populates from /api/compliance/{framework_id}/controls with control code, name, description, rule mappings, status, last assessed date, and evidence.',
+                    gaps: 'Audit logging is passive record-keeping — no alerting fires when suspicious patterns appear (e.g. repeated failed logins, unusual data access by an unknown IP). No export to CSV/JSON for auditors. No tamper-evident log storage. No automated evidence generation for audit reports. No audit coverage metrics (what % of actions are logged). Compliance controls depend entirely on pre-existing backend data — no auto-mapping from active rules to controls.',
                   },
                   {
                     area: 'Observability & Monitoring',
@@ -459,8 +459,8 @@ export default function SettingsPage() {
                     area: 'Stewardship & Collaboration',
                     icon: '🤝',
                     status: 'missing',
-                    exists: 'Ownership fields exist on domains (managed via the Domains page), policies, glossary terms, contracts, and SLAs. The Governance scorecard tracks an "Ownership" dimension (% of tables with an assigned owner). Domain management page shows tables in each domain with basic statistics.',
-                    gaps: 'Ownership Coverage KPI always shows "—" — the dimension score is not calculated from real data. No comments, annotations, or discussion threads on any entity (issues, anomalies, datasets, lineage nodes, glossary terms). No @mentions or in-platform notifications. No stewardship task queue or assignment workflow. No data quality improvement goals per steward. No collaboration history. All coordination must happen outside the platform (Slack, email), losing all context.',
+                    exists: 'Ownership fields exist on domains, policies, glossary terms, contracts, and SLAs. Governance scorecard tracks an "Ownership" dimension (% of tables with an assigned owner). Domain management page shows tables in each domain with basic statistics. Partial stewardship progress: glossary terms now have a review-and-approval workflow — the Governance page shows a pending terms queue where authorized users can approve or reject submissions with written feedback.',
+                    gaps: 'Ownership Coverage KPI still shows "—" — the dimension score is not calculated from real data. No comments, annotations, or discussion threads on any entity (issues, anomalies, datasets, lineage nodes, glossary terms). No @mentions or in-platform notifications. No stewardship task queue for data quality improvement goals. Approval workflows exist only for glossary terms; policies, rules, domain assignments, data products, and contracts have none. All investigation coordination must still happen outside the platform (Slack, email), losing all context.',
                   },
                 ]
 
@@ -480,7 +480,7 @@ export default function SettingsPage() {
                         </span>
                       </div>
                       <p style={{ margin: 0, fontSize: '12.5px', color: '#94a3b8', lineHeight: '1.6' }}>
-                        11 capability domains verified against the actual codebase. Each entry shows exactly what is implemented today vs. what is missing — based on reading the source code directly, not documentation.
+                        11 capability domains verified against the actual codebase. Each entry shows exactly what is implemented today vs. what is missing — based on reading the source code directly, not documentation. Updated June 2026.
                       </p>
                     </div>
 
@@ -517,7 +517,7 @@ export default function SettingsPage() {
 
               {/* Footer note */}
               <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Internal reference only — not shown to end users. All capability statuses verified against source code, May 2026.
+                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026.
               </div>
             </div>
           )}
