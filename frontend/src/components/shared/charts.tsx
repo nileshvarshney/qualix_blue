@@ -1,6 +1,6 @@
 'use client'
 import { useState, useRef } from 'react'
-import { TrendPoint } from '@/lib/types'
+import { TrendPoint, ForecastPoint } from '@/lib/types'
 
 export function ScorePill({ score }: { score: number }) {
   const color = score >= 90 ? '#16a34a' : score >= 80 ? '#ea8b3a' : '#dc2626'
@@ -8,7 +8,19 @@ export function ScorePill({ score }: { score: number }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: bg, color, padding: '3px 12px', borderRadius: '20px', fontSize: '13px', fontWeight: 600, minWidth: '38px' }}>{score}</span>
 }
 
-export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPointClick?: (date: string) => void }) {
+export function TrendChart({
+  data,
+  onPointClick,
+  forecastData,
+  upperBand,
+  lowerBand,
+}: {
+  data: TrendPoint[]
+  onPointClick?: (date: string) => void
+  forecastData?: ForecastPoint[]
+  upperBand?: ForecastPoint[]
+  lowerBand?: ForecastPoint[]
+}) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; score: number; date: string } | null>(null)
   const svgRef = useRef<SVGSVGElement>(null)
 
@@ -24,20 +36,30 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
 
   const w = 600, h = 240, pad = { top: 20, right: 20, bottom: 30, left: 35 }
   const chartW = w - pad.left - pad.right, chartH = h - pad.top - pad.bottom
-  const scores = validPts.map(d => d.score)
-  const min = Math.max(0, Math.floor(Math.min(...scores) / 5) * 5 - 5)
+
+  const hasForecast = (forecastData?.length ?? 0) > 0
+  const totalSlots = validPts.length + (hasForecast ? forecastData!.length : 0)
+
+  const allScores = [
+    ...validPts.map(d => d.score),
+    ...(hasForecast ? forecastData!.map(d => d.score) : []),
+    ...(lowerBand?.map(d => d.score) ?? []),
+  ]
+  const min = Math.max(0, Math.floor(Math.min(...allScores) / 5) * 5 - 5)
   const max = 100
   const gridLines = Array.from({ length: 5 }, (_, i) => Math.round((min + (max - min) * (i / 4)) * 10) / 10)
 
+  // Use totalSlots for x positioning so historical + forecast share the same axis
+  const xForN = (i: number) => pad.left + (i / Math.max(totalSlots - 1, 1)) * chartW
+
   const pts = validPts.map((d, i) => ({
-    x: pad.left + (i / Math.max(validPts.length - 1, 1)) * chartW,
+    x: xForN(i),
     y: pad.top + chartH - ((d.score - min) / (max - min)) * chartH,
     score: d.score, date: d.date
   }))
 
   const hasAlerts = validPts.some(d => (d.alert_count ?? 0) > 0)
   const hasAnomalies = validPts.some(d => (d.anomaly_count ?? 0) > 0)
-  const xFor = (i: number) => pad.left + (i / Math.max(validPts.length - 1, 1)) * chartW
 
   const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
   const areaPath = `${linePath} L${pts[pts.length - 1].x},${pad.top + chartH} L${pts[0].x},${pad.top + chartH} Z`
@@ -68,7 +90,7 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
         })}
         {validPts.map((d, i) => {
           const barH = Math.max(2, d.failed * 2)
-          return <rect key={i} x={pad.left + (i / Math.max(validPts.length - 1, 1)) * chartW - 5} y={pad.top + chartH - barH} width="10" height={barH} fill="#ef4444" opacity="0.75" rx="2" />
+          return <rect key={i} x={xForN(i) - 5} y={pad.top + chartH - barH} width="10" height={barH} fill="#ef4444" opacity="0.75" rx="2" />
         })}
         <path d={areaPath} fill="url(#ag2)" />
         <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
@@ -81,22 +103,67 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
         ))}
         {hasAlerts && validPts.map((d, i) => (d.alert_count ?? 0) > 0 ? (
           <polygon key={`alert-${i}`}
-            points={`${xFor(i)},${pad.top - 10} ${xFor(i) - 4},${pad.top - 4} ${xFor(i) + 4},${pad.top - 4}`}
+            points={`${xForN(i)},${pad.top - 10} ${xForN(i) - 4},${pad.top - 4} ${xForN(i) + 4},${pad.top - 4}`}
             fill="#8b5cf6"
             onClick={() => onPointClick?.(d.date)}
             style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
         ) : null)}
         {hasAnomalies && validPts.map((d, i) => (d.anomaly_count ?? 0) > 0 ? (
           <rect key={`anomaly-${i}`}
-            x={xFor(i) - 3} y={pad.top - 18} width="6" height="6" fill="#f97316"
-            transform={`rotate(45 ${xFor(i)} ${pad.top - 15})`}
+            x={xForN(i) - 3} y={pad.top - 18} width="6" height="6" fill="#f97316"
+            transform={`rotate(45 ${xForN(i)} ${pad.top - 15})`}
             onClick={() => onPointClick?.(d.date)}
             style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
         ) : null)}
         {validPts.filter((_, i) => i % Math.ceil(validPts.length / 7) === 0 || i === validPts.length - 1).map((d) => {
           const idx = validPts.indexOf(d)
-          return <text key={idx} x={pad.left + (idx / Math.max(validPts.length - 1, 1)) * chartW} y={h - 8} textAnchor="middle" fontSize="10" fill="#9ca3af">{d.date}</text>
+          return <text key={idx} x={xForN(idx)} y={h - 8} textAnchor="middle" fontSize="10" fill="#9ca3af">{d.date}</text>
         })}
+        {/* Confidence band shaded area */}
+        {hasForecast && upperBand?.length && lowerBand?.length && (() => {
+          const uPts = upperBand.map((d, i) => ({
+            x: xForN(validPts.length + i),
+            y: pad.top + chartH - ((Math.min(d.score, 100) - min) / (max - min)) * chartH,
+          }))
+          const lPts = lowerBand.map((d, i) => ({
+            x: xForN(validPts.length + i),
+            y: pad.top + chartH - ((Math.max(d.score, min) - min) / (max - min)) * chartH,
+          }))
+          const topPath = uPts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
+          const bottomPath = [...lPts].reverse().map((p, i) => `${i === 0 ? 'L' : 'L'}${p.x},${p.y}`).join(' ')
+          return <path d={`${topPath} ${bottomPath} Z`} fill="#3b82f6" fillOpacity="0.08" />
+        })()}
+
+        {/* Forecast dashed line */}
+        {hasForecast && (() => {
+          const fcPts = forecastData!.map((d, i) => ({
+            x: xForN(validPts.length + i),
+            y: pad.top + chartH - ((d.score - min) / (max - min)) * chartH,
+          }))
+          // Connect last historical point to first forecast point
+          const connectX = pts.length > 0 ? pts[pts.length - 1].x : xForN(validPts.length)
+          const connectY = pts.length > 0 ? pts[pts.length - 1].y : fcPts[0]?.y ?? 0
+          const fullPath = [
+            `M${connectX},${connectY}`,
+            ...fcPts.map(p => `L${p.x},${p.y}`)
+          ].join(' ')
+          return <path d={fullPath} fill="none" stroke="#3b82f6" strokeWidth="2" strokeDasharray="5 3" strokeOpacity="0.6" />
+        })()}
+
+        {/* Today vertical divider */}
+        {hasForecast && pts.length > 0 && (
+          <>
+            <line
+              x1={pts[pts.length - 1].x} x2={pts[pts.length - 1].x}
+              y1={pad.top} y2={pad.top + chartH}
+              stroke="#9ca3af" strokeWidth="1" strokeDasharray="3 2"
+            />
+            <text
+              x={pts[pts.length - 1].x + 4} y={pad.top + 10}
+              fontSize="9" fill="#9ca3af"
+            >Today</text>
+          </>
+        )}
       </svg>
       {tooltip && (
         <div style={{
@@ -110,10 +177,11 @@ export function TrendChart({ data, onPointClick }: { data: TrendPoint[]; onPoint
           <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1e293b' }} />
         </div>
       )}
-      {(hasAlerts || hasAnomalies) && (
+      {(hasAlerts || hasAnomalies || hasForecast) && (
         <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', justifyContent: 'flex-end' }}>
           {hasAlerts && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#8b5cf6' }}>▲</span> Alerts</span>}
           {hasAnomalies && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#f97316' }}>◆</span> Anomalies</span>}
+          {hasForecast && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#3b82f6', opacity: 0.6 }}>- -</span> Forecast</span>}
         </div>
       )}
     </div>
