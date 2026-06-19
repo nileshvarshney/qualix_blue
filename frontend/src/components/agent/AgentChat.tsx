@@ -1,45 +1,29 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useId } from 'react'
 import { AgentMessage } from '@/lib/types'
 
-// Robot icon for the chatbot button
-function RobotIcon({ size = 32 }: { size?: number }) {
-  const s = size
+function QualixMark({ size }: { size: number }) {
+  const id = useId()
+  const gradId = `qm-grad-${id}`
   return (
-    <svg width={s} height={s} viewBox="0 0 64 64" fill="none">
-      {/* Antenna left */}
-      <line x1="24" y1="10" x2="20" y2="4" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="20" cy="3.5" r="2.5" fill="white"/>
-      {/* Antenna right */}
-      <line x1="40" y1="10" x2="44" y2="4" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
-      <circle cx="44" cy="3.5" r="2.5" fill="white"/>
-      {/* Head */}
-      <rect x="14" y="10" width="36" height="26" rx="10" ry="10" fill="white" opacity="0.95"/>
-      {/* Eyes (glowing blue) */}
-      <rect x="20" y="18" width="9" height="8" rx="3" fill="#3B9EF5"/>
-      <rect x="35" y="18" width="9" height="8" rx="3" fill="#3B9EF5"/>
-      {/* Eye shine */}
-      <rect x="21" y="19" width="3" height="2.5" rx="1" fill="white" opacity="0.7"/>
-      <rect x="36" y="19" width="3" height="2.5" rx="1" fill="white" opacity="0.7"/>
-      {/* Mouth */}
-      <rect x="24" y="30" width="16" height="3" rx="1.5" fill="#3B9EF5" opacity="0.6"/>
-      {/* Neck */}
-      <rect x="28" y="36" width="8" height="4" rx="2" fill="white" opacity="0.7"/>
-      {/* Body */}
-      <rect x="12" y="40" width="40" height="22" rx="10" ry="10" fill="white" opacity="0.9"/>
-      {/* Chest circle (blue orb) */}
-      <circle cx="32" cy="51" r="7" fill="#3B9EF5"/>
-      <circle cx="30" cy="49" r="2.5" fill="white" opacity="0.5"/>
-      {/* Arms */}
-      <rect x="2" y="42" width="10" height="16" rx="5" fill="white" opacity="0.75"/>
-      <rect x="52" y="42" width="10" height="16" rx="5" fill="white" opacity="0.75"/>
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <defs>
+        <linearGradient id={gradId} x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#FF9050" />
+          <stop offset="55%" stopColor="#E8541A" />
+          <stop offset="100%" stopColor="#A82E06" />
+        </linearGradient>
+      </defs>
+      {/* Orange gradient background */}
+      <rect width="32" height="32" rx="7" fill={`url(#${gradId})`} />
+      {/* Q circle ring */}
+      <circle cx="14.5" cy="13.5" r="7.5" stroke="white" strokeWidth="2.2" fill="rgba(255,255,255,0.15)" />
+      {/* 4-pointed star */}
+      <path d="M14.5 8 L15.8 11.8 L19.5 13.5 L15.8 15.2 L14.5 19 L13.2 15.2 L9.5 13.5 L13.2 11.8 Z" fill="white" />
+      {/* Crown dot */}
+      <circle cx="14.5" cy="6" r="1.8" fill="white" opacity="0.9" />
     </svg>
   )
-}
-
-// Small robot for message avatars
-function RobotIconSmall({ size = 18 }: { size?: number }) {
-  return <RobotIcon size={size} />
 }
 
 function MarkdownTable({ lines }: { lines: string[] }) {
@@ -123,17 +107,17 @@ function MarkdownText({ text }: { text: string }) {
 }
 
 const SUGGESTIONS = [
-  "Show me my connections",
-  "Top 20 sales by region",
-  "What tables are in my warehouse?",
-  "Explain columns in ORDERS table",
   "Show domain quality scores",
   "What rules do I have?",
+  "Show me open alerts",
+  "Which domains have the most failures?",
+  "List my connections",
+  "Show recent rule run results",
 ]
 
 const INITIAL_MSG: AgentMessage = {
   role: 'assistant',
-  content: "Hi! I'm **Qualix AI** 🛡️\n\nI can help you:\n- **Query your warehouse** — ask questions like *\"top 20 sales by region\"*\n- **Explore tables & columns** — discover schemas, understand how metrics are derived\n- **Create quality rules** and run checks\n- **Monitor data quality** across all your domains\n\nWhat would you like to do?",
+  content: "Hi! I'm **Qualix AI** — your DataGuard assistant.\n\nI can help you with:\n- **Quality scores & alerts** across all your domains\n- **Rules & rule runs** — status, failures, trends\n- **Assets & connections** registered in the platform\n- **Governance & compliance** — policies, violations, incidents\n\nAsk me anything about your data quality platform.",
   timestamp: '2026-01-01T00:00:00.000Z'   // stable — avoids server/client hydration mismatch
 }
 
@@ -202,7 +186,7 @@ export default function AgentChat() {
               background: 'linear-gradient(135deg, #4f8ef7, #2563eb)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 2px 8px rgba(37,99,235,0.4)'
-            }}><RobotIcon size={28} /></div>
+            }}><QualixMark size={28} /></div>
             <div>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px' }}>Qualix AI</div>
               <div style={{ color: '#10b981', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -222,7 +206,7 @@ export default function AgentChat() {
             {messages.map((msg, i) => (
               <div key={i} className="fade-in" style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 {msg.role === 'assistant' && (
-                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: '8px', marginTop: '2px' }}><RobotIconSmall size={20} /></div>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: '8px', marginTop: '2px' }}><QualixMark size={20} /></div>
                 )}
                 <div style={{
                   maxWidth: '85%',
@@ -248,7 +232,7 @@ export default function AgentChat() {
 
             {loading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><RobotIconSmall size={20} /></div>
+                <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'linear-gradient(135deg, #1e3a5f, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><QualixMark size={20} /></div>
                 <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px', borderRadius: '16px 16px 16px 4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
                   {[0, 1, 2].map(j => (
                     <div key={j} style={{
@@ -314,7 +298,7 @@ export default function AgentChat() {
       }}>
         {open
           ? <span style={{ color: '#fff', fontSize: '22px', fontWeight: 300, lineHeight: 1 }}>✕</span>
-          : <RobotIcon size={42} />}
+          : <QualixMark size={42} />}
       </button>
 
       <style>{`
