@@ -126,6 +126,7 @@ export default function AgentChat() {
   const [messages, setMessages] = useState<AgentMessage[]>([INITIAL_MSG])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -250,11 +251,20 @@ export default function AgentChat() {
             {messages.length === 1 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '4px' }}>
                 {SUGGESTIONS.map(s => (
-                  <button key={s} onClick={() => send(s)} style={{
-                    background: '#fff', border: '1px solid #e2e8f0', borderRadius: '20px',
-                    padding: '6px 12px', fontSize: '12px', color: '#6366f1', cursor: 'pointer',
-                    fontWeight: 500, transition: 'all 0.2s'
-                  }}>{s}</button>
+                  <button
+                    key={s}
+                    onClick={() => send(s)}
+                    onMouseEnter={() => setHoveredSuggestion(s)}
+                    onMouseLeave={() => setHoveredSuggestion(null)}
+                    style={{
+                      background: hoveredSuggestion === s ? '#FFF4EF' : '#fff',
+                      border: '1px solid rgba(232,84,26,0.25)',
+                      borderRadius: '20px',
+                      padding: '6px 12px', fontSize: '12px',
+                      color: '#E8541A', cursor: 'pointer',
+                      fontWeight: 500, transition: 'all 0.2s'
+                    }}
+                  >{s}</button>
                 ))}
               </div>
             )}
@@ -277,7 +287,7 @@ export default function AgentChat() {
               />
               <button onClick={() => send()} disabled={!input.trim() || loading} style={{
                 width: '38px', height: '38px', borderRadius: '10px', border: 'none',
-                background: input.trim() && !loading ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#e2e8f0',
+                background: input.trim() && !loading ? 'linear-gradient(135deg, #FF9050, #A82E06)' : '#e2e8f0',
                 color: input.trim() && !loading ? '#fff' : '#94a3b8',
                 cursor: input.trim() && !loading ? 'pointer' : 'default',
                 fontSize: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center',
