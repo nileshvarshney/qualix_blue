@@ -9,9 +9,9 @@ interface DataProduct {
 }
 
 function tierStyle(t: string) {
-  if (t === 'gold')   return { bg: '#fef3c7', color: '#d97706', icon: '🥇', label: 'Gold' }
-  if (t === 'silver') return { bg: '#f1f5f9', color: '#64748b', icon: '🥈', label: 'Silver' }
-  return { bg: '#fed7aa', color: '#c2410c', icon: '🥉', label: 'Bronze' }
+  if (t === 'gold')   return { bg: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', icon: '🥇', label: 'Gold' }
+  if (t === 'silver') return { bg: 'var(--surface-muted)',  color: 'var(--text-secondary)',   icon: '🥈', label: 'Silver' }
+  return { bg: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', icon: '🥉', label: 'Bronze' }
 }
 function statusStyle(s: string) {
   if (s === 'certified') return { bg: 'var(--status-ok-bg)',   color: 'var(--status-ok-text)',   label: '✓ Certified' }
@@ -24,8 +24,8 @@ function fmtDate(d: string) {
   return new Date(d).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '5px' }
-const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a', outline: 'none', boxSizing: 'border-box' as const }
+const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }
+const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' as const }
 const COLS = '20px 1fr 100px 80px 72px 58px 30px'
 
 export default function DataProductsPage() {
@@ -184,8 +184,8 @@ export default function DataProductsPage() {
         {(['all', 'certified', 'published', 'draft'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-            background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
-            color: filter === f ? '#fff' : 'var(--text-secondary)',
+            background: filter === f ? 'var(--foreground)' : 'var(--surface-muted)',
+            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
             fontWeight: filter === f ? 600 : 400, fontSize: '11px', textTransform: 'capitalize',
           }}>
             {f === 'all' ? `All (${products.length})` : `${f} (${products.filter(p => p.status === f).length})`}
@@ -373,13 +373,13 @@ export default function DataProductsPage() {
       {/* Create modal — unchanged from original */}
       {showCreate && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', width: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a1a' }}>Create Data Product</div>
-                <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>Define a new curated data product</div>
+                <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>Create Data Product</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>Define a new curated data product</div>
               </div>
-              <button onClick={() => setShowCreate(false)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', fontSize: '14px' }}>✕</button>
+              <button onClick={() => setShowCreate(false)} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>✕</button>
             </div>
             <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div><label style={lbl}>Product Name *</label>
@@ -397,7 +397,7 @@ export default function DataProductsPage() {
                   {(['gold', 'silver', 'bronze'] as const).map(t => {
                     const ts = tierStyle(t)
                     return (
-                      <button key={t} onClick={() => setForm(f => ({ ...f, tier: t }))} style={{ flex: 1, padding: '12px 8px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center', border: form.tier === t ? `2px solid ${ts.color}` : '1px solid #e2e8f0', background: form.tier === t ? ts.bg : '#fafaf9' }}>
+                      <button key={t} onClick={() => setForm(f => ({ ...f, tier: t }))} style={{ flex: 1, padding: '12px 8px', borderRadius: '10px', cursor: 'pointer', textAlign: 'center', border: form.tier === t ? `2px solid ${ts.color}` : '1px solid var(--border)', background: form.tier === t ? ts.bg : 'var(--surface-muted)' }}>
                         <div style={{ fontSize: '20px', marginBottom: '4px' }}>{ts.icon}</div>
                         <div style={{ fontSize: '11px', fontWeight: form.tier === t ? 700 : 500, color: ts.color, textTransform: 'capitalize' }}>{t}</div>
                       </button>
@@ -418,8 +418,8 @@ export default function DataProductsPage() {
               <div><label style={lbl}>Tags (comma-separated)</label>
                 <input value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} placeholder="e.g. analytics, real-time, customer" style={inp} /></div>
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-                <button onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-                <button onClick={createProduct} disabled={!form.name.trim()} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: form.name.trim() ? 'pointer' : 'not-allowed', background: form.name.trim() ? 'var(--accent)' : '#e2e8f0', color: form.name.trim() ? '#fff' : '#94a3b8' }}>+ Create Product</button>
+                <button onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={createProduct} disabled={!form.name.trim()} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: form.name.trim() ? 'pointer' : 'not-allowed', background: form.name.trim() ? 'var(--accent)' : 'var(--surface-muted)', color: form.name.trim() ? 'var(--accent-text)' : 'var(--text-muted)' }}>+ Create Product</button>
               </div>
             </div>
           </div>

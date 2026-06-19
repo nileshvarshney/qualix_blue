@@ -53,15 +53,15 @@ const OVERLAY: React.CSSProperties = {
   alignItems: 'center', justifyContent: 'center',
 }
 const DIALOG: React.CSSProperties = {
-  background: '#fff', borderRadius: '16px', width: '660px',
+  background: 'var(--surface)', borderRadius: '16px', width: '660px',
   maxHeight: '90vh', display: 'flex', flexDirection: 'column',
   boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
 }
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  imported: { bg: '#f0fdf4', color: '#16a34a' },
-  skipped:  { bg: '#fefce8', color: '#ca8a04' },
-  error:    { bg: '#fee2e2', color: '#dc2626' },
-  excluded: { bg: '#f8fafc', color: '#64748b' },
+  imported: { bg: 'var(--status-ok-bg)',   color: 'var(--status-ok-text)'   },
+  skipped:  { bg: 'var(--status-warn-bg)', color: 'var(--status-warn-text)' },
+  error:    { bg: 'var(--status-error-bg)',color: 'var(--status-error-text)' },
+  excluded: { bg: 'var(--surface-muted)',  color: 'var(--text-secondary)'   },
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -383,7 +383,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   const allExcluded  = excludedCount > 0 && importedCount === 0 && skippedCount === 0 && errorCount === 0
   const bannerFailed = jobStatus === 'failed' && importedCount === 0
   const bannerIcon   = bannerFailed ? '❌' : allExcluded ? '⚠️' : '✅'
-  const bannerBg     = bannerFailed ? '#fee2e2' : allExcluded ? '#fefce8' : '#f0fdf4'
+  const bannerBg     = bannerFailed ? 'var(--status-error-bg)' : allExcluded ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)'
   const bannerBorder = bannerFailed ? '#fca5a5' : allExcluded ? '#fde68a' : '#bbf7d0'
   const excludedPart = excludedCount > 0 ? ` · ${excludedCount} excluded` : ''
   const summaryLine  = `${importedCount} imported · ${skippedCount} skipped${excludedPart} · ${errorCount} errors`
@@ -394,16 +394,16 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
       <div style={DIALOG}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>Import Datasets</div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Browse and select databases, schemas, and tables to import</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>Import Datasets</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Browse and select databases, schemas, and tables to import</div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--text-muted)', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
 
         {/* Connection selector */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select
               value={selectedConn?.id ?? ''}
@@ -413,7 +413,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
                 setGlobalError(null)
                 setShowExclusions(false)
               }}
-              style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a' }}
+              style={{ flex: 1, padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--surface-muted)', color: 'var(--foreground)' }}
             >
               <option value="">— Select a connection —</option>
               {connections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
@@ -423,9 +423,9 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
                 onClick={() => setShowExclusions(v => !v)}
                 title="Include / exclude databases and schemas"
                 style={{
-                  padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
-                  background: showExclusions ? '#dbeafe' : '#fff',
-                  color: showExclusions ? '#2563eb' : '#64748b',
+                  padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+                  background: showExclusions ? '#dbeafe' : 'var(--surface)',
+                  color: showExclusions ? '#2563eb' : 'var(--text-secondary)',
                   fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
                 }}
               >
@@ -434,7 +434,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
             )}
           </div>
           {connections.length === 0 && (
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>No connections found. Add one on the Connections page first.</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>No connections found. Add one on the Connections page first.</div>
           )}
         </div>
 
@@ -442,7 +442,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 24px' }}>
 
           {globalError && (
-            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', color: '#dc2626', fontSize: '13px' }}>
+            <div style={{ background: 'var(--status-error-bg)', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', color: 'var(--status-error-text)', fontSize: '13px' }}>
               <strong>Error:</strong> {globalError}
             </div>
           )}
@@ -450,11 +450,11 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
           {/* Importing phase */}
           {importPhase === 'importing' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'var(--surface-muted)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: '18px' }}>⏳</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>Discovery in progress…</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Tables are being classified and registered.</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>Discovery in progress…</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tables are being classified and registered.</div>
                 </div>
               </div>
               {jobResults.length > 0 && <ResultsTable results={jobResults} />}
@@ -467,8 +467,8 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: bannerBg, borderRadius: '8px', border: `1px solid ${bannerBorder}` }}>
                 <span style={{ fontSize: '22px' }}>{bannerIcon}</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a' }}>Import Complete</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{summaryLine}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Import Complete</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{summaryLine}</div>
                 </div>
               </div>
               {jobResults.length > 0 && <ResultsTable results={jobResults} />}
@@ -479,16 +479,16 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
           {importPhase === 'idle' && (
             <>
               {dbsLoading && (
-                <div style={{ fontSize: '13px', color: '#94a3b8', padding: '8px 0' }}>Loading databases…</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', padding: '8px 0' }}>Loading databases…</div>
               )}
               {dbsError && (
-                <div style={{ color: '#dc2626', fontSize: '13px', padding: '8px 0' }}>Error: {dbsError}</div>
+                <div style={{ color: 'var(--status-error-text)', fontSize: '13px', padding: '8px 0' }}>Error: {dbsError}</div>
               )}
               {!dbsLoading && !dbsError && selectedConn && Object.keys(tree).length === 0 && (
-                <div style={{ fontSize: '12px', color: '#94a3b8', padding: '8px 0' }}>No databases found for this connection.</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0' }}>No databases found for this connection.</div>
               )}
               {!selectedConn && (
-                <div style={{ fontSize: '12px', color: '#94a3b8', padding: '8px 0', textAlign: 'center' }}>Select a connection above to browse its databases.</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '8px 0', textAlign: 'center' }}>Select a connection above to browse its databases.</div>
               )}
 
               {Object.entries(tree).map(([dbName, db]) => (
@@ -504,10 +504,10 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
                   {/* Schemas */}
                   {db.expanded && (
                     <div>
-                      {db.loading && <div style={{ paddingLeft: '44px', fontSize: '12px', color: '#94a3b8', padding: '4px 0 4px 44px' }}>Loading schemas…</div>}
-                      {db.error && <div style={{ paddingLeft: '44px', fontSize: '12px', color: '#dc2626', padding: '4px 0 4px 44px' }}>Error: {db.error}</div>}
+                      {db.loading && <div style={{ paddingLeft: '44px', fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0 4px 44px' }}>Loading schemas…</div>}
+                      {db.error && <div style={{ paddingLeft: '44px', fontSize: '12px', color: 'var(--status-error-text)', padding: '4px 0 4px 44px' }}>Error: {db.error}</div>}
                       {db.loaded && Object.keys(db.schemas).length === 0 && !db.error && (
-                        <div style={{ paddingLeft: '44px', fontSize: '12px', color: '#94a3b8', padding: '4px 0 4px 44px' }}>No schemas found.</div>
+                        <div style={{ paddingLeft: '44px', fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0 4px 44px' }}>No schemas found.</div>
                       )}
 
                       {Object.entries(db.schemas).map(([schemaName, schema]) => (
@@ -523,10 +523,10 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
                           {/* Tables */}
                           {schema.expanded && (
                             <div>
-                              {schema.loading && <div style={{ fontSize: '12px', color: '#94a3b8', padding: '4px 0 4px 68px' }}>Loading tables…</div>}
-                              {schema.error && <div style={{ fontSize: '12px', color: '#dc2626', padding: '4px 0 4px 68px' }}>Error: {schema.error}</div>}
+                              {schema.loading && <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0 4px 68px' }}>Loading tables…</div>}
+                              {schema.error && <div style={{ fontSize: '12px', color: 'var(--status-error-text)', padding: '4px 0 4px 68px' }}>Error: {schema.error}</div>}
                               {schema.loaded && Object.keys(schema.tables).length === 0 && !schema.error && (
-                                <div style={{ fontSize: '12px', color: '#94a3b8', padding: '4px 0 4px 68px' }}>No tables found.</div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '4px 0 4px 68px' }}>No tables found.</div>
                               )}
 
                               {Object.entries(schema.tables).map(([tableName, table]) => (
@@ -550,10 +550,10 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #ebe8df', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
           {importPhase === 'done' ? (
             <>
-              <button onClick={handleStartOver} style={{ background: 'none', border: '1px solid #e2e8f0', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: '#475569', cursor: 'pointer' }}>
+              <button onClick={handleStartOver} style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 Start Over
               </button>
               <button onClick={() => { onComplete(); onClose() }} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -561,18 +561,18 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
               </button>
             </>
           ) : importPhase === 'importing' ? (
-            <button disabled style={{ background: '#e2e8f0', color: '#94a3b8', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'default' }}>
+            <button disabled style={{ background: 'var(--surface-muted)', color: 'var(--text-muted)', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'default' }}>
               Importing…
             </button>
           ) : (
             <>
-              <button onClick={onClose} style={{ background: 'none', border: '1px solid #e2e8f0', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: '#475569', cursor: 'pointer' }}>
+              <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
                 onClick={handleImport}
                 disabled={selected === 0}
-                style={{ background: selected > 0 ? '#2563eb' : '#e2e8f0', color: selected > 0 ? '#fff' : '#94a3b8', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: selected > 0 ? 'pointer' : 'default', opacity: 1 }}
+                style={{ background: selected > 0 ? '#2563eb' : 'var(--surface-muted)', color: selected > 0 ? '#fff' : 'var(--text-muted)', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: selected > 0 ? 'pointer' : 'default', opacity: 1 }}
               >
                 {selected > 0 ? `Import ${selected} selected` : 'Import'}
               </button>
@@ -603,10 +603,10 @@ function DbRow({ name, node, onToggle, onExpand }: { name: string; node: DbNode;
   const schemaCount = Object.keys(node.schemas).length
   const isSelected = node.checked !== 'none'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px', borderRadius: '8px', border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`, background: isSelected ? '#eff6ff' : '#fafaf9', marginBottom: '4px', cursor: 'pointer' }}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 8px', borderRadius: '8px', border: `1px solid ${isSelected ? '#93c5fd' : 'var(--border)'}`, background: isSelected ? 'var(--status-info-bg)' : 'var(--surface-muted)', marginBottom: '4px', cursor: 'pointer' }}
       onClick={onExpand}>
       {/* Expand arrow */}
-      <span style={{ fontSize: '11px', color: '#64748b', width: '14px', textAlign: 'center', flexShrink: 0 }}>
+      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '14px', textAlign: 'center', flexShrink: 0 }}>
         {node.loading ? '…' : node.expanded ? '▼' : '▶'}
       </span>
       {/* Checkbox */}
@@ -621,10 +621,10 @@ function DbRow({ name, node, onToggle, onExpand }: { name: string; node: DbNode;
       {/* DB icon */}
       <span style={{ fontSize: '13px' }}>🗄️</span>
       {/* Name */}
-      <span style={{ flex: 1, fontSize: '13px', fontWeight: 600, fontFamily: 'monospace', color: '#0f172a' }}>{name}</span>
+      <span style={{ flex: 1, fontSize: '13px', fontWeight: 600, fontFamily: 'monospace', color: 'var(--foreground)' }}>{name}</span>
       {/* Badge */}
       {node.loaded && schemaCount > 0 && (
-        <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: '10px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--surface-muted)', padding: '2px 7px', borderRadius: '10px' }}>
           {schemaCount} schema{schemaCount !== 1 ? 's' : ''}
         </span>
       )}
@@ -637,9 +637,9 @@ function SchemaRow({ name, node, onToggle, onExpand }: { name: string; node: Sch
   const checkedCount = Object.values(node.tables).filter(t => t.checked).length
   const isSelected = node.checked !== 'none'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px 6px 24px', borderRadius: '8px', border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`, background: isSelected ? '#f0f9ff' : '#fafaf9', marginBottom: '3px', cursor: 'pointer' }}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 8px 6px 24px', borderRadius: '8px', border: `1px solid ${isSelected ? '#93c5fd' : 'var(--border)'}`, background: isSelected ? 'var(--status-info-bg)' : 'var(--surface-muted)', marginBottom: '3px', cursor: 'pointer' }}
       onClick={onExpand}>
-      <span style={{ fontSize: '11px', color: '#64748b', width: '14px', textAlign: 'center', flexShrink: 0 }}>
+      <span style={{ fontSize: '11px', color: 'var(--text-secondary)', width: '14px', textAlign: 'center', flexShrink: 0 }}>
         {node.loading ? '…' : node.expanded ? '▼' : '▶'}
       </span>
       <input
@@ -651,9 +651,9 @@ function SchemaRow({ name, node, onToggle, onExpand }: { name: string; node: Sch
         style={{ accentColor: '#2563eb', flexShrink: 0 }}
       />
       <span style={{ fontSize: '12px' }}>📋</span>
-      <span style={{ flex: 1, fontSize: '12px', fontFamily: 'monospace', color: '#334155', fontWeight: 500 }}>{name}</span>
+      <span style={{ flex: 1, fontSize: '12px', fontFamily: 'monospace', color: 'var(--text-secondary)', fontWeight: 500 }}>{name}</span>
       {node.loaded && tableCount > 0 && (
-        <span style={{ fontSize: '11px', color: '#64748b', background: '#f1f5f9', padding: '2px 7px', borderRadius: '10px' }}>
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--surface-muted)', padding: '2px 7px', borderRadius: '10px' }}>
           {node.checked === 'partial' ? `${checkedCount}/` : ''}{tableCount} table{tableCount !== 1 ? 's' : ''}
         </span>
       )}
@@ -664,14 +664,14 @@ function SchemaRow({ name, node, onToggle, onExpand }: { name: string; node: Sch
 function TableRow({ name, node, onToggle }: { name: string; node: TableNode; onToggle: () => void }) {
   const isView = node.type.toUpperCase().includes('VIEW')
   return (
-    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px 5px 48px', borderRadius: '7px', border: `1px solid ${node.checked ? '#93c5fd' : '#e2e8f0'}`, background: node.checked ? '#eff6ff' : '#fff', marginBottom: '2px', cursor: 'pointer', fontSize: '12px' }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 8px 5px 48px', borderRadius: '7px', border: `1px solid ${node.checked ? '#93c5fd' : 'var(--border)'}`, background: node.checked ? 'var(--status-info-bg)' : 'var(--surface)', marginBottom: '2px', cursor: 'pointer', fontSize: '12px' }}>
       <input type="checkbox" checked={node.checked} onChange={onToggle} style={{ accentColor: '#2563eb', flexShrink: 0 }} />
-      <span style={{ flex: 1, fontFamily: 'monospace', color: '#0f172a' }}>{name}</span>
-      <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, background: isView ? '#fef3c7' : '#e0e7ff', color: isView ? '#92400e' : '#3730a3' }}>
+      <span style={{ flex: 1, fontFamily: 'monospace', color: 'var(--foreground)' }}>{name}</span>
+      <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', fontWeight: 600, background: isView ? 'var(--status-warn-bg)' : 'var(--status-info-bg)', color: isView ? 'var(--status-warn-text)' : 'var(--status-info-text)' }}>
         {isView ? 'VIEW' : 'TABLE'}
       </span>
       {node.rowCount != null && (
-        <span style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap' }}>{node.rowCount.toLocaleString()} rows</span>
+        <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{node.rowCount.toLocaleString()} rows</span>
       )}
     </label>
   )
@@ -682,30 +682,30 @@ function TableRow({ name, node, onToggle }: { name: string; node: TableNode; onT
 function ResultsTable({ results }: { results: JobResult[] }) {
   if (results.length === 0) return null
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
         <thead>
-          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-            <th style={{ padding: '8px 12px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Schema · Table</th>
-            <th style={{ padding: '8px 12px', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Status</th>
-            <th style={{ padding: '8px 12px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Note</th>
+          <tr style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Schema · Table</th>
+            <th style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
+            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Note</th>
           </tr>
         </thead>
         <tbody>
           {results.map((r, i) => {
             const { bg, color } = STATUS_COLORS[r.status] ?? STATUS_COLORS.error
             return (
-              <tr key={i} style={{ borderBottom: i < results.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#0f172a' }}>
+              <tr key={i} style={{ borderBottom: i < results.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: 'var(--foreground)' }}>
                   {r.table_name === '*'
-                    ? <span style={{ fontFamily: 'inherit', fontStyle: 'italic', color: '#94a3b8' }}>{r.schema} · all tables</span>
+                    ? <span style={{ fontFamily: 'inherit', fontStyle: 'italic', color: 'var(--text-muted)' }}>{r.schema} · all tables</span>
                     : `${r.schema}.${r.table_name}`
                   }
                 </td>
                 <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                   <span style={{ background: bg, color, padding: '2px 8px', borderRadius: '12px', fontWeight: 600, fontSize: '11px' }}>{r.status}</span>
                 </td>
-                <td style={{ padding: '7px 12px', color: '#64748b' }}>{r.reason ?? ''}</td>
+                <td style={{ padding: '7px 12px', color: 'var(--text-secondary)' }}>{r.reason ?? ''}</td>
               </tr>
             )
           })}

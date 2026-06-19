@@ -37,13 +37,13 @@ function dayRange(date: string): { start: string; end: string } {
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
-  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
-  partial_success: { background: '#fffbeb', color: '#d97706' },
-  failed:          { background: '#fee2e2', color: '#dc2626' },
-  timed_out:       { background: '#fee2e2', color: '#dc2626' },
-  running:         { background: '#eff6ff', color: '#2563eb' },
-  queued:          { background: '#fef3c7', color: '#d97706' },
-  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
+  partial_success: { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  failed:          { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  timed_out:       { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  running:         { background: 'var(--status-info-bg)',  color: 'var(--status-info-text)'  },
+  queued:          { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  cancelled:       { background: 'var(--surface-muted)',   color: 'var(--text-muted)'        },
 }
 
 const STATUS_ICON: Record<RunStatus, string> = {
@@ -124,7 +124,7 @@ function RunHistoryInner() {
 
   const CARDS = [
     { key: 'all',       label: 'Total',     value: runs.length,    color: 'var(--accent)' },
-    { key: 'running',   label: 'Running',   value: totalRunning,   color: '#2563eb' },
+    { key: 'running',   label: 'Running',   value: totalRunning,   color: 'var(--status-info-text)' },
     { key: 'succeeded', label: 'Succeeded', value: totalCompleted, color: 'var(--status-ok-text)' },
     { key: 'failed',    label: 'Failed',    value: totalFailed,    color: 'var(--status-error-text)' },
   ] as const
@@ -236,9 +236,9 @@ function RunHistoryInner() {
               </div>
 
               {isExpanded && run.error_message && (
-                <div style={{ background: '#fee2e2', borderBottom: '1px solid #fca5a5', padding: '10px 16px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>Error</div>
-                  <pre style={{ margin: 0, fontSize: '10px', color: '#7f1d1d', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{run.error_message}</pre>
+                <div style={{ background: 'var(--status-error-bg)', borderBottom: '1px solid var(--border)', padding: '10px 16px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--status-error-text)', marginBottom: '4px' }}>Error</div>
+                  <pre style={{ margin: 0, fontSize: '10px', color: 'var(--status-error-text)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{run.error_message}</pre>
                 </div>
               )}
             </div>

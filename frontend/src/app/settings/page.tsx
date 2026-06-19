@@ -25,10 +25,10 @@ export default function SettingsPage() {
     { id: 'roadmap', label: 'Under Development', icon: '🚧' },
   ] as const
 
-  const card: React.CSSProperties = { background: '#fff', border: '1px solid #ebe8df', borderRadius: '12px', padding: '24px' }
+  const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px' }
   const inp = (extra?: React.CSSProperties): React.CSSProperties => ({
-    width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
-    fontSize: '13px', color: '#0f172a', background: '#fafaf9', boxSizing: 'border-box' as const, outline: 'none', ...extra,
+    width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+    fontSize: '13px', color: 'var(--foreground)', background: 'var(--surface-muted)', boxSizing: 'border-box' as const, outline: 'none', ...extra,
   })
 
   return (
@@ -67,23 +67,23 @@ export default function SettingsPage() {
           {/* ─── Profile ─── */}
           {tab === 'profile' && (
             <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a', marginBottom: '20px' }}>Profile Settings</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: '#fafaf9', borderRadius: '10px', border: '1px solid #ebe8df' }}>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '20px' }}>Profile Settings</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: 'var(--surface-muted)', borderRadius: '10px', border: '1px solid var(--border)' }}>
                 <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '22px' }}>B</div>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: '14px', color: '#1a1a1a' }}>{profile.name}</div>
-                  <div style={{ fontSize: '12.5px', color: '#64748b' }}>{profile.role} · {profile.email}</div>
+                  <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--foreground)' }}>{profile.name}</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>{profile.role} · {profile.email}</div>
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
                 {[['Full Name', 'name'], ['Email', 'email'], ['Role', 'role'], ['Timezone', 'timezone']].map(([label, key]) => (
                   <div key={key}>
-                    <label style={{ fontSize: '12.5px', color: '#374151', fontWeight: 500, display: 'block', marginBottom: '6px' }}>{label}</label>
-                    <input value={profile[key as keyof typeof profile]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} disabled={key === 'role'} style={inp(key === 'role' ? { background: '#f8fafc' } : undefined)} />
+                    <label style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>{label}</label>
+                    <input value={profile[key as keyof typeof profile]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} disabled={key === 'role'} style={inp(key === 'role' ? { background: 'var(--surface-muted)', opacity: 0.7 } : undefined)} />
                   </div>
                 ))}
               </div>
-              <button onClick={() => save()} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? '#16a34a' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => save()} style={{ padding: '10px 24px', borderRadius: '8px', border: 'none', background: saved ? 'var(--status-ok-text)' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
                 {saved ? '✓ Saved!' : 'Save Changes'}
               </button>
             </div>
@@ -256,7 +256,7 @@ export default function SettingsPage() {
                   ],
                 },
               ].map(section => (
-                <div key={section.category} style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '12px', overflow: 'hidden' }}>
+                <div key={section.category} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
                   {/* Section header */}
                   <div style={{ padding: '18px 24px', background: section.bg, borderBottom: `1px solid ${section.border}` }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
@@ -273,20 +273,20 @@ export default function SettingsPage() {
                     {section.features.map((f, i) => (
                       <div key={f.name} style={{
                         padding: '18px 24px',
-                        borderBottom: i < section.features.length - 1 ? '1px solid #f3f1ea' : 'none',
+                        borderBottom: i < section.features.length - 1 ? '1px solid var(--border)' : 'none',
                       }}>
                         {/* Feature header row */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                          <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#1a1a1a' }}>{f.name}</span>
-                          <span style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '5px', padding: '2px 8px', fontSize: '10.5px', color: '#92400e', fontWeight: 600 }}>
+                          <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{f.name}</span>
+                          <span style={{ background: 'var(--status-warn-bg)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 8px', fontSize: '10.5px', color: 'var(--status-warn-text)', fontWeight: 600 }}>
                             Current: {f.status}
                           </span>
-                          <span style={{ marginLeft: 'auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '2px 10px', fontSize: '10.5px', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                          <span style={{ marginLeft: 'auto', background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 10px', fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                             {f.where}
                           </span>
                         </div>
                         {/* Detailed description */}
-                        <p style={{ margin: 0, fontSize: '12.5px', color: '#4b5563', lineHeight: '1.7' }}>{f.desc}</p>
+                        <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>{f.desc}</p>
                       </div>
                     ))}
                   </div>
@@ -298,9 +298,9 @@ export default function SettingsPage() {
                 const section = {
                   category: 'Governance & Compliance Gaps',
                   icon: '🔐',
-                  color: '#0f172a',
-                  bg: '#f8fafc',
-                  border: '#cbd5e1',
+                  color: 'var(--foreground)',
+                  bg: 'var(--surface-muted)',
+                  border: 'var(--border)',
                   summary: 'These six capabilities were specifically verified against the current codebase. Each one is either entirely missing or only partially wired up — the UI may hint at it existing, but the actual implementation is absent or non-functional. They represent the most critical gaps for enterprise data governance and compliance use cases.',
                   features: [
                     {
@@ -342,7 +342,7 @@ export default function SettingsPage() {
                   ],
                 }
                 return (
-                  <div key={section.category} style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div key={section.category} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
                     <div style={{ padding: '18px 24px', background: section.bg, borderBottom: `1px solid ${section.border}` }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
                         <span style={{ fontSize: '20px' }}>{section.icon}</span>
@@ -351,21 +351,21 @@ export default function SettingsPage() {
                           {section.features.length} verified gaps
                         </span>
                       </div>
-                      <p style={{ margin: 0, fontSize: '12.5px', color: '#475569', lineHeight: '1.65' }}>{section.summary}</p>
+                      <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.65' }}>{section.summary}</p>
                     </div>
                     <div>
                       {section.features.map((f, i) => (
-                        <div key={f.name} style={{ padding: '18px 24px', borderBottom: i < section.features.length - 1 ? '1px solid #f3f1ea' : 'none' }}>
+                        <div key={f.name} style={{ padding: '18px 24px', borderBottom: i < section.features.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                            <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#1a1a1a' }}>{f.name}</span>
-                            <span style={{ background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '5px', padding: '2px 8px', fontSize: '10.5px', color: '#92400e', fontWeight: 600 }}>
+                            <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{f.name}</span>
+                            <span style={{ background: 'var(--status-warn-bg)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 8px', fontSize: '10.5px', color: 'var(--status-warn-text)', fontWeight: 600 }}>
                               Current: {f.status}
                             </span>
-                            <span style={{ marginLeft: 'auto', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '5px', padding: '2px 10px', fontSize: '10.5px', color: '#475569', fontWeight: 500, whiteSpace: 'nowrap' }}>
+                            <span style={{ marginLeft: 'auto', background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '5px', padding: '2px 10px', fontSize: '10.5px', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
                               {f.where}
                             </span>
                           </div>
-                          <p style={{ margin: 0, fontSize: '12.5px', color: '#4b5563', lineHeight: '1.7' }}>{f.desc}</p>
+                          <p style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>{f.desc}</p>
                         </div>
                       ))}
                     </div>
@@ -465,7 +465,7 @@ export default function SettingsPage() {
                 ]
 
                 return (
-                  <div style={{ background: '#fff', border: '1px solid #ebe8df', borderRadius: '12px', overflow: 'hidden' }}>
+                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
                     {/* Header */}
                     <div style={{ padding: '18px 24px', background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', borderBottom: '1px solid #334155' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
@@ -488,24 +488,24 @@ export default function SettingsPage() {
                     {areas.map((a, i) => {
                       const st = STATUS[a.status]
                       return (
-                        <div key={a.area} style={{ borderBottom: i < areas.length - 1 ? '1px solid #f3f1ea' : 'none' }}>
+                        <div key={a.area} style={{ borderBottom: i < areas.length - 1 ? '1px solid var(--border)' : 'none' }}>
                           {/* Area header */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 24px 0', flexWrap: 'wrap' }}>
                             <span style={{ fontSize: '16px' }}>{a.icon}</span>
-                            <span style={{ fontWeight: 700, fontSize: '13.5px', color: '#1a1a1a' }}>{a.area}</span>
+                            <span style={{ fontWeight: 700, fontSize: '13.5px', color: 'var(--foreground)' }}>{a.area}</span>
                             <span style={{ background: st.bg, color: st.color, border: `1px solid ${st.border}`, fontSize: '10px', fontWeight: 700, padding: '2px 10px', borderRadius: '20px', letterSpacing: '0.04em' }}>
                               {st.label}
                             </span>
                           </div>
                           {/* Two-column: exists + gaps */}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', padding: '10px 24px 16px' }}>
-                            <div style={{ paddingRight: '20px', borderRight: '1px solid #f3f1ea' }}>
-                              <div style={{ fontSize: '10px', fontWeight: 700, color: '#16a34a', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>✓ What exists today</div>
-                              <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: '1.7' }}>{a.exists}</p>
+                            <div style={{ paddingRight: '20px', borderRight: '1px solid var(--border)' }}>
+                              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--status-ok-text)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>✓ What exists today</div>
+                              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>{a.exists}</p>
                             </div>
                             <div style={{ paddingLeft: '20px' }}>
-                              <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>✗ What is missing or broken</div>
-                              <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: '1.7' }}>{a.gaps}</p>
+                              <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--status-error-text)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '6px' }}>✗ What is missing or broken</div>
+                              <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.7' }}>{a.gaps}</p>
                             </div>
                           </div>
                         </div>
@@ -516,7 +516,7 @@ export default function SettingsPage() {
               })()}
 
               {/* Footer note */}
-              <div style={{ background: '#fafaf9', border: '1px solid #ebe8df', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: '#94a3b8', textAlign: 'center' }}>
+              <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
                 Internal reference only — not shown to end users. All capability statuses verified against source code, May 2026.
               </div>
             </div>
@@ -525,19 +525,19 @@ export default function SettingsPage() {
           {/* ─── Workspace ─── */}
           {tab === 'workspace' && (
             <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: '15px', color: '#1a1a1a', marginBottom: '20px' }}>Workspace Settings</div>
+              <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '20px' }}>Workspace Settings</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '—'], ['Timezone', '—']].map(([label, value]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f3f1ea' }}>
-                    <span style={{ fontSize: '13px', color: '#475569', fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: '13px', color: '#1a1a1a', fontWeight: 600 }}>{value}</span>
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+                    <span style={{ fontSize: '13px', color: 'var(--foreground)', fontWeight: 600 }}>{value}</span>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: '24px', background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: '#dc2626', marginBottom: '6px' }}>Danger Zone</div>
-                <div style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '12px' }}>These actions cannot be undone.</div>
-                <button style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid #fca5a5', background: '#fff', color: '#dc2626', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}>Reset Workspace Data</button>
+              <div style={{ marginTop: '24px', background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '10px', padding: '16px' }}>
+                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--status-error-text)', marginBottom: '6px' }}>Danger Zone</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>These actions cannot be undone.</div>
+                <button style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}>Reset Workspace Data</button>
               </div>
             </div>
           )}

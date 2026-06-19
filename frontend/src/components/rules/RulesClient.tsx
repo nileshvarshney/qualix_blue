@@ -56,21 +56,21 @@ const STATUS_CONFIG: Record<RuleStatus, { bg: string; color: string; label: stri
   active:         { bg: 'var(--status-ok-bg)',      color: 'var(--status-ok-text)',    label: 'Active',         border: '#86efac' },
   draft:          { bg: 'var(--status-neutral-bg)', color: 'var(--status-neutral-text)', label: 'Draft',        border: '#cbd5e1' },
   pending_review: { bg: 'var(--status-warn-bg)',    color: 'var(--status-warn-text)',  label: 'Pending Review', border: '#fde68a' },
-  disabled:       { bg: '#fff7ed',                  color: '#ea580c',                  label: 'Disabled',       border: '#fdba74' },
+  disabled:       { bg: 'var(--status-warn-bg)',     color: 'var(--status-warn-text)',   label: 'Disabled',       border: '#fdba74' },
   archived:       { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)', label: 'Archived',       border: '#fca5a5' },
 }
 
 const SEVERITY_CONFIG = {
-  critical: { bg: '#fee2e2', color: '#dc2626', label: '🔴 Critical' },
-  high: { bg: '#fff7ed', color: '#ea580c', label: '🟠 High' },
-  medium: { bg: '#fef9c3', color: '#ca8a04', label: '🟡 Medium' },
-  low: { bg: '#f0fdf4', color: '#16a34a', label: '🟢 Low' }
+  critical: { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)', label: '🔴 Critical' },
+  high:     { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)',  label: '🟠 High' },
+  medium:   { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)',  label: '🟡 Medium' },
+  low:      { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    label: '🟢 Low' }
 }
 
 /* ── Helpers ──────────────────────────────────────────────────────── */
 
 const card: React.CSSProperties = { background: 'var(--surface)', borderRadius: '12px', padding: '18px 20px', border: '1px solid var(--border)' }
-const scoreColor = (s: number) => s >= 90 ? '#16a34a' : s >= 80 ? '#ea8b3a' : '#dc2626'
+const scoreColor = (s: number) => s >= 90 ? 'var(--status-ok-text)' : s >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
 const fmtType = (t: string) => t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).replace(/\bSql\b/g, 'SQL').replace(/\bLlm\b/g, 'LLM')
 
 interface Props { initialRules: Rule[]; connections: Connection[] }
@@ -541,7 +541,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
         </select>
         {activeFilterCount > 0 && (
           <button onClick={() => { setActiveCategory('all'); setStatusFilter('all'); setSeverityFilter('all'); setTableFilter(''); setScopeFilter('all'); setSearch('') }}
-            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: '#dc2626', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
+            style={{ padding: '7px 14px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
             ✕ Clear filters ({activeFilterCount})
           </button>
         )}
@@ -566,14 +566,14 @@ export default function RulesClient({ initialRules, connections }: Props) {
       {/* Bulk Actions Bar */}
       {selectedIds.size > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '5px 10px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', flexShrink: 0 }}>
-          <span style={{ fontSize: '11.5px', fontWeight: 600, color: '#0369a1' }}>{selectedIds.size} selected</span>
+          <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--status-info-text)' }}>{selectedIds.size} selected</span>
           <div style={{ display: 'flex', gap: '6px', marginLeft: 'auto' }}>
             {[
-              { action: 'activate' as const, label: '✓ Activate', bg: '#dcfce7', color: '#16a34a', border: '#86efac' },
-              { action: 'disable' as const, label: '⏸ Disable', bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-              { action: 'archive' as const, label: '📦 Archive', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+              { action: 'activate' as const, label: '✓ Activate', bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    border: '#86efac' },
+              { action: 'disable' as const, label: '⏸ Disable', bg: 'var(--status-warn-bg)',   color: 'var(--status-warn-text)',   border: '#fdba74' },
+              { action: 'archive' as const, label: '📦 Archive', bg: 'var(--status-error-bg)',  color: 'var(--status-error-text)',  border: '#fca5a5' },
               { action: 'run' as const, label: '▶ Run All', bg: 'var(--accent-bg)', color: 'var(--accent)', border: '#93c5fd' },
-              { action: 'delete' as const, label: '🗑 Delete', bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
+              { action: 'delete' as const, label: '🗑 Delete', bg: 'var(--status-error-bg)',    color: 'var(--status-error-text)',   border: '#fca5a5' },
             ].map(btn => (
               <button key={btn.action} onClick={() => bulkAction(btn.action)} disabled={bulkLoading}
                 style={{ padding: '3px 9px', borderRadius: '6px', border: `1px solid ${btn.border}`, background: btn.bg, color: btn.color, fontSize: '11px', fontWeight: 600, cursor: 'pointer', opacity: bulkLoading ? 0.5 : 1 }}>
@@ -683,10 +683,10 @@ export default function RulesClient({ initialRules, connections }: Props) {
                   </span>
 
                   {g.stats.passedCount > 0 && (
-                    <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>✓{g.stats.passedCount}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--status-ok-text)', fontWeight: 600, flexShrink: 0 }}>✓{g.stats.passedCount}</span>
                   )}
                   {g.stats.failedCount > 0 && (
-                    <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 600, flexShrink: 0 }}>✗{g.stats.failedCount}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--status-error-text)', fontWeight: 600, flexShrink: 0 }}>✗{g.stats.failedCount}</span>
                   )}
 
                   {groupMode === 'rule-type' && cat && (
@@ -695,7 +695,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                     </span>
                   )}
 
-                  <span style={{ fontSize: '10px', color: '#16a34a', fontWeight: 600, flexShrink: 0 }}>
+                  <span style={{ fontSize: '10px', color: 'var(--status-ok-text)', fontWeight: 600, flexShrink: 0 }}>
                     {g.stats.activeCount}<span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>/{g.stats.count}</span>
                   </span>
 
@@ -725,7 +725,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 display: 'flex', alignItems: 'center', gap: '4px',
                 height: '30px', paddingRight: '10px',
                 paddingLeft: `${10 + indent}px`,
-                borderBottom: '1px solid #f0efe8',
+                borderBottom: '1px solid var(--border)',
                 background: selectedIds.has(rule.id) ? 'var(--accent-bg)' : 'transparent',
               }}>
                 <div style={{ width: '24px', flexShrink: 0 }}>
@@ -751,7 +751,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                             <>
                               <span style={{ color: 'var(--text-muted)' }}>{connName}</span>
                               <span style={{ color: 'var(--border)' }}> · </span>
-                              <span style={{ color: '#0369a1', fontWeight: 600, fontSize: '10px' }}>All Tables</span>
+                              <span style={{ color: 'var(--status-info-text)', fontWeight: 600, fontSize: '10px' }}>All Tables</span>
                             </>
                           ) : (
                             <>
@@ -760,7 +760,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                               <span style={{ color: 'var(--brand-primary)' }}>{rule.columnName ? `.${rule.columnName}` : ''}</span>
                             </>
                           )}
-                          {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
+                          {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: 'var(--status-warn-text)', fontWeight: 600 }}>PENDING</span>}
                         </span>
                       )
                     })()}
@@ -771,7 +771,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                       <span style={{ fontSize: '11.5px', fontWeight: 500, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
                         title={rule.name}>
                         {rule.name}
-                        {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: '#d97706', fontWeight: 600 }}>PENDING</span>}
+                        {isPending && <span style={{ marginLeft: '5px', fontSize: '9px', color: 'var(--status-warn-text)', fontWeight: 600 }}>PENDING</span>}
                       </span>
                     </div>
 
@@ -802,15 +802,15 @@ export default function RulesClient({ initialRules, connections }: Props) {
                   {isRunning ? (
                     <span style={{ fontSize: '9.5px', color: 'var(--accent)', fontWeight: 500 }}>⏳</span>
                   ) : result ? (
-                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: result.status === 'passed' ? '#dcfce7' : '#fee2e2', color: result.status === 'passed' ? '#16a34a' : '#dc2626' }}>
+                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: result.status === 'passed' ? 'var(--status-ok-bg)' : 'var(--status-error-bg)', color: result.status === 'passed' ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
                       {result.status === 'passed' ? '✓' : '✗'} {result.score}%
                     </span>
                   ) : rule.lastRunStatus ? (
-                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: rule.lastRunStatus === 'passed' ? '#dcfce7' : '#fee2e2', color: rule.lastRunStatus === 'passed' ? '#16a34a' : '#dc2626' }}>
+                    <span style={{ padding: '1px 5px', borderRadius: '10px', fontSize: '9.5px', fontWeight: 600, background: rule.lastRunStatus === 'passed' ? 'var(--status-ok-bg)' : 'var(--status-error-bg)', color: rule.lastRunStatus === 'passed' ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
                       {rule.lastRunStatus === 'passed' ? '✓' : '✗'} {rule.lastRunScore}%
                     </span>
                   ) : (
-                    <span style={{ fontSize: '9.5px', color: '#cbd5e1' }}>—</span>
+                    <span style={{ fontSize: '9.5px', color: 'var(--border)' }}>—</span>
                   )}
                 </div>
 
@@ -818,18 +818,18 @@ export default function RulesClient({ initialRules, connections }: Props) {
                   {isPending && (
                     <>
                       <button onClick={() => approveRule(rule.id)} title="Approve"
-                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #86efac', background: '#dcfce7', color: '#16a34a', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✓</button>
+                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #86efac', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✓</button>
                       <button onClick={() => rejectRule(rule.id)} title="Reject"
-                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca', background: '#fee2e2', color: '#dc2626', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✕</button>
+                        style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fecaca', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✕</button>
                     </>
                   )}
                   <button onClick={() => openEdit(rule)}
-                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4f46e5', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✏</button>
+                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--status-info-bg)', background: 'var(--status-info-bg)', color: 'var(--status-info-text)', fontSize: '10px', fontWeight: 600, cursor: 'pointer' }}>✏</button>
                   <button onClick={() => canRun && testRule(rule.id)} disabled={isRunning || !canRun}
                     title={canRun ? 'Run' : 'Must be Active to run'}
-                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--accent-bg)', background: canRun ? 'var(--accent-bg)' : 'var(--surface-muted)', color: canRun ? 'var(--accent)' : '#cbd5e1', fontSize: '10px', cursor: canRun ? 'pointer' : 'not-allowed' }}>▶</button>
+                    style={{ padding: '2px 7px', borderRadius: '4px', border: '1px solid var(--accent-bg)', background: canRun ? 'var(--accent-bg)' : 'var(--surface-muted)', color: canRun ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: canRun ? 'pointer' : 'not-allowed' }}>▶</button>
                   <button onClick={() => deleteRule(rule.id)}
-                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid #fee2e2', background: '#fff', color: '#ef4444', fontSize: '10px', cursor: 'pointer' }}>🗑</button>
+                    style={{ padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--status-error-bg)', background: 'var(--surface)', color: '#ef4444', fontSize: '10px', cursor: 'pointer' }}>🗑</button>
                 </div>
               </div>
             )
@@ -899,20 +899,20 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                   <button type="button" onClick={() => setForm(f => ({ ...f, scope: 'generic', tableName: 'ALL_TABLES', columnName: '' }))} style={{
                     padding: '12px 10px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
-                    border: form.scope === 'generic' ? '2px solid #0369a1' : '1px solid var(--border)',
+                    border: form.scope === 'generic' ? '2px solid var(--status-info-text)' : '1px solid var(--border)',
                     background: form.scope === 'generic' ? 'var(--accent-bg)' : 'var(--surface-muted)',
                   }}>
                     <div style={{ fontSize: '15px', marginBottom: '4px' }}>🔧</div>
-                    <div style={{ fontSize: '12px', fontWeight: form.scope === 'generic' ? 700 : 500, color: form.scope === 'generic' ? '#0369a1' : 'var(--text-secondary)' }}>DQ Rule</div>
+                    <div style={{ fontSize: '12px', fontWeight: form.scope === 'generic' ? 700 : 500, color: form.scope === 'generic' ? 'var(--status-info-text)' : 'var(--text-secondary)' }}>DQ Rule</div>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Applies across all tables in the connection.</div>
                   </button>
                   <button type="button" onClick={() => setForm(f => ({ ...f, scope: 'object-specific' }))} style={{
                     padding: '12px 10px', borderRadius: '10px', cursor: 'pointer', textAlign: 'left',
-                    border: form.scope === 'object-specific' ? '2px solid #7c3aed' : '1px solid var(--border)',
-                    background: form.scope === 'object-specific' ? '#faf5ff' : 'var(--surface-muted)',
+                    border: form.scope === 'object-specific' ? '2px solid var(--accent)' : '1px solid var(--border)',
+                    background: form.scope === 'object-specific' ? 'var(--surface-muted)' : 'var(--surface-muted)',
                   }}>
                     <div style={{ fontSize: '15px', marginBottom: '4px' }}>🎯</div>
-                    <div style={{ fontSize: '12px', fontWeight: form.scope === 'object-specific' ? 700 : 500, color: form.scope === 'object-specific' ? '#7c3aed' : 'var(--text-secondary)' }}>Business Rule</div>
+                    <div style={{ fontSize: '12px', fontWeight: form.scope === 'object-specific' ? 700 : 500, color: form.scope === 'object-specific' ? 'var(--accent)' : 'var(--text-secondary)' }}>Business Rule</div>
                     <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>Targets a specific table and/or column.</div>
                   </button>
                 </div>
@@ -954,11 +954,11 @@ export default function RulesClient({ initialRules, connections }: Props) {
               {isGeneric && availableTables.length > 0 && (
                 <div>
                   <label style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>
-                    Tables Selected <span style={{ fontSize: '10px', color: '#0369a1', marginLeft: '4px' }}>All {availableTables.length} tables</span>
+                    Tables Selected <span style={{ fontSize: '10px', color: 'var(--status-info-text)', marginLeft: '4px' }}>All {availableTables.length} tables</span>
                   </label>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '10px 12px', background: 'var(--accent-bg)', borderRadius: '8px', border: '1px solid #bae6fd', maxHeight: '120px', overflowY: 'auto' }}>
                     {availableTables.map(t => (
-                      <span key={t} style={{ background: 'var(--accent-bg)', color: '#1e40af', padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500, fontFamily: 'monospace' }}>{t}</span>
+                      <span key={t} style={{ background: 'var(--accent-bg)', color: 'var(--status-info-text)', padding: '3px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500, fontFamily: 'monospace' }}>{t}</span>
                     ))}
                   </div>
                 </div>
@@ -976,9 +976,9 @@ export default function RulesClient({ initialRules, connections }: Props) {
               </div>
 
               {/* Approval notice — new rules go to the data stewards review queue */}
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', padding: '10px 12px', background: 'var(--status-warn-bg)', border: '1px solid #fde68a', borderRadius: '8px' }}>
                 <span style={{ fontSize: '14px' }}>🛡️</span>
-                <div style={{ fontSize: '12px', color: '#92400e', lineHeight: 1.4 }}>
+                <div style={{ fontSize: '12px', color: 'var(--status-warn-text)', lineHeight: 1.4 }}>
                   This rule will be submitted to the <strong>Data Stewards</strong> group for review.
                   It stays <strong>Pending Review</strong> and cannot run until a steward approves it.
                 </div>
@@ -1004,7 +1004,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                       </>
                     ) : (
                       <>
-                        <span style={{ fontFamily: 'monospace', color: '#0369a1' }}>All Tables</span>
+                        <span style={{ fontFamily: 'monospace', color: 'var(--status-info-text)' }}>All Tables</span>
                         <span style={{ color: 'var(--text-muted)' }}> · {connections.find(c => c.id === form.connectionId)?.name || 'Unknown'}</span>
                       </>
                     )}
@@ -1197,7 +1197,7 @@ function StatusDropdown({ rule, stat, onUpdate }: {
             return (
               <button key={s} onClick={() => { onUpdate(rule.id, s); setOpen(false) }}
                 style={{ width: '100%', textAlign: 'left', padding: '6px 12px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', background: currentStatus === s ? 'var(--surface-muted)' : 'var(--surface)', border: 'none', color: cfg.color }}>
-                {currentStatus === s && <span style={{ color: '#16a34a', fontSize: '10px' }}>✓</span>}
+                {currentStatus === s && <span style={{ color: 'var(--status-ok-text)', fontSize: '10px' }}>✓</span>}
                 <span style={{ background: cfg.bg, color: cfg.color, padding: '2px 8px', borderRadius: '12px', fontSize: '10.5px', fontWeight: 600 }}>{cfg.label}</span>
               </button>
             )

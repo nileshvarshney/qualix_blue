@@ -279,22 +279,22 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)' }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-      <div style={{ background: '#fff', borderRadius: '16px', width: '540px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: '16px', width: '540px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>Database Filters</div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>Database Filters</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
               Control which databases and schemas are discovered for <strong>{connection.name}</strong>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          <button onClick={onClose} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
 
         {/* Mode selector */}
-        <div style={{ padding: '12px 24px', borderBottom: '1px solid #f1f5f9', flexShrink: 0 }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#64748b', letterSpacing: '0.05em', marginBottom: '8px' }}>FILTER MODE</div>
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '8px' }}>FILTER MODE</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
             {(['exclude', 'include'] as FilterMode[]).map(mode => (
               <button
@@ -302,25 +302,25 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
                 onClick={() => handleModeChange(mode)}
                 style={{
                   padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', textAlign: 'left',
-                  border: `2px solid ${filterMode === mode ? accentBorder : '#e2e8f0'}`,
-                  background: filterMode === mode ? accentBg : '#fafaf9',
+                  border: `2px solid ${filterMode === mode ? accentBorder : 'var(--border)'}`,
+                  background: filterMode === mode ? accentBg : 'var(--surface-muted)',
                   transition: 'all 0.15s',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
                   <span style={{
                     width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
-                    border: `2px solid ${filterMode === mode ? accentColor : '#cbd5e1'}`,
+                    border: `2px solid ${filterMode === mode ? accentColor : 'var(--border)'}`,
                     background: filterMode === mode ? accentColor : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                   }}>
                     {filterMode === mode && <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fff', display: 'block' }} />}
                   </span>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: filterMode === mode ? accentColor : '#1a1a1a', textTransform: 'capitalize' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: filterMode === mode ? accentColor : 'var(--foreground)', textTransform: 'capitalize' }}>
                     {mode === 'exclude' ? 'Exclude selected' : 'Include only selected'}
                   </span>
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748b', paddingLeft: '22px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', paddingLeft: '22px' }}>
                   {mode === 'exclude'
                     ? 'Checked items are SKIPPED — everything else is discovered'
                     : 'Only checked items are discovered — everything else is SKIPPED'}
@@ -332,19 +332,19 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
 
         {/* Tree */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px' }}>
-          <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#64748b', letterSpacing: '0.05em', marginBottom: '8px', paddingLeft: '2px' }}>
+          <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.05em', marginBottom: '8px', paddingLeft: '2px' }}>
             {filterMode === 'include' ? 'SELECT DATABASES TO INCLUDE' : 'SELECT DATABASES TO EXCLUDE'}
           </div>
           {dbsLoading && (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-secondary)', fontSize: '13px' }}>
               <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⟳</span> Loading databases…
             </div>
           )}
           {dbsError && (
-            <div style={{ padding: '16px', background: '#fee2e2', borderRadius: '8px', color: '#dc2626', fontSize: '13px' }}>{dbsError}</div>
+            <div style={{ padding: '16px', background: 'var(--status-error-bg)', borderRadius: '8px', color: 'var(--status-error-text)', fontSize: '13px' }}>{dbsError}</div>
           )}
           {!dbsLoading && !dbsError && dbs.length === 0 && loaded && (
-            <div style={{ textAlign: 'center', padding: '40px', color: '#94a3b8', fontSize: '13px' }}>No databases found</div>
+            <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontSize: '13px' }}>No databases found</div>
           )}
           {dbs.map(db => (
             <div key={db.name} style={{ marginBottom: '2px' }}>
@@ -352,8 +352,8 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
                 style={{
                   display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px',
                   borderRadius: '7px', cursor: 'pointer',
-                  background: db.checked !== 'none' ? accentBg : '#fafaf9',
-                  border: `1px solid ${db.checked !== 'none' ? accentBorder : '#ebe8df'}`,
+                  background: db.checked !== 'none' ? accentBg : 'var(--surface-muted)',
+                  border: `1px solid ${db.checked !== 'none' ? accentBorder : 'var(--border)'}`,
                 }}
                 onClick={() => expandDb(db.name)}
               >
@@ -366,22 +366,22 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
                   style={{ accentColor, flexShrink: 0 }}
                 />
                 <span style={{ fontSize: '14px' }}>🗄</span>
-                <span style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', flex: 1 }}>{db.name}</span>
-                {db.loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', color: '#94a3b8', fontSize: '12px' }}>⟳</span>}
-                {!db.loading && <span style={{ color: '#94a3b8', fontSize: '11px' }}>{db.expanded ? '▲' : '▼'}</span>}
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>{db.name}</span>
+                {db.loading && <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', color: 'var(--text-muted)', fontSize: '12px' }}>⟳</span>}
+                {!db.loading && <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{db.expanded ? '▲' : '▼'}</span>}
               </div>
 
               {db.expanded && db.schemasLoaded && (
                 <div style={{ paddingLeft: '28px', marginTop: '2px' }}>
                   {db.schemas.length === 0 && (
-                    <div style={{ padding: '6px 10px', fontSize: '12px', color: '#94a3b8' }}>No schemas found</div>
+                    <div style={{ padding: '6px 10px', fontSize: '12px', color: 'var(--text-muted)' }}>No schemas found</div>
                   )}
                   {db.schemas.map(schema => (
                     <div key={schema.name} style={{
                       display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 10px',
                       borderRadius: '6px', marginBottom: '2px',
-                      background: schema.checked ? accentBg : '#fff',
-                      border: `1px solid ${schema.checked ? accentBorder : '#f1f5f9'}`,
+                      background: schema.checked ? accentBg : 'var(--surface)',
+                      border: `1px solid ${schema.checked ? accentBorder : 'var(--border)'}`,
                     }}>
                       <input
                         type="checkbox"
@@ -390,7 +390,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
                         style={{ accentColor, flexShrink: 0 }}
                       />
                       <span style={{ fontSize: '12px' }}>📋</span>
-                      <span style={{ fontSize: '13px', color: '#475569' }}>{schema.name}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{schema.name}</span>
                     </div>
                   ))}
                 </div>
@@ -400,8 +400,8 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #ebe8df', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <div style={{ flex: 1, fontSize: '12px', color: '#64748b' }}>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={{ flex: 1, fontSize: '12px', color: 'var(--text-secondary)' }}>
             {totalSelected > 0
               ? (
                 <span style={{ color: accentColor, fontWeight: 600 }}>
@@ -412,15 +412,15 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
                 ? 'No selection — all databases will be skipped (nothing included)'
                 : 'No exclusions set — all databases and schemas will be discovered'}
           </div>
-          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
+          <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', cursor: 'pointer' }}>Cancel</button>
           <button
             onClick={save}
             disabled={saving}
             style={{
               padding: '8px 16px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600,
               cursor: saving ? 'not-allowed' : 'pointer',
-              background: saving ? '#e2e8f0' : accentColor,
-              color: saving ? '#94a3b8' : '#fff',
+              background: saving ? 'var(--surface-muted)' : accentColor,
+              color: saving ? 'var(--text-muted)' : '#fff',
             }}
           >
             {saving ? '⏳ Saving…' : '✓ Save Filters'}

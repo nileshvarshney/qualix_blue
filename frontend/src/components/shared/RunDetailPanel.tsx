@@ -31,13 +31,13 @@ interface LogEntry {
 }
 
 const STATUS_STYLE: Record<RunStatus, { background: string; color: string }> = {
-  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
-  partial_success: { background: '#fffbeb', color: '#d97706' },
-  failed:          { background: '#fee2e2', color: '#dc2626' },
-  timed_out:       { background: '#fee2e2', color: '#dc2626' },
-  running:         { background: '#eff6ff', color: '#2563eb' },
-  queued:          { background: '#fef3c7', color: '#d97706' },
-  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
+  partial_success: { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  failed:          { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  timed_out:       { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  running:         { background: 'var(--status-info-bg)',  color: 'var(--status-info-text)'  },
+  queued:          { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  cancelled:       { background: 'var(--surface-muted)',   color: 'var(--text-muted)'        },
 }
 
 const LOG_STYLE: Record<LogLevel, { color: string; bg: string }> = {
@@ -167,7 +167,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
                 </span>
                 {run.status === 'running' && (
                   <button onClick={cancelRun} disabled={cancelling}
-                    style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#dc2626', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
+                    style={{ padding: '3px 10px', borderRadius: '6px', border: '1px solid #fca5a5', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: 'pointer' }}>
                     {cancelling ? 'Cancelling…' : 'Cancel Run'}
                   </button>
                 )}
@@ -189,14 +189,14 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
             </div>
             {run.errors_count > 0 && (
               <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
-                {run.errors_count > 0 && <span style={{ background: '#fee2e2', color: '#dc2626', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{run.errors_count} error{run.errors_count !== 1 ? 's' : ''}</span>}
-                {run.warnings_count > 0 && <span style={{ background: '#fef3c7', color: '#d97706', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{run.warnings_count} warning{run.warnings_count !== 1 ? 's' : ''}</span>}
+                {run.errors_count > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{run.errors_count} error{run.errors_count !== 1 ? 's' : ''}</span>}
+                {run.warnings_count > 0 && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{run.warnings_count} warning{run.warnings_count !== 1 ? 's' : ''}</span>}
               </div>
             )}
             {run.error_message && (
-              <div style={{ marginTop: '10px', background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '6px', padding: '10px 12px' }}>
-                <div style={{ fontSize: '10px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>Error</div>
-                <pre style={{ margin: 0, fontSize: '10px', color: '#7f1d1d', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{run.error_message}</pre>
+              <div style={{ marginTop: '10px', background: 'var(--status-error-bg)', border: '1px solid #fca5a5', borderRadius: '6px', padding: '10px 12px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--status-error-text)', marginBottom: '4px' }}>Error</div>
+                <pre style={{ margin: 0, fontSize: '10px', color: 'var(--status-error-text)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{run.error_message}</pre>
               </div>
             )}
           </div>

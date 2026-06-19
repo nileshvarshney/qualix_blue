@@ -175,7 +175,7 @@ export default function LLMSettingsTab() {
     <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
 
       {/* Column header */}
-      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 16px', borderBottom: '1px solid var(--border)', background: '#fafaf9' }}>
+      <div style={{ display: 'flex', alignItems: 'center', padding: '7px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
         <div style={{ width: COL.radio }} />
         <div style={{ width: COL.provider, ...hdr }}>Provider</div>
         <div style={{ width: COL.model, ...hdr }}>Model</div>
@@ -209,7 +209,7 @@ export default function LLMSettingsTab() {
             <div style={{ width: COL.radio, display: 'flex', alignItems: 'center' }}>
               <div style={{
                 width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
-                border: isActive ? '4px solid var(--accent)' : '2px solid #cbd5e1',
+                border: isActive ? '4px solid var(--accent)' : '2px solid var(--border)',
                 background: isActive ? 'var(--accent)' : 'transparent',
               }} />
             </div>
@@ -265,7 +265,7 @@ export default function LLMSettingsTab() {
                         setEditingKey(null)
                       }
                     }}
-                    style={{ flex: 1, fontSize: '12px', padding: '4px 8px', border: '1px solid var(--accent)', borderRadius: '6px', background: '#fff', outline: 'none' }}
+                    style={{ flex: 1, fontSize: '12px', padding: '4px 8px', border: '1px solid var(--accent)', borderRadius: '6px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
                   />
                   <button
                     onMouseDown={e => { e.preventDefault(); skipBlurRef.current = true }}
@@ -314,14 +314,14 @@ export default function LLMSettingsTab() {
           onClick={testConnection}
           disabled={testLoading || dirty}
           title={dirty ? 'Save changes first, then test' : 'Test the saved LLM connection'}
-          style={{ fontSize: '12px', padding: '6px 14px', border: '1px solid var(--border)', borderRadius: '7px', background: '#fff', color: dirty ? 'var(--text-muted)' : 'var(--foreground)', cursor: (testLoading || dirty) ? 'not-allowed' : 'pointer', opacity: (testLoading || dirty) ? 0.5 : 1 }}
+          style={{ fontSize: '12px', padding: '6px 14px', border: '1px solid var(--border)', borderRadius: '7px', background: 'var(--surface)', color: dirty ? 'var(--text-muted)' : 'var(--foreground)', cursor: (testLoading || dirty) ? 'not-allowed' : 'pointer', opacity: (testLoading || dirty) ? 0.5 : 1 }}
         >
           {testLoading ? 'Testing…' : 'Test Connection'}
         </button>
         <button
           onClick={save}
           disabled={!dirty || saving}
-          style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: dirty ? 'var(--accent)' : '#e2e8f0', color: dirty ? '#fff' : 'var(--text-muted)', cursor: (!dirty || saving) ? 'not-allowed' : 'pointer', fontWeight: 500 }}
+          style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: dirty ? 'var(--accent)' : 'var(--surface-muted)', color: dirty ? '#fff' : 'var(--text-muted)', cursor: (!dirty || saving) ? 'not-allowed' : 'pointer', fontWeight: 500 }}
         >
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
@@ -337,8 +337,8 @@ const hdr: React.CSSProperties = {
 }
 const sel: React.CSSProperties = {
   width: '100%', fontSize: '12px', padding: '4px 6px',
-  border: '1px solid #e2e8f0', borderRadius: '6px',
-  background: '#fafaf9', color: 'var(--foreground)', outline: 'none',
+  border: '1px solid var(--border)', borderRadius: '6px',
+  background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none',
 }
 const iconBtn: React.CSSProperties = {
   fontSize: '11px', color: 'var(--text-muted)', background: 'none',

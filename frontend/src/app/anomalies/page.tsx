@@ -33,14 +33,14 @@ interface Anomaly {
 }
 
 const SEV: Record<string, { bg: string; color: string; border: string }> = {
-  critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
-  high:     { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-  medium:   { bg: '#fefce8', color: '#ca8a04', border: '#fde68a' },
-  low:      { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
+  critical: { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '#fca5a5' },
+  high:     { bg: 'var(--status-warn-bg)',  color: '#ea580c',                  border: '#fdba74' },
+  medium:   { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)',  border: '#fde68a' },
+  low:      { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    border: '#86efac' },
 }
 const ST: Record<string, { background: string; color: string }> = {
-  open:     { background: '#fee2e2', color: '#dc2626' },
-  resolved: { background: '#f0fdf4', color: '#16a34a' },
+  open:     { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  resolved: { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
 }
 const TYPE_LABEL: Record<string, string> = {
   quality_forecast:     'Quality Forecast',
@@ -240,7 +240,7 @@ export default function AnomaliesPage() {
                 {/* confidence */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <div style={{ flex: 1, height: '4px', borderRadius: '2px', background: 'var(--border)', overflow: 'hidden' }}>
-                    <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? sc.color : pct >= 50 ? '#ea580c' : '#64748b', borderRadius: '2px' }} />
+                    <div style={{ width: `${pct}%`, height: '100%', background: pct >= 80 ? sc.color : pct >= 50 ? '#ea580c' : 'var(--text-secondary)', borderRadius: '2px' }} />
                   </div>
                   <span style={{ fontSize: '10px', color: 'var(--text-muted)', minWidth: '28px', textAlign: 'right' }}>{pct}%</span>
                 </div>

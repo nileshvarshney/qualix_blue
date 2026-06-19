@@ -13,15 +13,15 @@ const OVERLAY: React.CSSProperties = {
   alignItems: 'center', justifyContent: 'center',
 }
 const DIALOG: React.CSSProperties = {
-  background: '#fff', borderRadius: '16px', width: '580px',
+  background: 'var(--surface)', borderRadius: '16px', width: '580px',
   maxHeight: '90vh', display: 'flex', flexDirection: 'column',
   boxShadow: '0 20px 60px rgba(0,0,0,0.18)',
 }
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
-  imported: { bg: '#f0fdf4', color: '#16a34a' },
-  skipped:  { bg: '#fefce8', color: '#ca8a04' },
-  error:    { bg: '#fee2e2', color: '#dc2626' },
-  excluded: { bg: '#f8fafc', color: '#64748b' },
+  imported: { bg: 'var(--status-ok-bg)',   color: 'var(--status-ok-text)'   },
+  skipped:  { bg: 'var(--status-warn-bg)', color: 'var(--status-warn-text)' },
+  error:    { bg: 'var(--status-error-bg)',color: 'var(--status-error-text)' },
+  excluded: { bg: 'var(--surface-muted)',  color: 'var(--text-secondary)'   },
 }
 
 export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: () => void; onComplete: () => void }) {
@@ -179,7 +179,7 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
   const allExcluded   = excludedCount > 0 && importedCount === 0 && skippedCount === 0 && errorCount === 0
   const bannerFailed  = jobStatus === 'failed' && importedCount === 0
   const bannerIcon    = bannerFailed ? '❌' : allExcluded ? '⚠️' : '✅'
-  const bannerBg      = bannerFailed ? '#fee2e2' : allExcluded ? '#fefce8' : '#f0fdf4'
+  const bannerBg      = bannerFailed ? 'var(--status-error-bg)' : allExcluded ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)'
   const bannerBorder  = bannerFailed ? '#fca5a5' : allExcluded ? '#fde68a' : '#bbf7d0'
   const excludedPart  = excludedCount > 0 ? ` · ${excludedCount} excluded` : ''
   const summaryLine   = `${importedCount} imported · ${skippedCount} skipped${excludedPart} · ${errorCount} errors`
@@ -191,19 +191,19 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
       <div style={DIALOG}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
           <div>
-            <div style={{ fontSize: '16px', fontWeight: 700, color: '#1a1a1a' }}>Adhoc Discovery</div>
-            <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '2px' }}>Runs discovery using your saved Database Filter settings</div>
+            <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--foreground)' }}>Adhoc Discovery</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Runs discovery using your saved Database Filter settings</div>
           </div>
-          <button onClick={onClose} disabled={isRunning} style={{ background: 'none', border: 'none', fontSize: '20px', color: '#94a3b8', cursor: isRunning ? 'default' : 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} disabled={isRunning} style={{ background: 'none', border: 'none', fontSize: '20px', color: 'var(--text-muted)', cursor: isRunning ? 'default' : 'pointer', lineHeight: 1 }}>×</button>
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
 
           {globalError && (
-            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: '#dc2626', fontSize: '13px' }}>
+            <div style={{ background: 'var(--status-error-bg)', border: '1px solid #fca5a5', borderRadius: '8px', padding: '10px 14px', color: 'var(--status-error-text)', fontSize: '13px' }}>
               <strong>Error:</strong> {globalError}
             </div>
           )}
@@ -211,7 +211,7 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
           {/* Connection selector — always visible */}
           {phase === 'idle' && (
             <div>
-              <label style={{ fontSize: '12px', fontWeight: 600, color: '#475569', display: 'block', marginBottom: '6px' }}>Connection</label>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }}>Connection</label>
               <select
                 value={selectedConn?.id ?? ''}
                 onChange={e => {
@@ -219,13 +219,13 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
                   setSelectedConn(c)
                   setGlobalError(null)
                 }}
-                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', background: '#fafaf9', color: '#0f172a' }}
+                style={{ width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', background: 'var(--surface-muted)', color: 'var(--foreground)' }}
               >
                 <option value="">— Select a connection —</option>
                 {connections.map(c => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
               </select>
               {connections.length === 0 && (
-                <div style={{ fontSize: '12px', color: '#94a3b8', marginTop: '6px' }}>No connections found. Add one on the Connections page first.</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>No connections found. Add one on the Connections page first.</div>
               )}
             </div>
           )}
@@ -237,11 +237,11 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
 
           {/* Building phase */}
           {phase === 'building' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'var(--surface-muted)', borderRadius: '8px', border: '1px solid var(--border)' }}>
               <span style={{ fontSize: '18px' }}>⏳</span>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>Building selections from filter settings…</div>
-                <div style={{ fontSize: '12px', color: '#64748b' }}>Enumerating databases and schemas.</div>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>Building selections from filter settings…</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Enumerating databases and schemas.</div>
               </div>
             </div>
           )}
@@ -249,11 +249,11 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
           {/* Running phase */}
           {phase === 'running' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px', background: 'var(--surface-muted)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: '18px' }}>⏳</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a' }}>Discovery in progress…</div>
-                  <div style={{ fontSize: '12px', color: '#64748b' }}>Tables are being classified and registered.</div>
+                  <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>Discovery in progress…</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Tables are being classified and registered.</div>
                 </div>
               </div>
               {jobResults.length > 0 && <ResultsTable results={jobResults} />}
@@ -266,8 +266,8 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 16px', background: bannerBg, borderRadius: '8px', border: `1px solid ${bannerBorder}` }}>
                 <span style={{ fontSize: '22px' }}>{bannerIcon}</span>
                 <div>
-                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1a1a1a' }}>Discovery Complete</div>
-                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>{summaryLine}</div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)' }}>Discovery Complete</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>{summaryLine}</div>
                 </div>
               </div>
               {jobResults.length > 0 && <ResultsTable results={jobResults} />}
@@ -276,10 +276,10 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '16px 24px', borderTop: '1px solid #ebe8df', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '16px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: '8px', flexShrink: 0 }}>
           {phase === 'done' ? (
             <>
-              <button onClick={handleStartOver} style={{ background: 'none', border: '1px solid #e2e8f0', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: '#475569', cursor: 'pointer' }}>
+              <button onClick={handleStartOver} style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 Start Over
               </button>
               <button onClick={() => { onComplete(); onClose() }} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
@@ -287,18 +287,18 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
               </button>
             </>
           ) : isRunning ? (
-            <button disabled style={{ background: '#e2e8f0', color: '#94a3b8', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'default' }}>
+            <button disabled style={{ background: 'var(--surface-muted)', color: 'var(--text-muted)', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'default' }}>
               {phase === 'building' ? 'Building…' : 'Running…'}
             </button>
           ) : (
             <>
-              <button onClick={onClose} style={{ background: 'none', border: '1px solid #e2e8f0', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: '#475569', cursor: 'pointer' }}>
+              <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--border)', padding: '8px 14px', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                 Cancel
               </button>
               <button
                 onClick={handleRunDiscovery}
                 disabled={!selectedConn}
-                style={{ background: selectedConn ? '#2563eb' : '#e2e8f0', color: selectedConn ? '#fff' : '#94a3b8', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: selectedConn ? 'pointer' : 'default' }}
+                style={{ background: selectedConn ? '#2563eb' : 'var(--surface-muted)', color: selectedConn ? '#fff' : 'var(--text-muted)', border: 'none', padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: selectedConn ? 'pointer' : 'default' }}
               >
                 Run Adhoc Discovery
               </button>
@@ -325,16 +325,16 @@ function FilterSummary({ conn }: { conn: Connection }) {
     : excludedDbs.length > 0 || excludedSchemas.length > 0
 
   return (
-    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+    <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#475569' }}>Database Filter Settings</span>
-        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, background: isInclude ? '#dbeafe' : '#fef9c3', color: isInclude ? '#1d4ed8' : '#92400e' }}>
+        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Database Filter Settings</span>
+        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: 600, background: isInclude ? '#dbeafe' : 'var(--status-warn-bg)', color: isInclude ? '#1d4ed8' : 'var(--status-warn-text)' }}>
           {isInclude ? 'Include only selected' : 'Exclude selected'}
         </span>
       </div>
 
       {!hasFilters ? (
-        <div style={{ fontSize: '12px', color: '#64748b' }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
           {isInclude
             ? 'No items in include list — nothing will be discovered. Add databases or schemas in Settings → Connections.'
             : 'No exclusions configured — all databases and schemas will be discovered.'}
@@ -363,7 +363,7 @@ function FilterSummary({ conn }: { conn: Connection }) {
         </div>
       )}
 
-      <div style={{ fontSize: '11px', color: '#94a3b8', borderTop: '1px solid #e2e8f0', paddingTop: '8px' }}>
+      <div style={{ fontSize: '11px', color: 'var(--text-muted)', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
         To change filters, go to <strong>Settings → Connections</strong>
       </div>
     </div>
@@ -373,10 +373,10 @@ function FilterSummary({ conn }: { conn: Connection }) {
 function FilterGroup({ label, items }: { label: string; items: string[] }) {
   return (
     <div>
-      <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>{label}</div>
+      <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>{label}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
         {items.map((item, i) => (
-          <span key={i} style={{ fontSize: '11px', fontFamily: 'monospace', background: '#e2e8f0', color: '#334155', padding: '2px 8px', borderRadius: '6px' }}>
+          <span key={i} style={{ fontSize: '11px', fontFamily: 'monospace', background: 'var(--border)', color: 'var(--text-secondary)', padding: '2px 8px', borderRadius: '6px' }}>
             {item}
           </span>
         ))}
@@ -390,30 +390,30 @@ function FilterGroup({ label, items }: { label: string; items: string[] }) {
 function ResultsTable({ results }: { results: JobResult[] }) {
   if (results.length === 0) return null
   return (
-    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
         <thead>
-          <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-            <th style={{ padding: '8px 12px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Schema · Table</th>
-            <th style={{ padding: '8px 12px', textAlign: 'center', color: '#475569', fontWeight: 600 }}>Status</th>
-            <th style={{ padding: '8px 12px', textAlign: 'left', color: '#475569', fontWeight: 600 }}>Note</th>
+          <tr style={{ background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Schema · Table</th>
+            <th style={{ padding: '8px 12px', textAlign: 'center', color: 'var(--text-secondary)', fontWeight: 600 }}>Status</th>
+            <th style={{ padding: '8px 12px', textAlign: 'left', color: 'var(--text-secondary)', fontWeight: 600 }}>Note</th>
           </tr>
         </thead>
         <tbody>
           {results.map((r, i) => {
             const { bg, color } = STATUS_COLORS[r.status] ?? STATUS_COLORS.error
             return (
-              <tr key={i} style={{ borderBottom: i < results.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: '#0f172a' }}>
+              <tr key={i} style={{ borderBottom: i < results.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <td style={{ padding: '7px 12px', fontFamily: 'monospace', color: 'var(--foreground)' }}>
                   {r.table_name === '*'
-                    ? <span style={{ fontFamily: 'inherit', fontStyle: 'italic', color: '#94a3b8' }}>{r.schema} · all tables</span>
+                    ? <span style={{ fontFamily: 'inherit', fontStyle: 'italic', color: 'var(--text-muted)' }}>{r.schema} · all tables</span>
                     : `${r.schema}.${r.table_name}`
                   }
                 </td>
                 <td style={{ padding: '7px 12px', textAlign: 'center' }}>
                   <span style={{ background: bg, color, padding: '2px 8px', borderRadius: '12px', fontWeight: 600, fontSize: '11px' }}>{r.status}</span>
                 </td>
-                <td style={{ padding: '7px 12px', color: '#64748b' }}>{r.reason ?? ''}</td>
+                <td style={{ padding: '7px 12px', color: 'var(--text-secondary)' }}>{r.reason ?? ''}</td>
               </tr>
             )
           })}

@@ -25,9 +25,9 @@ const NODE_W = 160, NODE_H = 46
 const ZOOM_MIN = 0.3, ZOOM_MAX = 3, ZOOM_STEP = 0.2
 
 const toolbarBtnStyle: CSSProperties = {
-  width: 26, height: 26, borderRadius: 6, border: '1px solid #e2e8f0', background: '#fff',
+  width: 26, height: 26, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)',
   cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-  fontSize: '13px', color: '#475569', fontWeight: 600, padding: 0,
+  fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, padding: 0,
 }
 
 const typeConfig: Record<string, { bg: string; border: string; color: string; label: string }> = {
@@ -491,7 +491,7 @@ export default function LineagePage() {
   if (loading) {
     return (
       <div style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '400px' }}>
-        <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px', animation: 'spin 1s linear infinite' }}>⚙️</div>
           <div>Loading lineage data...</div>
           <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
@@ -698,14 +698,14 @@ export default function LineagePage() {
       {selected && (
         /* SVG Graph */
         <div ref={graphContainerRef} style={{
-          background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px', padding: '16px',
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px', padding: '16px',
           overflow: 'auto', position: 'relative',
           height: isFullscreen ? '100vh' : undefined,
         }}>
           {/* Zoom / fullscreen / capture toolbar */}
           <div style={{
             position: 'absolute', top: 12, right: 12, zIndex: 60, display: 'flex', gap: '4px',
-            background: '#fff', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '4px',
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '4px',
             boxShadow: '0 2px 8px rgba(15,23,42,0.08)',
           }}>
             <button onClick={zoomOut} title="Zoom out" style={toolbarBtnStyle}>−</button>
@@ -722,42 +722,42 @@ export default function LineagePage() {
               left: pan.x + ((selectedNode.x ?? 0) + NODE_W + 28) * zoom,
               top: pan.y + ((selectedNode.y ?? 0) + 16) * zoom,
               width: 320, maxHeight: 480,
-              background: '#fafaf9', borderRadius: '10px',
-              border: '1px solid #e2e8f0',
+              background: 'var(--surface-muted)', borderRadius: '10px',
+              border: '1px solid var(--border)',
               boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
               zIndex: 50,
               display: 'flex', flexDirection: 'column',
               overflow: 'hidden',
             }}>
               {/* Popup Header */}
-              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #ebe8df' }}>
+              <div style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid var(--border)' }}>
                 <DbTypeIcon tableType={selectedNode.tableType} size={13} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: '10px', color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.label}</div>
-                  <div style={{ fontSize: '8px', color: '#94a3b8' }}>
+                  <div style={{ fontWeight: 700, fontSize: '10px', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedNode.label}</div>
+                  <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>
                     {selectedNode.schema} / {selectedNode.label}
                     {selectedNode.rowCount != null ? ` · ${selectedNode.rowCount.toLocaleString()} rows` : ''}
                   </div>
                 </div>
                 {/* Search toggle */}
                 <button onClick={() => setColumnSearch(columnSearch ? '' : ' ')}
-                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: columnSearch ? '#f1f5f9' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#64748b' }}>🔍</button>
+                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid var(--border)', background: columnSearch ? 'var(--surface-muted)' : 'var(--surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: 'var(--text-secondary)' }}>🔍</button>
                 {/* Status */}
                 <span style={{ width: 18, height: 18, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px' }}>✓</span>
                 {/* Close */}
                 <button onClick={() => setColumnPopupOpen(false)}
-                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: '#94a3b8' }}>✕</button>
+                  style={{ width: 20, height: 20, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>✕</button>
               </div>
 
               {/* Search input (shown when active) */}
               {columnSearch !== '' && (
-                <div style={{ padding: '6px 10px', borderBottom: '1px solid #ebe8df' }}>
+                <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
                   <input
                     autoFocus
                     value={columnSearch.trim() === '' ? '' : columnSearch}
                     onChange={e => setColumnSearch(e.target.value)}
                     placeholder="Search columns..."
-                    style={{ width: '100%', padding: '4px 8px', borderRadius: '5px', border: '1px solid #e2e8f0', fontSize: '9px', outline: 'none', background: '#fff', boxSizing: 'border-box' }}
+                    style={{ width: '100%', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '9px', outline: 'none', background: 'var(--surface)', color: 'var(--foreground)', boxSizing: 'border-box' }}
                   />
                 </div>
               )}
@@ -765,7 +765,7 @@ export default function LineagePage() {
               {/* Column list */}
               <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
                 {columnsLoading ? (
-                  <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>Loading columns...</div>
+                  <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '9px' }}>Loading columns...</div>
                 ) : filteredColumns && filteredColumns.length > 0 ? filteredColumns.map((col, i) => {
                   const dt = dtIcon(col.DATA_TYPE)
                   const isColSelected = selectedColumn === col.COLUMN_NAME
@@ -779,13 +779,13 @@ export default function LineagePage() {
                         display: 'flex', alignItems: 'center', gap: '7px',
                         padding: '5px 10px',
                         borderBottom: '1px solid #f1efe9',
-                        background: isColSelected ? '#eef2f5' : (i % 2 === 0 ? '#fff' : '#fafaf9'),
+                        background: isColSelected ? 'var(--surface-muted)' : (i % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted)'),
                         borderLeft: isColSelected ? '3px solid #94a3b8' : '3px solid transparent',
                         cursor: 'pointer',
                         transition: 'all 0.15s',
                       }}
-                      onMouseEnter={e => { if (!isColSelected) e.currentTarget.style.background = '#f8fafc' }}
-                      onMouseLeave={e => { if (!isColSelected) e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#fafaf9' }}
+                      onMouseEnter={e => { if (!isColSelected) e.currentTarget.style.background = 'var(--surface-muted)' }}
+                      onMouseLeave={e => { if (!isColSelected) e.currentTarget.style.background = i % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted)' }}
                     >
                       <span style={{
                         width: 16, height: 16, borderRadius: 4,
@@ -794,7 +794,7 @@ export default function LineagePage() {
                         background: isColSelected ? '#47556914' : dt.color + '12', flexShrink: 0,
                       }}>{dt.symbol}</span>
                       <span style={{
-                        flex: 1, fontSize: '10px', fontWeight: isColSelected ? 700 : 500, color: isColSelected ? '#334155' : '#1a1a1a', fontFamily: 'monospace',
+                        flex: 1, fontSize: '10px', fontWeight: isColSelected ? 700 : 500, color: isColSelected ? 'var(--text-secondary)' : 'var(--foreground)', fontFamily: 'monospace',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>{col.COLUMN_NAME}</span>
                       {colTableCount > 1 && (
@@ -810,7 +810,7 @@ export default function LineagePage() {
                     </div>
                   )
                 }) : (
-                  <div style={{ padding: '14px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>
+                  <div style={{ padding: '14px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '9px' }}>
                     {columnSearch ? 'No matching columns' : 'No columns available'}
                   </div>
                 )}
@@ -818,13 +818,13 @@ export default function LineagePage() {
 
               {/* Column Lineage Panel (when a column is selected) */}
               {selectedColumn && columnLineage.path.length > 0 && (
-                <div style={{ borderTop: '1px solid #e2e8f0', background: '#f1f5f9', padding: '7px 10px', maxHeight: '120px', overflowY: 'auto' }}>
+                <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-muted)', padding: '7px 10px', maxHeight: '120px', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginBottom: '6px' }}>
                     <span style={{ fontSize: '9px' }}>🔗</span>
-                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: '#475569' }}>
+                    <span style={{ fontSize: '8.5px', fontWeight: 700, color: 'var(--text-secondary)' }}>
                       COLUMN LINEAGE: {selectedColumn}
                     </span>
-                    <span style={{ fontSize: '8px', color: '#94a3b8', marginLeft: 'auto' }}>
+                    <span style={{ fontSize: '8px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
                       {columnLineage.path.length} table{columnLineage.path.length !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -839,13 +839,13 @@ export default function LineagePage() {
                       const rc = roleColors[item.role] ?? roleColors.reference
                       return (
                         <div key={item.tableId} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          {i > 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>→</span>}
-                          {i === 0 && <span style={{ fontSize: '8px', color: '#94a3b8' }}>◆</span>}
+                          {i > 0 && <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>→</span>}
+                          {i === 0 && <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>◆</span>}
                           <button
                             onClick={(e) => { e.stopPropagation(); selectNode(item.tableId) }}
                             style={{
-                              background: '#fff', border: '1px solid #e2e8f0', borderRadius: '5px',
-                              padding: '2px 6px', fontSize: '8.5px', fontWeight: 600, color: '#334155',
+                              background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px',
+                              padding: '2px 6px', fontSize: '8.5px', fontWeight: 600, color: 'var(--text-secondary)',
                               cursor: 'pointer', fontFamily: 'monospace',
                             }}
                           >{item.label}</button>
@@ -861,8 +861,8 @@ export default function LineagePage() {
               )}
 
               {/* Popup Footer */}
-              <div style={{ padding: '6px 10px', borderTop: '1px solid #ebe8df', background: '#fafaf9' }}>
-                <div style={{ fontSize: '8px', color: selectedColumn ? '#475569' : '#94a3b8' }}>
+              <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
+                <div style={{ fontSize: '8px', color: selectedColumn ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
                   {selectedColumn
                     ? `🔗 ${selectedColumn} flows through ${columnLineage.path.length} tables`
                     : `${columnData?.length ?? 0} columns · click any column for lineage`}
@@ -1022,11 +1022,11 @@ export default function LineagePage() {
       {/* ── Full-width Detail Panel (below graph, matching Data-Quality reference) ── */}
       {selectedNode && (
         <div style={{
-          marginTop: '16px', background: '#fff', border: '1px solid #ebe8df', borderRadius: '14px',
+          marginTop: '16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '14px',
           overflow: 'hidden', boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
         }}>
           {/* Panel Header */}
-          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ padding: '20px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
               <div style={{
                 width: '44px', height: '44px', borderRadius: '12px',
@@ -1035,8 +1035,8 @@ export default function LineagePage() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
               }}><DbTypeIcon tableType={selectedNode.tableType} size={22} /></div>
               <div>
-                <div style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a1a' }}>{selectedNode.label}</div>
-                <div style={{ fontSize: '13px', color: '#64748b' }}>{selectedNode.schema} · {tableTypeLabel(selectedNode.tableType)}</div>
+                <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--foreground)' }}>{selectedNode.label}</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{selectedNode.schema} · {tableTypeLabel(selectedNode.tableType)}</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1047,23 +1047,23 @@ export default function LineagePage() {
                 border: `1px solid ${(typeConfig[selectedNode.type] ?? typeConfig.warehouse).border}`,
               }}>{(typeConfig[selectedNode.type] ?? typeConfig.warehouse).label}</span>
               <button onClick={() => setSelected(null)} style={{
-                background: '#f8fafc', border: '1px solid #e2e8f0', width: '32px', height: '32px',
-                borderRadius: '8px', cursor: 'pointer', fontSize: '16px', color: '#64748b',
+                background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '32px', height: '32px',
+                borderRadius: '8px', cursor: 'pointer', fontSize: '16px', color: 'var(--text-secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>✕</button>
             </div>
           </div>
 
           {/* Upstream / Downstream chains */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', borderBottom: '1px solid #f1f5f9' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', borderBottom: '1px solid var(--border)' }}>
             {/* Upstream */}
-            <div style={{ padding: '16px 24px', borderRight: '1px solid #f1f5f9' }}>
+            <div style={{ padding: '16px 24px', borderRight: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#16a34a' }}>⬆ UPSTREAM CHAIN ({totalUpstream})</div>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{upstreamChain.length} hop{upstreamChain.length !== 1 ? 's' : ''} to source</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{upstreamChain.length} hop{upstreamChain.length !== 1 ? 's' : ''} to source</div>
               </div>
               {upstreamChain.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Root node — no upstream dependencies</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Root node — no upstream dependencies</div>
               ) : upstreamChain.map(hop => (
                 <div key={hop.hop} style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 600, color: '#16a34a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
@@ -1080,7 +1080,7 @@ export default function LineagePage() {
                         }}>
                           <DbTypeIcon tableType={n.tableType} size={13} />
                           {n.label}
-                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>{cfg.label}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{cfg.label}</span>
                         </button>
                       )
                     })}
@@ -1092,10 +1092,10 @@ export default function LineagePage() {
             <div style={{ padding: '16px 24px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <div style={{ fontSize: '13px', fontWeight: 700, color: '#ea580c' }}>⬇ DOWNSTREAM CHAIN ({totalDownstream})</div>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>{downstreamChain.length} hop{downstreamChain.length !== 1 ? 's' : ''} to leaf</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{downstreamChain.length} hop{downstreamChain.length !== 1 ? 's' : ''} to leaf</div>
               </div>
               {downstreamChain.length === 0 ? (
-                <div style={{ fontSize: '13px', color: '#94a3b8', fontStyle: 'italic' }}>Terminal node — no downstream consumers</div>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>Terminal node — no downstream consumers</div>
               ) : downstreamChain.map(hop => (
                 <div key={hop.hop} style={{ marginBottom: '10px' }}>
                   <div style={{ fontSize: '10px', fontWeight: 600, color: '#ea580c', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
@@ -1112,7 +1112,7 @@ export default function LineagePage() {
                         }}>
                           <DbTypeIcon tableType={n.tableType} size={13} />
                           {n.label}
-                          <span style={{ fontSize: '10px', color: '#94a3b8' }}>{cfg.label}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{cfg.label}</span>
                         </button>
                       )
                     })}
@@ -1124,11 +1124,11 @@ export default function LineagePage() {
 
           {/* Column-level lineage detail (when column is selected) */}
           {selectedColumn && columnLineage.path.length > 1 && (
-            <div style={{ padding: '10px 24px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
+            <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                   <span style={{ fontSize: '9px' }}>🔗</span>
-                  <span style={{ fontSize: '9px', fontWeight: 700, color: '#475569' }}>COLUMN LINEAGE: {selectedColumn}</span>
+                  <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-secondary)' }}>COLUMN LINEAGE: {selectedColumn}</span>
                   <span style={{
                     background: '#64748b', color: '#fff', padding: '1px 7px',
                     borderRadius: '20px', fontSize: '8px', fontWeight: 600,
@@ -1136,14 +1136,14 @@ export default function LineagePage() {
                 </div>
                 <button onClick={() => setSelectedColumn(null)} style={{
                   background: '#f1f5f9', border: '1px solid #e2e8f0', padding: '3px 8px',
-                  borderRadius: '5px', fontSize: '8px', color: '#475569', cursor: 'pointer', fontWeight: 500,
+                  borderRadius: '5px', fontSize: '8px', color: 'var(--text-secondary)', cursor: 'pointer', fontWeight: 500,
                 }}>✕ Clear</button>
               </div>
 
               {/* Column flow visualization */}
               <div style={{
                 display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
-                padding: '8px 10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0',
+                padding: '8px 10px', background: 'var(--surface)', borderRadius: '8px', border: '1px solid var(--border)',
               }}>
                 {columnLineage.path.map((item, i) => {
                   const roleColors: Record<string, { bg: string; color: string; border: string; label: string }> = {
@@ -1170,7 +1170,7 @@ export default function LineagePage() {
                           boxShadow: isCurrentTable ? '0 0 0 2px #cbd5e1' : 'none',
                         }}
                       >
-                        <span style={{ fontSize: '9px', fontWeight: 700, color: '#1a1a1a', fontFamily: 'monospace' }}>{item.label}</span>
+                        <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--foreground)', fontFamily: 'monospace' }}>{item.label}</span>
                         <span style={{ fontSize: '7px', fontWeight: 600, color: rc.color }}>{rc.label}</span>
                         <span style={{ fontSize: '7px', color: '#64748b', fontFamily: 'monospace' }}>{selectedColumn}</span>
                       </button>
@@ -1186,25 +1186,25 @@ export default function LineagePage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
                 <span style={{ fontSize: '9px' }}>📋</span>
-                <span style={{ fontSize: '9px', fontWeight: 700, color: '#1a1a1a' }}>COLUMNS ({columnData?.length ?? 0})</span>
-                <span style={{ fontSize: '8px', color: '#94a3b8' }}>{nullableCount} nullable · {notNullCount} NOT NULL</span>
+                <span style={{ fontSize: '9px', fontWeight: 700, color: 'var(--foreground)' }}>COLUMNS ({columnData?.length ?? 0})</span>
+                <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{nullableCount} nullable · {notNullCount} NOT NULL</span>
               </div>
               <input value={columnSearch} onChange={e => setColumnSearch(e.target.value)}
                 placeholder={`Search columns in ${selectedNode.label}...`}
                 style={{
-                  padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0',
-                  fontSize: '9px', background: '#fafaf9', outline: 'none', width: '220px',
+                  padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border)',
+                  fontSize: '9px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', width: '220px',
                 }} />
             </div>
 
             {columnsLoading ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>Loading columns...</div>
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '9px' }}>Loading columns...</div>
             ) : (
-              <div style={{ borderRadius: '8px', border: '1px solid #ebe8df', overflow: 'hidden' }}>
+              <div style={{ borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
                 {/* Table header */}
-                <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 90px 80px 60px 1fr', gap: '0', padding: '5px 12px', background: '#fafaf9', borderBottom: '1px solid #ebe8df' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '34px 1fr 90px 80px 60px 1fr', gap: '0', padding: '5px 12px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
                   {['#', 'COLUMN', 'TYPE', 'NULLABLE', 'LINEAGE', 'PATH'].map(h => (
-                    <div key={h} style={{ fontSize: '7px', fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
+                    <div key={h} style={{ fontSize: '7px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{h}</div>
                   ))}
                 </div>
                 {/* Rows */}
@@ -1219,17 +1219,17 @@ export default function LineagePage() {
                       style={{
                         display: 'grid', gridTemplateColumns: '34px 1fr 90px 80px 60px 1fr', gap: '0',
                         padding: '5px 12px', borderBottom: '1px solid #f8f6f0',
-                        background: isColSel ? '#eef2f5' : (i % 2 === 0 ? '#fff' : '#fafaf9'),
+                        background: isColSel ? 'var(--surface-muted)' : (i % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted)'),
                         borderLeft: isColSel ? '3px solid #94a3b8' : '3px solid transparent',
                         cursor: 'pointer', transition: 'all 0.15s',
                       }}
-                      onMouseEnter={e => { if (!isColSel) e.currentTarget.style.background = '#f8fafc' }}
-                      onMouseLeave={e => { if (!isColSel) e.currentTarget.style.background = isColSel ? '#eef2f5' : (i % 2 === 0 ? '#fff' : '#fafaf9') }}
+                      onMouseEnter={e => { if (!isColSel) e.currentTarget.style.background = 'var(--surface-muted)' }}
+                      onMouseLeave={e => { if (!isColSel) e.currentTarget.style.background = isColSel ? 'var(--surface-muted)' : (i % 2 === 0 ? 'var(--surface)' : 'var(--surface-muted)') }}
                     >
-                      <div style={{ fontSize: '8px', color: '#94a3b8' }}>{col.ORDINAL_POSITION}</div>
+                      <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{col.ORDINAL_POSITION}</div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                         {isPK && <span style={{ fontSize: '8px' }}>🔑</span>}
-                        <span style={{ fontWeight: isPK || isColSel ? 700 : 500, fontSize: '9px', color: isColSel ? '#334155' : isPK ? '#1d4ed8' : '#1a1a1a', fontFamily: 'monospace' }}>{col.COLUMN_NAME}</span>
+                        <span style={{ fontWeight: isPK || isColSel ? 700 : 500, fontSize: '9px', color: isColSel ? 'var(--text-secondary)' : isPK ? '#1d4ed8' : 'var(--foreground)', fontFamily: 'monospace' }}>{col.COLUMN_NAME}</span>
                       </div>
                       <div>
                         <span style={{
@@ -1256,13 +1256,13 @@ export default function LineagePage() {
                           <span style={{ fontSize: '8px', color: '#cbd5e1' }}>—</span>
                         )}
                       </div>
-                      <div style={{ fontSize: '8px', color: '#94a3b8', fontFamily: 'monospace' }}>
+                      <div style={{ fontSize: '8px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
                         {selectedNode.schema}.{selectedNode.label}.{col.COLUMN_NAME}
                       </div>
                     </div>
                   )
                 }) : (
-                  <div style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', fontSize: '9px' }}>
+                  <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '9px' }}>
                     {columnSearch ? 'No matching columns' : 'No columns available'}
                   </div>
                 )}
@@ -1271,13 +1271,13 @@ export default function LineagePage() {
           </div>
 
           {/* Footer bar */}
-          <div style={{ padding: '10px 24px', borderTop: '1px solid #f1f5f9', background: '#fafaf9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ padding: '10px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', gap: '20px', fontSize: '12px' }}>
               <span style={{ color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>📊 {totalUpstream} total upstream</span>
               <span style={{ color: '#ea580c', display: 'flex', alignItems: 'center', gap: '4px' }}>📉 {totalDownstream} total downstream</span>
               <span style={{ color: '#2563eb', display: 'flex', alignItems: 'center', gap: '4px' }}>⬆ {upstreamChain.length}-hop path to source</span>
             </div>
-            <div style={{ fontSize: '8px', color: selectedColumn ? '#475569' : '#94a3b8' }}>
+            <div style={{ fontSize: '8px', color: selectedColumn ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
               {selectedColumn ? `🔗 Showing lineage for ${selectedColumn}` : 'Click any column to see its lineage'}
             </div>
           </div>

@@ -191,8 +191,8 @@ export default function SpotCheckPage() {
                 cursor: 'pointer',
               }}>
               <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{name}</span>
-              <span style={{ fontSize: '10px', color: inA ? '#2563eb' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tA ? fmt(tA.rowCount) : '—'}</span>
-              <span style={{ fontSize: '10px', color: inB ? '#7c3aed' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tB ? fmt(tB.rowCount) : '—'}</span>
+              <span style={{ fontSize: '10px', color: inA ? 'var(--status-info-text)' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tA ? fmt(tA.rowCount) : '—'}</span>
+              <span style={{ fontSize: '10px', color: inB ? 'rgba(124,58,237,0.85)' : 'var(--status-error-text)', fontFamily: 'monospace', textAlign: 'right' }}>{tB ? fmt(tB.rowCount) : '—'}</span>
               <span style={{ background: statusBg, color: statusColor, padding: '1px 5px', borderRadius: '3px', fontSize: '9.5px', fontWeight: 600 }}>{statusLabel}</span>
             </div>
           )
@@ -224,15 +224,15 @@ export default function SpotCheckPage() {
               {/* A / B summary */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 {tA ? (
-                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '6px', padding: '8px 10px' }}>
-                    <div style={{ fontSize: '9px', color: '#2563eb', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Schema A</div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#1e40af', marginTop: '2px' }}>{fmt(tA.rowCount)} rows · {tA.columns.length} cols</div>
+                  <div style={{ background: 'var(--status-info-bg)', border: '1px solid var(--status-info-text)', borderRadius: '6px', padding: '8px 10px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--status-info-text)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Schema A</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--status-info-text)', marginTop: '2px' }}>{fmt(tA.rowCount)} rows · {tA.columns.length} cols</div>
                   </div>
                 ) : <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: 'var(--status-error-text)', fontWeight: 600 }}>Not in Schema A</div>}
                 {tB ? (
-                  <div style={{ background: '#faf5ff', border: '1px solid #d8b4fe', borderRadius: '6px', padding: '8px 10px' }}>
+                  <div style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.35)', borderRadius: '6px', padding: '8px 10px' }}>
                     <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Schema B</div>
-                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#6d28d9', marginTop: '2px' }}>{fmt(tB.rowCount)} rows · {tB.columns.length} cols</div>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#7c3aed', marginTop: '2px' }}>{fmt(tB.rowCount)} rows · {tB.columns.length} cols</div>
                   </div>
                 ) : <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '6px', padding: '8px 10px', fontSize: '11px', color: 'var(--status-error-text)', fontWeight: 600 }}>Not in Schema B</div>}
               </div>
@@ -242,7 +242,7 @@ export default function SpotCheckPage() {
                 {(['columns', 'stats'] as const).map(t => (
                   <button key={t} onClick={() => setTab(t)} style={{
                     padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontSize: '11px', fontWeight: tab === t ? 600 : 400,
-                    background: tab === t ? '#1a1a1a' : 'var(--surface-muted)', color: tab === t ? '#fff' : 'var(--text-secondary)', textTransform: 'capitalize',
+                    background: tab === t ? 'var(--foreground)' : 'var(--surface-muted)', color: tab === t ? 'var(--background)' : 'var(--text-secondary)', textTransform: 'capitalize',
                   }}>{t === 'columns' ? 'Columns' : 'Statistics'}</button>
                 ))}
               </div>
@@ -269,8 +269,8 @@ export default function SpotCheckPage() {
                           {inA && inB ? (nullMismatch ? `A:${inA.nullable?'Y':'N'} B:${inB.nullable?'Y':'N'}` : (inA.nullable ? 'Y' : 'N')) : '—'}
                         </span>
                         <span style={{ fontSize: '9px' }}>
-                          {(inA?.isPK || inB?.isPK) && <span style={{ background: '#fef3c7', color: '#b45309', padding: '0 3px', borderRadius: '2px', fontWeight: 700, marginRight: '2px' }}>PK</span>}
-                          {(inA?.isFK || inB?.isFK) && <span style={{ background: '#dbeafe', color: '#1d4ed8', padding: '0 3px', borderRadius: '2px', fontWeight: 700 }}>FK</span>}
+                          {(inA?.isPK || inB?.isPK) && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '0 3px', borderRadius: '2px', fontWeight: 700, marginRight: '2px' }}>PK</span>}
+                          {(inA?.isFK || inB?.isFK) && <span style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '0 3px', borderRadius: '2px', fontWeight: 700 }}>FK</span>}
                         </span>
                         <span style={{ background: missing ? 'var(--status-error-bg)' : typeMismatch ? 'var(--status-warn-bg)' : nullMismatch ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)', color: missing ? 'var(--status-error-text)' : typeMismatch ? 'var(--status-warn-text)' : nullMismatch ? 'var(--status-warn-text)' : 'var(--status-ok-text)', padding: '1px 4px', borderRadius: '3px', fontSize: '9px', fontWeight: 600 }}>
                           {missing ? (!inA ? 'Only B' : 'Only A') : typeMismatch ? 'Type ≠' : nullMismatch ? 'Null ≠' : 'Match'}

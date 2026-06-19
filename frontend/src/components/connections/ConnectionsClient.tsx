@@ -16,43 +16,43 @@ interface TestResult {
 
 function TestResultModal({ result, connName, onClose }: { result: TestResult; connName: string; onClose: () => void }) {
   const stepIcon = { ok: '✓', fail: '✗', skip: '⊘' }
-  const stepColor = { ok: '#16a34a', fail: '#dc2626', skip: '#94a3b8' }
-  const stepBg   = { ok: '#dcfce7', fail: '#fee2e2', skip: '#f1f5f9' }
+  const stepColor = { ok: 'var(--status-ok-text)', fail: 'var(--status-error-text)', skip: 'var(--text-muted)' }
+  const stepBg   = { ok: 'var(--status-ok-bg)', fail: 'var(--status-error-bg)', skip: 'var(--surface-muted)' }
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.4)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, backdropFilter:'blur(4px)' }}>
-      <div style={{ background:'#fff', borderRadius:'16px', width:'520px', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 24px 64px rgba(0,0,0,0.2)' }}>
+      <div style={{ background:'var(--surface)', borderRadius:'16px', width:'520px', maxHeight:'88vh', overflowY:'auto', boxShadow:'0 24px 64px rgba(0,0,0,0.2)' }}>
 
         {/* Header */}
-        <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid #ebe8df', display:'flex', alignItems:'center', gap:'12px' }}>
+        <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:'12px' }}>
           <div style={{
             width:'40px', height:'40px', borderRadius:'12px', flexShrink:0,
             background: result.success ? '#dcfce7' : '#fee2e2',
             display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px'
           }}>{result.success ? '✅' : '❌'}</div>
           <div style={{ flex:1 }}>
-            <div style={{ fontWeight:700, fontSize:'16px', color:'#1a1a1a' }}>
+            <div style={{ fontWeight:700, fontSize:'16px', color:'var(--foreground)' }}>
               {result.success ? 'Connection Successful' : 'Connection Failed'}
             </div>
-            <div style={{ fontSize:'12.5px', color:'#64748b', marginTop:'2px' }}>{connName}</div>
+            <div style={{ fontSize:'12.5px', color:'var(--text-secondary)', marginTop:'2px' }}>{connName}</div>
           </div>
-          <button onClick={onClose} style={{ background:'#f8fafc', border:'1px solid #e2e8f0', width:'30px', height:'30px', borderRadius:'8px', cursor:'pointer', color:'#64748b', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
+          <button onClick={onClose} style={{ background:'var(--surface-muted)', border:'1px solid var(--border)', width:'30px', height:'30px', borderRadius:'8px', cursor:'pointer', color:'var(--text-secondary)', fontSize:'14px', display:'flex', alignItems:'center', justifyContent:'center' }}>✕</button>
         </div>
 
         <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:'16px' }}>
 
           {/* Steps */}
           <div>
-            <div style={{ fontSize:'11.5px', color:'#94a3b8', fontWeight:600, letterSpacing:'0.06em', marginBottom:'10px' }}>DIAGNOSTIC STEPS</div>
+            <div style={{ fontSize:'11.5px', color:'var(--text-muted)', fontWeight:600, letterSpacing:'0.06em', marginBottom:'10px' }}>DIAGNOSTIC STEPS</div>
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
               {result.steps.map((step, i) => (
-                <div key={i} style={{ display:'flex', gap:'10px', alignItems:'flex-start', padding:'10px 12px', borderRadius:'8px', background:'#fafaf9', border:'1px solid #ebe8df' }}>
+                <div key={i} style={{ display:'flex', gap:'10px', alignItems:'flex-start', padding:'10px 12px', borderRadius:'8px', background:'var(--surface-muted)', border:'1px solid var(--border)' }}>
                   <div style={{ width:'22px', height:'22px', borderRadius:'50%', background:stepBg[step.status], color:stepColor[step.status], display:'flex', alignItems:'center', justifyContent:'center', fontSize:'13px', fontWeight:700, flexShrink:0, marginTop:'1px' }}>
                     {stepIcon[step.status]}
                   </div>
                   <div style={{ flex:1 }}>
-                    <div style={{ fontSize:'13px', fontWeight:600, color:'#1a1a1a', marginBottom:'2px' }}>{step.label}</div>
-                    <div style={{ fontSize:'12px', color: step.status === 'fail' ? '#dc2626' : '#64748b' }}>{step.detail}</div>
+                    <div style={{ fontSize:'13px', fontWeight:600, color:'var(--foreground)', marginBottom:'2px' }}>{step.label}</div>
+                    <div style={{ fontSize:'12px', color: step.status === 'fail' ? 'var(--status-error-text)' : 'var(--text-secondary)' }}>{step.detail}</div>
                   </div>
                 </div>
               ))}
@@ -61,33 +61,33 @@ function TestResultModal({ result, connName, onClose }: { result: TestResult; co
 
           {/* Error details */}
           {!result.success && result.errorMessage && (
-            <div style={{ background:'#fff7ed', border:'1px solid #fdba74', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'12px', color:'#92400e', fontWeight:600, marginBottom:'6px', display:'flex', alignItems:'center', gap:'6px' }}>
-                <span>⚠</span> Error Details {result.errorCode && <code style={{ background:'#fef3c7', padding:'1px 6px', borderRadius:'4px', fontSize:'11px' }}>{result.errorCode}</code>}
+            <div style={{ background:'var(--status-warn-bg)', border:'1px solid #fdba74', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'12px', color:'var(--status-warn-text)', fontWeight:600, marginBottom:'6px', display:'flex', alignItems:'center', gap:'6px' }}>
+                <span>⚠</span> Error Details {result.errorCode && <code style={{ background:'var(--surface-muted)', padding:'1px 6px', borderRadius:'4px', fontSize:'11px' }}>{result.errorCode}</code>}
               </div>
-              <div style={{ fontSize:'13px', color:'#78350f', lineHeight:'1.5' }}>{result.errorMessage}</div>
+              <div style={{ fontSize:'13px', color:'var(--status-warn-text)', lineHeight:'1.5' }}>{result.errorMessage}</div>
             </div>
           )}
 
           {/* Suggestion */}
           {result.suggestion && (
-            <div style={{ background:'#eff6ff', border:'1px solid #93c5fd', borderRadius:'10px', padding:'14px 16px' }}>
-              <div style={{ fontSize:'12px', color:'#1d4ed8', fontWeight:600, marginBottom:'6px' }}>💡 How to fix this</div>
-              <div style={{ fontSize:'13px', color:'#1e40af', lineHeight:'1.5' }}>{result.suggestion}</div>
+            <div style={{ background:'var(--status-info-bg)', border:'1px solid #93c5fd', borderRadius:'10px', padding:'14px 16px' }}>
+              <div style={{ fontSize:'12px', color:'var(--status-info-text)', fontWeight:600, marginBottom:'6px' }}>💡 How to fix this</div>
+              <div style={{ fontSize:'13px', color:'var(--status-info-text)', lineHeight:'1.5' }}>{result.suggestion}</div>
             </div>
           )}
 
           {/* Latency */}
           {result.success && result.latencyMs && (
-            <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'10px' }}>
+            <div style={{ background:'var(--status-ok-bg)', border:'1px solid #86efac', borderRadius:'10px', padding:'12px 16px', display:'flex', alignItems:'center', gap:'10px' }}>
               <span style={{ fontSize:'20px' }}>🚀</span>
-              <div style={{ fontSize:'13px', color:'#166534' }}>
+              <div style={{ fontSize:'13px', color:'var(--status-ok-text)' }}>
                 Connection verified in <strong>{result.latencyMs}ms</strong>. Status updated to <strong>Active</strong>.
               </div>
             </div>
           )}
 
-          <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'8px', border:'1px solid #e2e8f0', background: result.success ? '#2563eb' : '#fff', color: result.success ? '#fff' : '#64748b', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
+          <button onClick={onClose} style={{ width:'100%', padding:'11px', borderRadius:'8px', border:'1px solid var(--border)', background: result.success ? '#2563eb' : 'var(--surface)', color: result.success ? '#fff' : 'var(--text-secondary)', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
             {result.success ? '✓ Done' : 'Close & Edit Connection'}
           </button>
         </div>
@@ -352,9 +352,9 @@ const typeInfo: Record<ConnectionType, { desc: string; docUrl: string }> = {
 }
 
 const statusBadge = {
-  active: { bg: '#dcfce7', color: '#16a34a', dot: '#16a34a', label: 'Active' },
-  inactive: { bg: '#f8fafc', color: '#64748b', dot: '#94a3b8', label: 'Inactive' },
-  error: { bg: '#fee2e2', color: '#dc2626', dot: '#dc2626', label: 'Error' }
+  active: { bg: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', dot: 'var(--status-ok-text)', label: 'Active' },
+  inactive: { bg: 'var(--surface-muted)', color: 'var(--text-secondary)', dot: 'var(--text-muted)', label: 'Inactive' },
+  error: { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)', dot: 'var(--status-error-text)', label: 'Error' }
 }
 
 interface Props { initialConnections: Connection[] }
@@ -564,8 +564,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   }
 
   const inp = (full?: boolean): React.CSSProperties => ({
-    width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0',
-    fontSize: '13px', color: '#0f172a', background: '#fafaf9', outline: 'none',
+    width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)',
+    fontSize: '13px', color: 'var(--foreground)', background: 'var(--surface-muted)', outline: 'none',
     gridColumn: full ? '1 / -1' : undefined
   })
 
@@ -574,14 +574,14 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1200px' }}>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-      <div style={{ fontSize: '12.5px', color: '#94a3b8', marginBottom: '8px' }}>
-        Workspace · <span style={{ color: '#475569' }}>Analytics platform</span>
+      <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+        Workspace · <span style={{ color: 'var(--text-secondary)' }}>Analytics platform</span>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div>
-          <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Connections</h1>
-          <p style={{ color: '#64748b', fontSize: '13px', margin: '4px 0 0' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Connections</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '13px', margin: '4px 0 0' }}>
             {connections.length} data source{connections.length !== 1 ? 's' : ''} — {connections.filter(c => c.status === 'active').length} active
           </p>
         </div>
@@ -601,8 +601,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
 
           return (
             <div key={conn.id} style={{
-              background: '#fff', borderRadius: '12px', padding: '20px',
-              border: '1px solid #ebe8df', transition: 'box-shadow 0.2s'
+              background: 'var(--surface)', borderRadius: '12px', padding: '20px',
+              border: '1px solid var(--border)', transition: 'box-shadow 0.2s'
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -612,7 +612,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                     display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px'
                   }}>{icon}</div>
                   <div>
-                    <div style={{ fontWeight: 700, color: '#1a1a1a', fontSize: '14px' }}>{conn.name}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '14px' }}>{conn.name}</div>
                     <div style={{ color: typeColor, fontSize: '11.5px', fontWeight: 600, textTransform: 'capitalize' }}>
                       {CONNECTION_TYPES.find(t => t.value === conn.type)?.label || conn.type}
                     </div>
@@ -624,30 +624,30 @@ export default function ConnectionsClient({ initialConnections }: Props) {
               </div>
 
               {/* Type-specific details */}
-              <div style={{ background: '#fafaf9', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', border: '1px solid #ebe8df' }}>
+              <div style={{ background: 'var(--surface-muted)', borderRadius: '8px', padding: '10px 12px', marginBottom: '14px', border: '1px solid var(--border)' }}>
                 {fields.filter(f => !['username', 'keyFile', 'connectionString'].includes(f.key)).slice(0, 3).map(f => {
                   const val = (conn as unknown as Record<string, unknown>)[f.key] as string | undefined
                   return val ? (
-                    <div key={f.key} style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#475569', marginBottom: '3px' }}>
-                      <span style={{ color: '#94a3b8', minWidth: '70px' }}>{f.label}:</span>
+                    <div key={f.key} style={{ display: 'flex', gap: '8px', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                      <span style={{ color: 'var(--text-muted)', minWidth: '70px' }}>{f.label}:</span>
                       <span style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val}</span>
                     </div>
                   ) : null
                 })}
                 {conn.host && !fields.find(f => f.key === 'account') && (
-                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '3px' }}>
-                    <span style={{ color: '#94a3b8' }}>Host: </span>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Host: </span>
                     <span style={{ fontWeight: 500 }}>{conn.host}{conn.port ? `:${conn.port}` : ''}</span>
                   </div>
                 )}
                 {conn.database && (
-                  <div style={{ fontSize: '12px', color: '#475569', marginBottom: '3px' }}>
-                    <span style={{ color: '#94a3b8' }}>Database: </span>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>Database: </span>
                     <span style={{ fontWeight: 500 }}>{conn.database}</span>
                   </div>
                 )}
                 {conn.lastTested && (
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
                     Last tested: {formatDateTime(conn.lastTested)}
                   </div>
                 )}
@@ -655,9 +655,9 @@ export default function ConnectionsClient({ initialConnections }: Props) {
 
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button onClick={() => testConn(conn.id, conn.name)} disabled={testing === conn.id} style={{
-                  flex: 1, padding: '7px', borderRadius: '7px', border: '1px solid #e2e8f0',
-                  background: testing === conn.id ? '#f8fafc' : '#fff',
-                  color: testing === conn.id ? '#94a3b8' : '#475569',
+                  flex: 1, padding: '7px', borderRadius: '7px', border: '1px solid var(--border)',
+                  background: testing === conn.id ? 'var(--surface-muted)' : 'var(--surface)',
+                  color: testing === conn.id ? 'var(--text-muted)' : 'var(--text-secondary)',
                   fontSize: '12px', fontWeight: 500, cursor: testing === conn.id ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                 }}>
@@ -667,7 +667,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                 </button>
                 <button onClick={() => openEdit(conn)} style={{
                   padding: '7px 12px', borderRadius: '7px', border: '1px solid #dbeafe',
-                  background: '#fff', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500
+                  background: 'var(--surface)', color: '#2563eb', fontSize: '12px', cursor: 'pointer', fontWeight: 500
                 }}>✏️ Edit</button>
                 {conn.type === 'snowflake' && (() => {
                   const count = filterCount(conn)
@@ -676,8 +676,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   const badgeColor = isInclude ? '#2563eb' : '#d97706'
                   return (
                     <button onClick={() => setExclusionsPanelConn(conn)} aria-label={`Manage filters for ${conn.name}`} style={{
-                      padding: '7px 10px', borderRadius: '7px', border: '1px solid #e2e8f0',
-                      background: '#fff', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
+                      padding: '7px 10px', borderRadius: '7px', border: '1px solid var(--border)',
+                      background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500,
                       display: 'flex', alignItems: 'center', gap: '4px'
                     }}>
                       ⚙ Filters
@@ -690,8 +690,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   )
                 })()}
                 <button onClick={() => deleteConn(conn.id)} style={{
-                  padding: '7px 10px', borderRadius: '7px', border: '1px solid #fee2e2',
-                  background: '#fff', color: '#ef4444', fontSize: '12px', cursor: 'pointer'
+                  padding: '7px 10px', borderRadius: '7px', border: '1px solid var(--status-error-bg)',
+                  background: 'var(--surface)', color: '#ef4444', fontSize: '12px', cursor: 'pointer'
                 }}>🗑</button>
               </div>
             </div>
@@ -699,10 +699,10 @@ export default function ConnectionsClient({ initialConnections }: Props) {
         })}
 
         {connections.length === 0 && (
-          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', background: '#fff', borderRadius: '14px', border: '2px dashed #e2e8f0' }}>
+          <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '60px', background: 'var(--surface)', borderRadius: '14px', border: '2px dashed var(--border)' }}>
             <div style={{ fontSize: '40px', marginBottom: '12px' }}>🔌</div>
-            <div style={{ fontSize: '16px', fontWeight: 600, color: '#1a1a1a', marginBottom: '8px' }}>No connections yet</div>
-            <div style={{ color: '#64748b', fontSize: '13px', marginBottom: '20px' }}>Add your first data source to start monitoring quality</div>
+            <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--foreground)', marginBottom: '8px' }}>No connections yet</div>
+            <div style={{ color: 'var(--text-secondary)', fontSize: '13px', marginBottom: '20px' }}>Add your first data source to start monitoring quality</div>
             <button onClick={() => setShowModal(true)} style={{ background: '#dbeafe', border: '1px solid #93c5fd', padding: '10px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, color: '#2563eb', cursor: 'pointer' }}>+ Add Connection</button>
           </div>
         )}
@@ -732,18 +732,18 @@ export default function ConnectionsClient({ initialConnections }: Props) {
       {/* Add Connection Modal */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '540px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', width: '540px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             {/* Modal Header */}
-            <div style={{ padding: '22px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ padding: '22px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a1a' }}>
+                <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>
                   {editingId ? '✏️ Edit Connection' : 'Add Connection'}
                 </div>
-                <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>
                   {editingId ? 'Update credentials or settings for this connection' : 'Connect a new data source to Qualix'}
                 </div>
               </div>
-              <button onClick={resetForm} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button onClick={resetForm} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
 
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -755,9 +755,9 @@ export default function ConnectionsClient({ initialConnections }: Props) {
 
               {/* Type selector — locked when editing */}
               {editingId ? (
-                <div style={{ background: '#fafaf9', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '18px' }}>{connectionIcons[form.type]}</span>
-                  <div style={{ fontSize: '12.5px', color: '#475569' }}>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>
                     <strong>{CONNECTION_TYPES.find(t => t.value === form.type)?.label}</strong> — type cannot be changed after creation
                   </div>
                 </div>
@@ -766,7 +766,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   <label style={lbl}>Database Type *</label>
 
                   {/* Category tab segmented control */}
-                  <div style={{ display:'flex', border:'1px solid #e2e8f0', borderRadius:'8px', overflow:'hidden', background:'#fafaf9', marginBottom:'8px' }}>
+                  <div style={{ display:'flex', border:'1px solid var(--border)', borderRadius:'8px', overflow:'hidden', background:'var(--surface-muted)', marginBottom:'8px' }}>
                     {CATEGORIES.map(cat => (
                       <button key={cat.id} onClick={() => {
                         setActiveCategory(cat.id)
@@ -775,9 +775,9 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                       }}
                         style={{
                           flex:1, padding:'6px 2px', border:'none',
-                          borderRight: cat.id === CATEGORIES[CATEGORIES.length - 1].id ? 'none' : '1px solid #e2e8f0',
+                          borderRight: cat.id === CATEGORIES[CATEGORIES.length - 1].id ? 'none' : '1px solid var(--border)',
                           background: activeCategory === cat.id ? '#dbeafe' : 'transparent',
-                          color: activeCategory === cat.id ? '#2563eb' : '#64748b',
+                          color: activeCategory === cat.id ? '#2563eb' : 'var(--text-secondary)',
                           fontWeight: activeCategory === cat.id ? 700 : 500,
                           fontSize:'10.5px', cursor:'pointer', textAlign:'center', lineHeight:1.3
                         }}>
@@ -795,12 +795,12 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                       return (
                         <button key={t.value} onClick={() => setField('type', t.value)} style={{
                           padding:'8px 4px', borderRadius:'8px', border:'1px solid',
-                          borderColor: form.type === t.value ? t.color : '#e2e8f0',
-                          background: form.type === t.value ? `${t.color}12` : '#fafaf9',
+                          borderColor: form.type === t.value ? t.color : 'var(--border)',
+                          background: form.type === t.value ? `${t.color}12` : 'var(--surface-muted)',
                           cursor:'pointer', textAlign:'center', transition:'all 0.15s'
                         }}>
                           <div style={{ fontSize:'18px', marginBottom:'3px' }}>{connectionIcons[t.value] || '🔌'}</div>
-                          <div style={{ fontSize:'10px', fontWeight: form.type === t.value ? 700 : 500, color: form.type === t.value ? t.color : '#64748b' }}>{t.label}</div>
+                          <div style={{ fontSize:'10px', fontWeight: form.type === t.value ? 700 : 500, color: form.type === t.value ? t.color : 'var(--text-secondary)' }}>{t.label}</div>
                         </button>
                       )
                     })}
@@ -810,9 +810,9 @@ export default function ConnectionsClient({ initialConnections }: Props) {
 
               {/* Type info banner */}
               {connInfo && (
-                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: 'var(--status-info-bg)', border: '1px solid #bae6fd', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '18px' }}>{connectionIcons[form.type]}</span>
-                  <div style={{ fontSize: '12.5px', color: '#0369a1' }}>
+                  <div style={{ fontSize: '12.5px', color: 'var(--status-info-text)' }}>
                     <strong>{selectedType?.label}</strong> — {connInfo.desc}
                   </div>
                 </div>
@@ -832,7 +832,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                       type={f.type || 'text'}
                       style={inp(f.full)}
                     />
-                    {f.hint && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>{f.hint}</div>}
+                    {f.hint && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{f.hint}</div>}
                   </div>
                 ))}
               </div>
@@ -847,11 +847,11 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                 const accentBg    = isInclude ? '#dbeafe' : '#fef3c7'
                 const accentBorder = isInclude ? '#93c5fd' : '#fde68a'
                 return (
-                  <div style={{ border: `1px solid ${count > 0 ? accentBorder : '#e2e8f0'}`, borderRadius: '8px', padding: '12px 14px', background: count > 0 ? accentBg : '#fafaf9' }}>
+                  <div style={{ border: `1px solid ${count > 0 ? accentBorder : 'var(--border)'}`, borderRadius: '8px', padding: '12px 14px', background: count > 0 ? accentBg : 'var(--surface-muted)' }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <div>
-                        <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1a1a', marginBottom: '2px' }}>Database Filters</div>
-                        <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)', marginBottom: '2px' }}>Database Filters</div>
+                        <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
                           {count > 0
                             ? <><span style={{ color: accentColor, fontWeight: 600 }}>{count} item{count !== 1 ? 's' : ''}</span>{' · '}{isInclude ? 'Include only selected' : 'Exclude selected'}</>
                             : 'No filters — all databases and schemas are discovered'}
@@ -870,11 +870,11 @@ export default function ConnectionsClient({ initialConnections }: Props) {
 
               {/* Buttons */}
               <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>
-                <button onClick={resetForm} style={{ flex:1, padding:'10px', borderRadius:'8px', border:'1px solid #e2e8f0', background:'#fff', color:'#64748b', fontSize:'13px', fontWeight:500, cursor:'pointer' }}>Cancel</button>
+                <button onClick={resetForm} style={{ flex:1, padding:'10px', borderRadius:'8px', border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text-secondary)', fontSize:'13px', fontWeight:500, cursor:'pointer' }}>Cancel</button>
                 <button onClick={testInModal} disabled={testingModal || !form.name} style={{
                   flex:1.3, padding:'10px', borderRadius:'8px', border:'1px solid #93c5fd',
-                  background: (!form.name || testingModal) ? '#f8fafc' : '#dbeafe',
-                  color: (!form.name || testingModal) ? '#94a3b8' : '#2563eb',
+                  background: (!form.name || testingModal) ? 'var(--surface-muted)' : '#dbeafe',
+                  color: (!form.name || testingModal) ? 'var(--text-muted)' : '#2563eb',
                   fontSize:'13px', fontWeight:600, cursor: (!form.name || testingModal) ? 'not-allowed' : 'pointer',
                   display:'flex', alignItems:'center', justifyContent:'center', gap:'6px'
                 }}>
@@ -885,8 +885,8 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                 <button onClick={save} disabled={saving || !form.name} style={{
                   flex:1.5, padding:'10px', borderRadius:'8px', border:'none', fontSize:'13px', fontWeight:600,
                   cursor: form.name ? 'pointer' : 'not-allowed',
-                  background: form.name ? '#2563eb' : '#e2e8f0',
-                  color: form.name ? '#fff' : '#94a3b8'
+                  background: form.name ? '#2563eb' : 'var(--surface-muted)',
+                  color: form.name ? '#fff' : 'var(--text-muted)'
                 }}>{saving ? '⏳ Saving...' : editingId ? '✓ Save Changes' : '+ Add Connection'}</button>
               </div>
             </div>
@@ -897,4 +897,4 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   )
 }
 
-const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }
+const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }

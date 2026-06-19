@@ -34,13 +34,13 @@ interface ScanJob {
 }
 
 const RUN_STYLE: Record<string, { background: string; color: string }> = {
-  succeeded:       { background: '#f0fdf4', color: '#16a34a' },
-  partial_success: { background: '#fffbeb', color: '#d97706' },
-  failed:          { background: '#fee2e2', color: '#dc2626' },
-  timed_out:       { background: '#fee2e2', color: '#dc2626' },
-  running:         { background: '#eff6ff', color: '#2563eb' },
-  queued:          { background: '#fef3c7', color: '#d97706' },
-  cancelled:       { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  succeeded:       { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
+  partial_success: { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  failed:          { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  timed_out:       { background: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  running:         { background: 'var(--status-info-bg)',  color: 'var(--status-info-text)'  },
+  queued:          { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  cancelled:       { background: 'var(--surface-muted)',   color: 'var(--text-muted)'        },
 }
 
 const JOB_TYPE_LABEL: Record<string, string> = {
@@ -405,7 +405,7 @@ export default function ScanJobsPage() {
                         <div style={{ display: 'flex', gap: '4px' }}>
                           <button onClick={() => runNow(job)} disabled={runningId === job.job_id || !job.is_active}
                             title={!job.is_active ? 'Enable job to run' : 'Trigger run now'}
-                            style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #dbeafe', background: runningId === job.job_id ? '#eff6ff' : 'var(--surface)', color: '#2563eb', fontSize: '10px', cursor: (runningId === job.job_id || !job.is_active) ? 'not-allowed' : 'pointer', opacity: !job.is_active ? 0.5 : 1 }}>
+                            style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: runningId === job.job_id ? 'var(--status-info-bg)' : 'var(--surface)', color: 'var(--status-info-text)', fontSize: '10px', cursor: (runningId === job.job_id || !job.is_active) ? 'not-allowed' : 'pointer', opacity: !job.is_active ? 0.5 : 1 }}>
                             {runningId === job.job_id ? '⏳' : '▶'}
                           </button>
                           <button onClick={() => toggleActive(job)}
@@ -422,7 +422,7 @@ export default function ScanJobsPage() {
                           </Link>
                           {hasError && (
                             <button onClick={() => setExpandedJob(isExpanded ? null : job.job_id)}
-                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #fca5a5', background: isExpanded ? '#fee2e2' : 'var(--surface)', color: '#dc2626', fontSize: '10px', cursor: 'pointer', fontWeight: 600 }}>
+                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: isExpanded ? 'var(--status-error-bg)' : 'var(--surface)', color: 'var(--status-error-text)', fontSize: '10px', cursor: 'pointer', fontWeight: 600 }}>
                               {isExpanded ? 'Hide' : 'View Error'}
                             </button>
                           )}
@@ -431,14 +431,14 @@ export default function ScanJobsPage() {
                       {isExpanded && job.last_run_error_message && (() => {
                         const insight = classifyError(job.last_run_error_message)
                         return (
-                          <div style={{ background: '#fee2e2', borderBottom: '1px solid #fca5a5', padding: '10px 16px' }}>
-                            <div style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', marginBottom: '4px' }}>{insight.title}</div>
-                            <div style={{ fontSize: '10px', color: '#7f1d1d', marginBottom: '8px' }}>
+                          <div style={{ background: 'var(--status-error-bg)', borderBottom: '1px solid var(--border)', padding: '10px 16px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-error-text)', marginBottom: '4px' }}>{insight.title}</div>
+                            <div style={{ fontSize: '10px', color: 'var(--status-error-text)', marginBottom: '8px' }}>
                               <span style={{ fontWeight: 600 }}>Suggested fix: </span>{insight.suggestion}
                             </div>
                             <details>
-                              <summary style={{ fontSize: '10px', color: '#dc2626', cursor: 'pointer' }}>Show technical details</summary>
-                              <pre style={{ margin: '6px 0 0', fontSize: '10px', color: '#7f1d1d', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{job.last_run_error_message}</pre>
+                              <summary style={{ fontSize: '10px', color: 'var(--status-error-text)', cursor: 'pointer' }}>Show technical details</summary>
+                              <pre style={{ margin: '6px 0 0', fontSize: '10px', color: 'var(--status-error-text)', whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>{job.last_run_error_message}</pre>
                             </details>
                           </div>
                         )
@@ -494,7 +494,7 @@ export default function ScanJobsPage() {
               </div>
             )}
             {createError && (
-              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--status-error-text)', background: 'var(--status-error-bg)', padding: '6px 10px', borderRadius: '6px' }}>
                 {createError}
               </div>
             )}

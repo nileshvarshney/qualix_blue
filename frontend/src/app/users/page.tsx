@@ -16,14 +16,14 @@ interface AppUser {
 }
 
 const ROLE_STYLE: Record<string, { background: string; color: string }> = {
-  admin:           { background: '#fdf4ff', color: '#7e22ce' },
-  data_steward:    { background: '#eff6ff', color: '#1d4ed8' },
-  data_engineer:   { background: '#f0fdf4', color: '#15803d' },
-  analyst:         { background: '#fef3c7', color: '#92400e' },
-  viewer:          { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
-  domain_owner:    { background: '#fef3c7', color: '#92400e' },
-  data_owner:      { background: '#f0fdf4', color: '#15803d' },
-  auditor:         { background: 'var(--surface-muted)', color: 'var(--text-muted)' },
+  admin:           { background: 'rgba(126,34,206,0.10)', color: '#7e22ce' },
+  data_steward:    { background: 'var(--status-info-bg)',  color: 'var(--status-info-text)' },
+  data_engineer:   { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)' },
+  analyst:         { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)' },
+  viewer:          { background: 'var(--surface-muted)',   color: 'var(--text-muted)' },
+  domain_owner:    { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)' },
+  data_owner:      { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)' },
+  auditor:         { background: 'var(--surface-muted)',   color: 'var(--text-muted)' },
 }
 
 function initials(name: string): string {
@@ -361,7 +361,7 @@ export default function UsersPage() {
             </div>
 
             {inviteError && (
-              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--status-error-text)', background: 'var(--status-error-bg)', padding: '6px 10px', borderRadius: '6px' }}>
                 {inviteError}
               </div>
             )}

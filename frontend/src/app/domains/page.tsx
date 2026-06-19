@@ -29,8 +29,8 @@ function ScoreRing({ score }: { score: number }) {
   )
 }
 
-const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: '#374151', display: 'block', marginBottom: '6px' }
-const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '13px', color: '#0f172a', background: '#fafaf9', boxSizing: 'border-box' }
+const lbl: React.CSSProperties = { fontSize: '12.5px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '6px' }
+const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: '8px', border: '1px solid var(--border)', fontSize: '13px', color: 'var(--foreground)', background: 'var(--surface-muted)', boxSizing: 'border-box' }
 
 const COLS = '1fr 130px 65px 60px 60px 55px 64px'
 
@@ -288,13 +288,13 @@ export default function DomainsPage() {
       {/* Add/Edit Modal — unchanged from original */}
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300, backdropFilter: 'blur(4px)' }}>
-          <div style={{ background: '#fff', borderRadius: '16px', width: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
-            <div style={{ padding: '22px 24px', borderBottom: '1px solid #ebe8df', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ background: 'var(--surface)', borderRadius: '16px', width: '520px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)' }}>
+            <div style={{ padding: '22px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: '17px', fontWeight: 700, color: '#1a1a1a' }}>{editDomain ? '✏️ Edit Domain' : '+ New Domain'}</div>
-                <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>{editDomain ? 'Update domain details' : 'Create a new business domain'}</div>
+                <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>{editDomain ? '✏️ Edit Domain' : '+ New Domain'}</div>
+                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginTop: '2px' }}>{editDomain ? 'Update domain details' : 'Create a new business domain'}</div>
               </div>
-              <button onClick={() => setShowModal(false)} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: '#64748b', fontSize: '14px' }}>✕</button>
+              <button onClick={() => setShowModal(false)} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>✕</button>
             </div>
             <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
@@ -305,7 +305,7 @@ export default function DomainsPage() {
                 <label style={lbl}>Icon</label>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                   {ICONS.map(ic => (
-                    <button key={ic} onClick={() => setForm(f => ({ ...f, icon: ic }))} style={{ width: '36px', height: '36px', borderRadius: '8px', border: `2px solid ${form.icon === ic ? '#2563eb' : '#e2e8f0'}`, background: form.icon === ic ? '#dbeafe' : '#fafaf9', fontSize: '18px', cursor: 'pointer' }}>{ic}</button>
+                    <button key={ic} onClick={() => setForm(f => ({ ...f, icon: ic }))} style={{ width: '36px', height: '36px', borderRadius: '8px', border: `2px solid ${form.icon === ic ? '#2563eb' : 'var(--border)'}`, background: form.icon === ic ? 'var(--status-info-bg)' : 'var(--surface-muted)', fontSize: '18px', cursor: 'pointer' }}>{ic}</button>
                   ))}
                 </div>
               </div>
@@ -317,10 +317,10 @@ export default function DomainsPage() {
                   ))}
                 </div>
               </div>
-              <div style={{ background: '#fafaf9', borderRadius: '10px', padding: '12px 14px', border: '1px solid #ebe8df', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ background: 'var(--surface-muted)', borderRadius: '10px', padding: '12px 14px', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: `${form.color}18`, border: `1px solid ${form.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>{form.icon}</div>
                 <div>
-                  <div style={{ fontWeight: 700, color: '#1a1a1a', fontSize: '14px' }}>{form.name || 'Domain Name'}</div>
+                  <div style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '14px' }}>{form.name || 'Domain Name'}</div>
                   <div style={{ fontSize: '12px', color: form.color, fontWeight: 600 }}>Preview</div>
                 </div>
               </div>
@@ -339,11 +339,11 @@ export default function DomainsPage() {
               <div>
                 <label style={lbl}>Tables (comma-separated)</label>
                 <input value={form.tables} onChange={e => setForm(f => ({ ...f, tables: e.target.value }))} placeholder="table_name_1, table_name_2" style={inp} />
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>Enter table names separated by commas</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Enter table names separated by commas</div>
               </div>
               <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
-                <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', color: '#64748b', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
-                <button onClick={save} disabled={saving || !form.name.trim()} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: form.name.trim() ? 'pointer' : 'not-allowed', background: form.name.trim() ? '#2563eb' : '#e2e8f0', color: form.name.trim() ? '#fff' : '#94a3b8' }}>
+                <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={save} disabled={saving || !form.name.trim()} style={{ flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600, cursor: form.name.trim() ? 'pointer' : 'not-allowed', background: form.name.trim() ? '#2563eb' : 'var(--border)', color: form.name.trim() ? '#fff' : 'var(--text-muted)' }}>
                   {editDomain ? '✓ Save Changes' : '+ Create Domain'}
                 </button>
               </div>

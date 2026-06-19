@@ -9,15 +9,15 @@ interface Incident {
 }
 
 const SEV: Record<string, { bg: string; color: string; border: string }> = {
-  critical: { bg: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
-  high:     { bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-  medium:   { bg: '#fef3c7', color: '#d97706', border: '#fde68a' },
-  low:      { bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
+  critical: { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '#fca5a5' },
+  high:     { bg: 'var(--status-warn-bg)',  color: '#ea580c',                  border: '#fdba74' },
+  medium:   { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)',  border: '#fde68a' },
+  low:      { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    border: '#86efac' },
 }
 const ST: Record<string, { bg: string; color: string }> = {
-  open:          { bg: '#fee2e2', color: '#dc2626' },
-  investigating: { bg: '#fef3c7', color: '#d97706' },
-  resolved:      { bg: '#f0fdf4', color: '#16a34a' },
+  open:          { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  investigating: { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  resolved:      { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
 }
 
 export default function IncidentsPage() {
@@ -134,9 +134,9 @@ export default function IncidentsPage() {
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Incidents</span>
-        {openCount > 0 && <span style={{ background: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{openCount} open</span>}
-        {investigatingCount > 0 && <span style={{ background: '#fef3c7', color: '#d97706', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{investigatingCount} investigating</span>}
-        {resolvedCount > 0 && <span style={{ background: '#f0fdf4', color: '#16a34a', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{resolvedCount} resolved</span>}
+        {openCount > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{openCount} open</span>}
+        {investigatingCount > 0 && <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{investigatingCount} investigating</span>}
+        {resolvedCount > 0 && <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{resolvedCount} resolved</span>}
         {avgTTR != null && <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>avg {avgTTR}m TTR</span>}
         <button onClick={() => setShowCreate(true)} style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Report</button>
       </div>
@@ -146,8 +146,8 @@ export default function IncidentsPage() {
         {(['all','open','investigating','resolved'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-            background: filter === f ? '#1a1a1a' : 'var(--surface-muted)',
-            color: filter === f ? '#fff' : 'var(--text-secondary)',
+            background: filter === f ? 'var(--foreground)' : 'var(--surface-muted)',
+            color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
             fontWeight: filter === f ? 600 : 400, fontSize: '11px',
           }}>{f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}</button>
         ))}
@@ -232,7 +232,7 @@ export default function IncidentsPage() {
           <div onClick={() => setPopup(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.18)', zIndex: 199, cursor: 'pointer' }} />
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-              <span style={{ background: SEV[popup.severity]?.bg ?? '#f1f5f9', color: SEV[popup.severity]?.color ?? '#64748b', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.severity}</span>
+              <span style={{ background: SEV[popup.severity]?.bg ?? 'var(--surface-muted)', color: SEV[popup.severity]?.color ?? 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.severity}</span>
               <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1 }}>{popup.title}</span>
               <button onClick={() => setPopup(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
@@ -253,28 +253,28 @@ export default function IncidentsPage() {
               ))}
             </div>
             {popup.description && (
-              <div style={{ margin: '12px 14px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e9d5ff' }}>
+              <div style={{ margin: '12px 14px 0', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
                 <div style={{ background: 'linear-gradient(135deg,#7c3aed,#6d28d9)', padding: '7px 12px' }}>
                   <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>📋 DESCRIPTION</span>
                 </div>
-                <div style={{ padding: '10px 12px', fontSize: '12px', color: '#334155', lineHeight: '1.6' }}>{popup.description}</div>
+                <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{popup.description}</div>
               </div>
             )}
             {popup.ttrMinutes != null && (
-              <div style={{ margin: '8px 14px', padding: '8px 12px', background: '#f0fdf4', borderRadius: '6px', fontSize: '12px', color: '#16a34a', fontWeight: 500 }}>
+              <div style={{ margin: '8px 14px', padding: '8px 12px', background: 'var(--status-ok-bg)', borderRadius: '6px', fontSize: '12px', color: 'var(--status-ok-text)', fontWeight: 500 }}>
                 ✅ Resolved in {popup.ttrMinutes} minutes
               </div>
             )}
             <div style={{ margin: '12px 14px 14px', display: 'flex', gap: '6px' }}>
               {popup.status === 'open' && (
                 <button onClick={() => updateIncidentStatus(popup.id, 'investigate')}
-                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #fde68a', background: '#fef3c7', color: '#d97706', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                   🔍 Investigate
                 </button>
               )}
               {popup.status !== 'resolved' && (
                 <button onClick={() => updateIncidentStatus(popup.id, 'resolve')}
-                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #86efac', background: '#f0fdf4', color: '#16a34a', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
                   ✅ Resolve
                 </button>
               )}

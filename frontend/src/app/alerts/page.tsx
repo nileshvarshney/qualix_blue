@@ -58,7 +58,7 @@ function Section({ title, gradient, border, body }: { title: string; gradient: s
       <div style={{ background: gradient, padding: '7px 12px' }}>
         <span style={{ color: '#fff', fontWeight: 700, fontSize: '11px', letterSpacing: '0.04em' }}>{title}</span>
       </div>
-      <div style={{ padding: '10px 12px', fontSize: '12px', color: '#334155', lineHeight: '1.6' }}>{body || '—'}</div>
+      <div style={{ padding: '10px 12px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: '1.6' }}>{body || '—'}</div>
     </div>
   )
 }
@@ -394,8 +394,8 @@ export default function AlertsPage() {
         {(['recent', 'rules'] as const).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{
             padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-            background: tab === t ? '#1a1a1a' : 'var(--surface-muted)',
-            color: tab === t ? '#fff' : 'var(--text-secondary)',
+            background: tab === t ? 'var(--foreground)' : 'var(--surface-muted)',
+            color: tab === t ? 'var(--background)' : 'var(--text-secondary)',
             fontWeight: tab === t ? 600 : 400, fontSize: '11px',
           }}>
             {t === 'recent' ? `Recent (${filteredAlerts.length})` : `Definitions (${filteredRules.length})`}
@@ -526,12 +526,12 @@ export default function AlertsPage() {
                     ))}
                   </div>
                   <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <Section title="📋 MESSAGE" gradient="linear-gradient(135deg,#475569,#334155)" border="#cbd5e1" body={popupAlert.message} />
+                    <Section title="📋 MESSAGE" gradient="linear-gradient(135deg,var(--text-secondary),var(--text-secondary))" border="var(--border)" body={popupAlert.message} />
                     {popupAlert.rootCause && <Section title="🔍 ROOT CAUSE" gradient="linear-gradient(135deg,#7c3aed,#6d28d9)" border="#e9d5ff" body={popupAlert.rootCause} />}
                     {(popupAlert.impact || popupAlert.recommendation) && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        {popupAlert.impact && <Section title="⚠️ IMPACT" gradient={popupAlert.severity === 'critical' ? 'linear-gradient(135deg,#dc2626,#b91c1c)' : 'linear-gradient(135deg,#ea580c,#c2410c)'} border={ss.border} body={popupAlert.impact} />}
-                        {popupAlert.recommendation && <Section title="✅ FIX" gradient="linear-gradient(135deg,#16a34a,#15803d)" border="#bbf7d0" body={popupAlert.recommendation} />}
+                        {popupAlert.impact && <Section title="⚠️ IMPACT" gradient={popupAlert.severity === 'critical' ? 'linear-gradient(135deg,var(--status-error-text),var(--status-error-text))' : 'linear-gradient(135deg,var(--status-warn-text),var(--status-warn-text))'} border={ss.border} body={popupAlert.impact} />}
+                        {popupAlert.recommendation && <Section title="✅ FIX" gradient="linear-gradient(135deg,var(--status-ok-text),var(--status-ok-text))" border="var(--status-ok-bg)" body={popupAlert.recommendation} />}
                       </div>
                     )}
                   </div>
@@ -549,7 +549,7 @@ export default function AlertsPage() {
                         🐞 Create Issue
                       </button>
                       {!incidentCreatedMsg && (
-                        <button onClick={() => createIncidentFromAlert(popupAlert)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid #fca5a5', background: '#fee2e2', color: '#dc2626', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
+                        <button onClick={() => createIncidentFromAlert(popupAlert)} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '11px', cursor: 'pointer', fontWeight: 600 }}>
                           🚨 Create Incident
                         </button>
                       )}
@@ -596,7 +596,7 @@ export default function AlertsPage() {
                     ))}
                   </div>
                   <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {popupRule.description && <Section title="📋 DESCRIPTION" gradient="linear-gradient(135deg,#475569,#334155)" border="#cbd5e1" body={popupRule.description} />}
+                    {popupRule.description && <Section title="📋 DESCRIPTION" gradient="linear-gradient(135deg,var(--text-secondary),var(--text-secondary))" border="var(--border)" body={popupRule.description} />}
                     {popupRule.threshold_value !== null && (
                       <Section title="⚙️ CONDITION"
                         gradient="linear-gradient(135deg,#7c3aed,#6d28d9)" border="#e9d5ff"

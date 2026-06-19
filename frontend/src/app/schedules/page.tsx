@@ -290,7 +290,7 @@ export default function SchedulesPage() {
                 style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isSelected ? 'var(--surface-muted)' : hasIssues && s.lastRunStatus !== 'passed' ? 'rgba(254,242,242,0.4)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer', minHeight: '30px' }}>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0 }}>
-                  <span style={{ color: hasIssues ? (s.lastRunStatus === 'failed' ? '#dc2626' : '#d97706') : 'var(--text-muted)', fontSize: '9px', flexShrink: 0, transform: isSelected ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
+                  <span style={{ color: hasIssues ? (s.lastRunStatus === 'failed' ? 'var(--status-error-text)' : 'var(--status-warn-text)') : 'var(--text-muted)', fontSize: '9px', flexShrink: 0, transform: isSelected ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▾</span>
                   <div style={{ minWidth: 0, display: 'flex', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontFamily: 'monospace', fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.tableFqn}</span>
                     {isEditing ? (
@@ -358,7 +358,7 @@ export default function SchedulesPage() {
                     {s.status === 'active' ? '⏸' : '▶'}
                   </button>
                   <button onClick={() => runNow(s.id)} disabled={runningId === s.id}
-                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid #dbeafe', background: runningId === s.id ? '#eff6ff' : 'var(--surface)', color: '#2563eb', fontSize: '10px', cursor: runningId === s.id ? 'not-allowed' : 'pointer' }}>
+                    style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--status-info-bg)', background: runningId === s.id ? 'var(--status-info-bg)' : 'var(--surface)', color: 'var(--status-info-text)', fontSize: '10px', cursor: runningId === s.id ? 'not-allowed' : 'pointer' }}>
                     {runningId === s.id ? '⏳' : '▶ Run'}
                   </button>
                 </div>
@@ -438,7 +438,7 @@ export default function SchedulesPage() {
               </select>
             </div>
             {createError && (
-              <div style={{ fontSize: '11px', color: '#dc2626', background: '#fee2e2', padding: '6px 10px', borderRadius: '6px' }}>
+              <div style={{ fontSize: '11px', color: 'var(--status-error-text)', background: 'var(--status-error-bg)', padding: '6px 10px', borderRadius: '6px' }}>
                 {createError}
               </div>
             )}

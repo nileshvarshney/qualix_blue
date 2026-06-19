@@ -173,7 +173,7 @@ export default function AgentChat() {
       {open && (
         <div className="slide-up" style={{
           position: 'fixed', bottom: '80px', right: '20px', width: '400px', height: '580px',
-          background: '#fff', borderRadius: '20px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+          background: 'var(--surface)', borderRadius: '20px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           display: 'flex', flexDirection: 'column', zIndex: 1000,
           border: '1px solid rgba(232,84,26,0.15)', overflow: 'hidden'
         }}>
@@ -213,11 +213,11 @@ export default function AgentChat() {
                 )}
                 <div style={{
                   maxWidth: '85%',
-                  background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : '#f8fafc',
-                  color: msg.role === 'user' ? '#fff' : '#1e293b',
+                  background: msg.role === 'user' ? 'linear-gradient(135deg, #6366f1, #8b5cf6)' : 'var(--surface-muted)',
+                  color: msg.role === 'user' ? '#fff' : 'var(--foreground)',
                   padding: '10px 14px', borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   fontSize: '13px', lineHeight: '1.5',
-                  border: msg.role === 'assistant' ? '1px solid #e2e8f0' : 'none'
+                  border: msg.role === 'assistant' ? '1px solid var(--border)' : 'none'
                 }}>
                   {msg.role === 'assistant' ? <MarkdownText text={msg.content} /> : msg.content}
                   {msg.toolsUsed && msg.toolsUsed.length > 0 && (
@@ -236,7 +236,7 @@ export default function AgentChat() {
             {loading && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <div style={{ width: '28px', height: '28px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><QualixMark size={28} /></div>
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px', borderRadius: '16px 16px 16px 4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', padding: '10px 14px', borderRadius: '16px 16px 16px 4px', display: 'flex', gap: '4px', alignItems: 'center' }}>
                   {[0, 1, 2].map(j => (
                     <div key={j} style={{
                       width: '6px', height: '6px', borderRadius: '50%', background: '#E8541A',
@@ -257,7 +257,7 @@ export default function AgentChat() {
                     onMouseEnter={() => setHoveredSuggestion(s)}
                     onMouseLeave={() => setHoveredSuggestion(null)}
                     style={{
-                      background: hoveredSuggestion === s ? '#FFF4EF' : '#fff',
+                      background: hoveredSuggestion === s ? 'rgba(232,84,26,0.08)' : 'var(--surface)',
                       border: '1px solid rgba(232,84,26,0.25)',
                       borderRadius: '20px',
                       padding: '6px 12px', fontSize: '12px',
@@ -272,7 +272,7 @@ export default function AgentChat() {
           </div>
 
           {/* Input */}
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #f1f5f9', background: '#fff' }}>
+          <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input
                 value={input}
@@ -281,8 +281,8 @@ export default function AgentChat() {
                 placeholder="Ask me anything about data quality..."
                 style={{
                   flex: 1, padding: '10px 14px', borderRadius: '12px', fontSize: '13px',
-                  border: '1px solid #e2e8f0', outline: 'none', background: '#f8fafc',
-                  color: '#0f172a'
+                  border: '1px solid var(--border)', outline: 'none', background: 'var(--surface-muted)',
+                  color: 'var(--foreground)'
                 }}
               />
               <button onClick={() => send()} disabled={!input.trim() || loading} style={{

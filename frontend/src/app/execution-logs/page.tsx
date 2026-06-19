@@ -3,9 +3,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { ExecLog, GroupedExecLog, RunStatus, StatFilter, mapExecLog, groupExecLogs } from '@/lib/executionLogs'
 
 const STAT: Record<RunStatus, { background: string; color: string; border: string }> = {
-  passed:  { background: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
-  failed:  { background: '#fee2e2', color: '#dc2626', border: '#fca5a5' },
-  warning: { background: '#fefce8', color: '#ca8a04', border: '#fde68a' },
+  passed:  { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    border: '#bbf7d0' },
+  failed:  { background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '#fca5a5' },
+  warning: { background: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)',  border: '#fde68a' },
 }
 
 const GRID = '110px 1fr 70px 70px 50px 110px 80px 80px 18px'
@@ -99,7 +99,7 @@ export default function ExecutionLogsPage() {
     { label: 'Total (24h)', value: totalRuns, color: 'var(--accent)',            filter: 'all'     as StatFilter },
     { label: 'Passed',       value: passed,   color: 'var(--status-ok-text)',    filter: 'passed'  as StatFilter },
     { label: 'Failed',       value: failed,   color: 'var(--status-error-text)', filter: 'failed'  as StatFilter },
-    { label: 'Warnings',     value: warnings, color: '#ca8a04',                  filter: 'warning' as StatFilter },
+    { label: 'Warnings',     value: warnings, color: 'var(--status-warn-text)',   filter: 'warning' as StatFilter },
     { label: 'Avg Score',    value: groups.length > 0 ? `${avgScore}%` : '—', color: '#7c3aed', filter: null },
   ]
 
@@ -182,21 +182,21 @@ export default function ExecutionLogsPage() {
                 <span style={{ fontSize: '11px', flexShrink: 0 }}>📅</span>
                 <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>{dk}</span>
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{items.length} run{items.length !== 1 ? 's' : ''}</span>
-                <span style={{ fontSize: '10px', color: passRate >= 90 ? 'var(--status-ok-text)' : passRate >= 70 ? '#ca8a04' : 'var(--status-error-text)', fontWeight: 600 }}>{passRate}% pass</span>
+                <span style={{ fontSize: '10px', color: passRate >= 90 ? 'var(--status-ok-text)' : passRate >= 70 ? 'var(--status-warn-text)' : 'var(--status-error-text)', fontWeight: 600 }}>{passRate}% pass</span>
               </div>
 
               {!collapsed && (
                 <div style={{ marginLeft: '16px', marginBottom: '2px', borderLeft: '2px solid var(--border)' }}>
                   {items.map(g => {
                     const ss         = STAT[g.status]
-                    const scoreColor = g.score >= 95 ? 'var(--status-ok-text)' : g.score >= 80 ? '#ca8a04' : 'var(--status-error-text)'
+                    const scoreColor = g.score >= 95 ? 'var(--status-ok-text)' : g.score >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
                     const isExp      = expanded === g.id
 
                     return (
                       <div key={g.id}>
                         {/* group row */}
                         <div onClick={() => toggleGroup(g.id)}
-                          style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isExp ? 'var(--surface-muted)' : g.status !== 'passed' ? 'rgba(254,242,242,0.3)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${ss.color}`, cursor: 'pointer', minHeight: '28px' }}>
+                          style={{ display: 'grid', gridTemplateColumns: GRID, gap: '0 8px', alignItems: 'center', padding: '4px 8px', background: isExp ? 'var(--surface-muted)' : g.status !== 'passed' ? 'var(--status-error-bg)' : 'var(--surface)', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${ss.color}`, cursor: 'pointer', minHeight: '28px' }}>
                           <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{g.ts.slice(11, 16) || g.ts.slice(0, 10)}</span>
                           <div style={{ minWidth: 0 }}>
                             <span style={{ fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
@@ -221,7 +221,7 @@ export default function ExecutionLogsPage() {
                           <div style={{ marginLeft: '16px', borderLeft: '2px solid var(--border)' }} onClick={e => e.stopPropagation()}>
                             {g.rules.map(r => {
                               const rss      = STAT[r.status]
-                              const rScoreColor = r.score >= 95 ? 'var(--status-ok-text)' : r.score >= 80 ? '#ca8a04' : 'var(--status-error-text)'
+                              const rScoreColor = r.score >= 95 ? 'var(--status-ok-text)' : r.score >= 80 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
                               const isRuleExp = expandedRule === r.id
 
                               return (
@@ -282,8 +282,8 @@ export default function ExecutionLogsPage() {
                                               </div>
                                             )}
                                             {r.recommendation && (
-                                              <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--foreground)', lineHeight: 1.6 }}>
-                                                <span style={{ color: '#15803d', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fix · </span>{r.recommendation}
+                                              <div style={{ background: 'var(--status-ok-bg)', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '10px 14px', fontSize: 'var(--text-xs)', color: 'var(--foreground)', lineHeight: 1.6 }}>
+                                                <span style={{ color: 'var(--status-ok-text)', fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fix · </span>{r.recommendation}
                                               </div>
                                             )}
                                           </div>

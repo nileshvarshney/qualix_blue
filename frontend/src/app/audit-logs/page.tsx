@@ -10,14 +10,14 @@ interface AuditLog {
 }
 
 const catColor: Record<string, { bg: string; color: string }> = {
-  connection: { bg: '#eff6ff', color: '#2563eb' }, rule:      { bg: '#f5f3ff', color: '#7c3aed' },
-  schedule:   { bg: '#f0fdf4', color: '#16a34a' }, alert:     { bg: '#fee2e2', color: '#dc2626' },
-  auth:       { bg: '#fff7ed', color: '#ea580c' }, report:    { bg: '#fef9c3', color: '#ca8a04' },
-  contract:   { bg: '#f0fdfa', color: '#0d9488' }, sla:       { bg: '#fdf4ff', color: '#a21caf' },
-  anomaly:    { bg: '#fff1f2', color: '#e11d48' }, issue:     { bg: '#fef9c3', color: '#b45309' },
-  asset:      { bg: '#eff6ff', color: '#1d4ed8' }, domain:    { bg: '#f0fdf4', color: '#15803d' },
-  glossary:   { bg: '#fdf4ff', color: '#7e22ce' }, team:      { bg: '#fff7ed', color: '#c2410c' },
-  user:       { bg: '#f0fdfa', color: '#0f766e' }, ownership: { bg: '#fef3c7', color: '#92400e' },
+  connection: { bg: 'var(--status-info-bg)',  color: 'var(--status-info-text)'  }, rule:      { bg: 'rgba(124,58,237,0.08)',  color: '#7c3aed' },
+  schedule:   { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    }, alert:     { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)' },
+  auth:       { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  }, report:    { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  contract:   { bg: 'rgba(13,148,136,0.10)', color: '#0d9488'                   }, sla:       { bg: 'rgba(162,28,175,0.08)', color: '#a21caf' },
+  anomaly:    { bg: 'var(--status-error-bg)', color: 'var(--status-error-text)' }, issue:     { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  asset:      { bg: 'var(--status-info-bg)',  color: 'var(--status-info-text)'  }, domain:    { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
+  glossary:   { bg: 'rgba(126,34,206,0.08)', color: '#7e22ce'                   }, team:      { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
+  user:       { bg: 'rgba(15,118,110,0.10)', color: '#0f766e'                   }, ownership: { bg: 'var(--status-warn-bg)',  color: 'var(--status-warn-text)'  },
 }
 
 const AVATAR_PALETTE = ['#6366f1','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#8b5cf6','#14b8a6']
@@ -142,9 +142,9 @@ export default function AuditLogsPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <span style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Audit Logs</span>
         <span style={{ background: 'var(--surface-muted)', color: 'var(--text-secondary)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{logs.length} events</span>
-        {usersActive > 0 && <span style={{ background: '#dbeafe', color: '#2563eb', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{usersActive} users</span>}
-        {systemEvents > 0 && <span style={{ background: '#f5f3ff', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{systemEvents} system</span>}
-        {failedEvents > 0 && <span style={{ background: '#fee2e2', color: '#dc2626', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{failedEvents} failed</span>}
+        {usersActive > 0 && <span style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{usersActive} users</span>}
+        {systemEvents > 0 && <span style={{ background: 'rgba(124,58,237,0.08)', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{systemEvents} system</span>}
+        {failedEvents > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{failedEvents} failed</span>}
         <button onClick={() => exportAuditCsv(filtered)} style={{ marginLeft: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
       </div>
 
@@ -201,7 +201,7 @@ export default function AuditLogsPage() {
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{logs.length === 0 ? 'No audit logs yet' : 'No events match filters'}</div>
         )}
         {!loading && filtered.map(l => {
-          const cc     = catColor[l.category] ?? { bg: '#f1f5f9', color: '#64748b' }
+          const cc     = catColor[l.category] ?? { bg: 'var(--surface-muted)', color: 'var(--text-secondary)' }
           const isFail = l.result === 'failed'
 
           // "issue/abc123-de..." → entityLabel="issue", entityShort="ab12cd34"
@@ -243,7 +243,7 @@ export default function AuditLogsPage() {
               <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtTime(l.ts)}</span>
 
               {/* status */}
-              <span style={{ background: isFail ? '#fee2e2' : '#f0fdf4', color: isFail ? '#dc2626' : '#16a34a', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
+              <span style={{ background: isFail ? 'var(--status-error-bg)' : 'var(--status-ok-bg)', color: isFail ? 'var(--status-error-text)' : 'var(--status-ok-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
                 {isFail ? '✕ Failed' : '✓ OK'}
               </span>
             </div>
@@ -258,7 +258,7 @@ export default function AuditLogsPage() {
           <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(480px,55vw)', background: 'var(--surface)', borderLeft: '1px solid var(--border)', boxShadow: '-4px 0 24px rgba(0,0,0,0.10)', display: 'flex', flexDirection: 'column', zIndex: 200, overflowY: 'auto' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, textTransform: 'capitalize' }}>{popup.action.replace(/_/g, ' ')}</span>
-              <span style={{ background: popup.result === 'failed' ? '#fee2e2' : '#f0fdf4', color: popup.result === 'failed' ? '#dc2626' : '#16a34a', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.result}</span>
+              <span style={{ background: popup.result === 'failed' ? 'var(--status-error-bg)' : 'var(--status-ok-bg)', color: popup.result === 'failed' ? 'var(--status-error-text)' : 'var(--status-ok-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{popup.result}</span>
               <button onClick={() => setPopup(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '18px', cursor: 'pointer', padding: '0 2px', lineHeight: 1 }}>✕</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '12px 14px 0' }}>
@@ -279,9 +279,9 @@ export default function AuditLogsPage() {
             </div>
             <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {popup.detail && (
-                <div style={{ borderRadius: '8px', overflow: 'hidden', border: `1px solid ${popup.result === 'failed' ? '#fca5a5' : '#e0e7ff'}` }}>
-                  <div style={{ background: popup.result === 'failed' ? '#fee2e2' : 'linear-gradient(90deg,#eef2ff,#f5f3ff)', padding: '7px 12px' }}>
-                    <span style={{ fontWeight: 700, fontSize: '11px', color: popup.result === 'failed' ? '#dc2626' : '#4338ca', letterSpacing: '0.04em' }}>EVENT DETAIL</span>
+                <div style={{ borderRadius: '8px', overflow: 'hidden', border: `1px solid ${popup.result === 'failed' ? 'var(--status-error-text)' : 'var(--border)'}` }}>
+                  <div style={{ background: popup.result === 'failed' ? 'var(--status-error-bg)' : 'var(--surface-muted)', padding: '7px 12px' }}>
+                    <span style={{ fontWeight: 700, fontSize: '11px', color: popup.result === 'failed' ? 'var(--status-error-text)' : 'var(--text-secondary)', letterSpacing: '0.04em' }}>EVENT DETAIL</span>
                   </div>
                   <pre style={{ padding: '10px 12px', fontSize: '11.5px', color: 'var(--foreground)', lineHeight: '1.6', margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'monospace' }}>{popup.detail}</pre>
                 </div>
