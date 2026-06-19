@@ -1078,6 +1078,44 @@ export default function LineagePage() {
             </div>
           </div>
 
+          {/* Tab Bar */}
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface-muted)' }}>
+            {([
+              { key: 'chains', label: 'Lineage Chain' },
+              { key: 'impact', label: 'Impact Analysis' },
+              { key: 'columns', label: `Columns${columnData ? ` (${columnData.length})` : ''}` },
+            ] as const).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                style={{
+                  padding: '10px 18px',
+                  fontSize: '11.5px',
+                  fontWeight: activeTab === tab.key ? 700 : 500,
+                  color: activeTab === tab.key ? 'var(--foreground)' : 'var(--text-muted)',
+                  background: activeTab === tab.key ? 'var(--surface)' : 'transparent',
+                  border: 'none',
+                  borderBottom: activeTab === tab.key ? '2px solid #2563eb' : '2px solid transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {tab.key === 'impact' && impactStats && impactStats.total > 0 && (
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    width: 16, height: 16, borderRadius: '50%',
+                    background: { none: '#e2e8f0', low: '#dcfce7', medium: '#fef3c7', high: '#fee2e2', critical: '#ede9fe' }[impactStats.severity],
+                    color: { none: '#64748b', low: '#16a34a', medium: '#d97706', high: '#dc2626', critical: '#7c3aed' }[impactStats.severity],
+                    fontSize: '8px', fontWeight: 700, marginRight: 4,
+                  }}>{impactStats.total}</span>
+                )}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'chains' && (
+            <>
           {/* Upstream / Downstream chains */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0', borderBottom: '1px solid var(--border)' }}>
             {/* Upstream */}
@@ -1204,8 +1242,10 @@ export default function LineagePage() {
               </div>
             </div>
           )}
+            </>
+          )}
 
-          {/* Column Table */}
+          {activeTab === 'columns' && (
           <div style={{ padding: '12px 24px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
@@ -1293,6 +1333,7 @@ export default function LineagePage() {
               </div>
             )}
           </div>
+          )}
 
           {/* Footer bar */}
           <div style={{ padding: '10px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface-muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
