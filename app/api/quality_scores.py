@@ -125,3 +125,61 @@ async def get_asset_quality_history(
     ]
 
     return {"asset_id": asset_id, "history": history}
+
+
+@router.get("/assets/{asset_id}/forecast")
+async def get_asset_quality_forecast(
+    asset_id: str,
+    days: int = Query(default=30, ge=7, le=90),
+    horizon: int = Query(default=7, ge=1, le=14),
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+    check_domain_access(user, asset.domain_id)
+
+    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
+    cutoff = today - timedelta(days=days - 1)
+
+    rows = (
+        await db.execute(
+            select(DQDimensionScore).where(
+                DQDimensionScore.asset_id == asset_id,
+                DQDimensionScore.score_level == "table",
+                DQDimensionScore.dimension == "overall",
+                DQDimensionScore.score_date >= cutoff,
+                DQDimensionScore.score_date <= today,
+            )
+        )
+    ).scalars().all()
+
+    history = [
+        {"date": str(r.score_date), "score": r.score}
+        for r in sorted(rows, key=lambda r: r.score_date)
+        if r.score is not None
+    ]
+
+    from app.services.forecast_service import compute_forecast
+    fc = compute_forecast([h["score"] for h in history], horizon=horizon)
+
+    if fc is None:
+        return {
+            "asset_id": asset_id,
+            "history": history,
+            "forecast": [],
+            "upper_band": [],
+            "lower_band": [],
+            "insufficient_history": True,
+        }
+
+    forecast_dates = [str(today + timedelta(days=i + 1)) for i in range(horizon)]
+    return {
+        "asset_id": asset_id,
+        "history": history,
+        "forecast": [{"date": d, "score": s} for d, s in zip(forecast_dates, fc.forecast)],
+        "upper_band": [{"date": d, "score": s} for d, s in zip(forecast_dates, fc.upper_band)],
+        "lower_band": [{"date": d, "score": s} for d, s in zip(forecast_dates, fc.lower_band)],
+        "insufficient_history": False,
+    }
