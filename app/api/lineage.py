@@ -339,6 +339,8 @@ async def get_lineage_graph(
             "columnCount": enr["column_count"],
             "lastAltered": meta.last_modified_at.isoformat() if meta and meta.last_modified_at else None,
             "comment": enr["table_description"],
+            "ownerName": enr["owner_name"],
+            "techOwnerName": enr["technical_owner_name"],
         })
 
     edges: list[dict] = []

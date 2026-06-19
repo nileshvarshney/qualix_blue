@@ -140,3 +140,105 @@ async def test_ensure_view_definitions_backfills_missing(monkeypatch):
 
     refs = extract_table_refs(view_asset.source_meta.view_definition)
     assert "UPSTREAM_TABLE" in refs
+
+
+@pytest.mark.asyncio
+async def test_lineage_graph_nodes_include_owner_fields(monkeypatch):
+    """GET /lineage returns ownerName and techOwnerName on every node."""
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.security import get_current_user
+
+    _mock_user = {"email": "admin@example.com", "role": "admin", "user_id": "system", "full_name": "System Admin"}
+
+    async def _mock_current_user():
+        return _mock_user
+
+    # Build minimal ORM fakes
+    class FakeMeta:
+        sf_table_name = "ORDERS"
+        sf_schema_name = "PUBLIC"
+        sf_database_name = "PROD"
+        sf_table_type = "TABLE"
+        view_definition = None
+        last_modified_at = None
+        row_count = 100
+
+    class FakeAsset:
+        asset_id = "asset-1"
+        asset_type = "table"
+        physical_name = "ORDERS"
+        display_name = None
+        description = "Order facts"
+        table_description = "Order facts"
+        owner_name = "Alice"
+        technical_owner_name = "Bob"
+        is_active = True
+        connection_id = "conn-1"
+        source_meta = FakeMeta()
+
+    class FakeConn:
+        connection_id = "conn-1"
+        connection_name = "Prod"
+        default_database = "PROD"
+        default_schema = "PUBLIC"
+        warehouse = "WH"
+        is_active = True
+        is_primary_target = True
+
+    from unittest.mock import AsyncMock, MagicMock
+    from sqlalchemy.engine import Result
+
+    async def mock_db():
+        db = AsyncMock()
+
+        def make_result(rows):
+            r = MagicMock(spec=Result)
+            r.scalars.return_value.all.return_value = rows
+            r.scalar.return_value = None
+            r.all.return_value = rows
+            return r
+
+        db.get = AsyncMock(side_effect=lambda model, pk: FakeConn() if pk == "conn-1" else None)
+
+        call_count = 0
+
+        async def execute_side_effect(stmt):
+            nonlocal call_count
+            call_count += 1
+            # First call = asset query, rest = enrich queries
+            if call_count == 1:
+                return make_result([FakeAsset()])
+            return make_result([])
+
+        db.execute = AsyncMock(side_effect=execute_side_effect)
+        db.commit = AsyncMock()
+        yield db
+
+    app.dependency_overrides[get_db] = mock_db
+    app.dependency_overrides[get_current_user] = _mock_current_user
+
+    # monkeypatch _resolve_connection_id to return our fake conn
+    monkeypatch.setattr(
+        "app.api.lineage._resolve_connection_id",
+        AsyncMock(return_value="conn-1"),
+    )
+    # monkeypatch _ensure_view_definitions to no-op
+    monkeypatch.setattr(
+        "app.api.lineage._ensure_view_definitions",
+        AsyncMock(return_value=None),
+    )
+
+    try:
+        from httpx import AsyncClient, ASGITransport
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/lineage?connection_id=conn-1")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]) > 0
+        node = data["nodes"][0]
+        assert "ownerName" in node, "ownerName field missing from lineage node"
+        assert "techOwnerName" in node, "techOwnerName field missing from lineage node"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_current_user, None)
