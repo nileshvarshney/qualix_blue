@@ -31,9 +31,10 @@ Replace the generic robot-themed chat widget with a design that matches the Qual
 
 ### 1. QualixMark SVG component (replaces RobotIcon + RobotIconSmall)
 
-A single reusable component rendered at two sizes:
-- **Small (28×28):** used as AI message avatar
-- **Large (38×38):** used in panel header
+A single reusable component rendered at three sizes:
+- **Small (28×28):** AI message avatar (left of each response bubble)
+- **Large (38×38):** panel header avatar
+- **FAB (42×42):** floating action button icon
 
 Contents (from `icon.svg`):
 - Rounded-rect background: `linear-gradient(135deg, #FF9050, #E8541A, #A82E06)`
@@ -100,7 +101,8 @@ No change — the dark slate keeps good contrast against the orange theme.
 
 - Delete `RobotIcon` and `RobotIconSmall` functions entirely.
 - Add one `QualixMark({ size }: { size: number })` component at the top of the file.
-- The `QualixMark` SVG uses a `<linearGradient>` with a **unique `id`** (e.g. `qualix-grad`) to avoid conflicts if multiple instances render simultaneously.
+- `QualixMark` calls React's `useId()` hook to generate a per-instance gradient ID (e.g. `qualix-grad-:r1:`). Multiple instances render simultaneously (FAB + header + one per message); `useId()` guarantees no ID collisions across them.
+- Suggestion chips gain `onMouseEnter` / `onMouseLeave` handlers to toggle the `#FFF4EF` hover background — this is new state (`hoveredChip: string | null`) or simple inline handler via `style` and React synthetic events.
 - All colour changes are inline-style props (no CSS files touched).
 - No prop interface changes to `AgentChat` — purely internal visual changes.
 
