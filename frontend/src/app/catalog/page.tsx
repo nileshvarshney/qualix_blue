@@ -1,8 +1,13 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
 import { Database, Layers, Table2, Eye } from 'lucide-react'
-import AssetDetailDrawer, { Asset } from '@/components/asset-registry/AssetDetailDrawer'
+import AssetDetailDrawer, { Asset as BaseAsset } from '@/components/asset-registry/AssetDetailDrawer'
 import { connectionIcons } from '@/lib/utils'
+
+type Asset = BaseAsset & {
+  quality_score?: number | null
+  tag_names?: string[]
+}
 
 const critColor = (c?: string) =>
   c === 'high' ? 'var(--status-error-text)' : c === 'medium' ? 'var(--status-warn-text)' : 'var(--text-muted)'
@@ -12,6 +17,10 @@ const certColor = (s?: string) =>
   s === 'certified' ? 'var(--status-ok-text)' : s === 'deprecated' ? 'var(--status-error-text)' : 'var(--text-muted)'
 const certBg = (s?: string) =>
   s === 'certified' ? 'var(--status-ok-bg)' : s === 'deprecated' ? 'var(--status-error-bg)' : 'var(--surface-muted)'
+const qualColor = (q?: number | null) =>
+  q == null ? 'var(--text-muted)' : q >= 80 ? 'var(--status-ok-text)' : q >= 60 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
+const qualBg = (q?: number | null) =>
+  q == null ? 'var(--surface-muted)' : q >= 80 ? 'var(--status-ok-bg)' : q >= 60 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)'
 
 function Badge({ label, bg, color }: { label: string; bg: string; color: string }) {
   return (
@@ -21,9 +30,15 @@ function Badge({ label, bg, color }: { label: string; bg: string; color: string 
   )
 }
 
-function TableRow({ asset, onClick }: { asset: Asset; onClick: () => void }) {
+function TableRow({ asset, selected, onToggleSelect, onClick }: {
+  asset: Asset
+  selected: boolean
+  onToggleSelect: (e: React.MouseEvent) => void
+  onClick: () => void
+}) {
   const [hover, setHover] = useState(false)
   const isActive = asset.is_active !== false
+  const tags = asset.tag_names ?? []
   return (
     <div
       onClick={onClick}
@@ -31,22 +46,41 @@ function TableRow({ asset, onClick }: { asset: Asset; onClick: () => void }) {
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '220px 1fr 110px 80px 70px 60px',
+        gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px',
         gap: '0 8px',
         alignItems: 'center',
-        padding: '4px 8px 4px 36px',
-        borderLeft: `2px solid ${isActive ? 'var(--status-ok-text)' : 'var(--border)'}`,
+        padding: '4px 8px 4px 8px',
+        borderLeft: `2px solid ${selected ? 'var(--accent)' : isActive ? 'var(--status-ok-text)' : 'var(--border)'}`,
         borderBottom: '1px solid var(--surface-muted)',
-        background: hover ? 'var(--surface-muted)' : 'transparent',
+        background: selected ? 'var(--accent-bg)' : hover ? 'var(--surface-muted)' : 'transparent',
         cursor: 'pointer',
       }}
     >
-      <span style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
-        {asset.table_type?.toLowerCase() === 'view'
-          ? <Eye size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
-          : <Table2 size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />}
-        {asset.sf_table_name ?? '—'}
-      </span>
+      <input
+        type="checkbox"
+        checked={selected}
+        onClick={onToggleSelect}
+        onChange={() => {}}
+        style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '14px', height: '14px', flexShrink: 0 }}
+      />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {asset.table_type?.toLowerCase() === 'view'
+            ? <Eye size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+            : <Table2 size={12} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />}
+          {asset.sf_table_name ?? '—'}
+        </div>
+        {tags.length > 0 && (
+          <div style={{ display: 'flex', gap: '3px', marginTop: '2px', flexWrap: 'nowrap', overflow: 'hidden' }}>
+            {tags.slice(0, 2).map(tag => (
+              <span key={tag} style={{ fontSize: '8px', fontWeight: 600, padding: '0 4px', borderRadius: '3px', background: 'var(--accent-bg)', color: 'var(--accent)', whiteSpace: 'nowrap' }}>{tag}</span>
+            ))}
+            {tags.length > 2 && (
+              <span style={{ fontSize: '8px', color: 'var(--text-muted)' }}>+{tags.length - 2}</span>
+            )}
+          </div>
+        )}
+      </div>
       <span style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {[asset.domain_name, asset.subdomain_name].filter(Boolean).join(' › ') || '—'}
       </span>
@@ -55,6 +89,9 @@ function TableRow({ asset, onClick }: { asset: Asset; onClick: () => void }) {
       </span>
       <Badge label={asset.certification_status ?? 'uncertified'} bg={certBg(asset.certification_status)} color={certColor(asset.certification_status)} />
       <Badge label={asset.criticality ?? 'low'} bg={critBg(asset.criticality)} color={critColor(asset.criticality)} />
+      <span style={{ background: qualBg(asset.quality_score), color: qualColor(asset.quality_score), padding: '1px 5px', borderRadius: '3px', fontSize: '9px', fontWeight: 700, whiteSpace: 'nowrap', display: 'inline-block', textAlign: 'center' }}>
+        {asset.quality_score != null ? `${Math.round(asset.quality_score)}%` : '—'}
+      </span>
       <Badge label={isActive ? 'Active' : 'Inactive'} bg={isActive ? 'var(--status-ok-bg)' : 'var(--surface-muted)'} color={isActive ? 'var(--status-ok-text)' : 'var(--text-muted)'} />
     </div>
   )
@@ -67,6 +104,47 @@ export default function CatalogPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [popup, setPopup] = useState<Asset | null>(null)
   const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkPatch, setBulkPatch] = useState<{ criticality?: string; certification_status?: string; owner_name?: string }>({})
+  const [bulkApplying, setBulkApplying] = useState(false)
+  const [bulkError, setBulkError] = useState<string | null>(null)
+
+  function toggleSelect(e: React.MouseEvent, assetId: string) {
+    e.stopPropagation()
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(assetId)) next.delete(assetId)
+      else next.add(assetId)
+      return next
+    })
+  }
+
+  async function applyBulk() {
+    const patch: Record<string, string> = {}
+    if (bulkPatch.criticality) patch.criticality = bulkPatch.criticality
+    if (bulkPatch.certification_status) patch.certification_status = bulkPatch.certification_status
+    if (bulkPatch.owner_name) patch.owner_name = bulkPatch.owner_name
+    if (!Object.keys(patch).length) return
+    setBulkApplying(true)
+    setBulkError(null)
+    try {
+      const res = await fetch('/api/asset-registry/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_ids: Array.from(selected), patch }),
+      })
+      if (!res.ok) throw new Error(`Server error ${res.status}`)
+      setAssets(prev => prev.map(a =>
+        selected.has(a.asset_id) ? { ...a, ...patch } : a
+      ))
+      setSelected(new Set())
+      setBulkPatch({})
+    } catch (e: unknown) {
+      setBulkError((e as Error).message)
+    } finally {
+      setBulkApplying(false)
+    }
+  }
 
   useEffect(() => {
     fetch('/api/connections')
@@ -145,6 +223,14 @@ export default function CatalogPage() {
 
   const totalTables = filtered.length
 
+  function toggleSelectAll() {
+    const visibleIds = filtered.map(a => a.asset_id)
+    setSelected(prev => {
+      if (visibleIds.every(id => prev.has(id))) return new Set()
+      return new Set(visibleIds)
+    })
+  }
+
   return (
     <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
 
@@ -164,8 +250,14 @@ export default function CatalogPage() {
       </div>
 
       {/* column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr 110px 80px 70px 60px', gap: '0 8px', padding: '0 8px 4px 36px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Status'].map(h => (
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px', gap: '0 8px', padding: '0 8px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+        <input
+          type="checkbox"
+          onChange={toggleSelectAll}
+          checked={filtered.length > 0 && filtered.every(a => selected.has(a.asset_id))}
+          style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '14px', height: '14px' }}
+        />
+        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Quality', 'Status'].map(h => (
           <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
@@ -238,7 +330,13 @@ export default function CatalogPage() {
                           </div>
 
                           {schemaOpen && tables.map(a => (
-                            <TableRow key={a.asset_id} asset={a} onClick={() => setPopup(a)} />
+                            <TableRow
+                              key={a.asset_id}
+                              asset={a}
+                              selected={selected.has(a.asset_id)}
+                              onToggleSelect={e => toggleSelect(e, a.asset_id)}
+                              onClick={() => setPopup(a)}
+                            />
                           ))}
                         </div>
                       )
@@ -250,6 +348,68 @@ export default function CatalogPage() {
           )
         })}
       </div>
+
+      {selected.size > 0 && (
+        <div style={{
+          position: 'fixed', bottom: '16px', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.18)', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: '10px', zIndex: 100,
+          minWidth: '560px', flexWrap: 'wrap',
+        }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', whiteSpace: 'nowrap' }}>
+            {selected.size} selected
+          </span>
+          <div style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
+          <select
+            value={bulkPatch.criticality ?? ''}
+            onChange={e => setBulkPatch(p => ({ ...p, criticality: e.target.value || undefined }))}
+            style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
+          >
+            <option value="">Criticality…</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          <select
+            value={bulkPatch.certification_status ?? ''}
+            onChange={e => setBulkPatch(p => ({ ...p, certification_status: e.target.value || undefined }))}
+            style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
+          >
+            <option value="">Certification…</option>
+            <option value="certified">Certified</option>
+            <option value="warning">Warning</option>
+            <option value="failed">Failed</option>
+            <option value="uncertified">Uncertified</option>
+          </select>
+          <input
+            value={bulkPatch.owner_name ?? ''}
+            onChange={e => setBulkPatch(p => ({ ...p, owner_name: e.target.value || undefined }))}
+            placeholder="Set owner…"
+            style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', width: '120px' }}
+          />
+          {bulkError && <span style={{ fontSize: '10px', color: 'var(--status-error-text)' }}>{bulkError}</span>}
+          <button
+            onClick={applyBulk}
+            disabled={bulkApplying || !Object.values(bulkPatch).some(Boolean)}
+            style={{
+              fontSize: '11px', padding: '5px 14px', borderRadius: '6px', border: 'none',
+              background: 'var(--accent)', color: '#fff', fontWeight: 700,
+              cursor: (bulkApplying || !Object.values(bulkPatch).some(Boolean)) ? 'not-allowed' : 'pointer',
+              opacity: (bulkApplying || !Object.values(bulkPatch).some(Boolean)) ? 0.6 : 1,
+            }}
+          >
+            {bulkApplying ? 'Applying…' : 'Apply'}
+          </button>
+          <button
+            onClick={() => { setSelected(new Set()); setBulkPatch({}); setBulkError(null) }}
+            style={{ fontSize: '11px', padding: '5px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       {popup && (
         <AssetDetailDrawer
