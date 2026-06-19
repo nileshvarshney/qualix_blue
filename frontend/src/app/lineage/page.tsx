@@ -8,6 +8,7 @@ interface LineageNode {
   icon: string; schema: string; database: string; tableType: string
   rowCount: number | null; columnCount: number
   lastAltered: string | null; comment: string | null
+  ownerName?: string | null; techOwnerName?: string | null
   x?: number; y?: number
 }
 interface LineageEdge { from: string; to: string; relationship: string }
@@ -254,6 +255,7 @@ export default function LineagePage() {
   const panStartRef = useRef({ x: 0, y: 0, panX: 0, panY: 0 })
   const dragNodeRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
   const nodeDraggedRef = useRef(false)
+  const [activeTab, setActiveTab] = useState<'chains' | 'impact' | 'columns'>('chains')
 
   const fetchLineage = useCallback(async () => {
     setLoading(true)
@@ -289,7 +291,7 @@ export default function LineagePage() {
   // Reset zoom/pan/manual node positions whenever a new table is selected (the graph is re-laid-out)
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setZoom(1); setPan({ x: 0, y: 0 }); setNodePositions(new Map())
+    setZoom(1); setPan({ x: 0, y: 0 }); setNodePositions(new Map()); setActiveTab('chains')
   }, [selected])
 
   // Track native fullscreen state (also changes if the user presses Esc)
@@ -557,6 +559,28 @@ export default function LineagePage() {
   const downstreamChain = selected ? buildChain(selected, data.edges, nodeMap, 'down') : []
   const totalUpstream = upstreamChain.reduce((s, h) => s + h.nodes.length, 0)
   const totalDownstream = downstreamChain.reduce((s, h) => s + h.nodes.length, 0)
+  const impactStats = selected && selectedNode ? (() => {
+    const allDownstream = downstreamChain.flatMap(h => h.nodes)
+    const byType: Record<string, LineageNode[]> = {}
+    for (const n of allDownstream) {
+      if (!byType[n.type]) byType[n.type] = []
+      byType[n.type].push(n)
+    }
+    const severity: 'none' | 'low' | 'medium' | 'high' | 'critical' =
+      allDownstream.length === 0 ? 'none'
+      : allDownstream.length <= 3 ? 'low'
+      : allDownstream.length <= 10 ? 'medium'
+      : allDownstream.length <= 20 ? 'high'
+      : 'critical'
+    return {
+      total: allDownstream.length,
+      byType,
+      severity,
+      businessConsumers: allDownstream.filter(n => n.type === 'output'),
+      hopCount: downstreamChain.length,
+      allDownstream,
+    }
+  })() : null
 
   function captureGraph() {
     const svgEl = svgRef.current
