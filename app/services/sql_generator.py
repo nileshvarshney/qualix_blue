@@ -404,17 +404,13 @@ class SQLGenerator:
     def _llm_semantic_check(self, config: dict, table_ref: str, column: Optional[str]) -> str:
         """
         Samples rows for LLM-based semantic validation.
-        Returns 0 AS failed_count — actual pass/fail requires LLM evaluation
-        in execution_service (not yet implemented).
+        Returns actual data rows so _llm_semantic_validate() in execution_service
+        can pass meaningful content to the LLM.
         config.sample_size: number of rows to sample (default 100)
         config.validation_prompt: validation instruction for the LLM
         """
         sample_size = config.get("sample_size", 100)
-        return (
-            f"SELECT 0 AS failed_count FROM ("
-            f"SELECT * FROM {table_ref} ORDER BY RANDOM() LIMIT {sample_size}"
-            f") _sample"
-        )
+        return f"SELECT * FROM {table_ref} ORDER BY RANDOM() LIMIT {sample_size}"
 
 
 sql_generator = SQLGenerator()

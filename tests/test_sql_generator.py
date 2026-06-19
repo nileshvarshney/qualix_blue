@@ -55,3 +55,16 @@ def test_null_check_missing_column():
 def test_unknown_rule_type():
     with pytest.raises(ValueError):
         gen.generate("unknown_type", {}, TABLE, "col")
+
+
+def test_llm_semantic_check_returns_actual_rows():
+    """SQL must return actual rows, not a wrapped failed_count=0."""
+    sql = gen.generate("llm_semantic_check", {"sample_size": 50}, TABLE, None)
+    assert "SELECT *" in sql
+    assert "LIMIT 50" in sql
+    assert "failed_count" not in sql
+
+
+def test_llm_semantic_check_default_sample_size():
+    sql = gen.generate("llm_semantic_check", {}, TABLE, None)
+    assert "LIMIT 100" in sql
