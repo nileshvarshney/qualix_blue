@@ -1125,3 +1125,54 @@ async def get_asset_history(
             "new_value": new,
         })
     return entries
+
+
+_BULK_ALLOWED_FIELDS = frozenset({
+    "criticality", "certification_status", "is_active",
+    "domain_id", "subdomain_id", "owner_name",
+})
+
+
+@router.post("/bulk-update")
+async def bulk_update_assets(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Apply a partial patch to multiple assets at once."""
+    asset_ids: list[str] = payload.get("asset_ids") or []
+    patch: dict = payload.get("patch") or {}
+
+    if not asset_ids:
+        raise HTTPException(422, "asset_ids must be a non-empty list")
+    if not patch:
+        raise HTTPException(422, "patch must be a non-empty object")
+
+    invalid = set(patch.keys()) - _BULK_ALLOWED_FIELDS
+    if invalid:
+        raise HTTPException(422, f"Invalid patch fields: {sorted(invalid)}")
+
+    result = await db.execute(select(Asset).where(Asset.asset_id.in_(asset_ids)))
+    assets = result.scalars().all()
+    found_ids = {a.asset_id for a in assets}
+    missing = set(asset_ids) - found_ids
+    if missing:
+        raise HTTPException(404, f"Assets not found: {sorted(missing)[:5]}")
+
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+    for asset in assets:
+        old_vals = {k: getattr(asset, k, None) for k in patch}
+        for field, value in patch.items():
+            setattr(asset, field, value)
+        asset.updated_at = _now
+        db.add(AuditLog(
+            audit_id=str(uuid.uuid4()),
+            user_email=user.get("email"),
+            action="BULK_UPDATE",
+            entity_type="asset",
+            entity_id=asset.asset_id,
+            old_value=old_vals,
+            new_value=patch,
+        ))
+    await db.commit()
+    return {"updated": len(assets)}
