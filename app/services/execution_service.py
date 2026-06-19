@@ -330,6 +330,8 @@ async def execute_rule(rule_id: str, db: AsyncSession, user_email: str = "system
         logger.info(f"Rule {rule_id} executed: status={status}, score={quality_score}")
         from app.services.alert_service import create_alert_if_needed
         await create_alert_if_needed(run, rule, db)
+        from app.services.post_run_service import handle as _post_run_handle
+        asyncio.create_task(_post_run_handle(run.run_id, run.asset_id))
         return run
 
     except Exception as e:
@@ -338,6 +340,8 @@ async def execute_rule(rule_id: str, db: AsyncSession, user_email: str = "system
         run = await _save_error_run(db, rule, asset, str(e), start, end, locals().get("sql"))
         from app.services.alert_service import create_alert_if_needed
         await create_alert_if_needed(run, rule, db)
+        from app.services.post_run_service import handle as _post_run_handle
+        asyncio.create_task(_post_run_handle(run.run_id, run.asset_id))
         return run
 
 
