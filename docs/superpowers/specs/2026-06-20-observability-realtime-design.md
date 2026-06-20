@@ -112,13 +112,13 @@ One row per detected cluster. Written by `check_correlation()` inline after anom
 **`predict_sla_breaches(db)`**
 - Queries all assets with active `SLAConfig`.
 - For each: fetches last 30 days of `DQQualityScore` (table-level), calls `forecast_service.compute_forecast(scores, horizon=7)`.
-- Upserts `SLABreachPrediction`: sets `is_at_risk`, `breach_day`, `breach_probability`.
+- Upserts `SLABreachPrediction` by `asset_id`: UPDATE all fields if a row exists, INSERT if not.
 - Skips assets with fewer than 3 score data points (forecast returns None).
 
 **`check_correlation(asset_id, detection_id, db)`**
 - Queries `AnomalyDetection` for rows where `detected_at > now - 15min`.
 - Counts distinct `asset_id` values.
-- If count >= 3 and no open `CorrelatedIncident` already covers this window: inserts one.
+- If count >= 3 and no `CorrelatedIncident` with `status='open'` and `detected_at > now - 30min` exists: inserts one. The 30-minute guard (2× the detection window) prevents duplicate incidents from back-to-back anomalies in the same cluster.
 - Called synchronously from `anomaly.py` after `db.commit()`. Fast — single aggregation query.
 
 ### `app/api/monitoring.py` (new)
@@ -195,7 +195,7 @@ Four independently-polling sections:
 
 1. **Freshness Board** — 30s poll of `/api/observability/freshness-board`. Card grid: one card per asset, color-coded by status (`on_time`=green, `at_risk`=amber, `breached`=red). Shows `hours_since_last_run` / `sla_threshold_hours`.
 
-2. **SLA Breach Forecast** — 30s poll of `/api/monitoring/sla-predictions?at_risk=true`. Table: Asset name, Current score, Breach day ("Day 3"), Probability %. Empty state: "All assets on track for the next 7 days".
+2. **SLA Breach Forecast** — 30s poll of `/api/monitoring/sla-predictions?is_at_risk=true`. Table: Asset name, Current score, Breach day ("Day 3"), Probability %. Empty state: "All assets on track for the next 7 days".
 
 3. **Quality Heatmap** — 30s poll of `/api/observability/quality-heatmap`. 7-day domain × date matrix. Cells colored red→green by avg quality score. Null cells shown as grey.
 
