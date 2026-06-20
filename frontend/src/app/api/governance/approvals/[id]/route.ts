@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const { searchParams } = new URL(req.url)
     const action = searchParams.get('action') // "approve" or "reject"
     if (action !== 'approve' && action !== 'reject') {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
     const body = await req.json().catch(() => ({}))
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/governance/approvals/${params.id}/${action}`, {
+    const res = await fetch(`${BACKEND}/governance/approvals/${id}/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(auth ? { authorization: auth } : {}) },
       body: JSON.stringify(body),

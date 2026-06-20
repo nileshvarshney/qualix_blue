@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/governance/policies/${params.id}/versions`, {
+    const res = await fetch(`${BACKEND}/governance/policies/${id}/versions`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
