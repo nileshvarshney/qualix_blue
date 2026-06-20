@@ -65,6 +65,11 @@ export default function AuditLogsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
   const [popup, setPopup] = useState<AuditLog | null>(null)
+  const [anomalies, setAnomalies] = useState<Array<{pattern:string; severity:string; user_email:string; event_count:number; description:string}>>([])
+  const [coverage, setCoverage] = useState<{coverage_pct:number; uncovered_types:string[]} | null>(null)
+  const [verifyResult, setVerifyResult] = useState<{total_hashed:number; total_unverified:number; intact:number; tampered:number; tampered_ids:string[]} | null>(null)
+  const [verifyLoading, setVerifyLoading] = useState(false)
+  const [showVerifyModal, setShowVerifyModal] = useState(false)
 
   useEffect(() => {
     fetch('/api/audit')
@@ -107,6 +112,20 @@ export default function AuditLogsPage() {
       .catch(() => setLoading(false))
   }, [])
 
+  useEffect(() => {
+    fetch('/api/audit/anomalies')
+      .then(r => r.json())
+      .then(data => setAnomalies(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/audit/coverage')
+      .then(r => r.json())
+      .then(data => data && typeof data.coverage_pct === 'number' ? setCoverage(data) : null)
+      .catch(() => {})
+  }, [])
+
   const categories   = ['all', ...Array.from(new Set(logs.map(l => l.category)))]
   const failedEvents = logs.filter(l => l.result === 'failed').length
   const usersActive  = new Set(logs.filter(l => l.user !== 'System').map(l => l.user)).size
@@ -121,6 +140,17 @@ export default function AuditLogsPage() {
     a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
     URL.revokeObjectURL(a.href)
+  }
+
+  async function handleVerify() {
+    setVerifyLoading(true)
+    setShowVerifyModal(true)
+    try {
+      const r = await fetch('/api/audit/verify')
+      const data = await r.json()
+      setVerifyResult(data)
+    } catch { setVerifyResult(null) }
+    finally { setVerifyLoading(false) }
   }
 
   const filtered = logs.filter(l => {
@@ -145,8 +175,30 @@ export default function AuditLogsPage() {
         {usersActive > 0 && <span style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{usersActive} users</span>}
         {systemEvents > 0 && <span style={{ background: 'rgba(124,58,237,0.08)', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{systemEvents} system</span>}
         {failedEvents > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{failedEvents} failed</span>}
-        <button onClick={() => exportAuditCsv(filtered)} style={{ marginLeft: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
+        {coverage && (
+          <span title={coverage.uncovered_types.length ? `Uncovered: ${coverage.uncovered_types.join(', ')}` : 'All types covered'}
+            style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, cursor: 'default' }}>
+            {coverage.coverage_pct}% coverage
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+          <button onClick={handleVerify} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>🔒 Verify Integrity</button>
+          <button onClick={() => exportAuditCsv(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
+        </div>
       </div>
+
+      {/* Security alerts */}
+      {anomalies.length > 0 && (
+        <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '8px', padding: '10px 14px', flexShrink: 0 }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-error-text)', marginBottom: '6px' }}>⚠ Security Alerts ({anomalies.length})</div>
+          {anomalies.map((a, i) => (
+            <div key={i} style={{ fontSize: '11px', color: 'var(--status-error-text)', padding: '2px 0', borderTop: i > 0 ? '1px solid var(--status-error-text)20' : 'none' }}>
+              <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{a.pattern.replace(/_/g, ' ')}</span>
+              {' · '}{a.description}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* search + category */}
       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
@@ -295,6 +347,36 @@ export default function AuditLogsPage() {
                 </div>
               )}
             </div>
+          </div>
+        </>
+      )}
+
+      {/* Verify integrity modal */}
+      {showVerifyModal && (
+        <>
+          <div onClick={() => setShowVerifyModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 299, cursor: 'pointer' }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px 28px', zIndex: 300, minWidth: '360px', boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+            <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '16px' }}>🔒 Log Integrity Check</div>
+            {verifyLoading && <div style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Verifying…</div>}
+            {!verifyLoading && !verifyResult && <div style={{ color: 'var(--status-error-text)', fontSize: '13px' }}>Verification failed — backend unavailable.</div>}
+            {!verifyLoading && verifyResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ background: verifyResult.tampered === 0 ? 'var(--status-ok-bg)' : 'var(--status-error-bg)', border: `1px solid ${verifyResult.tampered === 0 ? 'var(--status-ok-text)' : 'var(--status-error-text)'}`, borderRadius: '8px', padding: '10px 14px', fontSize: '13px', fontWeight: 600, color: verifyResult.tampered === 0 ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
+                  {verifyResult.tampered === 0
+                    ? `✓ All ${verifyResult.intact} hashed records intact`
+                    : `✕ ${verifyResult.tampered} records show hash mismatch`}
+                </div>
+                <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+                  Hashed: {verifyResult.total_hashed} · Unverified (legacy): {verifyResult.total_unverified}
+                </div>
+                {verifyResult.tampered_ids.length > 0 && (
+                  <div style={{ fontSize: '11px', color: 'var(--status-error-text)', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                    Tampered IDs: {verifyResult.tampered_ids.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
+            <button onClick={() => setShowVerifyModal(false)} style={{ marginTop: '16px', padding: '6px 16px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface-muted)', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)' }}>Close</button>
           </div>
         </>
       )}
