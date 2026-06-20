@@ -7,6 +7,7 @@ import AssetRulesTab from './AssetRulesTab'
 import AssetQualityTab from './AssetQualityTab'
 import AssetTrendsTab from './AssetTrendsTab'
 import AssetIssuesTab from './AssetIssuesTab'
+import AssetSensitivityTab from './AssetSensitivityTab'
 import { ScorePill } from '@/components/shared/charts'
 import { AssetQualityScore } from '@/lib/types'
 
@@ -40,7 +41,7 @@ interface Asset {
   source_meta?: AssetMeta
 }
 
-type Tab = 'overview' | 'profiling' | 'rules' | 'quality' | 'alerts' | 'trends' | 'issues'
+type Tab = 'overview' | 'profiling' | 'sensitivity' | 'rules' | 'quality' | 'alerts' | 'trends' | 'issues'
 
 const TYPE_COLOR: Record<string, string> = {
   source: '#7c3aed', database: '#1d4ed8', schema: '#0369a1', table: '#065f46', view: '#0d9488',
@@ -132,7 +133,7 @@ export default function AssetDetailPanel({
       {/* Tab bar — only for table/view assets */}
       {isLeaf && (
         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)' }}>
-          {(['overview', 'profiling', 'rules', 'quality', 'alerts', 'trends', 'issues'] as Tab[]).map(tab => (
+          {(['overview', 'profiling', 'sensitivity', 'rules', 'quality', 'alerts', 'trends', 'issues'] as Tab[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -212,6 +213,11 @@ export default function AssetDetailPanel({
           assetId={asset.asset_id}
           connectionId={asset.connection_id}
         />
+      )}
+
+      {/* Sensitivity tab content */}
+      {isLeaf && activeTab === 'sensitivity' && (
+        <AssetSensitivityTab assetId={asset.asset_id} />
       )}
 
       {/* Rules tab content */}

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, and_
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
@@ -27,7 +27,6 @@ def _fmt(c: DataClassification) -> dict:
         "justification": c.justification,
         "applied_by": c.applied_by,
         "created_at": c.created_at.isoformat() if c.created_at else None,
-        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
     }
 
 
@@ -56,20 +55,77 @@ async def apply_classification(
     if not classification_value:
         raise HTTPException(422, "classification is required")
 
-    c = DataClassification(
-        classification_id=str(uuid.uuid4()),
-        asset_id=asset_id,
-        column_name=payload.get("column_name"),
-        classification=classification_value,
-        justification=payload.get("justification"),
-        applied_by=user.get("email"),
-        created_at=_now(),
-        updated_at=_now(),
+    # Upsert: if this asset+column already has a classification, update it
+    existing = await db.execute(
+        select(DataClassification).where(
+            DataClassification.asset_id == asset_id,
+            DataClassification.column_name == payload.get("column_name"),
+        )
     )
-    db.add(c)
+    c = existing.scalar_one_or_none()
+    if c:
+        c.classification = classification_value
+        c.justification = payload.get("justification") or c.justification
+        c.applied_by = user.get("email")
+    else:
+        c = DataClassification(
+            classification_id=str(uuid.uuid4()),
+            asset_id=asset_id,
+            column_name=payload.get("column_name"),
+            classification=classification_value,
+            justification=payload.get("justification"),
+            applied_by=user.get("email"),
+            created_at=_now(),
+        )
+        db.add(c)
     await db.commit()
     await db.refresh(c)
     return _fmt(c)
+
+
+@router.post("/assets/{asset_id}/classifications/bulk")
+async def bulk_apply_classifications(
+    asset_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Apply multiple column classifications at once (used by AI scan 'Apply All')."""
+    items = payload.get("classifications", [])
+    if not items:
+        raise HTTPException(422, "classifications list is required")
+
+    results = []
+    for item in items:
+        col_name = item.get("column_name")
+        cls_value = item.get("classification")
+        if not cls_value:
+            continue
+        existing = await db.execute(
+            select(DataClassification).where(
+                DataClassification.asset_id == asset_id,
+                DataClassification.column_name == col_name,
+            )
+        )
+        c = existing.scalar_one_or_none()
+        if c:
+            c.classification = cls_value
+            c.justification = item.get("justification") or c.justification
+            c.applied_by = user.get("email")
+        else:
+            c = DataClassification(
+                classification_id=str(uuid.uuid4()),
+                asset_id=asset_id,
+                column_name=col_name,
+                classification=cls_value,
+                justification=item.get("justification"),
+                applied_by=user.get("email"),
+                created_at=_now(),
+            )
+            db.add(c)
+        results.append(c)
+    await db.commit()
+    return {"applied": len(results), "classifications": [_fmt(c) for c in results]}
 
 
 @router.delete("/assets/{asset_id}/classifications/{classification_id}")
