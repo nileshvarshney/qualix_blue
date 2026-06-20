@@ -139,7 +139,6 @@ def downgrade() -> None:
     for tbl, idx in [
         ("data_residency_policies", "ix_residency_asset"),
         ("consent_records", "ix_consent_records_asset"),
-        ("data_subject_requests", "ix_dsr_subject"),
         ("data_classifications", "ix_data_classifications_asset"),
         ("masking_policies", "ix_masking_policies_asset"),
         ("compliance_mappings", "ix_compliance_mapping_framework"),
@@ -153,7 +152,12 @@ def downgrade() -> None:
                 except Exception:
                     pass
             op.drop_table(tbl)
-    try:
-        op.drop_index("ix_dsr_status", table_name="data_subject_requests")
-    except Exception:
-        pass
+
+    # Handle data_subject_requests separately to drop both indexes before the table
+    if _table_exists(bind, "data_subject_requests"):
+        for idx in ["ix_dsr_status", "ix_dsr_subject"]:
+            try:
+                op.drop_index(idx, table_name="data_subject_requests")
+            except Exception:
+                pass
+        op.drop_table("data_subject_requests")
