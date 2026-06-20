@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging as _logging
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -592,6 +593,17 @@ async def create_approval_request(
     entity_type = body["entity_type"]
     entity_id = body["entity_id"]
 
+    # Check for existing pending approval
+    existing_res = await db.execute(
+        select(ApprovalRequest).where(
+            ApprovalRequest.entity_type == entity_type,
+            ApprovalRequest.entity_id == entity_id,
+            ApprovalRequest.status == "pending",
+        )
+    )
+    if existing_res.scalar_one_or_none():
+        raise HTTPException(409, "A pending approval request already exists for this entity")
+
     # Set entity to pending_review
     if entity_type == "policy":
         res = await db.execute(select(GovernancePolicy).where(GovernancePolicy.policy_id == entity_id))
@@ -616,6 +628,7 @@ async def create_approval_request(
     )
     db.add(approval)
     await db.commit()
+    await db.refresh(approval)
     return _fmt_approval(approval)
 
 
@@ -684,7 +697,6 @@ async def approve_request(
 
     try:
         from app.services.notification_service import create_notification
-        import logging as _log
         await create_notification(
             user_email=approval.requested_by,
             type="approval_decided",
@@ -695,7 +707,7 @@ async def approve_request(
             db=db,
         )
     except Exception as _ne:
-        _log.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
+        _logging.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
 
     return _fmt_approval(approval)
 
@@ -739,7 +751,6 @@ async def reject_request(
 
     try:
         from app.services.notification_service import create_notification
-        import logging as _log
         await create_notification(
             user_email=approval.requested_by,
             type="approval_decided",
@@ -750,6 +761,6 @@ async def reject_request(
             db=db,
         )
     except Exception as _ne:
-        _log.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
+        _logging.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
 
     return _fmt_approval(approval)

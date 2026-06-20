@@ -46,15 +46,19 @@ async def test_create_approval_request_sets_entity_to_pending_review():
     from app.api.governance import create_approval_request
     db = AsyncMock()
 
-    # Simulate policy lookup returning a policy
+    # Simulate no existing pending approval (duplicate check returns None),
+    # then policy lookup returning a policy
     policy = MagicMock()
     policy.policy_id = "pol-001"
     policy.status = "active"
-    res = MagicMock()
-    res.scalar_one_or_none.return_value = policy
-    db.execute.return_value = res
+    res_no_dup = MagicMock()
+    res_no_dup.scalar_one_or_none.return_value = None
+    res_policy = MagicMock()
+    res_policy.scalar_one_or_none.return_value = policy
+    db.execute.side_effect = [res_no_dup, res_policy]
     db.add = MagicMock()
     db.commit = AsyncMock()
+    db.refresh = AsyncMock()
 
     user = {"email": "user@example.com", "role": "data_steward"}
     body = {"entity_type": "policy", "entity_id": "pol-001", "entity_snapshot": {"policy_name": "P"}}

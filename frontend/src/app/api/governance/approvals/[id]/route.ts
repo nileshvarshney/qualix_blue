@@ -7,6 +7,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   try {
     const { searchParams } = new URL(req.url)
     const action = searchParams.get('action') // "approve" or "reject"
+    if (action !== 'approve' && action !== 'reject') {
+      return NextResponse.json({ error: 'action must be approve or reject' }, { status: 400 })
+    }
     const body = await req.json().catch(() => ({}))
     const auth = req.headers.get('authorization') || ''
     const res = await fetch(`${BACKEND}/governance/approvals/${params.id}/${action}`, {
