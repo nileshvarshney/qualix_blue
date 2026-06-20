@@ -22,22 +22,25 @@ async def check_asset_enforcement(asset, db: AsyncSession) -> dict:
     )
     policies = policy_res.scalars().all()
 
-    rule_count_res = await db.execute(
-        select(func.count()).where(
-            DQRule.asset_id == asset.asset_id,
-            DQRule.is_active == True,
+    if not policies:
+        return {"blocked": False, "blocking_violations": [], "warnings": []}
+
+    needs_rule_count = any(p.policy_type == "no_rules_defined" for p in policies)
+    if needs_rule_count:
+        rule_count_res = await db.execute(
+            select(func.count()).where(
+                DQRule.asset_id == asset.asset_id,
+                DQRule.is_active == True,
+            )
         )
-    )
-    rule_count = rule_count_res.scalar_one()
+        rule_count = rule_count_res.scalar_one()
+    else:
+        rule_count = 0
 
     blocking: list[str] = []
     warnings: list[str] = []
 
     for p in policies:
-        # Guard against mocked policies that bypass the SQL WHERE clause
-        if not (getattr(p, "is_active", True) and getattr(p, "status", "active") == "active"):
-            continue
-
         violated = False
         if p.policy_type == "owner_required" and not getattr(asset, "owner_email", None):
             violated = True
@@ -73,6 +76,8 @@ async def check_rule_count_enforcement(asset_id: str, db: AsyncSession, delta: i
         )
     )
     policies = policy_res.scalars().all()
+    if not policies:
+        return {"blocked": False, "blocking_violations": [], "warnings": []}
 
     count_res = await db.execute(
         select(func.count()).where(

@@ -675,7 +675,7 @@ async def update_asset(asset_id: str, payload: AssetUpdate, db: AsyncSession = D
     asset = result.scalar_one_or_none()
     if not asset:
         raise HTTPException(404, "Asset not found")
-    for field, value in payload.model_dump(exclude_none=True).items():
+    for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(asset, field, value)
     asset.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
 

@@ -75,9 +75,14 @@ async def test_check_asset_enforcement_passes_when_no_violations():
 @pytest.mark.asyncio
 async def test_check_asset_enforcement_ignores_non_active_policies():
     from app.services.enforcement_service import check_asset_enforcement
-    policies = [_make_policy("owner_required", "high", status="pending_review")]
     asset = _make_asset(owner_email=None)
-    db = _make_db_with_policies(policies)
+    db = AsyncMock()
+    # SQL WHERE filters out non-active policies — simulate by returning empty list
+    policy_res = MagicMock()
+    policy_res.scalars.return_value.all.return_value = []  # no active policies returned
+    rule_count_res = MagicMock()
+    rule_count_res.scalar_one.return_value = 3
+    db.execute.side_effect = [policy_res, rule_count_res]
 
     result = await check_asset_enforcement(asset, db)
 

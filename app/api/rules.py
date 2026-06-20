@@ -356,18 +356,19 @@ async def delete_rule(rule_id: str, db: AsyncSession = Depends(get_db), user=Dep
     if not rule:
         raise HTTPException(404, "Rule not found")
 
-    # Check if deleting this rule would trigger no_rules_defined violation
-    from app.services.enforcement_service import check_rule_count_enforcement
-    enforcement = await check_rule_count_enforcement(rule.asset_id, db, delta=-1)
-    if enforcement["blocked"]:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "Deletion blocked by enforced policy violations",
-                "violations": enforcement["blocking_violations"],
-                "warnings": enforcement["warnings"],
-            },
-        )
+    # Only check enforcement if the rule is currently active
+    if rule.is_active:
+        from app.services.enforcement_service import check_rule_count_enforcement
+        enforcement = await check_rule_count_enforcement(rule.asset_id, db, delta=-1)
+        if enforcement["blocked"]:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "message": "Deletion blocked by enforced policy violations",
+                    "violations": enforcement["blocking_violations"],
+                    "warnings": enforcement["warnings"],
+                },
+            )
 
     asset_id = rule.asset_id
     rule.is_active = False
