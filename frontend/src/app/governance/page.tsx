@@ -38,6 +38,17 @@ interface Violation {
   domainName: string | null; subdomainName: string | null
 }
 
+interface PolicyVersion {
+  version_id: string
+  policy_id: string
+  version_number: number
+  changed_by: string
+  changed_at: string
+  change_summary: string | null
+  field_diffs: Array<{ field: string; old_value: unknown; new_value: unknown }>
+  snapshot: Record<string, unknown>
+}
+
 type GovernanceTab = 'scorecards' | 'policies' | 'violations' | 'approvals'
 type ScorecardFilter = 'all' | 'healthy' | 'at-risk'
 type PolicyFilter = 'all' | 'active' | 'draft' | 'enforced'
@@ -82,6 +93,47 @@ function fmtDate(iso: string | null) {
 
 const emptyForm = { name: '', description: '', domain: 'All', enforcement: 'enforced' as 'enforced' | 'advisory', status: 'draft' as 'active' | 'draft' | 'review' }
 
+function VersionRow({ version }: { version: { version_number: number; changed_by: string; changed_at: string; change_summary: string | null; field_diffs: Array<{ field: string; old_value: unknown; new_value: unknown }> } }) {
+  const [expanded, setExpanded] = useState(false)
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <button onClick={() => setExpanded(!expanded)}
+        style={{
+          width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer',
+          background: 'var(--surface)', textAlign: 'left', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        }}>
+        <div>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>v{version.version_number}</span>
+          <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-muted)' }}>{version.change_summary ?? 'Updated'} · {fmtDate(version.changed_at)} · {version.changed_by}</span>
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{expanded ? '▲' : '▼'}</span>
+      </button>
+      {expanded && version.field_diffs.length > 0 && (
+        <div style={{ padding: '10px 14px', background: 'var(--surface-muted)', borderTop: '1px solid var(--border)' }}>
+          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ color: 'var(--text-muted)' }}>
+                <th style={{ textAlign: 'left', padding: '2px 8px', fontWeight: 600 }}>Field</th>
+                <th style={{ textAlign: 'left', padding: '2px 8px', fontWeight: 600 }}>Old</th>
+                <th style={{ textAlign: 'left', padding: '2px 8px', fontWeight: 600 }}>New</th>
+              </tr>
+            </thead>
+            <tbody>
+              {version.field_diffs.map((d, i) => (
+                <tr key={i}>
+                  <td style={{ padding: '2px 8px', color: 'var(--text-muted)' }}>{d.field}</td>
+                  <td style={{ padding: '2px 8px', color: 'var(--status-error-text)' }}>{String(d.old_value ?? '—')}</td>
+                  <td style={{ padding: '2px 8px', color: 'var(--status-ok-text)' }}>{String(d.new_value ?? '—')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function GovernancePage() {
   const [tab, setTab] = useState<GovernanceTab>('scorecards')
   const [scorecardFilter, setScorecardFilter] = useState<ScorecardFilter>('all')
@@ -110,6 +162,9 @@ export default function GovernancePage() {
   const [rejectTarget, setRejectTarget] = useState<ApprovalItem | null>(null)
   const [rejectNote, setRejectNote] = useState('')
   const [approvalFilter, setApprovalFilter] = useState<'all' | 'pending' | 'policy' | 'contract' | 'data_product' | 'domain_ownership' | 'glossary_term'>('pending')
+  const [policyVersions, setPolicyVersions] = useState<PolicyVersion[]>([])
+  const [versionsLoading, setVersionsLoading] = useState(false)
+  const [policyPanelTab, setPolicyPanelTab] = useState<'violations' | 'history'>('violations')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -208,6 +263,17 @@ export default function GovernancePage() {
       .then(data => setCurrentUser({ role: data.role ?? 'viewer', domain_id: data.domain_id ?? null }))
       .catch(() => setCurrentUser({ role: 'viewer', domain_id: null }))
   }, [])
+  useEffect(() => {
+    if (policyPanelTab === 'history' && selectedPolicy) {
+      setVersionsLoading(true)
+      fetch(`/api/governance/policies/${selectedPolicy.id}/versions`)
+        .then(r => r.json())
+        .then(data => setPolicyVersions(Array.isArray(data) ? data : []))
+        .catch(() => setPolicyVersions([]))
+        .finally(() => setVersionsLoading(false))
+    }
+  }, [policyPanelTab, selectedPolicy])
+  useEffect(() => { setPolicyPanelTab('violations') }, [selectedPolicy])
 
   const runEvaluation = async () => {
     setEvaluating(true); setEvalResult(null)
@@ -636,26 +702,59 @@ export default function GovernancePage() {
                   </div>
                 </div>
               )}
-              {/* violations for this policy */}
-              {violationsLoaded && (() => {
-                const pv = violations.filter(v => v.policyId === selectedPolicy.id && v.status === 'open')
-                if (!pv.length) return null
-                return (
-                  <div style={{ padding: '12px 14px 0' }}>
-                    <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Open Violations ({pv.length})</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '200px', overflowY: 'auto' }}>
-                      {pv.slice(0, 20).map(viol => (
-                        <div key={viol.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: sevBg(viol.severity), borderRadius: '5px', border: `1px solid ${sevColor(viol.severity)}` }}>
-                          <span style={{ fontSize: '9px', fontWeight: 700, color: sevColor(viol.severity), textTransform: 'uppercase', flexShrink: 0 }}>{viol.severity}</span>
-                          <span style={{ fontSize: '10.5px', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viol.detail}</span>
-                          {viol.tableName && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>{viol.tableName}</span>}
+
+              {/* Panel tab bar */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 8, margin: '12px 14px 0 14px' }}>
+                {(['violations', 'history'] as const).map(pt => (
+                  <button key={pt} onClick={() => setPolicyPanelTab(pt)}
+                    style={{
+                      padding: '4px 12px', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12,
+                      background: policyPanelTab === pt ? 'var(--brand-primary)' : 'transparent',
+                      color: policyPanelTab === pt ? '#fff' : 'var(--text-muted)', fontWeight: 500,
+                    }}>
+                    {pt === 'violations' ? 'Violations' : 'History'}
+                  </button>
+                ))}
+              </div>
+
+              {policyPanelTab === 'violations' && (
+                <>
+                  {/* violations for this policy */}
+                  {violationsLoaded && (() => {
+                    const pv = violations.filter(v => v.policyId === selectedPolicy.id && v.status === 'open')
+                    if (!pv.length) return null
+                    return (
+                      <div style={{ padding: '0 14px 0' }}>
+                        <div style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Open Violations ({pv.length})</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', maxHeight: '200px', overflowY: 'auto' }}>
+                          {pv.slice(0, 20).map(viol => (
+                            <div key={viol.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', background: sevBg(viol.severity), borderRadius: '5px', border: `1px solid ${sevColor(viol.severity)}` }}>
+                              <span style={{ fontSize: '9px', fontWeight: 700, color: sevColor(viol.severity), textTransform: 'uppercase', flexShrink: 0 }}>{viol.severity}</span>
+                              <span style={{ fontSize: '10.5px', color: 'var(--foreground)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{viol.detail}</span>
+                              {viol.tableName && <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'monospace', flexShrink: 0 }}>{viol.tableName}</span>}
+                            </div>
+                          ))}
+                          {pv.length > 20 && <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '4px 8px' }}>+{pv.length - 20} more — see Violations tab</div>}
                         </div>
-                      ))}
-                      {pv.length > 20 && <div style={{ fontSize: '10px', color: 'var(--text-muted)', padding: '4px 8px' }}>+{pv.length - 20} more — see Violations tab</div>}
-                    </div>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
+
+              {policyPanelTab === 'history' && (
+                versionsLoading ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '0 14px' }}>Loading…</div>
+                ) : policyVersions.length === 0 ? (
+                  <div style={{ color: 'var(--text-muted)', fontSize: 13, padding: '0 14px' }}>No version history yet — history is recorded each time a policy is approved.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '0 14px' }}>
+                    {policyVersions.map(v => (
+                      <VersionRow key={v.version_id} version={v} />
+                    ))}
                   </div>
                 )
-              })()}
+              )}
             </div>
             <div style={{ padding: '12px 14px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
               {!confirmDeactivate ? (
