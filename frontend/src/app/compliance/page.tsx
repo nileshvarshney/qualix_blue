@@ -31,6 +31,8 @@ export default function CompliancePage() {
   const [loading, setLoading] = useState(true)
   const [seeding, setSeeding] = useState(false)
   const [assessing, setAssessing] = useState<string | null>(null)
+  const [evidenceDays, setEvidenceDays] = useState(30)
+  const [exportingEvidence, setExportingEvidence] = useState(false)
 
   useEffect(() => {
     fetch('/api/compliance')
@@ -132,6 +134,21 @@ export default function CompliancePage() {
     } finally { setAssessing(null) }
   }
 
+  async function handleExportEvidence() {
+    setExportingEvidence(true)
+    try {
+      const r = await fetch(`/api/audit/evidence-report?days=${evidenceDays}`)
+      const data = await r.json()
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = `evidence-report-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      URL.revokeObjectURL(a.href)
+    } catch { /* silent */ }
+    finally { setExportingEvidence(false) }
+  }
+
   const filteredControls = controls.filter(c => filter === 'all' || c.status === filter)
 
   const totalControls = frameworks.reduce((s, f) => s + f.controlsTotal, 0)
@@ -143,7 +160,27 @@ export default function CompliancePage() {
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
       <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>Workspace · <span style={{ color: 'var(--text-secondary)' }}>Compliance</span></div>
-      <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: '0 0 4px' }}>Compliance & Regulations</h1>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '4px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: 0 }}>Compliance & Regulations</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <select
+            value={evidenceDays}
+            onChange={e => setEvidenceDays(Number(e.target.value))}
+            style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+          >
+            <option value={7}>7 days</option>
+            <option value={30}>30 days</option>
+            <option value={90}>90 days</option>
+          </select>
+          <button
+            onClick={handleExportEvidence}
+            disabled={exportingEvidence}
+            style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '12px', color: 'var(--text-secondary)', cursor: exportingEvidence ? 'not-allowed' : 'pointer', fontWeight: 500 }}
+          >
+            {exportingEvidence ? 'Generating…' : '⬇ Export Evidence'}
+          </button>
+        </div>
+      </div>
       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 20px' }}>Map data quality rules to regulatory frameworks and track compliance posture</p>
 
       {/* KPIs */}
