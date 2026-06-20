@@ -1156,6 +1156,50 @@ class MaskingPolicy(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class DataSubjectRequest(Base):
+    __tablename__ = "data_subject_requests"
+
+    dsr_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    subject_email: Mapped[str] = mapped_column(String(200), nullable=False)
+    request_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    description: Mapped[Optional[str]] = mapped_column(Text)
+    affected_tables: Mapped[Optional[str]] = mapped_column(Text)
+    assigned_to: Mapped[Optional[str]] = mapped_column(String(200))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    requested_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class ConsentRecord(Base):
+    __tablename__ = "consent_records"
+
+    consent_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True)
+    purpose: Mapped[str] = mapped_column(String(300), nullable=False)
+    legal_basis: Mapped[str] = mapped_column(String(50), nullable=False)
+    data_subject_type: Mapped[Optional[str]] = mapped_column(String(100))
+    requires_explicit_consent: Mapped[bool] = mapped_column(Boolean, default=False)
+    opt_in: Mapped[bool] = mapped_column(Boolean, default=True)
+    recorded_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class DataResidencyPolicy(Base):
+    __tablename__ = "data_residency_policies"
+
+    residency_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=True)
+    domain_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("domains.domain_id"), nullable=True)
+    allowed_regions: Mapped[Optional[str]] = mapped_column(Text)
+    prohibited_regions: Mapped[Optional[str]] = mapped_column(Text)
+    data_sovereignty_country: Mapped[Optional[str]] = mapped_column(String(100))
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class SavedSearch(Base):
     __tablename__ = "saved_searches"
 
