@@ -302,6 +302,60 @@ async def seed_compliance_frameworks(db: AsyncSession):
     await db.flush()
 
 
+async def auto_map_rules_to_controls(db: AsyncSession) -> int:
+    """Map active DQ rules to compliance requirements by rule_type. Idempotent."""
+    from sqlalchemy import select
+    from app.db.models import DQRule, ComplianceRequirement, ComplianceMapping
+
+    reqs_result = await db.execute(select(ComplianceRequirement))
+    requirements = reqs_result.scalars().all()
+    if not requirements:
+        return 0
+
+    rules_result = await db.execute(select(DQRule).where(DQRule.is_active == True))
+    rules = rules_result.scalars().all()
+    if not rules:
+        return 0
+
+    # Build lookup: rule_type -> list of rules
+    by_type: dict[str, list] = {}
+    for r in rules:
+        by_type.setdefault(r.rule_type, []).append(r)
+
+    # Check existing mappings to avoid duplicates
+    existing_result = await db.execute(
+        select(ComplianceMapping.framework_id, ComplianceMapping.req_id, ComplianceMapping.rule_id)
+    )
+    existing_keys = {(r[0], r[1], r[2]) for r in existing_result.all()}
+
+    mapped = 0
+    for req in requirements:
+        if not req.dq_rule_types:
+            continue
+        rule_types = [rt.strip() for rt in req.dq_rule_types.split(",") if rt.strip()]
+        for rt in rule_types:
+            for rule in by_type.get(rt, []):
+                key = (req.framework_id, req.req_id, rule.rule_id)
+                if key in existing_keys:
+                    continue
+                db.add(ComplianceMapping(
+                    mapping_id=gen_uuid(),
+                    asset_id=rule.asset_id,
+                    framework_id=req.framework_id,
+                    req_id=req.req_id,
+                    rule_id=rule.rule_id,
+                    status="mapped",
+                    mapped_by="system",
+                    created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                ))
+                existing_keys.add(key)
+                mapped += 1
+
+    if mapped:
+        await db.flush()
+    return mapped
+
+
 async def seed(db: AsyncSession):
     from sqlalchemy import select, func
     from app.core.security import hash_password

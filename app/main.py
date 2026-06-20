@@ -100,10 +100,15 @@ async def lifespan(app: FastAPI):
             await seed_config(db)
         # Ensure compliance frameworks (real regulatory definitions) are initialized
         try:
-            from app.db.seed import seed_compliance_frameworks
+            from app.db.seed import seed_compliance_frameworks, auto_map_rules_to_controls
             async with AsyncSessionLocal() as db:
                 await seed_compliance_frameworks(db)
                 await db.commit()
+            async with AsyncSessionLocal() as db:
+                n = await auto_map_rules_to_controls(db)
+                await db.commit()
+                if n:
+                    logger.info("Auto-mapped %d DQ rules to compliance controls", n)
         except Exception as _ce:
             logger.warning("Compliance framework init skipped: %s", _ce)
         start_scheduler()
