@@ -21,6 +21,19 @@ interface PendingTerm {
   createdBy: string; createdAt: string
 }
 
+interface ApprovalItem {
+  approval_id: string
+  entity_type: string
+  entity_id: string
+  entity_snapshot: Record<string, unknown> | null
+  status: 'pending' | 'approved' | 'rejected'
+  requested_by: string
+  reviewed_by: string | null
+  feedback: string | null
+  created_at: string
+  reviewed_at: string | null
+}
+
 interface Violation {
   id: string; policyId: string; policyName: string
   entityType: string; entityId: string; detail: string
@@ -30,7 +43,7 @@ interface Violation {
   domainName: string | null; subdomainName: string | null
 }
 
-type GovernanceTab = 'scorecards' | 'policies' | 'violations' | 'pending'
+type GovernanceTab = 'scorecards' | 'policies' | 'violations' | 'approvals'
 type ScorecardFilter = 'all' | 'healthy' | 'at-risk'
 type PolicyFilter = 'all' | 'active' | 'draft' | 'enforced'
 type ViolationFilter = 'open' | 'resolved' | 'high' | 'medium' | 'all'
@@ -96,10 +109,13 @@ export default function GovernancePage() {
   const [policyForm, setPolicyForm] = useState(emptyForm)
   const [pendingTerms, setPendingTerms] = useState<PendingTerm[]>([])
   const [currentUser, setCurrentUser] = useState<{ role: string; domain_id: string | null } | null>(null)
-  const [govRejectTarget, setGovRejectTarget] = useState<PendingTerm | null>(null)
-  const [govRejectNote, setGovRejectNote] = useState('')
-  const [govActionLoading, setGovActionLoading] = useState<string | null>(null)
-  const [govActionError, setGovActionError] = useState<string | null>(null)
+  const [approvals, setApprovals] = useState<ApprovalItem[]>([])
+  const [approvalsLoaded, setApprovalsLoaded] = useState(false)
+  const [approvalActionLoading, setApprovalActionLoading] = useState<string | null>(null)
+  const [approvalActionError, setApprovalActionError] = useState<string | null>(null)
+  const [rejectTarget, setRejectTarget] = useState<ApprovalItem | null>(null)
+  const [rejectNote, setRejectNote] = useState('')
+  const [approvalFilter, setApprovalFilter] = useState<'all' | 'pending' | 'policy' | 'contract' | 'data_product' | 'domain_ownership' | 'glossary_term'>('pending')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -142,42 +158,20 @@ export default function GovernancePage() {
     setLoading(false)
   }, [])
 
-  const loadPendingTerms = useCallback(async () => {
-    try {
-      const data = await fetch('/api/glossary').then(r => r.json()).catch(() => [])
-      const items = Array.isArray(data) ? data : []
-      setPendingTerms(
-        items
-          .filter((t: Record<string, unknown>) => t.status === 'pending_review')
-          .map((t: Record<string, unknown>) => ({
-            id: String(t.term_id ?? ''),
-            name: String(t.term_name ?? ''),
-            definition: String(t.definition ?? ''),
-            domain: String(t.domain_name ?? ''),
-            createdBy: String(t.created_by ?? ''),
-            createdAt: String(t.created_at ?? ''),
-          }))
-      )
-    } catch { /* leave empty */ }
-  }, [])
+  const loadApprovals = useCallback(async () => {
+    const params = new URLSearchParams()
+    if (approvalFilter !== 'all' && ['pending', 'approved', 'rejected'].includes(approvalFilter)) {
+      params.set('status', approvalFilter)
+    } else if (!['all', 'pending'].includes(approvalFilter)) {
+      params.set('entity_type', approvalFilter)
+    } else if (approvalFilter === 'pending') {
+      params.set('status', 'pending')
+    }
+    const data = await fetch(`/api/governance/approvals?${params}`).then(r => r.json()).catch(() => [])
+    setApprovals(Array.isArray(data) ? data : [])
+    setApprovalsLoaded(true)
+  }, [approvalFilter])
 
-  const govDoAction = async (termId: string, action: string, body: object = {}): Promise<boolean> => {
-    setGovActionLoading(termId)
-    setGovActionError(null)
-    try {
-      const res = await fetch(`/api/glossary/${termId}?action=${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      if (res.status === 403) { setGovActionError("You don't have permission to perform this action"); return false }
-      if (res.status === 400) { setGovActionError('This term is no longer in the expected state — refresh and try again'); return false }
-      if (!res.ok) { setGovActionError('Action failed — please try again'); return false }
-      setPendingTerms(prev => prev.filter(t => t.id !== termId))
-      return true
-    } catch { setGovActionError('Action failed — please try again'); return false }
-    finally { setGovActionLoading(null) }
-  }
 
   const loadViolations = useCallback(async () => {
     setLoadingViolations(true)
@@ -209,12 +203,17 @@ export default function GovernancePage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (tab === 'violations' && !violationsLoaded) loadViolations() }, [tab, violationsLoaded, loadViolations])
   useEffect(() => {
-    loadPendingTerms()
+    if (tab === 'approvals' && !approvalsLoaded) loadApprovals()
+  }, [tab, approvalsLoaded, loadApprovals])
+  useEffect(() => {
+    if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
+  }, [approvalFilter])
+  useEffect(() => {
     fetch('/api/me')
       .then(r => r.json())
       .then(data => setCurrentUser({ role: data.role ?? 'viewer', domain_id: data.domain_id ?? null }))
       .catch(() => setCurrentUser({ role: 'viewer', domain_id: null }))
-  }, [loadPendingTerms])
+  }, [])
 
   const runEvaluation = async () => {
     setEvaluating(true); setEvalResult(null)
@@ -330,7 +329,7 @@ export default function GovernancePage() {
 
       {/* tabs + filters */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
-        {(['scorecards', 'policies', 'violations', 'pending'] as GovernanceTab[]).map(t => (
+        {(['scorecards', 'policies', 'violations', 'approvals'] as GovernanceTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)} style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: tab === t ? '#1a1a1a' : 'var(--surface-muted)', color: tab === t ? '#fff' : 'var(--text-secondary)', fontWeight: tab === t ? 600 : 400, fontSize: '11px', textTransform: 'capitalize' }}>
             {t === 'scorecards'
               ? `Scorecards (${filteredDomains.length})`
@@ -338,7 +337,7 @@ export default function GovernancePage() {
               ? `Policies (${filteredPolicies.length})`
               : t === 'violations'
               ? `Violations (${violationsLoaded ? filteredViolations.length : '…'})`
-              : `Pending (${pendingTerms.length})`}
+              : `Approvals (${approvalsLoaded ? approvals.length : '…'})`}
           </button>
         ))}
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
@@ -367,13 +366,6 @@ export default function GovernancePage() {
       {tab === 'violations' && !loadingViolations && filteredViolations.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: VIOLATION_COLS, gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           {VIOLATION_HEADERS.map(h => <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
-        </div>
-      )}
-      {tab === 'pending' && pendingTerms.length > 0 && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 90px 100px 140px', gap: '0 6px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
-          {['Term', 'Submitted By', 'Domain', 'Submitted', 'Actions'].map(h => (
-            <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</span>
-          ))}
         </div>
       )}
 
@@ -451,48 +443,143 @@ export default function GovernancePage() {
           <div style={{ padding: '10px', textAlign: 'center', fontSize: '10px', color: 'var(--text-muted)' }}>Showing first 500 violations — use filters to narrow results</div>
         )}
 
-        {/* pending terms */}
-        {tab === 'pending' && govActionError && (
-          <div style={{ padding: '6px 10px', margin: '4px 0', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', borderRadius: '6px', fontSize: '11px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {govActionError}
-            <button onClick={() => setGovActionError(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', fontSize: '14px', lineHeight: 1 }}>✕</button>
+        {/* approvals */}
+        {tab === 'approvals' && (
+          <div style={{ padding: '0 24px 24px' }}>
+            {/* Filter bar */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+              {(['all', 'pending', 'policy', 'contract', 'data_product', 'domain_ownership', 'glossary_term'] as const).map(f => (
+                <button key={f} onClick={() => setApprovalFilter(f)}
+                  style={{
+                    padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 12,
+                    fontSize: 12, cursor: 'pointer',
+                    background: approvalFilter === f ? 'var(--brand-primary)' : 'transparent',
+                    color: approvalFilter === f ? '#fff' : 'var(--text-muted)',
+                  }}>
+                  {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : f === 'data_product' ? 'Data Products' : f === 'domain_ownership' ? 'Domain Ownership' : f === 'glossary_term' ? 'Glossary Terms' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
+                </button>
+              ))}
+            </div>
+
+            {approvalActionError && (
+              <div style={{ marginBottom: 12, color: 'var(--status-error-text)', fontSize: 13 }}>{approvalActionError}</div>
+            )}
+
+            {approvals.length === 0 ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '32px 0' }}>No approval requests found.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {approvals.map(item => (
+                  <div key={item.approval_id} style={{
+                    display: 'grid', gridTemplateColumns: '100px 1fr 120px 100px 80px auto',
+                    alignItems: 'center', gap: 12, padding: '12px 16px',
+                    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+                  }}>
+                    {/* Entity type badge */}
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      background: 'var(--surface-muted)', color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.06em',
+                    }}>
+                      {item.entity_type.replace('_', ' ')}
+                    </span>
+
+                    {/* Name from snapshot */}
+                    <div>
+                      <div style={{ fontWeight: 500, fontSize: 13 }}>
+                        {String(item.entity_snapshot?.policy_name ?? item.entity_snapshot?.contract_name ?? item.entity_snapshot?.name ?? item.entity_id)}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>by {item.requested_by}</div>
+                    </div>
+
+                    {/* Status badge */}
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+                      background: item.status === 'pending' ? 'var(--status-warn-bg)' : item.status === 'approved' ? 'var(--status-ok-bg)' : 'var(--status-error-bg)',
+                      color: item.status === 'pending' ? 'var(--status-warn-text)' : item.status === 'approved' ? 'var(--status-ok-text)' : 'var(--status-error-text)',
+                    }}>
+                      {item.status}
+                    </span>
+
+                    {/* Date */}
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(item.created_at)}</span>
+
+                    {/* Reviewed by */}
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.reviewed_by ?? '—'}</span>
+
+                    {/* Actions */}
+                    {item.status === 'pending' && currentUser?.role && ['admin', 'domain_owner'].includes(currentUser.role) && (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          disabled={approvalActionLoading === item.approval_id}
+                          onClick={async () => {
+                            setApprovalActionLoading(item.approval_id)
+                            setApprovalActionError(null)
+                            try {
+                              const res = await fetch(`/api/governance/approvals/${item.approval_id}?action=approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+                              if (!res.ok) throw new Error('Approve failed')
+                              setApprovalsLoaded(false); loadApprovals()
+                            } catch { setApprovalActionError('Approve failed') }
+                            finally { setApprovalActionLoading(null) }
+                          }}
+                          style={{ padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontWeight: 600 }}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          disabled={approvalActionLoading === item.approval_id}
+                          onClick={() => { setRejectTarget(item); setRejectNote('') }}
+                          style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, background: 'transparent', color: 'var(--text-muted)' }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Reject modal */}
+            {rejectTarget && (
+              <div style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }} onClick={() => setRejectTarget(null)}>
+                <div style={{ background: 'var(--surface)', borderRadius: 12, padding: 24, width: 420, maxWidth: '90vw' }}
+                  onClick={e => e.stopPropagation()}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Reject: {String(rejectTarget.entity_snapshot?.policy_name ?? rejectTarget.entity_id)}</h3>
+                  <textarea
+                    placeholder="Reason for rejection (optional)"
+                    value={rejectNote}
+                    onChange={e => setRejectNote(e.target.value)}
+                    style={{ width: '100%', minHeight: 80, padding: 10, borderRadius: 6, border: '1px solid var(--border)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
+                    <button onClick={() => setRejectTarget(null)} style={{ padding: '6px 16px', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', background: 'transparent' }}>Cancel</button>
+                    <button onClick={async () => {
+                      if (!rejectTarget) return
+                      setApprovalActionLoading(rejectTarget.approval_id)
+                      setApprovalActionError(null)
+                      try {
+                        const res = await fetch(`/api/governance/approvals/${rejectTarget.approval_id}?action=reject`, {
+                          method: 'POST', headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ feedback: rejectNote }),
+                        })
+                        if (!res.ok) throw new Error('Reject failed')
+                        setRejectTarget(null); setApprovalsLoaded(false); loadApprovals()
+                      } catch { setApprovalActionError('Reject failed') }
+                      finally { setApprovalActionLoading(null) }
+                    }}
+                      style={{ padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontWeight: 600 }}>
+                      Confirm Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
-        {tab === 'pending' && pendingTerms.length === 0 && (
-          <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>
-            No terms pending review
-          </div>
-        )}
-        {tab === 'pending' && pendingTerms.map(term => (
-          <div key={term.id} style={{ display: 'grid', gridTemplateColumns: '1fr 140px 90px 100px 140px', gap: '0 6px', alignItems: 'center', padding: '5px 6px', borderBottom: '1px solid var(--surface-muted)', borderLeft: '2px solid var(--status-info-text)' }}
-            onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
-            onMouseLeave={e => (e.currentTarget.style.background = '')}>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{term.name}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.definition}</div>
-            </div>
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.createdBy}</span>
-            <span style={{ fontSize: '10px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{term.domain || '—'}</span>
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{term.createdAt ? new Date(term.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</span>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {isGovReviewer && (
-                <>
-                  <button
-                    onClick={() => govDoAction(term.id, 'approve')}
-                    disabled={govActionLoading === term.id}
-                    style={{ padding: '2px 8px', borderRadius: '4px', border: 'none', background: 'var(--status-ok-bg)', fontSize: '10px', cursor: govActionLoading === term.id ? 'not-allowed' : 'pointer', color: 'var(--status-ok-text)', opacity: govActionLoading === term.id ? 0.6 : 1 }}>
-                    {govActionLoading === term.id ? '…' : 'Approve'}
-                  </button>
-                  <button
-                    onClick={() => { setGovRejectTarget(term); setGovRejectNote('') }}
-                    style={{ padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', fontSize: '10px', cursor: 'pointer', color: 'var(--status-error-text)' }}>
-                    Reject
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
       </div>
 
       {/* domain scorecard panel */}
@@ -651,42 +738,6 @@ export default function GovernancePage() {
         </div>
       )}
 
-      {govRejectTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}>
-          <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '24px', width: '420px', maxWidth: '90vw', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <div style={{ fontWeight: 700, fontSize: 'var(--text-md)', color: 'var(--foreground)' }}>Reject Term</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-              Returning <strong>{govRejectTarget.name}</strong> to draft. Explain what needs to change.
-            </div>
-            <div>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Feedback (required)</label>
-              <textarea
-                value={govRejectNote}
-                onChange={e => setGovRejectNote(e.target.value)}
-                rows={3}
-                placeholder="Explain what needs to be revised..."
-                style={{ width: '100%', padding: '7px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: 'var(--text-xs)', outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => { setGovRejectTarget(null); setGovRejectNote('') }}
-                style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: 'var(--text-xs)', cursor: 'pointer' }}>
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  const ok = await govDoAction(govRejectTarget.id, 'reject', { review_note: govRejectNote })
-                  if (ok) { setGovRejectTarget(null); setGovRejectNote('') }
-                }}
-                disabled={!govRejectNote.trim() || govActionLoading === govRejectTarget.id}
-                style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: 'var(--text-xs)', fontWeight: 600, cursor: (!govRejectNote.trim() || govActionLoading === govRejectTarget.id) ? 'not-allowed' : 'pointer', opacity: (!govRejectNote.trim() || govActionLoading === govRejectTarget.id) ? 0.6 : 1 }}>
-                {govActionLoading === govRejectTarget.id ? 'Rejecting…' : 'Reject'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
