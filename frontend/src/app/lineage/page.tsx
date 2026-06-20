@@ -457,6 +457,47 @@ export default function LineagePage() {
     }
   }, [selectedColumn, selected, columnEdges, data, rawNodeMap])
 
+  // ─── Impact stats (must live before early returns to satisfy Rules of Hooks) ───
+  const selectedNode = selected ? nodeMap.get(selected) : null
+
+  const { upstreamChain, downstreamChain } = useMemo(() => {
+    if (!selected || !data) return { upstreamChain: [], downstreamChain: [] }
+    return {
+      upstreamChain: buildChain(selected, data.edges, nodeMap, 'up'),
+      downstreamChain: buildChain(selected, data.edges, nodeMap, 'down'),
+    }
+  }, [selected, data, nodeMap])
+
+  const totalUpstream = upstreamChain.reduce((s, h) => s + h.nodes.length, 0)
+  const totalDownstream = downstreamChain.reduce((s, h) => s + h.nodes.length, 0)
+
+  const impactStats = useMemo(() => {
+    if (!selected || !selectedNode) return null
+    const allDownstream = downstreamChain.flatMap(h => h.nodes)
+    const byType: Record<string, LineageNode[]> = {}
+    for (const n of allDownstream) {
+      if (!byType[n.type]) byType[n.type] = []
+      byType[n.type].push(n)
+    }
+    const hopNodeMap = new Map<string, number>()
+    downstreamChain.forEach(hop => hop.nodes.forEach(n => hopNodeMap.set(n.id, hop.hop)))
+    const severity: 'none' | 'low' | 'medium' | 'high' | 'critical' =
+      allDownstream.length === 0 ? 'none'
+      : allDownstream.length <= 3 ? 'low'
+      : allDownstream.length <= 10 ? 'medium'
+      : allDownstream.length <= 20 ? 'high'
+      : 'critical'
+    return {
+      total: allDownstream.length,
+      byType,
+      severity,
+      businessConsumers: allDownstream.filter(n => n.type === 'output'),
+      hopCount: downstreamChain.length,
+      allDownstream,
+      hopNodeMap,
+    }
+  }, [selected, selectedNode, downstreamChain, upstreamChain])
+
   function zoomIn() { setZoom(z => Math.min(ZOOM_MAX, +(z + ZOOM_STEP).toFixed(2))) }
   function zoomOut() { setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2))) }
   function zoomReset() { setZoom(1); setPan({ x: 0, y: 0 }) }
@@ -569,46 +610,6 @@ export default function LineagePage() {
     setSearch(''); setSelected(null); setShowDropdown(false)
     inputRef.current?.focus()
   }
-
-  const selectedNode = selected ? nodeMap.get(selected) : null
-
-  const { upstreamChain, downstreamChain } = useMemo(() => {
-    if (!selected || !data) return { upstreamChain: [], downstreamChain: [] }
-    return {
-      upstreamChain: buildChain(selected, data.edges, nodeMap, 'up'),
-      downstreamChain: buildChain(selected, data.edges, nodeMap, 'down'),
-    }
-  }, [selected, data, nodeMap])
-
-  const totalUpstream = upstreamChain.reduce((s, h) => s + h.nodes.length, 0)
-  const totalDownstream = downstreamChain.reduce((s, h) => s + h.nodes.length, 0)
-
-  const impactStats = useMemo(() => {
-    if (!selected || !selectedNode) return null
-    const allDownstream = downstreamChain.flatMap(h => h.nodes)
-    const byType: Record<string, LineageNode[]> = {}
-    for (const n of allDownstream) {
-      if (!byType[n.type]) byType[n.type] = []
-      byType[n.type].push(n)
-    }
-    const hopNodeMap = new Map<string, number>()
-    downstreamChain.forEach(hop => hop.nodes.forEach(n => hopNodeMap.set(n.id, hop.hop)))
-    const severity: 'none' | 'low' | 'medium' | 'high' | 'critical' =
-      allDownstream.length === 0 ? 'none'
-      : allDownstream.length <= 3 ? 'low'
-      : allDownstream.length <= 10 ? 'medium'
-      : allDownstream.length <= 20 ? 'high'
-      : 'critical'
-    return {
-      total: allDownstream.length,
-      byType,
-      severity,
-      businessConsumers: allDownstream.filter(n => n.type === 'output'),
-      hopCount: downstreamChain.length,
-      allDownstream,
-      hopNodeMap,
-    }
-  }, [selected, selectedNode, downstreamChain, upstreamChain])
 
   function captureGraph() {
     const svgEl = svgRef.current

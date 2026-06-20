@@ -15,7 +15,7 @@ const themeInitScript = `(function(){try{var t=localStorage.getItem('qualix-them
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
