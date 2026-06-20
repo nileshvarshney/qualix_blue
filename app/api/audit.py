@@ -14,6 +14,13 @@ from app.core.security import get_current_user
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
 
+_GOVERNED_TYPES = [
+    "rule", "asset", "domain", "subdomain", "user", "connection",
+    "schedule", "alert", "sla", "glossary_term", "governance_policy",
+    "data_product", "data_contract", "masking_policy", "incident",
+    "issue", "team", "tag", "classification",
+]
+
 
 @router.get("")
 async def list_audit_logs(
@@ -226,3 +233,42 @@ async def list_audit_anomalies(
         })
 
     return anomalies
+
+
+@router.get("/coverage")
+async def audit_coverage(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Return audit coverage metrics — what % of governed entity types are being logged."""
+    result = await db.execute(
+        select(
+            AuditLog.entity_type,
+            func.count().label("event_count"),
+            func.max(AuditLog.created_at).label("last_logged"),
+        )
+        .group_by(AuditLog.entity_type)
+    )
+    rows = result.all()
+    logged_types = {r.entity_type: r for r in rows}
+
+    by_type = []
+    for gt in _GOVERNED_TYPES:
+        row = logged_types.get(gt)
+        by_type.append({
+            "entity_type": gt,
+            "event_count": row.event_count if row else 0,
+            "last_logged": row.last_logged.isoformat() if row and row.last_logged else None,
+        })
+
+    covered = sum(1 for gt in _GOVERNED_TYPES if gt in logged_types and logged_types[gt].event_count > 0)
+    total = len(_GOVERNED_TYPES)
+    uncovered = [gt for gt in _GOVERNED_TYPES if gt not in logged_types or logged_types[gt].event_count == 0]
+
+    return {
+        "coverage_pct": round((covered / total) * 100) if total else 0,
+        "covered_types": covered,
+        "total_governed_types": total,
+        "uncovered_types": uncovered,
+        "by_type": by_type,
+    }

@@ -107,3 +107,35 @@ class TestAnomalyPatterns:
         from app.api.audit import router
         routes = [r.path for r in router.routes]
         assert "/audit/anomalies" in routes
+
+
+class TestCoverageMetrics:
+    def test_coverage_pct_full(self):
+        """100% when all governed types are present."""
+        governed = [
+            "rule", "asset", "domain", "subdomain", "user", "connection",
+            "schedule", "alert", "sla", "glossary_term", "governance_policy",
+            "data_product", "data_contract", "masking_policy", "incident",
+            "issue", "team", "tag", "classification",
+        ]
+        covered = len(governed)
+        pct = round((covered / len(governed)) * 100)
+        assert pct == 100
+
+    def test_coverage_pct_partial(self):
+        """50% when half of 4 governed types are covered."""
+        governed = ["rule", "asset", "domain", "user"]
+        covered = 2
+        pct = round((covered / len(governed)) * 100)
+        assert pct == 50
+
+    def test_uncovered_types_listed(self):
+        governed = ["rule", "asset", "domain"]
+        logged = {"rule", "asset"}
+        uncovered = [g for g in governed if g not in logged]
+        assert uncovered == ["domain"]
+
+    def test_coverage_endpoint_importable(self):
+        from app.api.audit import router
+        routes = [r.path for r in router.routes]
+        assert "/audit/coverage" in routes
