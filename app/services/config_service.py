@@ -61,6 +61,23 @@ CONFIG_DEFAULTS: list[dict] = [
     {"category": "scheduler", "key": "global_schedule_frequency", "value": "daily",               "is_secret": False, "description": "Global default schedule frequency: hourly, daily, weekly, monthly, cron, on_demand"},
     {"category": "scheduler", "key": "global_schedule_cron",      "value": "0 6 * * *",           "is_secret": False, "description": "Cron expression for global schedule when frequency=cron (default: 6 AM daily)"},
 
+    # Security settings
+    {"category": "security", "key": "security.sso_enabled",            "value": "false",        "is_secret": False, "description": "Allow SSO via configured OAuth provider"},
+    {"category": "security", "key": "security.mfa_required",           "value": "true",         "is_secret": False, "description": "Require MFA for all user logins"},
+    {"category": "security", "key": "security.mfa_method",             "value": "totp",         "is_secret": False, "description": "MFA method: totp, sms, email, webauthn"},
+    {"category": "security", "key": "security.min_password_length",    "value": "12",           "is_secret": False, "description": "Minimum password length (8–128)"},
+    {"category": "security", "key": "security.require_special_chars",  "value": "true",         "is_secret": False, "description": "Require special characters in passwords"},
+    {"category": "security", "key": "security.password_rotation_days", "value": "90",           "is_secret": False, "description": "Days before password rotation required (0 = disabled)"},
+    {"category": "security", "key": "security.session_timeout_minutes","value": "480",          "is_secret": False, "description": "JWT access token expiry in minutes (default 8 h)"},
+    {"category": "security", "key": "security.max_login_attempts",     "value": "5",            "is_secret": False, "description": "Max failed login attempts before rate-limiting triggers"},
+    {"category": "security", "key": "security.ip_whitelist",           "value": "",             "is_secret": False, "description": "Comma-separated allowed IPs or CIDR blocks (empty = allow all)"},
+    {"category": "security", "key": "security.enforce_rbac",           "value": "true",         "is_secret": False, "description": "Enforce role-based access control on all data endpoints"},
+    {"category": "security", "key": "security.audit_logging",          "value": "true",         "is_secret": False, "description": "Log all user actions to the audit trail"},
+    {"category": "security", "key": "security.data_encryption",        "value": "true",         "is_secret": False, "description": "Encrypt sensitive fields at rest"},
+    {"category": "security", "key": "security.api_rate_limit",         "value": "1000",         "is_secret": False, "description": "Global API rate limit (requests per minute per client)"},
+    {"category": "security", "key": "security.column_access_pii_min_role",          "value": "data_steward", "is_secret": False, "description": "Minimum role to view PII-tagged column data"},
+    {"category": "security", "key": "security.column_access_confidential_min_role", "value": "analyst",      "is_secret": False, "description": "Minimum role to view Confidential-tagged column data"},
+
     # Governance
     {"category": "governance_config", "key": "auto_certify_enabled",       "value": "false", "is_secret": False, "description": "Automatically certify tables that meet quality thresholds for a consecutive period"},
     {"category": "governance_config", "key": "auto_certify_min_score",     "value": "95",    "is_secret": False, "description": "Minimum quality score (%) a table must sustain to be auto-certified"},

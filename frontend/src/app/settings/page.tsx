@@ -7,10 +7,29 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState({ name: '', email: '', role: 'Admin', timezone: '', language: 'en' })
 
   useEffect(() => {
+    // Load local preferences first, then overlay real user info from backend
     try {
       const p = localStorage.getItem('dg_settings_profile')
       if (p) setProfile(JSON.parse(p))
     } catch { }
+
+    fetch('/api/me', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        const ROLE_LABELS: Record<string, string> = {
+          admin: 'Admin', data_steward: 'Data Steward', data_engineer: 'Data Engineer',
+          analyst: 'Analyst', viewer: 'Viewer', domain_owner: 'Domain Owner',
+          data_owner: 'Data Owner', auditor: 'Auditor',
+        }
+        setProfile(prev => ({
+          ...prev,
+          name: data.full_name || prev.name,
+          email: data.email || prev.email,
+          role: ROLE_LABELS[data.role] || data.role || prev.role,
+        }))
+      })
+      .catch(() => { /* backend unavailable — keep local state */ })
   }, [])
 
   function save() {
@@ -69,7 +88,7 @@ export default function SettingsPage() {
             <div style={card}>
               <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '20px' }}>Profile Settings</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', padding: '16px', background: 'var(--surface-muted)', borderRadius: '10px', border: '1px solid var(--border)' }}>
-                <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '22px' }}>B</div>
+                <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '22px' }}>{(profile.name || profile.email || 'U')[0].toUpperCase()}</div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--foreground)' }}>{profile.name}</div>
                   <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>{profile.role} · {profile.email}</div>
@@ -79,7 +98,8 @@ export default function SettingsPage() {
                 {[['Full Name', 'name'], ['Email', 'email'], ['Role', 'role'], ['Timezone', 'timezone']].map(([label, key]) => (
                   <div key={key}>
                     <label style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 500, display: 'block', marginBottom: '6px' }}>{label}</label>
-                    <input value={profile[key as keyof typeof profile]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} disabled={key === 'role'} style={inp(key === 'role' ? { background: 'var(--surface-muted)', opacity: 0.7 } : undefined)} />
+                    <input value={profile[key as keyof typeof profile]} onChange={e => setProfile(p => ({ ...p, [key]: e.target.value }))} disabled={key === 'role' || key === 'email'} style={inp((key === 'role' || key === 'email') ? { background: 'var(--surface-muted)', opacity: 0.7, cursor: 'not-allowed' } : undefined)} />
+                    {key === 'role' && <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Managed via User Management</div>}
                   </div>
                 ))}
               </div>

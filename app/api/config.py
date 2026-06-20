@@ -13,7 +13,7 @@ from app.core.config import settings
 logger = logging.getLogger("dq_platform.config")
 router = APIRouter(prefix="/config", tags=["Configuration"])
 
-VALID_CATEGORIES = {"general", "platform_connection", "llm", "scheduler"}
+VALID_CATEGORIES = {"general", "platform_connection", "llm", "scheduler", "security"}
 
 
 @router.get("/public/display-timezone", include_in_schema=True)

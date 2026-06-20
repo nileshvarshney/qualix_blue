@@ -710,11 +710,46 @@ async def delete_asset(asset_id: str, db: AsyncSession = Depends(get_db), user=D
 
 
 @router.get("/{asset_id}/columns")
-async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
+async def get_asset_columns(
+    asset_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
     """Return column metadata. Uses profiled stats from column_metadata when available,
-    otherwise falls back to live Snowflake INFORMATION_SCHEMA."""
+    otherwise falls back to live Snowflake INFORMATION_SCHEMA.
+
+    Column profile values (samples, top_values, min/max) are masked for callers whose
+    role falls below the configured minimum for PII or Confidential-tagged columns.
+    """
     from app.db.models import ColumnMetadata, DataClassification
+    from app.services.config_service import get_value as _get_cfg
     import json as _json
+
+    # ── Role-rank lookup for column-level access control ─────────────────────
+    _ROLE_RANK: dict[str, int] = {
+        "admin": 100, "data_owner": 60, "data_engineer": 60, "data_steward": 60,
+        "domain_owner": 50, "analyst": 30, "auditor": 20, "viewer": 10,
+    }
+    _user_rank = _ROLE_RANK.get(user.get("role", "viewer"), 10)
+
+    pii_min_role = await _get_cfg("security.column_access_pii_min_role", db) or "data_steward"
+    conf_min_role = await _get_cfg("security.column_access_confidential_min_role", db) or "analyst"
+    _pii_rank  = _ROLE_RANK.get(pii_min_role, 60)
+    _conf_rank = _ROLE_RANK.get(conf_min_role, 30)
+
+    _SENSITIVE_CLASSIFICATIONS = {"PII", "SENSITIVE", "CONFIDENTIAL", "RESTRICTED"}
+    _HIGH_CLASSIFICATIONS = {"PII", "SENSITIVE"}
+
+    def _should_mask(classification: str | None) -> tuple[bool, str]:
+        """Return (should_mask, reason). Admins are never masked."""
+        if not classification or _user_rank >= 100:
+            return False, ""
+        cls = classification.upper()
+        if cls in _HIGH_CLASSIFICATIONS and _user_rank < _pii_rank:
+            return True, f"Column classified as {classification} — requires {pii_min_role} role or higher"
+        if cls in {"CONFIDENTIAL", "RESTRICTED"} and _user_rank < _conf_rank:
+            return True, f"Column classified as {classification} — requires {conf_min_role} role or higher"
+        return False, ""
 
     result = await db.execute(select(Asset).where(Asset.asset_id == asset_id))
     asset = result.scalar_one_or_none()
@@ -745,6 +780,8 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
         def _to_dict(c: ColumnMetadata) -> dict:
             top = _json.loads(c.top_values)    if c.top_values    else None
             smp = _json.loads(c.sample_values) if c.sample_values else None
+            cls = classifications.get(c.column_name)
+            masked, mask_reason = _should_mask(cls)
             return {
                 "column_id":        c.col_id,
                 "column_name":      c.column_name,
@@ -757,14 +794,15 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
                 "null_count":       c.null_count,
                 "distinct_count":   c.unique_count,
                 "cardinality_pct":  c.cardinality_pct,
-                "min_value":        c.min_value,
-                "max_value":        c.max_value,
-                "mean":             c.avg_value,
-                "std_dev":          c.std_dev,
-                "top_values":       top,
-                "sample_values":    smp,
+                "min_value":        None if masked else c.min_value,
+                "max_value":        None if masked else c.max_value,
+                "mean":             None if masked else c.avg_value,
+                "std_dev":          None if masked else c.std_dev,
+                "top_values":       None if masked else top,
+                "sample_values":    None if masked else smp,
                 "last_profiled_at": c.last_profiled_at.isoformat() + 'Z' if c.last_profiled_at else None,
-                "classification":   classifications.get(c.column_name),
+                "classification":   cls,
+                **({"_masked": True, "_masked_reason": mask_reason} if masked else {}),
             }
 
         # Derive total_rows: unique_count / (cardinality_pct/100) for any column that has both
@@ -778,7 +816,7 @@ async def get_asset_columns(asset_id: str, db: AsyncSession = Depends(get_db)):
         # Back-fill null_pct now that we have total_rows
         if total_rows > 0:
             for col_dict, col_rec in zip(cols, profiled):
-                if col_rec.null_count is not None:
+                if col_rec.null_count is not None and not col_dict.get("_masked"):
                     col_dict["null_pct"] = round(col_rec.null_count / total_rows * 100, 2)
         return {**base, "columns": cols}
 

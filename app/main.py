@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.limiter import limiter
 from app.core.logging_config import setup_logging
-from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
+from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware, IPWhitelistMiddleware
 from app.db.database import create_tables, check_db_health
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.api import alert_definitions as alert_definitions_module
@@ -39,6 +39,7 @@ from app.api import (
     issues,
 )
 # §M6 User/Role/Team
+from app.api.security_settings import router as security_settings_router
 from app.api import teams as teams_module
 from app.api import ownership as ownership_module
 from app.api.users import router as users_router
@@ -160,6 +161,7 @@ app.add_middleware(
 )
 
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(IPWhitelistMiddleware)
 app.add_middleware(RequestIDMiddleware)
 
 # ── Global exception handler ──────────────────────────────────────────────────
@@ -177,6 +179,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(users_router)
 app.include_router(oauth_router)
+app.include_router(security_settings_router)
 app.include_router(service_accounts_router)
 app.include_router(domains.router)
 app.include_router(subdomains.router)

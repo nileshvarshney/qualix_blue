@@ -1,8 +1,9 @@
 from __future__ import annotations
 from typing import Optional
+import re
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -19,6 +20,26 @@ _utcnow = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
 
 router = APIRouter(tags=["Users & Auth"])
 logger = logging.getLogger("dq_platform.users")
+
+_SPECIAL_CHARS_RE = re.compile(r'[!@#$%^&*()\-_=+\[\]{};\':"\\|,.<>/?]')
+
+
+async def _validate_password_policy(password: str, db: AsyncSession) -> None:
+    """Raise HTTP 422 if password fails the configured security policy."""
+    from app.services.config_service import get_value
+    min_len = int(await get_value("security.min_password_length", db) or "12")
+    require_special = (await get_value("security.require_special_chars", db) or "true").lower() == "true"
+
+    if len(password) < min_len:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Password must be at least {min_len} characters long",
+        )
+    if require_special and not _SPECIAL_CHARS_RE.search(password):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password must contain at least one special character (!@#$%^&* etc.)",
+        )
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -71,6 +92,9 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
     user.last_login = _utcnow()
     await db.commit()
 
+    from app.services.config_service import get_value as _get_cfg
+    session_minutes = int(await _get_cfg("security.session_timeout_minutes", db) or "480")
+
     token_data = {
         "sub": user.user_id,
         "email": user.email,
@@ -79,7 +103,7 @@ async def login(request: Request, payload: LoginRequest, db: AsyncSession = Depe
         "user_id": user.user_id,
         "domain_id": user.domain_id,
     }
-    access_token = create_access_token(token_data)
+    access_token = create_access_token(token_data, expires_delta=timedelta(minutes=session_minutes))
     refresh_token = create_refresh_token({"sub": user.user_id, "email": user.email})
     logger.info(f"User {user.email} logged in")
     return TokenResponse(
@@ -152,6 +176,7 @@ async def create_user(
     existing = await db.execute(select(User).where(User.email == payload.email.lower()))
     if existing.scalar_one_or_none():
         raise HTTPException(409, "Email already registered")
+    await _validate_password_policy(payload.password, db)
     user = User(
         user_id=str(uuid.uuid4()),
         email=payload.email.lower(),
@@ -271,6 +296,7 @@ async def change_password(
         raise HTTPException(404, "User not found")
     if current_user.get("role") != "admin" and not verify_password(payload.current_password, user.hashed_password):
         raise HTTPException(400, "Current password is incorrect")
+    await _validate_password_policy(payload.new_password, db)
     user.hashed_password = hash_password(payload.new_password)
     user.updated_at = _utcnow()
     await db.commit()
