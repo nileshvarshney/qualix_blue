@@ -992,6 +992,7 @@ class GovernancePolicy(Base):
     description: Mapped[Optional[str]] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20), default="medium")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    status: Mapped[str] = mapped_column(String(20), default="active")
     config: Mapped[Optional[dict]] = mapped_column(JSONVariant)
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
@@ -1031,6 +1032,49 @@ class DataContract(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class ApprovalRequest(Base):
+    __tablename__ = "approval_requests"
+
+    approval_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    entity_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    entity_snapshot: Mapped[Optional[dict]] = mapped_column(JSONVariant)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    requested_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(200))
+    feedback: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
+class GovernancePolicyVersion(Base):
+    __tablename__ = "governance_policy_versions"
+
+    version_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    policy_id: Mapped[str] = mapped_column(String(36), ForeignKey("governance_policies.policy_id"), nullable=False)
+    version_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    changed_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    changed_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    change_summary: Mapped[Optional[str]] = mapped_column(String(500))
+    field_diffs: Mapped[Optional[list]] = mapped_column(JSONVariant)
+    snapshot: Mapped[Optional[dict]] = mapped_column(JSONVariant)
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    notification_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    user_email: Mapped[str] = mapped_column(String(200), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    body: Mapped[Optional[str]] = mapped_column(Text)
+    entity_type: Mapped[Optional[str]] = mapped_column(String(50))
+    entity_id: Mapped[Optional[str]] = mapped_column(String(36))
+    is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    email_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
 class RuleTemplate(Base):
