@@ -16,11 +16,6 @@ interface PolicyItem {
 
 interface PolicyRule { name: string; table: string; type: string; status: 'pass' | 'fail' | 'warn' }
 
-interface PendingTerm {
-  id: string; name: string; definition: string; domain: string
-  createdBy: string; createdAt: string
-}
-
 interface ApprovalItem {
   approval_id: string
   entity_type: string
@@ -107,7 +102,6 @@ export default function GovernancePage() {
   const [evalResult, setEvalResult] = useState<{ violations_found: number; assets_evaluated: number } | null>(null)
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [policyForm, setPolicyForm] = useState(emptyForm)
-  const [pendingTerms, setPendingTerms] = useState<PendingTerm[]>([])
   const [currentUser, setCurrentUser] = useState<{ role: string; domain_id: string | null } | null>(null)
   const [approvals, setApprovals] = useState<ApprovalItem[]>([])
   const [approvalsLoaded, setApprovalsLoaded] = useState(false)
@@ -207,7 +201,7 @@ export default function GovernancePage() {
   }, [tab, approvalsLoaded, loadApprovals])
   useEffect(() => {
     if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
-  }, [approvalFilter])
+  }, [approvalFilter, tab, loadApprovals])
   useEffect(() => {
     fetch('/api/me')
       .then(r => r.json())
@@ -285,8 +279,6 @@ export default function GovernancePage() {
     violationFilter === 'medium' ? v.severity === 'medium' && v.status === 'open' :
     true
   )
-
-  const isGovReviewer = currentUser?.role === 'admin' || currentUser?.role === 'domain_owner'
 
   const closePopups = () => { setSelectedDomain(null); setSelectedPolicy(null); setConfirmDeactivate(false) }
 
