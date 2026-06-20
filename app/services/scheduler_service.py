@@ -319,9 +319,9 @@ def _schedule_drift_detect_job(enabled: bool = True, hour: int = 4, minute: int 
 def _register_nightly_aggregation():
     """Register all nightly system jobs with their default schedules."""
     _schedule_quality_aggregation_job()  # default 00:05
-    _schedule_policy_evaluation_job()    # default 00:15
     _schedule_column_profile_job()       # default 02:00
     _schedule_drift_detect_job()         # default 04:00
+    # policy evaluation is handled by the 6h policy_evaluation_sweep in start_scheduler()
 
 
 async def load_all_schedules(db):

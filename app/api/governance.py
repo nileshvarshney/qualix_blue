@@ -190,7 +190,7 @@ async def update_policy(
     policy_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
+    user=Depends(require_approver),
 ):
     result = await db.execute(select(GovernancePolicy).where(GovernancePolicy.policy_id == policy_id))
     policy = result.scalar_one_or_none()
