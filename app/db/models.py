@@ -563,7 +563,7 @@ from sqlalchemy import event as _sa_event
 
 
 def _compute_audit_hash(log: "AuditLog") -> str:
-    payload = "|".join([
+    payload = "\x00".join([
         str(log.audit_id or ""),
         str(log.user_email or ""),
         str(log.action or ""),

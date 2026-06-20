@@ -144,7 +144,7 @@ export default function CompliancePage() {
       a.href = URL.createObjectURL(blob)
       a.download = `evidence-report-${new Date().toISOString().split('T')[0]}.json`
       a.click()
-      URL.revokeObjectURL(a.href)
+      setTimeout(() => URL.revokeObjectURL(a.href), 100)
     } catch { /* silent */ }
     finally { setExportingEvidence(false) }
   }

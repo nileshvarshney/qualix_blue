@@ -147,6 +147,7 @@ export default function AuditLogsPage() {
     setShowVerifyModal(true)
     try {
       const r = await fetch('/api/audit/verify')
+      if (!r.ok) { setVerifyResult(null); return; }
       const data = await r.json()
       setVerifyResult(data)
     } catch { setVerifyResult(null) }

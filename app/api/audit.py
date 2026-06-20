@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func
 from app.db.database import get_db
 from app.db.models import AuditLog
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_admin
 
 router = APIRouter(prefix="/audit", tags=["Audit"])
 
@@ -121,7 +121,7 @@ async def audit_summary(db: AsyncSession = Depends(get_db), _=Depends(get_curren
 @router.get("/verify")
 async def verify_audit_integrity(
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(require_admin),
 ):
     """Re-compute SHA-256 hashes for all hashed audit log rows and report mismatches."""
     from app.db.models import _compute_audit_hash
@@ -132,7 +132,7 @@ async def verify_audit_integrity(
     total_unverified = total_unverified_res.scalar_one()
 
     hashed_res = await db.execute(
-        select(AuditLog).where(AuditLog.log_hash.isnot(None))
+        select(AuditLog).where(AuditLog.log_hash.isnot(None)).limit(10000)
     )
     hashed_logs = hashed_res.scalars().all()
 
@@ -288,7 +288,7 @@ async def evidence_report(
     window_end = datetime.now(timezone.utc).replace(tzinfo=None)
 
     all_res = await db.execute(
-        select(AuditLog).where(AuditLog.created_at >= since).order_by(desc(AuditLog.created_at))
+        select(AuditLog).where(AuditLog.created_at >= since).order_by(desc(AuditLog.created_at)).limit(10000)
     )
     logs = all_res.scalars().all()
 
