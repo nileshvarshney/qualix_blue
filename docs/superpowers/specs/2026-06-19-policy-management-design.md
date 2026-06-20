@@ -143,7 +143,7 @@ def check_enforcement(entity_type: str, entity_id: str, db) -> EnforcementResult
 |---|---|
 | Create or edit a GovernancePolicy | Yes → policy goes to `pending_review` |
 | Create or edit a DataContract | Yes → contract goes to `pending_review` |
-| Assign domain ownership | Yes → ownership assignment goes to `pending_review` |
+| Assign domain ownership | Yes → ownership assignment goes to `pending_review` (note: no formal DomainOwnership model exists; the triggering action is `PUT /assets/{id}` with a changed `owner_email` — the approval wraps that update) |
 | Create or publish a Data Product | Yes → data product goes to `pending_review` |
 | Glossary term submission | Migrated to use same ApprovalRequest table |
 
@@ -200,13 +200,15 @@ def create_notification(
     entity_type: str,
     entity_id: str,
     db,
-    background_tasks: BackgroundTasks,
 ) -> None:
-    """Writes Notification row. Enqueues email via background_tasks."""
+    """Writes Notification row. Fires email in a daemon thread (works in both
+    request context and APScheduler jobs — no BackgroundTasks dependency)."""
 
 def send_email(to: str, subject: str, body: str) -> None:
     """Sends via SMTP. Silently skips if env vars are missing."""
 ```
+
+Email is dispatched via `threading.Thread(target=send_email, daemon=True).start()` so it never blocks the caller and works equally in FastAPI request handlers and scheduled jobs.
 
 **SMTP env vars:** `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`  
 If any are absent, `email_sent` stays `False` — in-app notification still created.
@@ -216,7 +218,7 @@ If any are absent, `email_sent` stays `False` — in-app notification still crea
 | Trigger | Recipient | Type |
 |---|---|---|
 | New violation detected (sweep or real-time block) | Asset `owner_email` | `violation_detected` |
-| Approval request created | All admins + domain owners | `approval_requested` |
+| Approval request created | Admins + domain owners of the entity's domain | `approval_requested` |
 | Policy/contract/product approved | Submitter (`requested_by`) | `approval_decided` |
 | Policy/contract/product rejected | Submitter (`requested_by`) | `approval_decided` |
 
