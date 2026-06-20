@@ -156,6 +156,122 @@ function TopBarConnectionSelector() {
   )
 }
 
+/* ─── Notification Bell ─── */
+function NotificationBell() {
+  const [open, setOpen] = useState(false)
+  const [notifications, setNotifications] = useState<Array<{
+    notification_id: string; type: string; title: string; body: string | null;
+    entity_type: string | null; entity_id: string | null; is_read: boolean; created_at: string
+  }>>([])
+  const ref = useRef<HTMLDivElement>(null)
+
+  const unreadCount = notifications.filter(n => !n.is_read).length
+
+  const load = async () => {
+    try {
+      const data = await fetch('/api/notifications').then(r => r.json()).catch(() => [])
+      setNotifications(Array.isArray(data) ? data.slice(0, 20) : [])
+    } catch {}
+  }
+
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 60_000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  const markAllRead = async () => {
+    await fetch('/api/notifications?action=read-all', { method: 'POST' }).catch(() => {})
+    setNotifications(ns => ns.map(n => ({ ...n, is_read: true })))
+  }
+
+  const markOne = async (id: string) => {
+    await fetch(`/api/notifications?id=${id}`, { method: 'POST' }).catch(() => {})
+    setNotifications(ns => ns.map(n => n.notification_id === id ? { ...n, is_read: true } : n))
+  }
+
+  const typeIcon = (type: string) => type === 'violation_detected' ? '⚠️' : type === 'approval_requested' ? '📋' : '✅'
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        onClick={() => { setOpen(!open); if (!open) load() }}
+        style={{
+          position: 'relative', background: 'none', border: 'none', cursor: 'pointer',
+          padding: 6, borderRadius: 6, color: 'var(--text-muted)', display: 'flex', alignItems: 'center',
+        }}
+        title="Notifications"
+      >
+        <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+        {unreadCount > 0 && (
+          <span style={{
+            position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16,
+            background: 'var(--brand-primary)', color: '#fff',
+            borderRadius: 8, fontSize: 10, fontWeight: 700, lineHeight: '16px',
+            textAlign: 'center', padding: '0 3px',
+          }}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '110%', right: 0, width: 360, maxHeight: 480,
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.12)', zIndex: 200, overflow: 'hidden',
+          display: 'flex', flexDirection: 'column',
+        }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>Notifications</span>
+            {unreadCount > 0 && (
+              <button onClick={markAllRead} style={{ fontSize: 12, color: 'var(--brand-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                Mark all read
+              </button>
+            )}
+          </div>
+
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {notifications.length === 0 ? (
+              <div style={{ padding: '24px 16px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>No notifications</div>
+            ) : notifications.map(n => (
+              <div
+                key={n.notification_id}
+                onClick={() => markOne(n.notification_id)}
+                style={{
+                  padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer',
+                  background: n.is_read ? 'transparent' : 'var(--surface-muted)',
+                  display: 'flex', gap: 10, alignItems: 'flex-start',
+                }}
+              >
+                <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{typeIcon(n.type)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: n.is_read ? 400 : 600, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n.title}</div>
+                  {n.body && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>
+                    {n.created_at ? new Date(n.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Theme Toggle ─── */
 function ThemeToggle() {
   const [dark, setDark] = useState(false)
@@ -333,6 +449,7 @@ export default function Sidebar() {
 
         {/* Right side controls */}
         <TopBarConnectionSelector />
+        <NotificationBell />
         <ThemeToggle />
       </header>
 
