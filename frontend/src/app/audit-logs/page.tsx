@@ -192,7 +192,7 @@ export default function AuditLogsPage() {
         <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '8px', padding: '10px 14px', flexShrink: 0 }}>
           <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--status-error-text)', marginBottom: '6px' }}>⚠ Security Alerts ({anomalies.length})</div>
           {anomalies.map((a, i) => (
-            <div key={i} style={{ fontSize: '11px', color: 'var(--status-error-text)', padding: '2px 0', borderTop: i > 0 ? '1px solid var(--status-error-text)20' : 'none' }}>
+            <div key={i} style={{ fontSize: '11px', color: 'var(--status-error-text)', padding: '2px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
               <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{a.pattern.replace(/_/g, ' ')}</span>
               {' · '}{a.description}
             </div>
