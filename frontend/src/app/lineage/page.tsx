@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect, useCallback, useMemo, type WheelEvent, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
 
 /* ─── Types ─── */
 interface LineageNode {
@@ -502,11 +502,18 @@ export default function LineagePage() {
   function zoomOut() { setZoom(z => Math.max(ZOOM_MIN, +(z - ZOOM_STEP).toFixed(2))) }
   function zoomReset() { setZoom(1); setPan({ x: 0, y: 0 }) }
 
-  function handleWheel(e: WheelEvent<SVGSVGElement>) {
-    e.preventDefault()
-    const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP
-    setZoom(z => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))))
-  }
+  // Wheel zoom — registered as non-passive so preventDefault() actually works
+  useEffect(() => {
+    const svg = svgRef.current
+    if (!svg) return
+    const onWheel = (e: globalThis.WheelEvent) => {
+      e.preventDefault()
+      const delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP
+      setZoom(z => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z + delta).toFixed(2))))
+    }
+    svg.addEventListener('wheel', onWheel, { passive: false })
+    return () => svg.removeEventListener('wheel', onWheel)
+  }, [])
 
   function handleSvgMouseDown(e: ReactMouseEvent<SVGSVGElement>) {
     panStartRef.current = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y }
@@ -928,7 +935,6 @@ export default function LineagePage() {
             ref={svgRef}
             width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`}
             style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px`, cursor: isPanning ? 'grabbing' : 'grab' }}
-            onWheel={handleWheel}
             onMouseDown={handleSvgMouseDown}
             onMouseMove={handleSvgMouseMove}
             onMouseUp={handleSvgMouseUp}
