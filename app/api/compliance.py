@@ -275,12 +275,30 @@ async def assess_asset(
         mapping = mapping_result.scalar_one_or_none()
 
         new_status = "gap"
-        if mapping and mapping.rule_id:
-            # Check for a recent passing run
+        rule_id_to_use = mapping.rule_id if mapping else None
+
+        # Auto-map: if no rule linked yet, find a matching active DQ rule by type
+        if not rule_id_to_use and req.dq_rule_types:
+            req_types = [t.strip() for t in req.dq_rule_types.split(",") if t.strip()]
+            if req_types:
+                auto_rule_res = await db.execute(
+                    select(DQRule)
+                    .where(
+                        DQRule.asset_id == asset_id,
+                        DQRule.is_active == True,
+                        DQRule.rule_type.in_(req_types),
+                    )
+                    .limit(1)
+                )
+                matched_rule = auto_rule_res.scalar_one_or_none()
+                if matched_rule:
+                    rule_id_to_use = matched_rule.rule_id
+
+        if rule_id_to_use:
             run_result = await db.execute(
                 select(DQRuleRun)
                 .where(
-                    DQRuleRun.rule_id == mapping.rule_id,
+                    DQRuleRun.rule_id == rule_id_to_use,
                     DQRuleRun.status == "passed",
                 )
                 .order_by(desc(DQRuleRun.created_at))
@@ -290,6 +308,7 @@ async def assess_asset(
             new_status = "compliant" if recent_run else "gap"
 
         if mapping:
+            mapping.rule_id = mapping.rule_id or rule_id_to_use
             mapping.status = new_status
         else:
             mapping = ComplianceMapping(
@@ -297,6 +316,7 @@ async def assess_asset(
                 asset_id=asset_id,
                 framework_id=framework_id,
                 req_id=req.req_id,
+                rule_id=rule_id_to_use,
                 status=new_status,
                 mapped_by=user.get("email"),
                 created_at=model_now(),
@@ -368,15 +388,35 @@ async def assess_all_assets(
             )
             mapping = mapping_result.scalar_one_or_none()
             new_status = "gap"
-            if mapping and mapping.rule_id:
+            rule_id_to_use = mapping.rule_id if mapping else None
+
+            if not rule_id_to_use and req.dq_rule_types:
+                req_types = [t.strip() for t in req.dq_rule_types.split(",") if t.strip()]
+                if req_types:
+                    auto_rule_res = await db.execute(
+                        select(DQRule)
+                        .where(
+                            DQRule.asset_id == asset.asset_id,
+                            DQRule.is_active == True,
+                            DQRule.rule_type.in_(req_types),
+                        )
+                        .limit(1)
+                    )
+                    matched_rule = auto_rule_res.scalar_one_or_none()
+                    if matched_rule:
+                        rule_id_to_use = matched_rule.rule_id
+
+            if rule_id_to_use:
                 run_result = await db.execute(
                     select(DQRuleRun)
-                    .where(DQRuleRun.rule_id == mapping.rule_id, DQRuleRun.status == "passed")
+                    .where(DQRuleRun.rule_id == rule_id_to_use, DQRuleRun.status == "passed")
                     .order_by(desc(DQRuleRun.created_at))
                     .limit(1)
                 )
                 new_status = "compliant" if run_result.scalar_one_or_none() else "gap"
+
             if mapping:
+                mapping.rule_id = mapping.rule_id or rule_id_to_use
                 mapping.status = new_status
             else:
                 mapping = ComplianceMapping(
@@ -384,6 +424,7 @@ async def assess_all_assets(
                     asset_id=asset.asset_id,
                     framework_id=framework_id,
                     req_id=req.req_id,
+                    rule_id=rule_id_to_use,
                     status=new_status,
                     mapped_by=user.get("email"),
                     created_at=model_now(),
