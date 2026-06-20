@@ -2,19 +2,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 
-def _make_approval(status="pending"):
-    a = MagicMock()
-    a.approval_id = "apr-001"
-    a.entity_type = "policy"
-    a.entity_id = "pol-001"
-    a.entity_snapshot = {"policy_name": "Test"}
-    a.status = status
-    a.requested_by = "user@example.com"
-    a.reviewed_by = None
-    a.feedback = None
-    return a
-
-
 def test_approval_request_model_importable():
     from app.db.models import ApprovalRequest
     assert hasattr(ApprovalRequest, "approval_id")
