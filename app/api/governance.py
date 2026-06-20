@@ -9,7 +9,9 @@ from app.db.models import (
     GovernancePolicy, PolicyViolation, Asset, DQRule,
     DQQualityScore, Domain, DataClassification, Subdomain,
 )
-from app.core.security import get_current_user, require_admin
+from app.core.security import get_current_user, require_admin, require_roles
+
+require_approver = require_roles("admin", "domain_owner")
 
 router = APIRouter(prefix="/governance", tags=["Governance"])
 
@@ -78,8 +80,8 @@ def _fmt_policy(p: GovernancePolicy) -> dict:
         "description": p.description,
         "severity": p.severity,
         "is_active": p.is_active,
-        # UI-friendly aliases
-        "status": "active" if p.is_active else "draft",
+        # Use explicit status field when available; fall back to is_active-derived value
+        "status": getattr(p, "status", None) or ("active" if p.is_active else "draft"),
         "enforcement": "enforced" if p.severity == "high" else "advisory",
         "config": p.config,
         "created_by": p.created_by,
@@ -149,18 +151,34 @@ async def create_policy(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    from app.db.models import gen_uuid
+    from app.db.models import gen_uuid, ApprovalRequest
+    from datetime import datetime, timezone
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+
     policy = GovernancePolicy(
         policy_id=gen_uuid(),
         policy_name=body["policy_name"],
-        policy_type=body["policy_type"],
+        policy_type=body.get("policy_type", "custom"),
         description=body.get("description"),
         severity=body.get("severity", "medium"),
-        is_active=body.get("is_active", True),
+        is_active=False,
+        status="pending_review",
         config=body.get("config"),
         created_by=user.get("email"),
     )
     db.add(policy)
+
+    snapshot = {k: body.get(k) for k in ("policy_name", "policy_type", "description", "severity", "config") if body.get(k) is not None}
+    approval = ApprovalRequest(
+        approval_id=gen_uuid(),
+        entity_type="policy",
+        entity_id=policy.policy_id,
+        entity_snapshot=snapshot,
+        status="pending",
+        requested_by=user.get("email"),
+        created_at=_now,
+    )
+    db.add(approval)
     await db.commit()
     await db.refresh(policy)
     return _fmt_policy(policy)
@@ -523,3 +541,215 @@ async def get_subdomain_scorecards(domain_id: str, db: AsyncSession = Depends(ge
         if sc:
             scorecards.append(sc)
     return scorecards
+
+
+# ── Approval helpers ──────────────────────────────────────────────────────────
+
+def _fmt_approval(a) -> dict:
+    return {
+        "approval_id": a.approval_id,
+        "entity_type": a.entity_type,
+        "entity_id": a.entity_id,
+        "entity_snapshot": a.entity_snapshot,
+        "status": a.status,
+        "requested_by": a.requested_by,
+        "reviewed_by": a.reviewed_by,
+        "feedback": a.feedback,
+        "created_at": a.created_at.isoformat() if a.created_at else None,
+        "reviewed_at": a.reviewed_at.isoformat() if a.reviewed_at else None,
+    }
+
+
+# ── Approval endpoints ────────────────────────────────────────────────────────
+
+@router.get("/approvals")
+async def list_approvals(
+    entity_type: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from app.db.models import ApprovalRequest
+    q = select(ApprovalRequest).order_by(ApprovalRequest.created_at.desc())
+    if entity_type:
+        q = q.where(ApprovalRequest.entity_type == entity_type)
+    if status:
+        q = q.where(ApprovalRequest.status == status)
+    res = await db.execute(q)
+    return [_fmt_approval(a) for a in res.scalars().all()]
+
+
+@router.post("/approvals")
+async def create_approval_request(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from app.db.models import ApprovalRequest, GovernancePolicy, DataContract, gen_uuid
+    from datetime import datetime, timezone
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    entity_type = body["entity_type"]
+    entity_id = body["entity_id"]
+
+    # Set entity to pending_review
+    if entity_type == "policy":
+        res = await db.execute(select(GovernancePolicy).where(GovernancePolicy.policy_id == entity_id))
+        entity = res.scalar_one_or_none()
+        if entity:
+            entity.status = "pending_review"
+            entity.is_active = False
+    elif entity_type == "contract":
+        res = await db.execute(select(DataContract).where(DataContract.contract_id == entity_id))
+        entity = res.scalar_one_or_none()
+        if entity:
+            entity.status = "pending_review"
+
+    approval = ApprovalRequest(
+        approval_id=gen_uuid(),
+        entity_type=entity_type,
+        entity_id=entity_id,
+        entity_snapshot=body.get("entity_snapshot"),
+        status="pending",
+        requested_by=user.get("email"),
+        created_at=_now,
+    )
+    db.add(approval)
+    await db.commit()
+    return _fmt_approval(approval)
+
+
+@router.post("/approvals/{approval_id}/approve")
+async def approve_request(
+    approval_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_approver),
+):
+    from app.db.models import ApprovalRequest, GovernancePolicy, DataContract, GovernancePolicyVersion, gen_uuid
+    from datetime import datetime, timezone
+    from sqlalchemy import func as _func
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    res = await db.execute(select(ApprovalRequest).where(ApprovalRequest.approval_id == approval_id))
+    approval = res.scalar_one_or_none()
+    if not approval:
+        raise HTTPException(404, "Approval request not found")
+    if approval.status != "pending":
+        raise HTTPException(400, f"Request is already {approval.status}")
+
+    approval.status = "approved"
+    approval.reviewed_by = user.get("email")
+    approval.reviewed_at = _now
+
+    # Activate entity
+    if approval.entity_type == "policy":
+        p_res = await db.execute(select(GovernancePolicy).where(GovernancePolicy.policy_id == approval.entity_id))
+        policy = p_res.scalar_one_or_none()
+        if policy:
+            # Apply snapshot fields if provided
+            snapshot = approval.entity_snapshot or {}
+            for field in ("policy_name", "policy_type", "description", "severity", "config"):
+                if field in snapshot:
+                    setattr(policy, field, snapshot[field])
+            policy.status = "active"
+            policy.is_active = True
+
+            # Write version record
+            ver_res = await db.execute(
+                select(_func.max(GovernancePolicyVersion.version_number)).where(
+                    GovernancePolicyVersion.policy_id == policy.policy_id
+                )
+            )
+            max_ver = ver_res.scalar_one() or 0
+            version = GovernancePolicyVersion(
+                version_id=gen_uuid(),
+                policy_id=policy.policy_id,
+                version_number=max_ver + 1,
+                changed_by=user.get("email"),
+                changed_at=_now,
+                change_summary="Approved",
+                field_diffs=[],
+                snapshot=snapshot or {},
+            )
+            db.add(version)
+
+    elif approval.entity_type == "contract":
+        c_res = await db.execute(select(DataContract).where(DataContract.contract_id == approval.entity_id))
+        contract = c_res.scalar_one_or_none()
+        if contract:
+            contract.status = "active"
+
+    await db.commit()
+
+    try:
+        from app.services.notification_service import create_notification
+        import logging as _log
+        await create_notification(
+            user_email=approval.requested_by,
+            type="approval_decided",
+            title=f"Your {approval.entity_type} was approved",
+            body=f"Approved by {user.get('email')}",
+            entity_type=approval.entity_type,
+            entity_id=approval.entity_id,
+            db=db,
+        )
+    except Exception as _ne:
+        _log.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
+
+    return _fmt_approval(approval)
+
+
+@router.post("/approvals/{approval_id}/reject")
+async def reject_request(
+    approval_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_approver),
+):
+    from app.db.models import ApprovalRequest, GovernancePolicy, DataContract
+    from datetime import datetime, timezone
+    _now = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    res = await db.execute(select(ApprovalRequest).where(ApprovalRequest.approval_id == approval_id))
+    approval = res.scalar_one_or_none()
+    if not approval:
+        raise HTTPException(404, "Approval request not found")
+    if approval.status != "pending":
+        raise HTTPException(400, f"Request is already {approval.status}")
+
+    approval.status = "rejected"
+    approval.reviewed_by = user.get("email")
+    approval.reviewed_at = _now
+    approval.feedback = body.get("feedback")
+
+    # Set entity back to draft
+    if approval.entity_type == "policy":
+        p_res = await db.execute(select(GovernancePolicy).where(GovernancePolicy.policy_id == approval.entity_id))
+        policy = p_res.scalar_one_or_none()
+        if policy:
+            policy.status = "draft"
+    elif approval.entity_type == "contract":
+        c_res = await db.execute(select(DataContract).where(DataContract.contract_id == approval.entity_id))
+        contract = c_res.scalar_one_or_none()
+        if contract:
+            contract.status = "draft"
+
+    await db.commit()
+
+    try:
+        from app.services.notification_service import create_notification
+        import logging as _log
+        await create_notification(
+            user_email=approval.requested_by,
+            type="approval_decided",
+            title=f"Your {approval.entity_type} was rejected",
+            body=approval.feedback or "No feedback provided",
+            entity_type=approval.entity_type,
+            entity_id=approval.entity_id,
+            db=db,
+        )
+    except Exception as _ne:
+        _log.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
+
+    return _fmt_approval(approval)
