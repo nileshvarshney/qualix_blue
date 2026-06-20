@@ -106,3 +106,35 @@ async def audit_summary(db: AsyncSession = Depends(get_db), _=Depends(get_curren
         .order_by(func.count().desc())
     )
     return [{"action": row.action, "count": row.count} for row in result.all()]
+
+
+@router.get("/verify")
+async def verify_audit_integrity(
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Re-compute SHA-256 hashes for all hashed audit log rows and report mismatches."""
+    from app.db.models import _compute_audit_hash
+
+    total_unverified_res = await db.execute(
+        select(func.count()).select_from(AuditLog).where(AuditLog.log_hash.is_(None))
+    )
+    total_unverified = total_unverified_res.scalar_one()
+
+    hashed_res = await db.execute(
+        select(AuditLog).where(AuditLog.log_hash.isnot(None))
+    )
+    hashed_logs = hashed_res.scalars().all()
+
+    tampered_ids = [
+        log.audit_id for log in hashed_logs
+        if _compute_audit_hash(log) != log.log_hash
+    ]
+
+    return {
+        "total_hashed": len(hashed_logs),
+        "total_unverified": total_unverified,
+        "intact": len(hashed_logs) - len(tampered_ids),
+        "tampered": len(tampered_ids),
+        "tampered_ids": tampered_ids,
+    }

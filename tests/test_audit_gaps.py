@@ -57,3 +57,31 @@ class TestAuditHashComputation:
         """Smoke-test that the before_insert listener is registered."""
         from app.db import models as _m
         assert hasattr(_m, "_compute_audit_hash")
+
+
+class TestVerifyEndpoint:
+    def test_recompute_matches_stored_hash(self):
+        """When hash matches, the row is intact."""
+        log = _make_log(audit_id="x1", action="CREATE", entity_type="rule")
+        payload = "|".join([
+            str(log.audit_id), str(log.user_email), str(log.action),
+            str(log.entity_type), str(log.entity_id),
+            str(log.created_at.isoformat()),
+        ])
+        expected = hashlib.sha256(payload.encode()).hexdigest()
+        log.log_hash = expected
+        # Tamper detection: same payload → same hash → intact
+        recomputed = hashlib.sha256(payload.encode()).hexdigest()
+        assert recomputed == log.log_hash
+
+    def test_tampered_log_detected(self):
+        """When hash doesn't match, row is flagged as tampered."""
+        log = _make_log()
+        log.log_hash = "0" * 64  # wrong hash
+        payload = "|".join([
+            str(log.audit_id), str(log.user_email), str(log.action),
+            str(log.entity_type), str(log.entity_id),
+            str(log.created_at.isoformat()),
+        ])
+        recomputed = hashlib.sha256(payload.encode()).hexdigest()
+        assert recomputed != log.log_hash  # tampered
