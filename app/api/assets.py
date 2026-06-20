@@ -678,6 +678,20 @@ async def update_asset(asset_id: str, payload: AssetUpdate, db: AsyncSession = D
     for field, value in payload.model_dump(exclude_none=True).items():
         setattr(asset, field, value)
     asset.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Enforcement check — must come after field mutation, before commit
+    from app.services.enforcement_service import check_asset_enforcement
+    enforcement = await check_asset_enforcement(asset, db)
+    if enforcement["blocked"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Update blocked by enforced policy violations",
+                "violations": enforcement["blocking_violations"],
+                "warnings": enforcement["warnings"],
+            },
+        )
+
     await db.commit()
     await db.refresh(asset)
     return asset
