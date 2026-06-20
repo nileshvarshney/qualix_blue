@@ -16,6 +16,7 @@ from app.core.middleware import RequestIDMiddleware, SecurityHeadersMiddleware
 from app.db.database import create_tables, check_db_health
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.api import alert_definitions as alert_definitions_module
+from app.api import notifications as notifications_module
 from app.api import (
     domains, subdomains, assets, rules, schedules, executions,
     dashboard, ai, alerts, audit, config, connections,
@@ -227,6 +228,7 @@ app.include_router(profile_results.router)
 app.include_router(issues.router)
 app.include_router(teams_module.router)
 app.include_router(ownership_module.router)
+app.include_router(notifications_module.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 
