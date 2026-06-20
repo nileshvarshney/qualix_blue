@@ -33,4 +33,7 @@ Thumbs.db
 *.png
 .playwright-mcp/
 
+# Local SQLite database
+dataguard.db
+
 .worktrees/
