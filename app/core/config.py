@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     # Scheduler
     scheduler_type: str = "apscheduler"
     default_timezone: str = "America/Los_Angeles"
+    policy_eval_interval_hours: int = 6
 
     # Security
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"

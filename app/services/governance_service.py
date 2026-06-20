@@ -98,6 +98,21 @@ async def evaluate_policies(db: AsyncSession) -> int:
                     )
                     db.add(v)
                     violation_count += 1
+                    # Notify asset owner of new violation
+                    if asset.owner_email:
+                        try:
+                            from app.services.notification_service import create_notification
+                            await create_notification(
+                                user_email=asset.owner_email,
+                                type="violation_detected",
+                                title=f"Policy Violation: {policy.policy_name}",
+                                body=detail,
+                                entity_type="asset",
+                                entity_id=asset.asset_id,
+                                db=db,
+                            )
+                        except Exception as _ne:
+                            logger.warning("Notification failed: %s", _ne)
             else:
                 if existing:
                     existing.status = "resolved"

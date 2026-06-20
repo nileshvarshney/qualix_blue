@@ -468,6 +468,16 @@ async def _nightly_auto_discovery() -> None:
     logger.info("Nightly auto-discovery: all jobs queued")
 
 
+async def _run_policy_sweep() -> None:
+    """APScheduler job — evaluate all policies and notify on new violations."""
+    from app.db.database import AsyncSessionLocal
+    from app.services.governance_service import evaluate_policies
+    logger.info("Policy sweep starting")
+    async with AsyncSessionLocal() as db:
+        count = await evaluate_policies(db)
+    logger.info("Policy sweep complete: %d violations", count)
+
+
 async def _refresh_catalog_index() -> None:
     """Nightly job: refresh catalog_search_index materialized view."""
     import logging
@@ -687,6 +697,14 @@ def start_scheduler():
             _nightly_auto_discovery,
             trigger=CronTrigger(hour=1, minute=0, timezone=settings.default_timezone),
             id="nightly_auto_discovery",
+            replace_existing=True,
+        )
+        from app.core.config import settings as _s
+        sweep_hours = getattr(_s, "policy_eval_interval_hours", 6)
+        scheduler.add_job(
+            _run_policy_sweep,
+            trigger=CronTrigger(hour=f"*/{sweep_hours}", timezone="UTC"),
+            id="policy_evaluation_sweep",
             replace_existing=True,
         )
 
