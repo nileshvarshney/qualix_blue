@@ -552,6 +552,37 @@ class AuditLog(Base):
     old_value: Mapped[Optional[dict]] = mapped_column(JSONVariant)
     new_value: Mapped[Optional[dict]] = mapped_column(JSONVariant)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    log_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Tamper-evident hash for AuditLog — computed automatically before INSERT
+# ---------------------------------------------------------------------------
+import hashlib as _hashlib
+from sqlalchemy import event as _sa_event
+
+
+def _compute_audit_hash(log: "AuditLog") -> str:
+    payload = "|".join([
+        str(log.audit_id or ""),
+        str(log.user_email or ""),
+        str(log.action or ""),
+        str(log.entity_type or ""),
+        str(log.entity_id or ""),
+        str(log.created_at.isoformat() if log.created_at else ""),
+    ])
+    return _hashlib.sha256(payload.encode()).hexdigest()
+
+
+@_sa_event.listens_for(AuditLog, "before_insert")
+def _audit_log_set_hash(mapper, connection, target: "AuditLog") -> None:
+    # SQLAlchemy evaluates Python-side column defaults before firing
+    # before_insert, so audit_id and created_at are guaranteed to be set here.
+    if target.audit_id is None:
+        target.audit_id = gen_uuid()
+    if target.created_at is None:
+        target.created_at = now()
+    target.log_hash = _compute_audit_hash(target)
 
 
 # ---------------------------------------------------------------------------
