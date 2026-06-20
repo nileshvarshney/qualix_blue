@@ -764,3 +764,33 @@ async def reject_request(
         _logging.getLogger("dq_platform.governance").warning("Notification failed: %s", _ne)
 
     return _fmt_approval(approval)
+
+
+# ── Policy versioning ─────────────────────────────────────────────────────────
+
+def _fmt_version(v) -> dict:
+    return {
+        "version_id": v.version_id,
+        "policy_id": v.policy_id,
+        "version_number": v.version_number,
+        "changed_by": v.changed_by,
+        "changed_at": v.changed_at.isoformat() if v.changed_at else None,
+        "change_summary": v.change_summary,
+        "field_diffs": v.field_diffs or [],
+        "snapshot": v.snapshot or {},
+    }
+
+
+@router.get("/policies/{policy_id}/versions")
+async def list_policy_versions(
+    policy_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from app.db.models import GovernancePolicyVersion
+    res = await db.execute(
+        select(GovernancePolicyVersion)
+        .where(GovernancePolicyVersion.policy_id == policy_id)
+        .order_by(GovernancePolicyVersion.version_number.desc())
+    )
+    return [_fmt_version(v) for v in res.scalars().all()]
