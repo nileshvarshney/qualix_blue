@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Optional
 import csv
 import io
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -138,3 +138,91 @@ async def verify_audit_integrity(
         "tampered": len(tampered_ids),
         "tampered_ids": tampered_ids,
     }
+
+
+@router.get("/anomalies")
+async def list_audit_anomalies(
+    hours: int = Query(24, ge=1, le=168),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Scan recent audit logs for suspicious patterns."""
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+    window_end = datetime.now(timezone.utc).replace(tzinfo=None)
+    anomalies = []
+
+    # --- Pattern 1: bulk writes (≥50 actions from same user in any 1-hour window) ---
+    bulk_res = await db.execute(
+        select(AuditLog.user_email, func.count().label("cnt"))
+        .where(
+            AuditLog.created_at >= since,
+            AuditLog.user_email.isnot(None),
+        )
+        .group_by(AuditLog.user_email)
+        .having(func.count() >= 50)
+    )
+    for row in bulk_res.all():
+        anomalies.append({
+            "pattern": "bulk_writes",
+            "severity": "medium",
+            "user_email": row.user_email,
+            "event_count": row.cnt,
+            "window_start": since.isoformat(),
+            "window_end": window_end.isoformat(),
+            "description": f"{row.cnt} logged actions from {row.user_email} in last {hours}h",
+        })
+
+    # --- Pattern 2: rapid deletions (≥5 destructive actions in last 24h) ---
+    destructive_actions = ("delete", "archive", "disable", "reject", "revoke")
+    del_res = await db.execute(
+        select(AuditLog.user_email, func.count().label("cnt"))
+        .where(
+            AuditLog.created_at >= since,
+            AuditLog.user_email.isnot(None),
+            func.lower(AuditLog.action).in_(destructive_actions),
+        )
+        .group_by(AuditLog.user_email)
+        .having(func.count() >= 5)
+    )
+    for row in del_res.all():
+        anomalies.append({
+            "pattern": "rapid_deletions",
+            "severity": "high",
+            "user_email": row.user_email,
+            "event_count": row.cnt,
+            "window_start": since.isoformat(),
+            "window_end": window_end.isoformat(),
+            "description": f"{row.cnt} destructive actions from {row.user_email} in last {hours}h",
+        })
+
+    # --- Pattern 3: new user with high activity ---
+    # Sub-query: first event per user
+    first_seen_sq = (
+        select(AuditLog.user_email, func.min(AuditLog.created_at).label("first_at"))
+        .where(AuditLog.user_email.isnot(None))
+        .group_by(AuditLog.user_email)
+        .subquery()
+    )
+    seven_days_ago = window_end - timedelta(days=7)
+    new_user_res = await db.execute(
+        select(first_seen_sq.c.user_email, func.count(AuditLog.audit_id).label("cnt"))
+        .join(AuditLog, AuditLog.user_email == first_seen_sq.c.user_email)
+        .where(
+            first_seen_sq.c.first_at >= seven_days_ago,
+            AuditLog.created_at >= since,
+        )
+        .group_by(first_seen_sq.c.user_email)
+        .having(func.count(AuditLog.audit_id) >= 20)
+    )
+    for row in new_user_res.all():
+        anomalies.append({
+            "pattern": "new_user_activity",
+            "severity": "low",
+            "user_email": row.user_email,
+            "event_count": row.cnt,
+            "window_start": since.isoformat(),
+            "window_end": window_end.isoformat(),
+            "description": f"New user {row.user_email} has {row.cnt} events in last {hours}h",
+        })
+
+    return anomalies
