@@ -29,6 +29,8 @@ export default function CompliancePage() {
   const [controls, setControls] = useState<Control[]>([])
   const [controlsLoading, setControlsLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [seeding, setSeeding] = useState(false)
+  const [assessing, setAssessing] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/compliance')
@@ -74,13 +76,69 @@ export default function CompliancePage() {
       .catch(() => setControlsLoading(false))
   }, [selectedFw])
 
+  async function handleSeed() {
+    setSeeding(true)
+    try {
+      await fetch('/api/compliance/seed', { method: 'POST' })
+      const r = await fetch('/api/compliance')
+      const data = await r.json()
+      const items = Array.isArray(data) ? data : []
+      setFrameworks(items.map((f: Record<string, unknown>, i: number) => ({
+        id: String(f.framework_id ?? f.id ?? i),
+        name: String(f.framework_name ?? f.name ?? ''),
+        version: String(f.version ?? ''),
+        description: String(f.description ?? ''),
+        controlsTotal: Number(f.controls_total ?? 0),
+        controlsPassed: Number(f.controls_passed ?? 0),
+        controlsFailed: Number(f.controls_failed ?? 0),
+        status: (f.status as 'compliant' | 'partial' | 'non-compliant') ?? 'partial',
+      })))
+    } finally { setSeeding(false) }
+  }
+
+  async function handleAssessAll(fwId: string) {
+    setAssessing(fwId)
+    try {
+      await fetch(`/api/compliance/${fwId}/assess-all`, { method: 'POST' })
+      const r = await fetch('/api/compliance')
+      const data = await r.json()
+      const items = Array.isArray(data) ? data : []
+      setFrameworks(items.map((f: Record<string, unknown>, i: number) => ({
+        id: String(f.framework_id ?? f.id ?? i),
+        name: String(f.framework_name ?? f.name ?? ''),
+        version: String(f.version ?? ''),
+        description: String(f.description ?? ''),
+        controlsTotal: Number(f.controls_total ?? 0),
+        controlsPassed: Number(f.controls_passed ?? 0),
+        controlsFailed: Number(f.controls_failed ?? 0),
+        status: (f.status as 'compliant' | 'partial' | 'non-compliant') ?? 'partial',
+      })))
+      if (fwId === selectedFw) {
+        const cr = await fetch(`/api/compliance/${fwId}/controls`)
+        const cd = await cr.json()
+        setControls((Array.isArray(cd) ? cd : []).map((c: Record<string, unknown>) => ({
+          id: String(c.req_id ?? ''),
+          code: String(c.req_code ?? ''),
+          name: String(c.req_name ?? ''),
+          description: String(c.req_description ?? ''),
+          framework: String(c.framework_name ?? ''),
+          status: (c.status as 'passed' | 'failed' | 'not-assessed') ?? 'not-assessed',
+          rulesMapped: Number(c.rules_mapped ?? 0),
+          lastAssessed: c.last_assessed ? String(c.last_assessed).slice(0, 10) : null,
+          evidence: String(c.evidence ?? ''),
+          ruleTypes: String(c.dq_rule_types ?? ''),
+        })))
+      }
+    } finally { setAssessing(null) }
+  }
+
   const filteredControls = controls.filter(c => filter === 'all' || c.status === filter)
 
   const totalControls = frameworks.reduce((s, f) => s + f.controlsTotal, 0)
   const passedControls = frameworks.reduce((s, f) => s + f.controlsPassed, 0)
   const failedControls = frameworks.reduce((s, f) => s + f.controlsFailed, 0)
   const compliantCount = frameworks.filter(f => f.status === 'compliant').length
-  const overallPct = totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : null
+  const overallPct = frameworks.length > 0 ? (totalControls > 0 ? Math.round((passedControls / totalControls) * 100) : 0) : null
 
   return (
     <div style={{ padding: '28px 36px', maxWidth: '1300px' }}>
@@ -123,7 +181,13 @@ export default function CompliancePage() {
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
         ) : frameworks.length === 0 ? (
-          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', borderRadius: '12px', border: '2px dashed var(--border)' }}>No compliance frameworks configured</div>
+          <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+            <div style={{ marginBottom: '12px' }}>No compliance frameworks configured</div>
+            <button onClick={handleSeed} disabled={seeding} style={{
+              padding: '8px 20px', borderRadius: '8px', border: 'none', cursor: seeding ? 'not-allowed' : 'pointer',
+              background: 'var(--brand-primary)', color: '#fff', fontWeight: 600, fontSize: '13px',
+            }}>{seeding ? 'Initializing…' : 'Initialize Frameworks'}</button>
+          </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '12px' }}>
             {frameworks.map(fw => {
@@ -150,6 +214,15 @@ export default function CompliancePage() {
                     <span style={{ fontWeight: 600, color: 'var(--status-ok-text)' }}>{fw.controlsPassed}</span>
                     {' / '}{fw.controlsTotal} controls passed
                   </div>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleAssessAll(fw.id) }}
+                    disabled={assessing === fw.id}
+                    style={{
+                      marginTop: '8px', width: '100%', padding: '4px 0', borderRadius: '6px', border: '1px solid var(--border)',
+                      background: 'transparent', cursor: assessing === fw.id ? 'not-allowed' : 'pointer',
+                      fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 500,
+                    }}
+                  >{assessing === fw.id ? 'Assessing…' : 'Assess All Assets'}</button>
                 </div>
               )
             })}
