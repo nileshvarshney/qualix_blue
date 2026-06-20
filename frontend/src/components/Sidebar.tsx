@@ -356,7 +356,7 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/executive': 'explore',
   '/ai-assistant': 'ai',
   '/settings': 'settings', '/architecture': 'settings',
-  '/compliance': 'govern',
+  '/compliance': 'govern', '/privacy': 'govern',
   '/scan-jobs': 'operations', '/run-history': 'operations',
   '/users': 'admin', '/teams': 'admin', '/roles': 'admin',
   '/connections': 'admin', '/security': 'admin', '/notifications': 'admin',

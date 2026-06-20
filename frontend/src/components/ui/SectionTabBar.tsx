@@ -29,6 +29,7 @@ const SECTIONS: Section[] = [
       { href: '/data-products', label: 'Data Products' },
       { href: '/slas',          label: 'SLAs' },
       { href: '/compliance',    label: 'Compliance' },
+      { href: '/privacy',       label: 'Privacy' },
       { href: '/domains',       label: 'Domains' },
     ],
   },
