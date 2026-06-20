@@ -1,4 +1,5 @@
 'use client'
+import React from 'react'
 import { useState, useEffect, useCallback } from 'react'
 
 type Tab = 'masking' | 'dsr' | 'consent' | 'residency'
@@ -38,7 +39,7 @@ function statusStyle(s: string): React.CSSProperties {
 }
 
 function Pill({ label }: { label: string }) {
-  return <span style={{ ...statusStyle(label), padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{label.replace('_', ' ')}</span>
+  return <span style={{ ...statusStyle(label), padding: '2px 9px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>{label.replace(/_/g, ' ')}</span>
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -81,10 +82,11 @@ function MaskingTab() {
   async function handleAdd() {
     setSaving(true)
     try {
-      await fetch('/api/privacy/masking-policies', {
+      const r = await fetch('/api/privacy/masking-policies', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, unmasked_roles: form.unmasked_roles || null }),
       })
+      if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ asset_id: '', column_name: '', masking_type: 'full_mask', unmasked_roles: 'admin,data_steward' })
       load()
@@ -92,7 +94,8 @@ function MaskingTab() {
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/privacy/masking-policies/${id}`, { method: 'DELETE' })
+    const r = await fetch(`/api/privacy/masking-policies/${id}`, { method: 'DELETE' })
+    if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
 
@@ -177,14 +180,16 @@ function DSRTab() {
   const completed = dsrs.filter(d => d.status === 'completed').length
 
   async function handleAction(id: string, status: string) {
-    await fetch(`/api/privacy/dsr/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    const r = await fetch(`/api/privacy/dsr/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    if (!r.ok) { alert('Action failed. Please try again.'); return }
     load()
   }
 
   async function handleAdd() {
     setSaving(true)
     try {
-      await fetch('/api/privacy/dsr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await fetch('/api/privacy/dsr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ subject_email: '', request_type: 'erasure', description: '' })
       load()
@@ -242,7 +247,7 @@ function DSRTab() {
             <div><label style={lbl}>Subject Email</label><input style={inp} value={form.subject_email} onChange={e => setForm(f => ({ ...f, subject_email: e.target.value }))} placeholder="user@example.com" /></div>
             <div><label style={lbl}>Request Type</label>
               <select style={inp} value={form.request_type} onChange={e => setForm(f => ({ ...f, request_type: e.target.value }))}>
-                {DSR_TYPES.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+                {DSR_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div><label style={lbl}>Description</label><textarea style={{ ...inp, height: '80px', resize: 'vertical' }} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="Details of the request…" /></div>
@@ -273,7 +278,8 @@ function ConsentTab() {
   async function handleAdd() {
     setSaving(true)
     try {
-      await fetch('/api/privacy/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await fetch('/api/privacy/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ asset_id: '', purpose: '', legal_basis: 'consent', data_subject_type: '', requires_explicit_consent: false, opt_in: true })
       load()
@@ -281,7 +287,8 @@ function ConsentTab() {
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/privacy/consent/${id}`, { method: 'DELETE' })
+    const r = await fetch(`/api/privacy/consent/${id}`, { method: 'DELETE' })
+    if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
 
@@ -310,7 +317,7 @@ function ConsentTab() {
               {records.map(r => (
                 <tr key={r.consent_id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.purpose}</td>
-                  <td style={{ padding: '10px' }}><Pill label={r.legal_basis.replace('_', ' ')} /></td>
+                  <td style={{ padding: '10px' }}><Pill label={r.legal_basis.replace(/_/g, ' ')} /></td>
                   <td style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '12px' }}>{r.data_subject_type ?? '—'}</td>
                   <td style={{ padding: '10px' }}><span style={{ fontWeight: 600, color: r.opt_in ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>{r.opt_in ? 'Yes' : 'No'}</span></td>
                   <td style={{ padding: '10px' }}><span style={{ fontWeight: 600, color: r.requires_explicit_consent ? 'var(--brand-primary)' : 'var(--text-muted)' }}>{r.requires_explicit_consent ? 'Yes' : 'No'}</span></td>
@@ -329,7 +336,7 @@ function ConsentTab() {
             <div><label style={lbl}>Purpose</label><input style={inp} value={form.purpose} onChange={e => setForm(f => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Marketing analytics" /></div>
             <div><label style={lbl}>Legal Basis</label>
               <select style={inp} value={form.legal_basis} onChange={e => setForm(f => ({ ...f, legal_basis: e.target.value }))}>
-                {LEGAL_BASES.map(b => <option key={b} value={b}>{b.replace('_', ' ')}</option>)}
+                {LEGAL_BASES.map(b => <option key={b} value={b}>{b.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div><label style={lbl}>Data Subject Type</label><input style={inp} value={form.data_subject_type} onChange={e => setForm(f => ({ ...f, data_subject_type: e.target.value }))} placeholder="e.g. Customer" /></div>
@@ -375,7 +382,8 @@ function ResidencyTab() {
   async function handleAdd() {
     setSaving(true)
     try {
-      await fetch('/api/privacy/residency', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await fetch('/api/privacy/residency', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ asset_id: '', domain_id: '', allowed_regions: [], prohibited_regions: [], data_sovereignty_country: '', notes: '' })
       load()
@@ -383,7 +391,8 @@ function ResidencyTab() {
   }
 
   async function handleDelete(id: string) {
-    await fetch(`/api/privacy/residency/${id}`, { method: 'DELETE' })
+    const r = await fetch(`/api/privacy/residency/${id}`, { method: 'DELETE' })
+    if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
 
