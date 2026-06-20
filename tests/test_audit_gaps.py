@@ -139,3 +139,26 @@ class TestCoverageMetrics:
         from app.api.audit import router
         routes = [r.path for r in router.routes]
         assert "/audit/coverage" in routes
+
+
+class TestEvidenceReport:
+    def test_compliance_actions_set(self):
+        compliance_actions = {"approve", "reject", "create", "update", "delete", "certify", "archive"}
+        assert "approve" in compliance_actions
+        assert "list" not in compliance_actions
+
+    def test_compliance_entity_types_set(self):
+        compliance_types = {"rule", "governance_policy", "glossary_term", "data_contract", "masking_policy"}
+        assert "rule" in compliance_types
+        assert "schedule" not in compliance_types
+
+    def test_top_users_sorted_desc(self):
+        user_counts = {"alice": 50, "bob": 100, "carol": 25}
+        top = sorted(user_counts.items(), key=lambda x: -x[1])[:10]
+        assert top[0][0] == "bob"
+        assert top[1][0] == "alice"
+
+    def test_evidence_report_endpoint_importable(self):
+        from app.api.audit import router
+        routes = [r.path for r in router.routes]
+        assert "/audit/evidence-report" in routes

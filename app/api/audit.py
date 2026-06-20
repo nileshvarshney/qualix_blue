@@ -21,6 +21,9 @@ _GOVERNED_TYPES = [
     "issue", "team", "tag", "classification",
 ]
 
+_COMPLIANCE_ACTIONS = {"approve", "reject", "create", "update", "delete", "certify", "archive"}
+_COMPLIANCE_ENTITY_TYPES = {"rule", "governance_policy", "glossary_term", "data_contract", "masking_policy"}
+
 
 @router.get("")
 async def list_audit_logs(
@@ -271,4 +274,78 @@ async def audit_coverage(
         "total_governed_types": total,
         "uncovered_types": uncovered,
         "by_type": by_type,
+    }
+
+
+@router.get("/evidence-report")
+async def evidence_report(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Generate a structured audit evidence report for the given period."""
+    since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
+    window_end = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    all_res = await db.execute(
+        select(AuditLog).where(AuditLog.created_at >= since).order_by(desc(AuditLog.created_at))
+    )
+    logs = all_res.scalars().all()
+
+    # Aggregate by category
+    by_category: dict[str, int] = {}
+    for log in logs:
+        by_category[log.entity_type] = by_category.get(log.entity_type, 0) + 1
+
+    # Top users
+    user_counts: dict[str, int] = {}
+    for log in logs:
+        if log.user_email and log.user_email != "system":
+            user_counts[log.user_email] = user_counts.get(log.user_email, 0) + 1
+    top_users = [
+        {"user_email": u, "event_count": c}
+        for u, c in sorted(user_counts.items(), key=lambda x: -x[1])[:10]
+    ]
+
+    # Active users (distinct non-system)
+    active_users = len(user_counts)
+    system_events = sum(1 for log in logs if not log.user_email or log.user_email == "system")
+
+    # Compliance-relevant events
+    compliance_events = [
+        {
+            "audit_id": log.audit_id,
+            "user_email": log.user_email,
+            "action": log.action,
+            "entity_type": log.entity_type,
+            "entity_id": log.entity_id,
+            "created_at": log.created_at.isoformat(),
+        }
+        for log in logs
+        if log.action.lower() in _COMPLIANCE_ACTIONS
+        and log.entity_type in _COMPLIANCE_ENTITY_TYPES
+    ]
+
+    # Failed events: we treat any action containing 'fail' or 'error' as failed
+    failed_events = sum(
+        1 for log in logs
+        if "fail" in log.action.lower() or "error" in log.action.lower()
+    )
+
+    # Quick suspicious count: users with >50 events in this period
+    suspicious_count = sum(1 for u, c in user_counts.items() if c >= 50)
+
+    return {
+        "generated_at": window_end.isoformat(),
+        "period_days": days,
+        "period_start": since.date().isoformat(),
+        "period_end": window_end.date().isoformat(),
+        "total_events": len(logs),
+        "failed_events": failed_events,
+        "active_users": active_users,
+        "system_events": system_events,
+        "events_by_category": by_category,
+        "top_users": top_users,
+        "compliance_relevant_events": compliance_events,
+        "suspicious_event_count": suspicious_count,
     }
