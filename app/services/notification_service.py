@@ -286,3 +286,108 @@ async def dispatch_alert(
         results["webhook"] = await send_webhook_notification(hook_url, webhook_payload)
 
     return results
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Notification DB & Email: create_notification, send_email
+# ══════════════════════════════════════════════════════════════════════════════
+
+import smtplib
+import threading
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from datetime import datetime, timezone
+from sqlalchemy.ext.asyncio import AsyncSession
+
+_utcnow = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def create_notification(
+    user_email: str,
+    type: str,
+    title: str,
+    body: str,
+    entity_type: str,
+    entity_id: str,
+    db: AsyncSession,
+) -> None:
+    """Write a Notification row and fire email in a daemon thread."""
+    from app.db.models import Notification, gen_uuid
+
+    n = Notification(
+        notification_id=gen_uuid(),
+        user_email=user_email,
+        type=type,
+        title=title,
+        body=body,
+        entity_type=entity_type,
+        entity_id=entity_id,
+        is_read=False,
+        email_sent=False,
+        created_at=_utcnow(),
+    )
+    db.add(n)
+    await db.commit()
+
+    t = threading.Thread(
+        target=_send_email_and_mark,
+        args=(n.notification_id, user_email, title, body),
+        daemon=True,
+    )
+    t.start()
+
+
+def _send_email_and_mark(notification_id: str, to: str, subject: str, body: str) -> None:
+    """Send email and update email_sent flag. Runs in daemon thread."""
+    sent = send_email(to, subject, body)
+    if sent:
+        try:
+            import asyncio
+            from app.db.database import AsyncSessionLocal
+            from app.db.models import Notification
+            from sqlalchemy import select
+
+            async def _mark():
+                async with AsyncSessionLocal() as db:
+                    res = await db.execute(
+                        select(Notification).where(Notification.notification_id == notification_id)
+                    )
+                    n = res.scalar_one_or_none()
+                    if n:
+                        n.email_sent = True
+                        await db.commit()
+
+            asyncio.run(_mark())
+        except Exception as e:
+            logger.warning("Could not mark email_sent: %s", e)
+
+
+def send_email(to: str, subject: str, body: str) -> bool:
+    """
+    Send via SMTP using settings. Returns True on success, False if skipped or failed.
+    Silently skips if SMTP is not configured.
+    """
+    if not settings.smtp_host or not settings.smtp_user:
+        return False
+
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = settings.smtp_from_email
+        msg["To"] = to
+        msg["Subject"] = subject
+        msg.attach(MIMEText(body, "plain"))
+
+        if settings.smtp_use_tls:
+            server = smtplib.SMTP(settings.smtp_host, settings.smtp_port)
+            server.starttls()
+        else:
+            server = smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port)
+
+        server.login(settings.smtp_user, settings.smtp_password)
+        server.sendmail(settings.smtp_from_email, to, msg.as_string())
+        server.quit()
+        logger.info("Email sent to %s: %s", to, subject)
+        return True
+    except Exception as e:
+        logger.warning("Email send failed to %s: %s", to, e)
+        return False
