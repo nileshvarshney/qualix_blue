@@ -322,6 +322,96 @@ async def assess_asset(
     }
 
 
+@router.post("/frameworks/{framework_id}/assess/all")
+async def assess_all_assets(
+    framework_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Run compliance assessment for a framework across every asset that has DQ rules."""
+    from app.db.models import gen_uuid, now as model_now
+
+    fw_result = await db.execute(
+        select(ComplianceFramework).where(ComplianceFramework.framework_id == framework_id)
+    )
+    framework = fw_result.scalar_one_or_none()
+    if not framework:
+        raise HTTPException(404, "Framework not found")
+
+    # Get all assets that have at least one DQ rule
+    assets_result = await db.execute(
+        select(Asset).where(
+            Asset.asset_id.in_(select(DQRule.asset_id).where(DQRule.is_active == True).distinct())
+        )
+    )
+    assets = assets_result.scalars().all()
+
+    reqs_result = await db.execute(
+        select(ComplianceRequirement).where(ComplianceRequirement.framework_id == framework_id)
+    )
+    requirements = reqs_result.scalars().all()
+
+    total_compliant = 0
+    total_gaps = 0
+    per_asset = []
+
+    for asset in assets:
+        asset_compliant = 0
+        asset_gaps = 0
+        for req in requirements:
+            mapping_result = await db.execute(
+                select(ComplianceMapping).where(
+                    ComplianceMapping.asset_id == asset.asset_id,
+                    ComplianceMapping.framework_id == framework_id,
+                    ComplianceMapping.req_id == req.req_id,
+                )
+            )
+            mapping = mapping_result.scalar_one_or_none()
+            new_status = "gap"
+            if mapping and mapping.rule_id:
+                run_result = await db.execute(
+                    select(DQRuleRun)
+                    .where(DQRuleRun.rule_id == mapping.rule_id, DQRuleRun.status == "passed")
+                    .order_by(desc(DQRuleRun.created_at))
+                    .limit(1)
+                )
+                new_status = "compliant" if run_result.scalar_one_or_none() else "gap"
+            if mapping:
+                mapping.status = new_status
+            else:
+                mapping = ComplianceMapping(
+                    mapping_id=gen_uuid(),
+                    asset_id=asset.asset_id,
+                    framework_id=framework_id,
+                    req_id=req.req_id,
+                    status=new_status,
+                    mapped_by=user.get("email"),
+                    created_at=model_now(),
+                )
+                db.add(mapping)
+            if new_status == "compliant":
+                asset_compliant += 1
+            else:
+                asset_gaps += 1
+        total_compliant += asset_compliant
+        total_gaps += asset_gaps
+        per_asset.append({
+            "asset_id": asset.asset_id,
+            "sf_table_name": asset.sf_table_name,
+            "compliant": asset_compliant,
+            "gaps": asset_gaps,
+        })
+
+    await db.commit()
+    return {
+        "framework_id": framework_id,
+        "total_assets": len(assets),
+        "compliant": total_compliant,
+        "gaps": total_gaps,
+        "per_asset": per_asset,
+    }
+
+
 @router.get("/report/{framework_id}")
 async def compliance_report(framework_id: str, db: AsyncSession = Depends(get_db)):
     """All mappings for a framework grouped by asset."""
