@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   Gauge, AlertTriangle, Database, ShieldCheck, Activity, GitCompare, Fingerprint,
   Target, ListChecks, Clock, ChevronRight, Play, CheckCircle2, XCircle, TrendingUp,
+  TrendingDown,
 } from 'lucide-react'
 import { DashboardStats, DimensionScores, TrendPoint } from '@/lib/types'
 import { formatNumber } from '@/lib/utils'
@@ -164,6 +165,9 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
   const score = stats.overallScore
   const healthyAssets = Math.max(stats.totalAssets - stats.atRiskTables.length, 0)
+  const weeklyDelta: number | null = trend.length >= 2
+    ? ((trend[trend.length - 1].score ?? 0) - (trend[0].score ?? 0))
+    : null
 
   return (
     <div style={{ padding: '20px 28px', overflowY: 'auto' }} onClick={() => setActiveMetric(null)}>
@@ -222,15 +226,22 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </div>
           <div style={{ minWidth: '150px' }}>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500, marginBottom: '6px' }}>Overall Quality Score</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)',
-                padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 700,
-              }}>
-                <TrendingUp size={11} strokeWidth={2.6} /> +1.4
-              </span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>vs last week</span>
-            </div>
+            {weeklyDelta !== null && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '3px',
+                  background: weeklyDelta >= 0 ? 'var(--status-ok-bg)' : 'var(--status-error-bg)',
+                  color: weeklyDelta >= 0 ? 'var(--status-ok-text)' : 'var(--status-error-text)',
+                  padding: '2px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: 700,
+                }}>
+                  {weeklyDelta >= 0
+                    ? <TrendingUp size={11} strokeWidth={2.6} />
+                    : <TrendingDown size={11} strokeWidth={2.6} />}
+                  {weeklyDelta >= 0 ? '+' : ''}{weeklyDelta.toFixed(1)}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>vs period start</span>
+              </div>
+            )}
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
               <span style={{ color: '#16a34a', fontWeight: 700 }}>{stats.passed}</span> passing
               {' · '}
@@ -251,7 +262,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         <div style={{ width: '1px', background: 'var(--border)', alignSelf: 'stretch' }} />
 
         {/* KPI tiles */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))', gap: '16px', minWidth: '460px' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))', gap: '16px' }}>
           {/* Open Issues */}
           <Link href="/issues" style={{ textDecoration: 'none' }}>
             <div style={kpiTile}>
