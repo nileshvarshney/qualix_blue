@@ -10,12 +10,12 @@ const SECTIONS: Section[] = [
     key: 'quality',
     tabs: [
       { href: '/',               label: 'Overview' },
-      { href: '/rules',          label: 'Rules' },
-      { href: '/issues',         label: 'Issues' },
       { href: '/asset-registry', label: 'Asset Registry' },
-      { href: '/anomalies',      label: 'Anomalies' },
+      { href: '/rules',          label: 'Rules' },
       { href: '/schedules',      label: 'Schedules' },
       { href: '/execution-logs', label: 'Execution Logs' },
+      { href: '/anomalies',      label: 'Anomalies' },
+      { href: '/issues',         label: 'Issues' },
     ],
   },
   {
