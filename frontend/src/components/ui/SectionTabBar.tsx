@@ -52,11 +52,12 @@ const SECTIONS: Section[] = [
   {
     key: 'operations',
     tabs: [
-      { href: '/scan-jobs',   label: 'Scan Jobs' },
-      { href: '/run-history', label: 'Run History' },
-      { href: '/alerts',      label: 'Alerts' },
-      { href: '/incidents',   label: 'Incidents' },
-      { href: '/audit-logs',  label: 'Audit Logs' },
+      { href: '/scan-jobs',     label: 'Scan Jobs' },
+      { href: '/run-history',   label: 'Run History' },
+      { href: '/alerts',        label: 'Alerts' },
+      { href: '/incidents',     label: 'Incidents' },
+      { href: '/audit-logs',    label: 'Audit Logs' },
+      { href: '/observability', label: 'Observability' },
     ],
   },
   {
