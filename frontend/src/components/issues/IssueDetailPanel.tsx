@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { Issue, IssueAuditEntry, IssueStatus, IssueSeverity, ISSUE_TRANSITIONS } from '@/lib/types'
+import EntityComments from '@/components/EntityComments'
 
 const SEV_CFG: Record<IssueSeverity, { bg: string; color: string; label: string }> = {
   critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',   label: 'Critical' },
@@ -309,6 +310,8 @@ export default function IssueDetailPanel({
             </div>
           )}
         </div>
+
+        <EntityComments entityType="issue" entityId={issue.issue_id} />
       </div>
     </div>
   )
