@@ -56,7 +56,7 @@ function CommentThread({ root, replies, currentEmail, onResolve, onReply }: Thre
             <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
               <button onClick={() => onReply(root.comment_id, root.author_email)}
                 style={{ fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>↩ Reply</button>
-              {(currentEmail === root.author_email || currentEmail) && (
+              {!!currentEmail && (
                 <button onClick={() => onResolve(root.comment_id)}
                   style={{ fontSize: 10, color: 'var(--status-ok-text)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>✓ Resolve</button>
               )}
@@ -106,6 +106,7 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   const [replyTo, setReplyTo] = useState<{ id: string; authorEmail: string | null } | null>(null)
   const [posting, setPosting] = useState(false)
   const [postError, setPostError] = useState<string | null>(null)
+  const [resolveError, setResolveError] = useState<string | null>(null)
   const [currentEmail, setCurrentEmail] = useState<string | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -167,8 +168,13 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   }
 
   async function resolve(id: string) {
+    setResolveError(null)
     const res = await fetch(`/api/comments/${id}/resolve`, { method: 'POST' })
-    if (res.ok) setComments(prev => prev.map(c => c.comment_id === id ? { ...c, is_resolved: true } : c))
+    if (res.ok) {
+      setComments(prev => prev.map(c => c.comment_id === id ? { ...c, is_resolved: true } : c))
+    } else {
+      setResolveError('Failed to resolve — try again')
+    }
   }
 
   function startReply(parentId: string, authorEmail: string | null) {
@@ -219,6 +225,8 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
               <button onClick={() => setReplyTo(null)} style={{ marginLeft: 6, fontSize: 10, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>✕ cancel</button>
             </div>
           )}
+
+          {resolveError && <div style={{ fontSize: 11, color: 'var(--status-error-text)', marginBottom: 4 }}>{resolveError}</div>}
 
           <textarea
             ref={textareaRef}
