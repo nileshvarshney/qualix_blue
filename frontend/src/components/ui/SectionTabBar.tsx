@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { NotificationBadge } from '@/components/nav/NotificationBadge'
 
 type Tab = { href: string; label: string }
 type Section = { key: string; tabs: Tab[] }
@@ -111,8 +112,11 @@ export default function SectionTabBar() {
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               transition: 'color 0.15s',
+              display: 'flex',
+              alignItems: 'center',
             }}>
               {tab.label}
+              {tab.href === '/stewardship' && <NotificationBadge />}
             </div>
           </Link>
         )
