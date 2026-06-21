@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json({ error: 'Backend error' }, { status: res.status })
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : [])
   } catch { return NextResponse.json([]) }

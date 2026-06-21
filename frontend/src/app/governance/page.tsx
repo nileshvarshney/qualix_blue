@@ -257,6 +257,7 @@ export default function GovernancePage() {
     if (tab === 'approvals' && !approvalsLoaded) loadApprovals()
   }, [tab, approvalsLoaded, loadApprovals])
   useEffect(() => {
+    if (approvalFilter !== 'rule') setPendingRulesLoaded(false)
     if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
   }, [approvalFilter, tab, loadApprovals])
   useEffect(() => {
@@ -400,7 +401,7 @@ export default function GovernancePage() {
         ].map(([l, v], i) => (
           <div key={i} style={{ padding: '5px 10px', borderRight: i < 4 ? '1px solid var(--border)' : 'none' }}>
             <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>{l}</div>
-            <div style={{ fontSize: '14px', fontWeight: 700, color: v === '—' ? 'var(--text-muted)' : (i >= 2 && v !== '0') ? 'var(--status-error-text)' : 'var(--foreground)', marginTop: '1px' }}>{v}</div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: v === '—' ? 'var(--text-muted)' : (i >= 3 && v !== '0') ? 'var(--status-error-text)' : 'var(--foreground)', marginTop: '1px' }}>{v}</div>
           </div>
         ))}
       </div>

@@ -115,6 +115,12 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   }, [])
 
   useEffect(() => {
+    setLoaded(false)
+    setComments([])
+    setOpen(false)
+  }, [entityType, entityId])
+
+  useEffect(() => {
     if (open && !loaded) {
       fetch(`/api/comments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`)
         .then(r => r.json())
@@ -169,10 +175,14 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
 
   async function resolve(id: string) {
     setResolveError(null)
-    const res = await fetch(`/api/comments/${id}/resolve`, { method: 'POST' })
-    if (res.ok) {
-      setComments(prev => prev.map(c => c.comment_id === id ? { ...c, is_resolved: true } : c))
-    } else {
+    try {
+      const res = await fetch(`/api/comments/${id}/resolve`, { method: 'POST' })
+      if (res.ok) {
+        setComments(prev => prev.map(c => c.comment_id === id ? { ...c, is_resolved: true } : c))
+      } else {
+        setResolveError('Failed to resolve — try again')
+      }
+    } catch {
       setResolveError('Failed to resolve — try again')
     }
   }
@@ -249,7 +259,7 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
               style={{
                 padding: '5px 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600,
                 background: body.trim() ? 'var(--accent)' : 'var(--border)',
-                color: body.trim() ? '#fff' : 'var(--text-muted)',
+                color: body.trim() ? 'var(--surface)' : 'var(--text-muted)',
                 cursor: posting || !body.trim() ? 'not-allowed' : 'pointer',
               }}
             >
