@@ -31,16 +31,31 @@ function Badge({ label, bg, color }: { label: string; bg: string; color: string 
   )
 }
 
-function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
+function TableRow({ asset, sensitivity, termLinks, selected, onToggleSelect, onClick }: {
   asset: Asset
   sensitivity?: { classification: string | null; count: number }
+  termLinks?: { term_id: string; name: string }[]
   selected: boolean
   onToggleSelect: (e: React.MouseEvent) => void
   onClick: () => void
 }) {
   const [hover, setHover] = useState(false)
+  const [popoverOpen, setPopoverOpen] = useState(false)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const isActive = asset.is_active !== false
   const tags = asset.tag_names ?? []
+
+  useEffect(() => {
+    if (!popoverOpen) return
+    function handleClick(e: MouseEvent) {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setPopoverOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [popoverOpen])
+
   return (
     <div
       onClick={onClick}
@@ -48,7 +63,7 @@ function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px',
+        gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px 60px',
         gap: '0 8px',
         alignItems: 'center',
         padding: '4px 8px 4px 8px',
@@ -96,6 +111,49 @@ function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
       </span>
       <Badge label={isActive ? 'Active' : 'Inactive'} bg={isActive ? 'var(--status-ok-bg)' : 'var(--surface-muted)'} color={isActive ? 'var(--status-ok-text)' : 'var(--text-muted)'} />
       <SensitivityBadge classification={sensitivity?.classification} />
+      {/* Terms column */}
+      <div style={{ position: 'relative' }} ref={popoverRef}>
+        {termLinks && termLinks.length > 0 ? (
+          <button
+            onClick={e => { e.stopPropagation(); setPopoverOpen(o => !o) }}
+            style={{
+              background: 'var(--accent-bg)', color: 'var(--accent)',
+              border: '1px solid var(--accent)', borderRadius: '10px',
+              fontSize: '9px', fontWeight: 700, padding: '1px 6px',
+              cursor: 'pointer', whiteSpace: 'nowrap',
+            }}
+          >
+            {termLinks.length} term{termLinks.length > 1 ? 's' : ''}
+          </button>
+        ) : (
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>—</span>
+        )}
+        {popoverOpen && termLinks && termLinks.length > 0 && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: 0, zIndex: 200,
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            padding: '8px 0', minWidth: '160px',
+          }}>
+            {termLinks.map(t => (
+              <a
+                key={t.term_id}
+                href={`/glossary?term=${t.term_id}`}
+                onClick={e => e.stopPropagation()}
+                style={{
+                  display: 'block', padding: '5px 12px',
+                  fontSize: '11px', color: 'var(--foreground)',
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+              >
+                {t.name}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -108,7 +166,13 @@ export default function CatalogPage() {
   const [popup, setPopup] = useState<Asset | null>(null)
   const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [bulkPatch, setBulkPatch] = useState<{ criticality?: string; certification_status?: string; owner_name?: string }>({})
+  const [bulkPatch, setBulkPatch] = useState<{
+    criticality?: string
+    certification_status?: string
+    owner_name?: string
+    domain_name?: string
+    sensitivity?: string
+  }>({})
   const [bulkApplying, setBulkApplying] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
   const [aiSearchMode, setAiSearchMode] = useState(false)
@@ -118,6 +182,9 @@ export default function CatalogPage() {
   const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [sensitivities, setSensitivities] = useState<Record<string, { classification: string | null; count: number }>>({})
   const sensLoaded = useRef(false)
+  const [termLinks, setTermLinks] = useState<Record<string, { term_id: string; name: string }[]>>({})
+  const termLinksLoaded = useRef(false)
+  const [domains, setDomains] = useState<string[]>([])
 
   const runAiSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setAiSearchResults(null); return }
@@ -160,6 +227,8 @@ export default function CatalogPage() {
     if (bulkPatch.criticality) patch.criticality = bulkPatch.criticality
     if (bulkPatch.certification_status) patch.certification_status = bulkPatch.certification_status
     if (bulkPatch.owner_name) patch.owner_name = bulkPatch.owner_name
+    if (bulkPatch.domain_name) patch.domain_name = bulkPatch.domain_name
+    if (bulkPatch.sensitivity)  patch.sensitivity  = bulkPatch.sensitivity
     if (!Object.keys(patch).length) return
     setBulkApplying(true)
     setBulkError(null)
@@ -196,6 +265,16 @@ export default function CatalogPage() {
   }, [])
 
   useEffect(() => {
+    fetch('/api/domains')
+      .then(r => r.json())
+      .then(data => {
+        const list = Array.isArray(data) ? data : []
+        setDomains(list.map((d: Record<string, unknown>) => String(d.name ?? d.domain_name ?? '')).filter(Boolean))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     fetch('/api/catalog')
       .then(r => r.json())
       .then(data => {
@@ -221,6 +300,19 @@ export default function CatalogPage() {
           })
             .then(r => r.json())
             .then(data => { if (data && typeof data === 'object') setSensitivities(data as Record<string, { classification: string | null; count: number }>) })
+            .catch(() => {})
+        }
+        // Fetch glossary term links for all assets (background)
+        if (!termLinksLoaded.current && list.length > 0) {
+          termLinksLoaded.current = true
+          const ids = list.map((a: Asset) => a.asset_id).join(',')
+          fetch(`/api/glossary/bulk-asset-links?asset_ids=${ids}`)
+            .then(r => r.json())
+            .then(data => {
+              if (data && typeof data === 'object') {
+                setTermLinks(data as Record<string, { term_id: string; name: string }[]>)
+              }
+            })
             .catch(() => {})
         }
       })
@@ -315,14 +407,14 @@ export default function CatalogPage() {
       </div>
 
       {/* column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px', gap: '0 8px', padding: '0 8px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px 60px', gap: '0 8px', padding: '0 8px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
         <input
           type="checkbox"
           onChange={toggleSelectAll}
           checked={filtered.length > 0 && filtered.every(a => selected.has(a.asset_id))}
           style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '14px', height: '14px' }}
         />
-        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Quality', 'Status', 'Sensitivity'].map(h => (
+        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Quality', 'Status', 'Sensitivity', 'Terms'].map(h => (
           <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
@@ -399,6 +491,7 @@ export default function CatalogPage() {
                               key={a.asset_id}
                               asset={a}
                               sensitivity={sensitivities[a.asset_id]}
+                              termLinks={termLinks[a.asset_id]}
                               selected={selected.has(a.asset_id)}
                               onToggleSelect={e => toggleSelect(e, a.asset_id)}
                               onClick={() => setPopup(a)}
@@ -455,6 +548,24 @@ export default function CatalogPage() {
             placeholder="Set owner…"
             style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', width: '120px' }}
           />
+          <select
+            value={bulkPatch.domain_name ?? ''}
+            onChange={e => setBulkPatch(p => ({ ...p, domain_name: e.target.value || undefined }))}
+            style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
+          >
+            <option value="">Domain…</option>
+            {domains.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select
+            value={bulkPatch.sensitivity ?? ''}
+            onChange={e => setBulkPatch(p => ({ ...p, sensitivity: e.target.value || undefined }))}
+            style={{ fontSize: '11px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
+          >
+            <option value="">Sensitivity…</option>
+            {['PHI', 'PII', 'RESTRICTED', 'CONFIDENTIAL', 'SENSITIVE', 'PUBLIC'].map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
           {bulkError && <span style={{ fontSize: '10px', color: 'var(--status-error-text)' }}>{bulkError}</span>}
           <button
             onClick={applyBulk}
