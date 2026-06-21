@@ -37,6 +37,7 @@ from app.api import (
     profile_results,
     quality_scores,
     issues,
+    monitoring,
 )
 # §M6 User/Role/Team
 from app.api.security_settings import router as security_settings_router
@@ -234,6 +235,7 @@ app.include_router(scan_jobs.router)
 app.include_router(scan_results.router)
 app.include_router(profile_results.router)
 app.include_router(issues.router)
+app.include_router(monitoring.router)
 app.include_router(teams_module.router)
 app.include_router(ownership_module.router)
 app.include_router(notifications_module.router)
