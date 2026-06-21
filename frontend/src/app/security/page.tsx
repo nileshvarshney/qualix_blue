@@ -37,6 +37,11 @@ const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Viewer' },
 ]
 
+interface SessionAnomaly {
+  id: string; user: string; user_email: string; anomaly_type: string
+  timestamp: string; ip: string; severity: 'low' | 'medium' | 'high'; status: 'open' | 'resolved'; detail: string
+}
+
 // ── IP whitelist validation ────────────────────────────────────────────────────
 
 function validateIpEntry(entry: string): boolean {
@@ -109,6 +114,9 @@ function NumericInput({ value, onChange, min, max, unit, width = '70px' }: {
 export default function SecurityPage() {
   const [security, setSecurity] = useState<SecurityState>(DEFAULTS)
   const [loading, setLoading] = useState(true)
+  const [anomalies, setAnomalies] = useState<SessionAnomaly[]>([])
+  const [anomalyFilter, setAnomalyFilter] = useState<'all' | 'unresolved' | 'high'>('unresolved')
+  const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveResult, setSaveResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [ipError, setIpError] = useState<string | null>(null)
@@ -140,6 +148,25 @@ export default function SecurityPage() {
       .catch(() => { /* silently use defaults if backend unavailable */ })
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => {
+    const load = () =>
+      fetch('/api/security/session-anomalies', { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : { anomalies: [] })
+        .then(d => setAnomalies(d.anomalies ?? []))
+        .catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  async function resolveAnomaly(id: string) {
+    setResolvingId(id)
+    try {
+      await fetch(`/api/security/session-anomalies/${id}/resolve`, { method: 'PATCH' })
+      setAnomalies(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' } : a))
+    } finally { setResolvingId(null) }
+  }
 
   const set = useCallback(<K extends keyof SecurityState>(key: K, value: SecurityState[K]) => {
     setSecurity(s => ({ ...s, [key]: value }))
@@ -260,6 +287,63 @@ export default function SecurityPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* ── Session Anomaly Detection ── */}
+        <div style={card}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
+            <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--foreground)' }}>Session Anomaly Detection</span>
+            <span style={{ background: anomalies.filter(a => a.status === 'open').length > 0 ? 'var(--status-error-bg)' : 'var(--status-ok-bg)', color: anomalies.filter(a => a.status === 'open').length > 0 ? 'var(--status-error-text)' : 'var(--status-ok-text)', fontSize: '10px', fontWeight: 700, padding: '2px 8px', borderRadius: '20px' }}>
+              {anomalies.filter(a => a.status === 'open').length} open
+            </span>
+            <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>Auto-refreshes every 60s</span>
+          </div>
+          {/* filter chips */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+            {([['all', 'All'], ['unresolved', 'Unresolved'], ['high', 'High Severity']] as const).map(([f, l]) => (
+              <button key={f} onClick={() => setAnomalyFilter(f)}
+                style={{ padding: '3px 10px', borderRadius: '6px', border: 'none', fontSize: '11px', cursor: 'pointer', background: anomalyFilter === f ? 'var(--foreground)' : 'var(--surface-muted)', color: anomalyFilter === f ? 'var(--background)' : 'var(--text-muted)', fontWeight: anomalyFilter === f ? 600 : 400 }}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {anomalies
+            .filter(a => anomalyFilter === 'all' ? true : anomalyFilter === 'unresolved' ? a.status === 'open' : a.severity === 'high')
+            .length === 0 ? (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '20px', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: '8px' }}>
+              No {anomalyFilter !== 'all' ? anomalyFilter + ' ' : ''}anomalies detected
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {anomalies
+                .filter(a => anomalyFilter === 'all' ? true : anomalyFilter === 'unresolved' ? a.status === 'open' : a.severity === 'high')
+                .map(a => {
+                  const sevColor = a.severity === 'high' ? 'var(--status-error-text)' : a.severity === 'medium' ? 'var(--status-warn-text)' : 'var(--text-muted)'
+                  const sevBg = a.severity === 'high' ? 'var(--status-error-bg)' : a.severity === 'medium' ? 'var(--status-warn-bg)' : 'var(--surface-muted)'
+                  return (
+                    <div key={a.id} style={{ padding: '10px 12px', border: `1px solid ${a.status === 'resolved' ? 'var(--border)' : a.severity === 'high' ? '#fca5a5' : 'var(--border)'}`, borderRadius: '8px', background: a.status === 'resolved' ? 'var(--surface-muted)' : 'var(--surface)', opacity: a.status === 'resolved' ? 0.65 : 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '5px', flexWrap: 'wrap' }}>
+                        <span style={{ background: sevBg, color: sevColor, fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', textTransform: 'capitalize' }}>{a.severity}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)' }}>{a.anomaly_type.replace(/_/g, ' ')}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{a.user_email}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>{a.ip}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>{a.timestamp.slice(0, 16).replace('T', ' ')}</span>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', flex: 1 }}>{a.detail}</span>
+                        {a.status === 'open' && (
+                          <button onClick={() => resolveAnomaly(a.id)} disabled={resolvingId === a.id}
+                            style={{ padding: '3px 10px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer', opacity: resolvingId === a.id ? 0.5 : 1, flexShrink: 0 }}>
+                            {resolvingId === a.id ? 'Resolving…' : 'Resolve'}
+                          </button>
+                        )}
+                        {a.status === 'resolved' && <span style={{ fontSize: '10px', color: 'var(--status-ok-text)', fontWeight: 600 }}>✓ Resolved</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+            </div>
+          )}
         </div>
 
         {/* ── Authentication ── */}
