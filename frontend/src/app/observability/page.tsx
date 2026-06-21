@@ -73,6 +73,15 @@ function fmtTime(iso: string) {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
+function StalenessLabel({ updatedAt }: { updatedAt: Date | null }) {
+  const [, forceUpdate] = useState(0)
+  useInterval(() => forceUpdate(n => n + 1), updatedAt ? 1000 : null)
+  if (!updatedAt) return null
+  const secs = Math.round((Date.now() - updatedAt.getTime()) / 1000)
+  const label = secs < 60 ? `${secs}s ago` : `${Math.floor(secs / 60)}m ago`
+  return <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '8px' }}>Last updated {label}</span>
+}
+
 function SectionHeader({
   title,
   subtitle,
@@ -80,7 +89,7 @@ function SectionHeader({
 }: {
   title: string
   subtitle?: string
-  lastUpdated: string | null
+  lastUpdated: Date | null
 }) {
   return (
     <div
@@ -113,11 +122,7 @@ function SectionHeader({
           </span>
         )}
       </div>
-      {lastUpdated && (
-        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-          Updated {lastUpdated}
-        </span>
-      )}
+      <StalenessLabel updatedAt={lastUpdated} />
     </div>
   )
 }
@@ -142,27 +147,25 @@ export default function ObservabilityPage() {
   // Freshness Board
   const [freshness, setFreshness] = useState<FreshnessEntry[]>([])
   const [freshnessLoading, setFreshnessLoading] = useState(true)
-  const [freshnessUpdated, setFreshnessUpdated] = useState<string | null>(null)
+  const [freshnessUpdated, setFreshnessUpdated] = useState<Date | null>(null)
 
   // SLA Predictions
   const [predictions, setPredictions] = useState<SLAPrediction[]>([])
   const [predictionsLoading, setPredictionsLoading] = useState(true)
-  const [predictionsUpdated, setPredictionsUpdated] = useState<string | null>(null)
+  const [predictionsUpdated, setPredictionsUpdated] = useState<Date | null>(null)
 
   // Quality Heatmap
   const [heatmap, setHeatmap] = useState<HeatmapData>({ domains: [], dates: [], matrix: [] })
   const [heatmapLoading, setHeatmapLoading] = useState(true)
-  const [heatmapUpdated, setHeatmapUpdated] = useState<string | null>(null)
+  const [heatmapUpdated, setHeatmapUpdated] = useState<Date | null>(null)
 
   // Correlated Incidents
   const [incidents, setIncidents] = useState<CorrelatedIncident[]>([])
   const [incidentsLoading, setIncidentsLoading] = useState(true)
-  const [incidentsUpdated, setIncidentsUpdated] = useState<string | null>(null)
+  const [incidentsUpdated, setIncidentsUpdated] = useState<Date | null>(null)
 
   // Resolve button state
   const [resolvingId, setResolvingId] = useState<string | null>(null)
-
-  const now = () => new Date().toLocaleTimeString()
 
   // ── Loaders (each independent) ─────────────────────────────────────────────
 
@@ -171,7 +174,7 @@ export default function ObservabilityPage() {
       .then(r => (r.ok ? r.json() : []))
       .then((d: FreshnessEntry[]) => {
         setFreshness(d)
-        setFreshnessUpdated(now())
+        setFreshnessUpdated(new Date())
         setFreshnessLoading(false)
       })
       .catch(() => {
@@ -184,7 +187,7 @@ export default function ObservabilityPage() {
       .then(r => (r.ok ? r.json() : []))
       .then((d: SLAPrediction[]) => {
         setPredictions(d)
-        setPredictionsUpdated(now())
+        setPredictionsUpdated(new Date())
         setPredictionsLoading(false)
       })
       .catch(() => {
@@ -197,7 +200,7 @@ export default function ObservabilityPage() {
       .then(r => (r.ok ? r.json() : { domains: [], dates: [], matrix: [] }))
       .then((d: HeatmapData) => {
         setHeatmap(d)
-        setHeatmapUpdated(now())
+        setHeatmapUpdated(new Date())
         setHeatmapLoading(false)
       })
       .catch(() => {
@@ -210,7 +213,7 @@ export default function ObservabilityPage() {
       .then(r => (r.ok ? r.json() : []))
       .then((d: CorrelatedIncident[]) => {
         setIncidents(d)
-        setIncidentsUpdated(now())
+        setIncidentsUpdated(new Date())
         setIncidentsLoading(false)
       })
       .catch(() => {
