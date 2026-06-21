@@ -21,10 +21,11 @@ const SECTIONS: Section[] = [
   {
     key: 'govern',
     tabs: [
-      { href: '/lineage',    label: 'Lineage' },
-      { href: '/catalog',    label: 'Catalog' },
-      { href: '/governance', label: 'Governance' },
-      { href: '/glossary',   label: 'Glossary' },
+      { href: '/lineage',       label: 'Lineage' },
+      { href: '/catalog',       label: 'Catalog' },
+      { href: '/governance',    label: 'Governance' },
+      { href: '/stewardship',   label: 'Stewardship' },
+      { href: '/glossary',      label: 'Glossary' },
       { href: '/contracts',     label: 'Contracts' },
       { href: '/data-products', label: 'Data Products' },
       { href: '/slas',          label: 'SLAs' },
