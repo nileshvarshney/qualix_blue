@@ -52,11 +52,12 @@ export function NotificationBadge() {
 
   return (
     <span style={{
+      position: 'absolute', top: '-4px', right: '-4px',
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       background: '#dc2626', color: '#fff',
       fontSize: '8px', fontWeight: 800, lineHeight: 1,
       width: '14px', height: '14px', borderRadius: '50%',
-      marginLeft: '4px', flexShrink: 0, verticalAlign: 'middle',
+      flexShrink: 0,
     }}>
       {count > 9 ? '9+' : count}
     </span>

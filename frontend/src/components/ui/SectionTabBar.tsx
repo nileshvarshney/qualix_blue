@@ -103,6 +103,7 @@ export default function SectionTabBar() {
         return (
           <Link key={tab.href} href={tab.href} style={{ textDecoration: 'none' }}>
             <div style={{
+              position: 'relative',
               padding: '11px 16px',
               fontSize: 'var(--text-sm)',
               fontWeight: isActive ? 600 : 400,
