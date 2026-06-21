@@ -1,6 +1,8 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import Dashboard from '@/components/dashboard/Dashboard'
+import { useInterval } from '@/hooks/useInterval'
 import type { DashboardStats } from '@/lib/types'
 
 const EMPTY: DashboardStats = {
@@ -20,8 +22,16 @@ const EMPTY: DashboardStats = {
   recentChecks:      [],
 }
 
+interface CorrelatedIncident {
+  incident_id: string
+  asset_count: number
+  severity: string
+}
+
 export default function HomePage() {
-  const [stats, setStats] = useState<DashboardStats>(EMPTY)
+  const [stats, setStats]         = useState<DashboardStats>(EMPTY)
+  const [incidents, setIncidents] = useState<CorrelatedIncident[]>([])
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     fetch('/api/dashboard', { cache: 'no-store' })
@@ -30,5 +40,60 @@ export default function HomePage() {
       .catch(err => console.error('Dashboard fetch failed:', err))
   }, [])
 
-  return <Dashboard stats={stats} />
+  const loadIncidents = useCallback(() => {
+    fetch('/api/monitoring/correlated-incidents', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : [])
+      .then((d: CorrelatedIncident[]) => {
+        setIncidents(Array.isArray(d) ? d : [])
+        if (Array.isArray(d) && d.length > 0) setDismissed(false)
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => { loadIncidents() }, [loadIncidents])
+  useInterval(loadIncidents, 60_000)
+
+  const showBanner = incidents.length > 0 && !dismissed
+  const highSeverity = incidents.some(i => i.severity === 'high' || i.severity === 'critical')
+
+  return (
+    <>
+      {showBanner && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 50,
+          background: highSeverity ? 'var(--status-error-bg)' : 'var(--status-warn-bg)',
+          borderBottom: `1px solid ${highSeverity ? '#fca5a5' : '#fde68a'}`,
+          padding: '8px 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
+        }}>
+          <span style={{ fontSize: '12.5px', fontWeight: 600, color: highSeverity ? 'var(--status-error-text)' : 'var(--status-warn-text)' }}>
+            ⚡ {incidents.length === 1
+              ? `${incidents[0].asset_count} tables degraded simultaneously`
+              : `${incidents.length} correlated incidents detected`} — possible upstream failure.
+          </span>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+            <Link href="/observability" style={{
+              fontSize: '12px', fontWeight: 700,
+              color: highSeverity ? 'var(--status-error-text)' : 'var(--status-warn-text)',
+              textDecoration: 'underline',
+            }}>
+              View Observability →
+            </Link>
+            <button
+              onClick={() => setDismissed(true)}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                fontSize: '14px', color: highSeverity ? 'var(--status-error-text)' : 'var(--status-warn-text)',
+                lineHeight: 1, padding: '0 2px',
+              }}
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      <Dashboard stats={stats} />
+    </>
+  )
 }

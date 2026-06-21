@@ -351,7 +351,7 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/anomalies': 'quality', '/schedules': 'quality', '/execution-logs': 'quality',
   '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
   '/glossary': 'govern', '/contracts': 'govern', '/data-products': 'govern', '/slas': 'govern', '/domains': 'govern',
-  '/alerts': 'operations', '/incidents': 'operations', '/audit-logs': 'operations',
+  '/alerts': 'operations', '/incidents': 'operations', '/audit-logs': 'operations', '/observability': 'operations',
   '/data-browser': 'explore', '/spot-check': 'explore', '/reports': 'explore',
   '/executive': 'explore',
   '/ai-assistant': 'ai',
