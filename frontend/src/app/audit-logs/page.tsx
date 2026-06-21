@@ -7,6 +7,7 @@ interface AuditLog {
   id: string; user: string; action: string; resource: string
   ip: string; ts: string; category: string; result: 'success' | 'failed'
   detail: string; context: string; sessionId: string; duration: string
+  _suspicious?: boolean; _suspiciousReason?: string
 }
 
 const catColor: Record<string, { bg: string; color: string }> = {
@@ -64,6 +65,7 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo]     = useState('')
+  const [suspiciousOnly, setSuspiciousOnly] = useState(false)
   const [popup, setPopup] = useState<AuditLog | null>(null)
   const [anomalies, setAnomalies] = useState<Array<{pattern:string; severity:string; user_email:string; event_count:number; description:string}>>([])
   const [coverage, setCoverage] = useState<{coverage_pct:number; uncovered_types:string[]} | null>(null)
@@ -105,6 +107,8 @@ export default function AuditLogsPage() {
             context: String(l.context ?? l.notes ?? ''),
             sessionId: String(l.session_id ?? l.sessionId ?? ''),
             duration: l.duration_ms ? `${l.duration_ms}ms` : String(l.duration ?? ''),
+            _suspicious: l._suspicious === true ? true : undefined,
+            _suspiciousReason: typeof l._suspiciousReason === 'string' ? l._suspiciousReason : undefined,
           }
         }))
         setLoading(false)
@@ -176,7 +180,8 @@ export default function AuditLogsPage() {
     const matchSearch = !search || [l.user, l.action, l.resource].some(v => v.toLowerCase().includes(search.toLowerCase()))
     const day = tsToDay(l.ts)
     const matchDate   = (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo)
-    return matchFilter && matchCat && matchSearch && matchDate
+    const matchSuspicious = !suspiciousOnly || l._suspicious
+    return matchFilter && matchCat && matchSearch && matchDate && matchSuspicious
   })
 
   return (
@@ -236,6 +241,18 @@ export default function AuditLogsPage() {
             fontWeight: filter === f ? 600 : 400, fontSize: '11px',
           }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
         ))}
+        <button
+          onClick={() => setSuspiciousOnly(v => !v)}
+          style={{
+            fontSize: '11px', padding: '4px 10px', borderRadius: '5px',
+            border: `1px solid ${suspiciousOnly ? 'var(--status-warn-text)' : 'var(--border)'}`,
+            background: suspiciousOnly ? 'var(--status-warn-bg)' : 'var(--surface)',
+            color: suspiciousOnly ? 'var(--status-warn-text)' : 'var(--text-secondary)',
+            cursor: 'pointer', fontWeight: suspiciousOnly ? 700 : 400,
+          }}
+        >
+          ⚠ Suspicious only
+        </button>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Date range:</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
@@ -282,7 +299,7 @@ export default function AuditLogsPage() {
                 display: 'grid', gridTemplateColumns: COL, gap: '0 12px',
                 alignItems: 'center', padding: '5px 10px',
                 borderBottom: '1px solid var(--surface-muted)',
-                borderLeft: `3px solid ${isFail ? '#fca5a5' : 'transparent'}`,
+                borderLeft: l._suspicious ? '3px solid var(--status-warn-text)' : `3px solid ${isFail ? '#fca5a5' : 'transparent'}`,
                 cursor: 'pointer',
               }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
@@ -292,7 +309,21 @@ export default function AuditLogsPage() {
               <span style={{ fontSize: '11px', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.user}</span>
 
               {/* action */}
-              <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--foreground)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.action.replace(/_/g, ' ')}</span>
+              <span style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--foreground)', textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center' }}>
+                {l.action.replace(/_/g, ' ')}
+                {l._suspicious && (
+                  <span
+                    title={l._suspiciousReason ?? 'suspicious activity'}
+                    style={{
+                      background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)',
+                      fontSize: '9px', fontWeight: 700, padding: '1px 4px', borderRadius: '3px',
+                      marginLeft: '4px', cursor: 'help',
+                    }}
+                  >
+                    ⚠
+                  </span>
+                )}
+              </span>
 
               {/* entity: colored badge + short ID */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
