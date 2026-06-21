@@ -111,6 +111,8 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const [drilldownDate, setDrilldownDate] = useState<string | null>(null)
   const [activeMetric, setActiveMetric] = useState<string | null>(null)
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null)
+  const [slaPredictions, setSlaPredictions] = useState<{ is_at_risk: boolean; breach_day: number | null }[]>([])
+  const [slaLoading, setSlaLoading] = useState(true)
   const router = useRouter()
 
   const days = TIME_OPTIONS.find(o => o.label === timeFilter)?.days ?? 7
@@ -128,6 +130,14 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         setAlertSummary({ open, critical, high, acknowledged })
       })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/monitoring/sla-predictions')
+      .then(r => r.json())
+      .then((data: unknown) => setSlaPredictions(Array.isArray(data) ? data as { is_at_risk: boolean; breach_day: number | null }[] : []))
+      .catch(() => {})
+      .finally(() => setSlaLoading(false))
   }, [])
 
   useEffect(() => {
@@ -165,6 +175,8 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
   const score = stats.overallScore
   const healthyAssets = Math.max(stats.totalAssets - stats.atRiskTables.length, 0)
+  const slaAtRisk    = slaPredictions.filter(p => p.is_at_risk && p.breach_day === null).length
+  const slaBreached  = slaPredictions.filter(p => p.breach_day !== null).length
   const weeklyDelta: number | null = trend.length >= 2
     ? ((trend[trend.length - 1].score ?? 0) - (trend[0].score ?? 0))
     : null
@@ -308,18 +320,37 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             </div>
           </Link>
 
-          {/* SLA Adherence */}
-          <Link href="/slas" style={{ textDecoration: 'none' }}>
+          {/* SLA Health */}
+          <Link href="/observability" style={{ textDecoration: 'none' }}>
             <div style={kpiTile}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={kpiLabel}>SLA Adherence</span>
-                <div style={{ ...kpiIconWrap, background: 'var(--status-neutral-bg)', color: 'var(--text-muted)' }}>
+                <span style={kpiLabel}>SLA Health</span>
+                <div style={{
+                  ...kpiIconWrap,
+                  background: slaLoading ? 'var(--surface-muted)' : slaBreached > 0 ? 'var(--status-error-bg)' : slaAtRisk > 0 ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)',
+                  color:      slaLoading ? 'var(--text-muted)'    : slaBreached > 0 ? 'var(--status-error-text)' : slaAtRisk > 0 ? 'var(--status-warn-text)' : 'var(--status-ok-text)',
+                }}>
                   <ShieldCheck size={13} strokeWidth={2.4} />
                 </div>
               </div>
-              <div style={{ fontSize: '26px', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '-1px', lineHeight: 1, marginBottom: '8px' }}>—</div>
-              <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>No SLA data yet</div>
-              <div style={{ background: '#e5e7eb', height: '4px', borderRadius: '2px' }} />
+              <div style={{ fontSize: '26px', fontWeight: 700, color: slaLoading ? 'var(--text-muted)' : 'var(--foreground)', letterSpacing: '-1px', lineHeight: 1, marginBottom: '8px' }}>
+                {slaLoading ? '—' : slaPredictions.length}
+              </div>
+              <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                {slaLoading ? 'Loading…' : slaBreached > 0
+                  ? <><span style={{ color: '#dc2626', fontWeight: 600 }}>{slaBreached} breached</span>{slaAtRisk > 0 && <> · <span style={{ color: '#ea8b3a', fontWeight: 600 }}>{slaAtRisk} at risk</span></>}</>
+                  : slaAtRisk > 0
+                  ? <span style={{ color: '#ea8b3a', fontWeight: 600 }}>{slaAtRisk} at risk</span>
+                  : <span style={{ color: '#16a34a', fontWeight: 600 }}>All on track</span>
+                }
+              </div>
+              <div style={{ background: slaBreached > 0 ? '#fee2e2' : slaAtRisk > 0 ? '#fef3c7' : '#dcfce7', height: '4px', borderRadius: '2px', overflow: 'hidden' }}>
+                <div style={{
+                  width: `${!slaLoading && slaPredictions.length > 0 ? ((slaBreached + slaAtRisk) / slaPredictions.length) * 100 : 0}%`,
+                  height: '100%',
+                  background: slaBreached > 0 ? '#dc2626' : '#ea8b3a',
+                }} />
+              </div>
             </div>
           </Link>
         </div>
