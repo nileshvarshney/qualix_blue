@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback, useImperativeHandle, forwardRef } from 'react'
+import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef } from 'react'
 import { Database, Layers, Table2, Eye, Server, FileText, List } from 'lucide-react'
+import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
 
 interface TreeNode {
   asset_id: string
@@ -56,10 +57,11 @@ function findNode(nodes: TreeNode[], id: string): TreeNode | null {
 }
 
 function NodeRow({
-  node, depth, onSelect, selectedId, onToggle,
+  node, depth, onSelect, selectedId, onToggle, sensitivities,
 }: {
   node: TreeNode; depth: number; onSelect: (id: string) => void
   selectedId: string | null; onToggle: (id: string) => void
+  sensitivities: Record<string, { classification: string | null; count: number }>
 }) {
   const isSelected = node.asset_id === selectedId
   const canExpand = node.asset_type !== 'column'
@@ -100,10 +102,12 @@ function NodeRow({
           {label}
         </span>
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: dot, flexShrink: 0 }} />
+        <SensitivityBadge classification={sensitivities[node.asset_id]?.classification} />
       </div>
       {node._expanded && node.children.map(child => (
         <NodeRow key={child.asset_id} node={child} depth={depth + 1}
-          onSelect={onSelect} selectedId={selectedId} onToggle={onToggle} />
+          onSelect={onSelect} selectedId={selectedId} onToggle={onToggle}
+          sensitivities={sensitivities} />
       ))}
     </div>
   )
@@ -128,6 +132,8 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
   const [searchResults, setSearchResults] = useState<TreeNode[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [sourceId, setSourceId] = useState<string | null>(() => getStoredConnId())
+  const [sensitivities, setSensitivities] = useState<Record<string, { classification: string | null; count: number }>>({})
+  const sensLoaded = useRef(false)
 
   const fetchTree = useCallback((connId: string | null) => {
     setLoading(true)
@@ -152,6 +158,33 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
     window.addEventListener('qualix-active-conn-changed', onConnChanged)
     return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
+
+  useEffect(() => {
+    if (sensLoaded.current) return
+    function collectLeafIds(nodes: TreeNode[]): string[] {
+      const ids: string[] = []
+      for (const n of nodes) {
+        if (n.asset_type === 'table' || n.asset_type === 'view') ids.push(n.asset_id)
+        if (n.children.length > 0) ids.push(...collectLeafIds(n.children))
+      }
+      return ids
+    }
+    const ids = collectLeafIds(roots)
+    if (ids.length === 0) return
+    sensLoaded.current = true
+    fetch('/api/catalog/sensitivity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ asset_ids: ids }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data && typeof data === 'object') {
+          setSensitivities(data as Record<string, { classification: string | null; count: number }>)
+        }
+      })
+      .catch(() => {})
+  }, [roots])
 
   const toggleNode = useCallback((assetId: string) => {
     setRoots(prev => {
@@ -208,7 +241,8 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
         )}
         {!loading && !searching && displayNodes.map(node => (
           <NodeRow key={node.asset_id} node={node} depth={0}
-            onSelect={onSelect} selectedId={selectedId} onToggle={toggleNode} />
+            onSelect={onSelect} selectedId={selectedId} onToggle={toggleNode}
+            sensitivities={sensitivities} />
         ))}
         {!loading && !searching && displayNodes.length === 0 && (
           <div style={{ padding: '16px', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>No assets found</div>
