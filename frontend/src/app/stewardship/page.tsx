@@ -44,6 +44,8 @@ interface TaskRow {
   requestor: string
   age: string
   href: string
+  actionId?: string
+  actionType?: 'rule' | 'approval'
 }
 
 function scoreColor(s: number) {
@@ -105,6 +107,11 @@ export default function StewardshipPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [comments, setComments] = useState<CommentItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [actioning, setActioning] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newTask, setNewTask] = useState({ type: 'review', entity_type: 'asset', entity_id: '', description: '', assignee: '', due_date: '' })
+  const [creating, setCreating] = useState(false)
+  const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   useEffect(() => {
     setLoading(true)
@@ -135,6 +142,8 @@ export default function StewardshipPage() {
         requestor: a.requested_by,
         age: ageLabel(a.created_at),
         href: '/governance',
+        actionId: a.approval_id,
+        actionType: 'approval' as const,
       }))
 
       // Task queue: pending_review rules (client-side filter)
@@ -150,6 +159,8 @@ export default function StewardshipPage() {
           requestor: r.createdBy ?? '—',
           age: ageLabel(r.createdAt),
           href: '/rules',
+          actionId: r.id,
+          actionType: 'rule' as const,
         }))
 
       setTasks([...approvalTasks, ...ruleTasks].sort((a, b) => {
@@ -167,6 +178,42 @@ export default function StewardshipPage() {
       setLoading(false)
     })
   }, [])
+
+  async function handleAction(task: TaskRow, action: 'approve' | 'reject') {
+    if (!task.actionId) return
+    setActioning(task.key)
+    try {
+      const url = task.actionType === 'rule'
+        ? `/api/rules/${task.actionId}/${action}`
+        : `/api/governance/approvals/${task.actionId}/${action}`
+      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      setTasks(prev => prev.filter(t => t.key !== task.key))
+    } catch { /* silently ignore */ }
+    finally { setActioning(null) }
+  }
+
+  async function handleCreateTask() {
+    setCreating(true)
+    setCreateResult(null)
+    try {
+      const res = await fetch('/api/stewardship/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTask),
+      })
+      if (res.ok) {
+        setCreateResult({ ok: true, msg: 'Task created' })
+        setNewTask({ type: 'review', entity_type: 'asset', entity_id: '', description: '', assignee: '', due_date: '' })
+        setTimeout(() => { setCreateOpen(false); setCreateResult(null) }, 1500)
+      } else {
+        setCreateResult({ ok: false, msg: 'Failed to create task' })
+      }
+    } catch {
+      setCreateResult({ ok: false, msg: 'Network error' })
+    } finally {
+      setCreating(false)
+    }
+  }
 
   // Group comments by entity for the discussions panel
   const entityGroups = comments.reduce<Record<string, CommentItem[]>>((acc, c) => {
@@ -253,18 +300,98 @@ export default function StewardshipPage() {
               {tasks.length > 0 && (
                 <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>{tasks.length}</span>
               )}
+              <button
+                onClick={() => setCreateOpen(o => !o)}
+                style={{ marginLeft: 'auto', fontSize: 10, padding: '3px 10px', borderRadius: 5, border: '1px solid var(--border)', background: createOpen ? 'var(--accent)' : 'var(--surface)', color: createOpen ? '#fff' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: 600 }}
+              >
+                + Create Task
+              </button>
             </div>
+
+            {/* Create Task form */}
+            {createOpen && (
+              <div style={{ padding: '12px 14px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Task Type</div>
+                    <select value={newTask.type} onChange={e => setNewTask(t => ({ ...t, type: e.target.value }))}
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)' }}>
+                      <option value="review">Review</option>
+                      <option value="investigation">Investigation</option>
+                      <option value="remediation">Remediation</option>
+                      <option value="certification">Certification</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entity Type</div>
+                    <select value={newTask.entity_type} onChange={e => setNewTask(t => ({ ...t, entity_type: e.target.value }))}
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)' }}>
+                      <option value="asset">Asset</option>
+                      <option value="issue">Issue</option>
+                      <option value="rule">Rule</option>
+                      <option value="glossary_term">Glossary Term</option>
+                      <option value="policy">Policy</option>
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Entity ID / Name</div>
+                    <input value={newTask.entity_id} onChange={e => setNewTask(t => ({ ...t, entity_id: e.target.value }))}
+                      placeholder="ID or name of the entity"
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Assignee</div>
+                    <input value={newTask.assignee} onChange={e => setNewTask(t => ({ ...t, assignee: e.target.value }))}
+                      placeholder="user@domain.com"
+                      style={{ width: '100%', padding: '5px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Description</div>
+                  <input value={newTask.description} onChange={e => setNewTask(t => ({ ...t, description: e.target.value }))}
+                    placeholder="What needs to be done?"
+                    style={{ width: '100%', padding: '5px 8px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', boxSizing: 'border-box' }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <button onClick={handleCreateTask} disabled={creating || !newTask.entity_id.trim()}
+                    style={{ fontSize: 11, padding: '5px 14px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: creating ? 'not-allowed' : 'pointer', opacity: creating ? 0.7 : 1 }}>
+                    {creating ? 'Creating…' : 'Create Task'}
+                  </button>
+                  {createResult && (
+                    <span style={{ fontSize: 11, color: createResult.ok ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
+                      {createResult.ok ? '✓' : '✕'} {createResult.msg}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
             {tasks.length === 0 ? (
               <div style={{ padding: '24px 14px', color: 'var(--text-muted)', fontSize: 12 }}>No pending tasks — all caught up</div>
             ) : (
               <div>
                 {tasks.map(t => (
-                  <div key={t.key} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 140px 80px 80px', gap: '0 10px', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--surface-muted)' }}>
+                  <div key={t.key} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 120px 70px auto', gap: '0 10px', alignItems: 'center', padding: '8px 14px', borderBottom: '1px solid var(--surface-muted)' }}>
                     {entityTypeBadge(t.entityType)}
                     <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.requestor}</span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t.age}</span>
-                    <Link href={t.href} style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', textAlign: 'right' }}>→ Review</Link>
+                    {t.actionId ? (
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
+                        <button
+                          disabled={actioning === t.key}
+                          onClick={() => handleAction(t, 'approve')}
+                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--status-ok-text)', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', cursor: 'pointer', fontWeight: 700 }}
+                        >✓</button>
+                        <button
+                          disabled={actioning === t.key}
+                          onClick={() => handleAction(t, 'reject')}
+                          style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', cursor: 'pointer', fontWeight: 700 }}
+                        >✕</button>
+                      </div>
+                    ) : (
+                      <Link href={t.href} style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', textAlign: 'right' }}>→ Review</Link>
+                    )}
                   </div>
                 ))}
               </div>

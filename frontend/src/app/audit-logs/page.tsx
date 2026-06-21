@@ -142,6 +142,19 @@ export default function AuditLogsPage() {
     URL.revokeObjectURL(a.href)
   }
 
+  function exportAuditJson(rows: typeof filtered) {
+    const payload = rows.map(r => ({
+      timestamp: r.ts, user: r.user, action: r.action, resource: r.resource,
+      category: r.category, result: r.result, ip: r.ip, session_id: r.sessionId,
+      duration: r.duration, detail: r.detail, context: r.context,
+    }))
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }))
+    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+
   async function handleVerify() {
     setVerifyLoading(true)
     setShowVerifyModal(true)
@@ -184,7 +197,8 @@ export default function AuditLogsPage() {
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
           <button onClick={handleVerify} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>🔒 Verify Integrity</button>
-          <button onClick={() => exportAuditCsv(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ Export</button>
+          <button onClick={() => exportAuditCsv(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ CSV</button>
+          <button onClick={() => exportAuditJson(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ JSON</button>
         </div>
       </div>
 

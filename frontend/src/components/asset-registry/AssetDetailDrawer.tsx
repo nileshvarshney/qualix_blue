@@ -458,8 +458,78 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           )}
         </div>
 
+        {/* Linked Glossary Terms */}
+        <LinkedGlossaryTerms assetId={asset.asset_id} />
+
         <div style={{ height: '12px' }} />
       </div>
     </>
+  )
+}
+
+function LinkedGlossaryTerms({ assetId }: { assetId: string }) {
+  const [open, setOpen] = useState(false)
+  const [terms, setTerms] = useState<{ term_id: string; term_name: string; domain_name?: string; status?: string }[] | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  function toggle() {
+    setOpen(o => {
+      if (!o && terms === null) {
+        setLoading(true)
+        fetch(`/api/glossary?asset_id=${encodeURIComponent(assetId)}`)
+          .then(r => r.json())
+          .then(data => {
+            const list = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : [])
+            setTerms(list.map((t: Record<string, unknown>) => ({
+              term_id: String(t.term_id ?? t.id ?? ''),
+              term_name: String(t.term_name ?? t.name ?? ''),
+              domain_name: t.domain_name ? String(t.domain_name) : undefined,
+              status: t.status ? String(t.status) : undefined,
+            })))
+          })
+          .catch(() => setTerms([]))
+          .finally(() => setLoading(false))
+      }
+      return !o
+    })
+  }
+
+  const statusColor = (s?: string) =>
+    s === 'approved' ? 'var(--status-ok-text)' : s === 'deprecated' ? 'var(--status-error-text)' : 'var(--text-muted)'
+
+  return (
+    <div style={{ margin: '6px 14px 0', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+      <div
+        onClick={toggle}
+        style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', background: 'var(--surface)', userSelect: 'none' }}
+        onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+        onMouseLeave={e => (e.currentTarget.style.background = 'var(--surface)')}
+      >
+        <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{open ? '▼' : '▶'}</span>
+        <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--foreground)' }}>Linked Glossary Terms</span>
+        {terms !== null && (
+          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{terms.length} term{terms.length !== 1 ? 's' : ''}</span>
+        )}
+      </div>
+      {open && (
+        <div style={{ padding: '8px 10px' }}>
+          {loading && <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Loading…</div>}
+          {!loading && terms !== null && terms.length === 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No glossary terms linked — use the Glossary page to link terms to this asset</div>
+          )}
+          {!loading && (terms ?? []).map(t => (
+            <div key={t.term_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 0', borderBottom: '1px solid var(--surface-muted)' }}>
+              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>📖 {t.term_name}</span>
+              {t.domain_name && (
+                <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{t.domain_name}</span>
+              )}
+              {t.status && (
+                <span style={{ fontSize: '9px', fontWeight: 700, color: statusColor(t.status), textTransform: 'capitalize' }}>{t.status}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }

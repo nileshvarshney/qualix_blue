@@ -126,6 +126,172 @@ function SlackBotConfig() {
   )
 }
 
+interface RetentionConfig {
+  defaultRetentionDays: number
+  archiveStrategy: 'delete' | 'archive' | 'compress'
+  notifyDaysBefore: number
+  enableAutoArchive: boolean
+  domainOverrides: { domain: string; days: number }[]
+}
+
+function DataLifecycleConfig() {
+  const [config, setConfig] = useState<RetentionConfig>({
+    defaultRetentionDays: 365,
+    archiveStrategy: 'archive',
+    notifyDaysBefore: 30,
+    enableAutoArchive: false,
+    domainOverrides: [],
+  })
+  const [saving, setSaving] = useState(false)
+  const [saveResult, setSaveResult] = useState<{ ok: boolean; msg: string } | null>(null)
+  const [newDomain, setNewDomain] = useState('')
+  const [newDays, setNewDays] = useState(180)
+
+  useEffect(() => {
+    fetch('/api/settings/retention')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setConfig({ ...config, ...data }) })
+      .catch(() => {})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    setSaveResult(null)
+    try {
+      const res = await fetch('/api/settings/retention', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      })
+      setSaveResult({ ok: res.ok, msg: res.ok ? 'Retention policy saved' : 'Save failed' })
+    } catch {
+      setSaveResult({ ok: false, msg: 'Could not reach backend' })
+    } finally {
+      setSaving(false)
+      setTimeout(() => setSaveResult(null), 3000)
+    }
+  }
+
+  const cardStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px' }
+  const inputStyle: React.CSSProperties = { padding: '7px 10px', borderRadius: '7px', border: '1px solid var(--border)', fontSize: '12.5px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none' }
+  const row: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+        <span style={{ fontSize: '20px' }}>♻️</span>
+        <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)' }}>Data Lifecycle & Retention</span>
+      </div>
+      <p style={{ margin: '0 0 20px', fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.65' }}>
+        Configure how long datasets are retained before archival or deletion. Domain-level overrides take precedence over the default policy.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+        <div style={row}>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--foreground)' }}>Default Retention Period</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>How long to keep datasets before triggering the archive strategy</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="number" value={config.defaultRetentionDays} min={1} max={3650}
+              onChange={e => setConfig(c => ({ ...c, defaultRetentionDays: parseInt(e.target.value) || 365 }))}
+              style={{ ...inputStyle, width: '80px', textAlign: 'center' }} />
+            <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>days</span>
+          </div>
+        </div>
+
+        <div style={row}>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--foreground)' }}>Archive Strategy</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Action taken when retention period expires</div>
+          </div>
+          <select value={config.archiveStrategy} onChange={e => setConfig(c => ({ ...c, archiveStrategy: e.target.value as RetentionConfig['archiveStrategy'] }))}
+            style={{ ...inputStyle, paddingRight: '24px' }}>
+            <option value="archive">Move to archive storage</option>
+            <option value="compress">Compress and retain</option>
+            <option value="delete">Delete permanently</option>
+          </select>
+        </div>
+
+        <div style={row}>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--foreground)' }}>Notify Before Expiry</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Alert dataset owners N days before retention period ends</div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input type="number" value={config.notifyDaysBefore} min={0} max={365}
+              onChange={e => setConfig(c => ({ ...c, notifyDaysBefore: parseInt(e.target.value) || 0 }))}
+              style={{ ...inputStyle, width: '60px', textAlign: 'center' }} />
+            <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>days</span>
+          </div>
+        </div>
+
+        <div style={{ ...row, borderBottom: 'none' }}>
+          <div>
+            <div style={{ fontSize: '13.5px', fontWeight: 500, color: 'var(--foreground)' }}>Auto-Archive</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>Automatically apply the archive strategy without manual approval</div>
+          </div>
+          <button onClick={() => setConfig(c => ({ ...c, enableAutoArchive: !c.enableAutoArchive }))}
+            style={{ width: '44px', height: '24px', borderRadius: '12px', border: 'none', background: config.enableAutoArchive ? '#16a34a' : 'var(--border)', cursor: 'pointer', position: 'relative' }}>
+            <span style={{ position: 'absolute', top: '3px', left: config.enableAutoArchive ? '22px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', display: 'block', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Domain overrides */}
+      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Domain-Level Overrides</div>
+        {config.domainOverrides.length === 0 && (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '10px' }}>No domain overrides — all domains use the default retention period</div>
+        )}
+        {config.domainOverrides.map((d, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+            <span style={{ fontSize: '12.5px', color: 'var(--foreground)', flex: 1, fontWeight: 500 }}>{d.domain}</span>
+            <input type="number" value={d.days} min={1}
+              onChange={e => setConfig(c => ({ ...c, domainOverrides: c.domainOverrides.map((o, j) => j === i ? { ...o, days: parseInt(e.target.value) || 180 } : o) }))}
+              style={{ ...inputStyle, width: '70px', textAlign: 'center' }} />
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>days</span>
+            <button onClick={() => setConfig(c => ({ ...c, domainOverrides: c.domainOverrides.filter((_, j) => j !== i) }))}
+              style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--status-error-text)', cursor: 'pointer' }}>✕</button>
+          </div>
+        ))}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' }}>
+          <input value={newDomain} onChange={e => setNewDomain(e.target.value)} placeholder="Domain name…"
+            style={{ ...inputStyle, flex: 1 }} />
+          <input type="number" value={newDays} min={1}
+            onChange={e => setNewDays(parseInt(e.target.value) || 180)}
+            style={{ ...inputStyle, width: '70px', textAlign: 'center' }} />
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>days</span>
+          <button
+            disabled={!newDomain.trim()}
+            onClick={() => {
+              if (!newDomain.trim()) return
+              setConfig(c => ({ ...c, domainOverrides: [...c.domainOverrides, { domain: newDomain.trim(), days: newDays }] }))
+              setNewDomain('')
+              setNewDays(180)
+            }}
+            style={{ fontSize: '11px', padding: '5px 12px', borderRadius: '5px', border: 'none', background: 'var(--accent)', color: '#fff', fontWeight: 600, cursor: newDomain.trim() ? 'pointer' : 'not-allowed', opacity: newDomain.trim() ? 1 : 0.5 }}>
+            + Add
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '20px' }}>
+        <button onClick={save} disabled={saving}
+          style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+          {saving ? 'Saving…' : 'Save Retention Policy'}
+        </button>
+        {saveResult && (
+          <span style={{ fontSize: '12.5px', color: saveResult.ok ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
+            {saveResult.ok ? '✓' : '✕'} {saveResult.msg}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<'profile' | 'workspace' | 'roadmap'>('profile')
   const [saved, setSaved] = useState(false)
@@ -568,7 +734,7 @@ export default function SettingsPage() {
                     icon: '📦',
                     status: 'partial',
                     exists: 'Catalog page now has a tree-view hierarchy (connection → database → schema → table) with asset detail drawer showing ownership badges, certification status, domain assignment, and search across table name, schema, domain, and owner. Datasets page shows live Snowflake table metadata — column names, types, nullability, row counts, bytes, and a live 20-row data preview loaded lazily on expand. Glossary page manages business terms with full CRUD, domain/owner/synonym fields, and a status workflow (draft → pending_review → approved/deprecated) backed by a real /api/glossary endpoint. Glossary term-to-asset linking is now fully built — a modal UI with table/column selection, backend link-asset endpoints, and inline unlink buttons. Column sensitivity tags (PII/PHI/SENSITIVE/CONFIDENTIAL/RESTRICTED/PUBLIC) are visible in the asset detail drawer via AssetColumnsSection.',
-                    gaps: 'Sensitivity tags are only visible in the asset detail drawer — not surfaced in main Catalog list view. No reverse navigation from a Catalog asset to its linked glossary terms. No metadata versioning, change history, or bulk editing. No AI-assisted auto-documentation UI despite the backend endpoint /ai/classify-table existing.',
+                    gaps: 'Sensitivity badges now surfaced in Catalog list rows (9th column, fetched in batch via /api/catalog/sensitivity). Linked glossary terms now shown in asset detail drawer (collapsible section). No metadata versioning, change history, or bulk editing. No reverse-lookup from Catalog list rows to glossary terms (only in detail drawer).',
                   },
                   {
                     area: 'Lineage & Impact Analysis',
@@ -582,21 +748,21 @@ export default function SettingsPage() {
                     icon: '🛡️',
                     status: 'partial',
                     exists: 'Governance page Policies tab: create policies with name, description, domain, enforcement type (enforced/advisory), and status (draft/review/active). Policy detail drawer shows linked rule pass/fail results and which tables the policy applies to. Violation tracking with open/resolved status and a resolution action. Approval workflows are now inline and multi-entity: the Governance Approvals tab covers glossary terms, policies, contracts, and data products — each with inline Approve/Reject buttons and a reject-reason modal. Rules page has inline ✓/✕ approve/reject for pending_review rules. Stewardship hub shows a unified task queue of all pending items.',
-                    gaps: 'The "enforced" label is a display tag only — no engine actually blocks non-conforming data or re-evaluates rules when a policy changes. No email or Slack notification sent to approvers on submission. No audit trail UI showing who approved what and when. Approve/reject for rules is on the Rules page, not inline in the Stewardship queue. No policy versioning or change history. No notifications when a policy is violated.',
+                    gaps: 'The "enforced" label is a display tag only — no engine actually blocks non-conforming data. Inline approve/reject now available in the Stewardship hub task queue (no longer requires navigating to Rules page). No email or Slack notification sent to approvers on submission. No audit trail UI showing who approved what and when. No policy versioning or change history. No notifications when a policy is violated.',
                   },
                   {
                     area: 'Access Control & Security',
                     icon: '🔒',
                     status: 'partial',
-                    exists: 'Settings → Security has a full UI: SSO toggle, MFA toggle with method selector (TOTP/SMS/Email/WebAuthn), password policy (min length, special chars, rotation days), session timeout, max login attempts, RBAC toggle, audit logging toggle, data encryption toggle, API rate limit, IP whitelist. A security posture score (0–67) is computed from 7 dimensions and displayed with a ring chart.',
-                    gaps: 'Every security setting is frontend UI state only — none of the toggles or values are sent to or enforced by a backend. Flipping SSO to "on" does nothing. The security posture score is computed entirely in the browser from the toggle states, not from actual security telemetry. No real role management (only one hardcoded "Admin" role in the profile). No column-level or row-level access control. IP whitelist is a textarea field with no validation or enforcement.',
+                    exists: '/security page is fully wired to backend: GET /api/security loads persisted settings, PUT /api/security saves them. Includes SSO toggle, MFA with method selector (TOTP/SMS/Email/WebAuthn), password policy, session timeout, max login attempts, RBAC toggle, audit logging, data encryption, API rate limit, IP whitelist with CIDR validation, column-level access control (min role for PII and CONFIDENTIAL column profiling), and row-level domain isolation via JWT claims. Security posture score computed from saved state across 7 dimensions.',
+                    gaps: 'No real role management beyond what is in /roles page — roles are created but not enforced at the API layer beyond JWT domain claims. No column-level data masking at query time — only profiling data is hidden based on role. SSO and MFA settings are persisted but not enforced by the authentication layer (enforcement requires backend auth service integration). No session-based anomaly detection.',
                   },
                   {
                     area: 'Classification & Sensitivity',
                     icon: '🏷️',
                     status: 'partial',
-                    exists: 'Domain-level classification scores now appear as one of the six governance scorecard dimensions, sourced from classification_score in the /api/governance/scorecards response — they reflect actual backend data. Backend endpoint /ai/discover-pii/{asset_id} is implemented and can scan column names and data patterns to suggest PII columns using AI-based detection. Column sensitivity tags (PII/PHI/SENSITIVE/CONFIDENTIAL/RESTRICTED/PUBLIC) exist in AssetColumnsSection and are visible in the asset detail drawer. Dashboard Privacy tile surfaces unprotected PII table count from /api/privacy/pii-exposure.',
-                    gaps: 'No frontend UI to trigger /ai/discover-pii — its output is invisible to users. Column-level sensitivity labels are not shown in the main Catalog or Datasets list views (only in the detail drawer). No review-and-confirm interface to accept or override AI PII detections. Remediation (masking, tokenization, anonymization at query or export time) is entirely absent. Dashboard Privacy tile is summary only — no drill-down to column-level detail.',
+                    exists: 'Domain-level classification scores appear as one of the six governance scorecard dimensions from /api/governance/scorecards. "Scan with AI" button in AssetColumnsSection calls POST /api/ai/discover-pii/{assetId} and presents a review-and-confirm table with checkboxes, confidence bars, and a bulk-apply button (POST /api/classifications/assets/{id}/classifications/bulk). Sensitivity badges (PHI/PII/RESTRICTED/CONFIDENTIAL/SENSITIVE) now surfaced in the main Catalog list view as a 9th column, fetched in batch via /api/catalog/sensitivity. Asset detail drawer has a "Linked Glossary Terms" collapsible section.',
+                    gaps: 'Sensitivity labels still not in Datasets list view (only Catalog). Remediation (masking, tokenization, anonymization at query or export time) is entirely absent — requires backend enforcement. Dashboard Privacy tile is summary only — no drill-down to per-column detail. No consent management or data residency configuration.',
                   },
                   {
                     area: 'Data Protection & Privacy',
@@ -610,7 +776,7 @@ export default function SettingsPage() {
                     icon: '📋',
                     status: 'partial',
                     exists: 'Audit logs page is real: fetches from /api/audit, displays user, action, resource, IP address, category (connection/rule/schedule/alert/auth/report/contract/sla/anomaly), result (success/failed), timestamp, session ID, duration, and expandable event detail. Filtering by user type, failure, category, and search all work. User avatars are colour-coded per person. Compliance controls per framework fetch from /api/compliance/{framework_id}/controls with control code, name, description, rule mappings, status, last assessed date, and evidence. Evidence export wired via /api/audit/evidence-report.',
-                    gaps: 'Audit logging is passive — no alerting fires when suspicious patterns appear (e.g. repeated failed logins, unusual access by an unknown IP). No CSV/JSON export for auditors from the Audit Logs page itself. No tamper-evident log storage. No automated evidence generation workflow. No audit coverage metrics. Compliance controls depend on manual seeding — no auto-mapping from active rules to controls.',
+                    gaps: 'CSV and JSON export both available from the Audit Logs page (⬇ CSV / ⬇ JSON buttons). Auto-Map Rules button on compliance page calls POST /api/compliance/{fw}/auto-map to populate controls from active rules. Audit logging is passive — no alerting fires for suspicious patterns (e.g. repeated failed logins, unusual IPs). No automated evidence generation workflow. No tamper-evident log storage.',
                   },
                   {
                     area: 'Observability & Monitoring',
@@ -622,16 +788,16 @@ export default function SettingsPage() {
                   {
                     area: 'Data Lifecycle',
                     icon: '♻️',
-                    status: 'missing',
-                    exists: 'Workspace settings has a "Data Retention" row that shows "—". No other lifecycle-related UI exists anywhere in the platform.',
-                    gaps: 'Data lifecycle management is entirely absent. No retention policy creation or enforcement. No dataset archival workflow. No data expiry or deprecation process. No cold/warm/hot tier management. No dataset "end of life" notifications. No data aging/staleness tracking beyond what a manually created freshness rule would catch. No version history for datasets or schemas.',
+                    status: 'partial',
+                    exists: 'Data Lifecycle & Retention panel in Settings Workspace tab: default retention period (days), archive strategy (delete/archive/compress), notify-before-expiry (days), auto-archive toggle, and per-domain overrides with add/remove controls. Saves to POST /api/settings/retention and loads from GET /api/settings/retention. Asset change history available in AssetDetailDrawer (History section shows CREATE/UPDATE/BULK_UPDATE events with field-level before/after diffs from /api/asset-registry/{id}/history).',
+                    gaps: 'Retention policy is frontend config only — no backend engine enforces it or triggers archival/deletion. No dataset "end of life" notification delivery to owners. No cold/warm/hot tier management. No version history for schemas (only asset metadata changes tracked). No data expiry workflow with approval gating.',
                   },
                   {
                     area: 'Stewardship & Collaboration',
                     icon: '🤝',
                     status: 'partial',
                     exists: 'Ownership Coverage KPI on the Governance page shows real % from domain scorecards. /stewardship hub page provides: ownership coverage bar chart per domain (sorted worst-first), unified task queue of pending approvals and pending_review rules, and a recent-discussions feed grouping comments by entity with unresolved count and last excerpt. Threaded comment system built: GET/POST/DELETE/resolve endpoints at /api/comments, EntityComments component renders discussions on Issues, Anomalies, and Glossary terms. Governance Approvals tab has inline Approve/Reject for glossary terms, policies, contracts, and data products. Rules page has inline ✓/✕ approve/reject for pending_review rules. Dashboard Stewardship tile shows ownership score + pending count, linking to /stewardship.',
-                    gaps: '@mentions are now rendered with an autocomplete dropdown (fetches users from /api/users) and highlight @handles in comments. Comments are now extended to datasets (AssetDetailPanel), lineage nodes (lineage page chains tab), and contracts (contracts slide-in panel). In-platform push notifications for mentions/approvals are still not built (no WebSocket/SSE notification channel). Stewardship task queue is read-only — no custom task creation. Approve/reject for rules is on the Rules page, not inline in the Stewardship queue.',
+                    gaps: 'Stewardship task queue now has inline ✓/✕ approve/reject buttons for both rule and approval tasks (calls /api/rules/{id}/approve|reject and /api/governance/approvals/{id}/approve|reject). Custom task creation form added to the task queue panel (type, entity type/id, assignee, description — POSTs to /api/stewardship/tasks). @mentions with autocomplete and @handle highlighting are live. In-platform push notifications for mentions/approvals still not built (no WebSocket/SSE). Approve/reject feedback in Stewardship queue removes the item inline without page navigation.',
                   },
                 ]
 
@@ -715,6 +881,9 @@ export default function SettingsPage() {
 
               {/* Slack / Teams AI Bot Configuration */}
               <SlackBotConfig />
+
+              {/* Data Lifecycle & Retention */}
+              <DataLifecycleConfig />
             </div>
           )}
         </div>

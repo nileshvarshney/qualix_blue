@@ -30,8 +30,17 @@ function Badge({ label, bg, color }: { label: string; bg: string; color: string 
   )
 }
 
-function TableRow({ asset, selected, onToggleSelect, onClick }: {
+const SENS_STYLE: Record<string, { bg: string; color: string }> = {
+  PHI:          { bg: '#fef2f2', color: '#dc2626' },
+  PII:          { bg: '#fff7ed', color: '#c2410c' },
+  RESTRICTED:   { bg: '#fff1f2', color: '#be123c' },
+  CONFIDENTIAL: { bg: '#fefce8', color: '#a16207' },
+  SENSITIVE:    { bg: '#eff6ff', color: '#1d4ed8' },
+}
+
+function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
   asset: Asset
+  sensitivity?: { classification: string | null; count: number }
   selected: boolean
   onToggleSelect: (e: React.MouseEvent) => void
   onClick: () => void
@@ -39,6 +48,7 @@ function TableRow({ asset, selected, onToggleSelect, onClick }: {
   const [hover, setHover] = useState(false)
   const isActive = asset.is_active !== false
   const tags = asset.tag_names ?? []
+  const sensStyle = sensitivity?.classification ? SENS_STYLE[sensitivity.classification] : null
   return (
     <div
       onClick={onClick}
@@ -46,7 +56,7 @@ function TableRow({ asset, selected, onToggleSelect, onClick }: {
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px',
+        gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px',
         gap: '0 8px',
         alignItems: 'center',
         padding: '4px 8px 4px 8px',
@@ -93,6 +103,14 @@ function TableRow({ asset, selected, onToggleSelect, onClick }: {
         {asset.quality_score != null ? `${Math.round(asset.quality_score)}%` : '—'}
       </span>
       <Badge label={isActive ? 'Active' : 'Inactive'} bg={isActive ? 'var(--status-ok-bg)' : 'var(--surface-muted)'} color={isActive ? 'var(--status-ok-text)' : 'var(--text-muted)'} />
+      <span style={{
+        background: sensStyle ? sensStyle.bg : 'transparent',
+        color: sensStyle ? sensStyle.color : 'var(--text-muted)',
+        padding: '1px 5px', borderRadius: '3px', fontSize: '9px', fontWeight: sensStyle ? 700 : 400,
+        whiteSpace: 'nowrap', display: 'inline-block', textAlign: 'center',
+      }}>
+        {sensStyle ? sensitivity!.classification! : sensitivity?.count === 0 ? '—' : sensitivity == null ? '' : '…'}
+      </span>
     </div>
   )
 }
@@ -113,6 +131,8 @@ export default function CatalogPage() {
   const [aiSearchLoading, setAiSearchLoading] = useState(false)
   const [aiSearchError, setAiSearchError] = useState<string | null>(null)
   const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [sensitivities, setSensitivities] = useState<Record<string, { classification: string | null; count: number }>>({})
+  const sensLoaded = useRef(false)
 
   const runAiSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setAiSearchResults(null); return }
@@ -205,6 +225,19 @@ export default function CatalogPage() {
         }
         setExpanded(keys)
         setLoading(false)
+        // Fetch sensitivity classifications for all assets (background)
+        if (!sensLoaded.current && list.length > 0) {
+          sensLoaded.current = true
+          const ids = list.map((a: Asset) => a.asset_id)
+          fetch('/api/catalog/sensitivity', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset_ids: ids }),
+          })
+            .then(r => r.json())
+            .then(data => { if (data && typeof data === 'object') setSensitivities(data as Record<string, { classification: string | null; count: number }>) })
+            .catch(() => {})
+        }
       })
       .catch(() => setLoading(false))
   }, [])
@@ -297,14 +330,14 @@ export default function CatalogPage() {
       </div>
 
       {/* column headers */}
-      <div style={{ display: 'grid', gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px', gap: '0 8px', padding: '0 8px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 220px 1fr 110px 80px 70px 55px 60px 65px', gap: '0 8px', padding: '0 8px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
         <input
           type="checkbox"
           onChange={toggleSelectAll}
           checked={filtered.length > 0 && filtered.every(a => selected.has(a.asset_id))}
           style={{ cursor: 'pointer', accentColor: 'var(--accent)', width: '14px', height: '14px' }}
         />
-        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Quality', 'Status'].map(h => (
+        {['Table', 'Domain › Subdomain', 'Owner', 'Certification', 'Criticality', 'Quality', 'Status', 'Sensitivity'].map(h => (
           <span key={h} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
         ))}
       </div>
@@ -380,6 +413,7 @@ export default function CatalogPage() {
                             <TableRow
                               key={a.asset_id}
                               asset={a}
+                              sensitivity={sensitivities[a.asset_id]}
                               selected={selected.has(a.asset_id)}
                               onToggleSelect={e => toggleSelect(e, a.asset_id)}
                               onClick={() => setPopup(a)}
