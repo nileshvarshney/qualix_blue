@@ -165,7 +165,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       setOwnershipScores(Array.isArray(scores) ? (scores as { ownership_score: number }[]) : [])
       setPendingApprovals(Array.isArray(approvals) ? approvals.length : 0)
       setStewardshipLoading(false)
-    })
+    }).catch(() => setStewardshipLoading(false))
   }, [])
 
   useEffect(() => {
