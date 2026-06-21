@@ -761,8 +761,8 @@ export default function SettingsPage() {
                     area: 'Classification & Sensitivity',
                     icon: '🏷️',
                     status: 'partial',
-                    exists: 'Domain-level classification scores appear as one of the six governance scorecard dimensions from /api/governance/scorecards. "Scan with AI" button in AssetColumnsSection calls POST /api/ai/discover-pii/{assetId} and presents a review-and-confirm table with checkboxes, confidence bars, and a bulk-apply button (POST /api/classifications/assets/{id}/classifications/bulk). Sensitivity badges (PHI/PII/RESTRICTED/CONFIDENTIAL/SENSITIVE) now surfaced in the main Catalog list view as a 9th column, fetched in batch via /api/catalog/sensitivity. Asset detail drawer has a "Linked Glossary Terms" collapsible section.',
-                    gaps: 'Sensitivity labels still not in Datasets list view (only Catalog). Remediation (masking, tokenization, anonymization at query or export time) is entirely absent — requires backend enforcement. Dashboard Privacy tile is summary only — no drill-down to per-column detail. No consent management or data residency configuration.',
+                    exists: 'Domain-level classification scores appear as one of the six governance scorecard dimensions from /api/governance/scorecards. "Scan with AI" button in AssetColumnsSection calls POST /api/ai/discover-pii/{assetId} and presents a review-and-confirm table with checkboxes, confidence bars, and a bulk-apply button (POST /api/classifications/assets/{id}/classifications/bulk). Sensitivity badges (PHI/PII/RESTRICTED/CONFIDENTIAL/SENSITIVE) now surfaced in the main Catalog list view as a 9th column, fetched in batch via /api/catalog/sensitivity. Asset detail drawer has a "Linked Glossary Terms" collapsible section. The /privacy page now has a "Sensitivity by Domain" section at the top showing per-domain sensitivity breakdowns with expandable rows. Each domain row shows sensitivity badge counts; expanding reveals per-classification asset counts. Section fetches /api/classifications/summary. Proxy-layer data masking is active: when "Column-Level Access Control" is enabled in /security settings, the asset-registry proxy intercepts profiling and preview responses and replaces PII, PHI, and CONFIDENTIAL column values with *** for non-trusted roles (trusted: admin, data_steward, data_owner). 5-minute sensitivity map cache per asset.',
+                    gaps: 'No remediation at warehouse query time — masking applies at the Next.js proxy layer only; a user who queries the warehouse directly bypasses it (requires backend enforcement). No consent management or data residency configuration.',
                   },
                   {
                     area: 'Data Protection & Privacy',
@@ -854,7 +854,7 @@ export default function SettingsPage() {
 
               {/* Footer note */}
               <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: Metadata &amp; Catalog promoted PARTIAL → BUILT. Changes: sensitivity in Asset Registry tree, glossary term badges on Catalog list rows, domain+sensitivity added to bulk edit bar.
+                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: Metadata &amp; Catalog promoted PARTIAL → BUILT. Changes: sensitivity in Asset Registry tree, glossary term badges on Catalog list rows, domain+sensitivity added to bulk edit bar. Classification & Sensitivity: Privacy page drill-down section + proxy-layer masking added.
               </div>
             </div>
           )}
