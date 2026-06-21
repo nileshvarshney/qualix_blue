@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface Framework {
   id: string; name: string; version: string; description: string
@@ -37,6 +37,8 @@ export default function CompliancePage() {
   const [aiGaps, setAiGaps] = useState<{ gaps?: { control: string; action: string }[]; summary?: string; [key: string]: unknown } | null>(null)
   const [aiGapsLoading, setAiGapsLoading] = useState(false)
   const [aiGapsError, setAiGapsError] = useState<string | null>(null)
+  const autoMapFiredRef = useRef<string | null>(null)
+  const [autoMapStatus, setAutoMapStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
 
   useEffect(() => {
     fetch('/api/compliance')
@@ -78,6 +80,36 @@ export default function CompliancePage() {
           ruleTypes: String(c.dq_rule_types ?? ''),
         })))
         setControlsLoading(false)
+
+        // AUTO-MAP: if controls came back empty and we haven't fired for this framework yet
+        if (items.length === 0 && selectedFw && autoMapFiredRef.current !== selectedFw) {
+          autoMapFiredRef.current = selectedFw
+          setAutoMapStatus('running')
+          fetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+              setAutoMapStatus('done')
+              // Re-fetch controls after auto-map completes
+              return fetch(`/api/compliance/${selectedFw}/controls`)
+                .then(r2 => r2.json())
+                .then(d2 => {
+                  const mapped = Array.isArray(d2) ? d2 : []
+                  setControls(mapped.map((c: Record<string, unknown>) => ({
+                    id: String(c.req_id ?? ''),
+                    code: String(c.req_code ?? ''),
+                    name: String(c.req_name ?? ''),
+                    description: String(c.req_description ?? ''),
+                    framework: String(c.framework_name ?? ''),
+                    status: (c.status as 'passed' | 'failed' | 'not-assessed') ?? 'not-assessed',
+                    rulesMapped: Number(c.rules_mapped ?? 0),
+                    lastAssessed: c.last_assessed ? String(c.last_assessed).slice(0, 10) : null,
+                    evidence: String(c.evidence ?? ''),
+                    ruleTypes: String(c.dq_rule_types ?? ''),
+                  })))
+                })
+            })
+            .catch(() => setAutoMapStatus('error'))
+        }
       })
       .catch(() => setControlsLoading(false))
   }, [selectedFw])
@@ -352,6 +384,17 @@ export default function CompliancePage() {
             </div>
           </div>
         </div>
+
+        {autoMapStatus === 'running' && (
+          <div style={{ padding: '8px 16px', background: 'var(--accent-bg)', border: '1px solid var(--accent)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent)', marginBottom: '8px' }}>
+            Mapping rules to controls… this may take a moment.
+          </div>
+        )}
+        {autoMapStatus === 'error' && (
+          <div style={{ padding: '8px 16px', background: 'var(--status-warn-bg)', border: '1px solid var(--status-warn-text)', borderRadius: '6px', fontSize: '12px', color: 'var(--status-warn-text)', marginBottom: '8px' }}>
+            Auto-mapping failed — use the Manual Auto-Map button below.
+          </div>
+        )}
 
         {!selectedFw ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
