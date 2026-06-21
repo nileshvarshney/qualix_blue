@@ -161,7 +161,9 @@ export default function GovernancePage() {
   const [approvalActionError, setApprovalActionError] = useState<string | null>(null)
   const [rejectTarget, setRejectTarget] = useState<ApprovalItem | null>(null)
   const [rejectNote, setRejectNote] = useState('')
-  const [approvalFilter, setApprovalFilter] = useState<'all' | 'pending' | 'policy' | 'contract' | 'data_product' | 'domain_ownership' | 'glossary_term'>('pending')
+  const [approvalFilter, setApprovalFilter] = useState<'all' | 'pending' | 'policy' | 'contract' | 'data_product' | 'domain_ownership' | 'glossary_term' | 'rule'>('pending')
+  const [pendingRules, setPendingRules] = useState<Array<{ id: string; name: string; createdBy?: string; createdAt: string }>>([])
+  const [pendingRulesLoaded, setPendingRulesLoaded] = useState(false)
   const [policyVersions, setPolicyVersions] = useState<PolicyVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [policyPanelTab, setPolicyPanelTab] = useState<'violations' | 'history'>('violations')
@@ -257,6 +259,23 @@ export default function GovernancePage() {
   useEffect(() => {
     if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
   }, [approvalFilter, tab, loadApprovals])
+  useEffect(() => {
+    if (tab === 'approvals' && approvalFilter === 'rule' && !pendingRulesLoaded) {
+      fetch('/api/rules')
+        .then(r => r.json())
+        .then(data => {
+          const arr = Array.isArray(data) ? data : []
+          setPendingRules(arr.filter((r: Record<string, unknown>) => r.status === 'pending_review').map((r: Record<string, unknown>) => ({
+            id: String(r.id ?? ''),
+            name: String(r.name ?? ''),
+            createdBy: r.createdBy ? String(r.createdBy) : undefined,
+            createdAt: String(r.createdAt ?? r.created_at ?? ''),
+          })))
+          setPendingRulesLoaded(true)
+        })
+        .catch(() => setPendingRulesLoaded(true))
+    }
+  }, [tab, approvalFilter, pendingRulesLoaded])
   useEffect(() => {
     fetch('/api/me')
       .then(r => r.json())
@@ -371,14 +390,15 @@ export default function GovernancePage() {
       </div>
 
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
         {[
           ['Governance Score', govScore !== null ? String(govScore) : '—'],
+          ['Ownership Coverage', avgOwnership !== null ? avgOwnership + '%' : '—'],
           ['Policies Active', String(activeCount)],
           ['Open Violations', violationsLoaded ? String(openViolations.length) : '—'],
           ['High Severity', violationsLoaded ? String(highViolations.length) : '—'],
         ].map(([l, v], i) => (
-          <div key={i} style={{ padding: '5px 10px', borderRight: i < 3 ? '1px solid var(--border)' : 'none' }}>
+          <div key={i} style={{ padding: '5px 10px', borderRight: i < 4 ? '1px solid var(--border)' : 'none' }}>
             <div style={{ fontSize: '8.5px', textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>{l}</div>
             <div style={{ fontSize: '14px', fontWeight: 700, color: v === '—' ? 'var(--text-muted)' : (i >= 2 && v !== '0') ? 'var(--status-error-text)' : 'var(--foreground)', marginTop: '1px' }}>{v}</div>
           </div>
@@ -506,7 +526,7 @@ export default function GovernancePage() {
           <div style={{ padding: '0 24px 24px' }}>
             {/* Filter bar */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
-              {(['all', 'pending', 'policy', 'contract', 'data_product', 'domain_ownership', 'glossary_term'] as const).map(f => (
+              {(['all', 'pending', 'policy', 'contract', 'data_product', 'domain_ownership', 'glossary_term', 'rule'] as const).map(f => (
                 <button key={f} onClick={() => setApprovalFilter(f)}
                   style={{
                     padding: '4px 12px', border: '1px solid var(--border)', borderRadius: 12,
@@ -514,7 +534,7 @@ export default function GovernancePage() {
                     background: approvalFilter === f ? 'var(--brand-primary)' : 'transparent',
                     color: approvalFilter === f ? '#fff' : 'var(--text-muted)',
                   }}>
-                  {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : f === 'data_product' ? 'Data Products' : f === 'domain_ownership' ? 'Domain Ownership' : f === 'glossary_term' ? 'Glossary Terms' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
+                  {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : f === 'data_product' ? 'Data Products' : f === 'domain_ownership' ? 'Domain Ownership' : f === 'glossary_term' ? 'Glossary Terms' : f === 'rule' ? 'Rules' : f.charAt(0).toUpperCase() + f.slice(1) + 's'}
                 </button>
               ))}
             </div>
@@ -523,7 +543,32 @@ export default function GovernancePage() {
               <div style={{ marginBottom: 12, color: 'var(--status-error-text)', fontSize: 13 }}>{approvalActionError}</div>
             )}
 
-            {approvals.length === 0 ? (
+            {approvalFilter === 'rule' ? (
+              !pendingRulesLoaded ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '32px 0' }}>Loading…</div>
+              ) : pendingRules.length === 0 ? (
+                <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '32px 0' }}>No rules pending review.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {pendingRules.map(r => (
+                    <div key={r.id} style={{
+                      display: 'grid', gridTemplateColumns: '100px 1fr 140px 80px auto',
+                      alignItems: 'center', gap: 12, padding: '12px 16px',
+                      background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+                    }}>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>rule</span>
+                      <div>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{r.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>by {r.createdBy ?? '—'}</div>
+                      </div>
+                      <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)' }}>pending review</span>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.createdAt ? new Date(r.createdAt).toLocaleDateString() : '—'}</span>
+                      <a href="/rules" style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 12, background: 'transparent', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>→ Rules</a>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : approvals.length === 0 ? (
               <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '32px 0' }}>No approval requests found.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -533,64 +578,24 @@ export default function GovernancePage() {
                     alignItems: 'center', gap: 12, padding: '12px 16px',
                     background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
                   }}>
-                    {/* Entity type badge */}
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                      background: 'var(--surface-muted)', color: 'var(--text-muted)',
-                      textTransform: 'uppercase', letterSpacing: '0.06em',
-                    }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: 'var(--surface-muted)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                       {item.entity_type.replace('_', ' ')}
                     </span>
-
-                    {/* Name from snapshot */}
                     <div>
                       <div style={{ fontWeight: 500, fontSize: 13 }}>
                         {String(item.entity_snapshot?.policy_name ?? item.entity_snapshot?.contract_name ?? item.entity_snapshot?.name ?? item.entity_id)}
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>by {item.requested_by}</div>
                     </div>
-
-                    {/* Status badge */}
-                    <span style={{
-                      padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600,
-                      background: item.status === 'pending' ? 'var(--status-warn-bg)' : item.status === 'approved' ? 'var(--status-ok-bg)' : 'var(--status-error-bg)',
-                      color: item.status === 'pending' ? 'var(--status-warn-text)' : item.status === 'approved' ? 'var(--status-ok-text)' : 'var(--status-error-text)',
-                    }}>
+                    <span style={{ padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, background: item.status === 'pending' ? 'var(--status-warn-bg)' : item.status === 'approved' ? 'var(--status-ok-bg)' : 'var(--status-error-bg)', color: item.status === 'pending' ? 'var(--status-warn-text)' : item.status === 'approved' ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
                       {item.status}
                     </span>
-
-                    {/* Date */}
                     <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(item.created_at)}</span>
-
-                    {/* Reviewed by */}
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.reviewed_by ?? '—'}</span>
-
-                    {/* Actions */}
                     {item.status === 'pending' && currentUser?.role && ['admin', 'domain_owner'].includes(currentUser.role) && (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          disabled={approvalActionLoading === item.approval_id}
-                          onClick={async () => {
-                            setApprovalActionLoading(item.approval_id)
-                            setApprovalActionError(null)
-                            try {
-                              const res = await fetch(`/api/governance/approvals/${item.approval_id}?action=approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
-                              if (!res.ok) throw new Error('Approve failed')
-                              setApprovalsLoaded(false); loadApprovals()
-                            } catch { setApprovalActionError('Approve failed') }
-                            finally { setApprovalActionLoading(null) }
-                          }}
-                          style={{ padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontWeight: 600 }}
-                        >
-                          Approve
-                        </button>
-                        <button
-                          disabled={approvalActionLoading === item.approval_id}
-                          onClick={() => { setRejectTarget(item); setRejectNote('') }}
-                          style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, background: 'transparent', color: 'var(--text-muted)' }}
-                        >
-                          Reject
-                        </button>
+                        <button disabled={approvalActionLoading === item.approval_id} onClick={async () => { setApprovalActionLoading(item.approval_id); setApprovalActionError(null); try { const res = await fetch(`/api/governance/approvals/${item.approval_id}?action=approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!res.ok) throw new Error('Approve failed'); setApprovalsLoaded(false); loadApprovals() } catch { setApprovalActionError('Approve failed') } finally { setApprovalActionLoading(null) } }} style={{ padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontWeight: 600 }}>Approve</button>
+                        <button disabled={approvalActionLoading === item.approval_id} onClick={() => { setRejectTarget(item); setRejectNote('') }} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, background: 'transparent', color: 'var(--text-muted)' }}>Reject</button>
                       </div>
                     )}
                   </div>
