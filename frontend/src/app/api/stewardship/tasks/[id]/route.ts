@@ -19,7 +19,7 @@ export async function PATCH(
       },
       body,
     })
-    return NextResponse.json(await r.json().catch(() => ({})), { status: r.ok ? r.status : 200 })
+    return NextResponse.json(await r.json().catch(() => ({})), { status: r.status })
   } catch (e) {
     return NextResponse.json({ detail: String(e) }, { status: 500 })
   }

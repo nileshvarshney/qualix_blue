@@ -22,7 +22,7 @@ export function detectSuspiciousActivity(entries: AuditEntry[]): AuditEntry[] {
   // Pattern 1: repeated failures
   const failureMap = new Map<string, { idx: number; ts: number }[]>()
   entries.forEach((e, i) => {
-    if (e.result !== 'failure' || !e.user) return
+    if ((e.result !== 'failed' && e.result !== 'failure') || !e.user) return
     const ts = e.timestamp ? new Date(e.timestamp).getTime() : 0
     if (!failureMap.has(e.user)) failureMap.set(e.user, [])
     failureMap.get(e.user)!.push({ idx: i, ts })

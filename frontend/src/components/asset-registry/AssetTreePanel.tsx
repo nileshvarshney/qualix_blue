@@ -160,6 +160,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
   }, [])
 
   useEffect(() => {
+    sensLoaded.current = false
     if (sensLoaded.current) return
     function collectLeafIds(nodes: TreeNode[]): string[] {
       const ids: string[] = []

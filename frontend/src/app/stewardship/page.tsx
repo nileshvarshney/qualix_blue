@@ -238,12 +238,14 @@ export default function StewardshipPage() {
   async function markTaskDone(taskId: string) {
     setMarkingDone(taskId)
     try {
-      await fetch(`/api/stewardship/tasks/${taskId}`, {
+      const res = await fetch(`/api/stewardship/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' }),
       })
-      setCustomTasks(prev => prev.filter(t => t.id !== taskId))
+      if (res.ok) {
+        setCustomTasks(prev => prev.filter(t => t.id !== taskId))
+      }
     } catch { /* leave in list on error */ }
     finally { setMarkingDone(null) }
   }
