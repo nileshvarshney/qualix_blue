@@ -49,6 +49,12 @@ interface PolicyVersion {
   snapshot: Record<string, unknown>
 }
 
+interface NotifConfig { slack_webhook: string; email_recipients: string; enabled: boolean }
+interface ApprovalHistoryItem {
+  id: string; entity_name: string; entity_type: string
+  action: 'approved' | 'rejected'; actor: string; reason: string | null; timestamp: string
+}
+
 type GovernanceTab = 'scorecards' | 'policies' | 'violations' | 'approvals'
 type ScorecardFilter = 'all' | 'healthy' | 'at-risk'
 type PolicyFilter = 'all' | 'active' | 'draft' | 'enforced'
@@ -251,6 +257,12 @@ export default function GovernancePage() {
   const [policyVersions, setPolicyVersions] = useState<PolicyVersion[]>([])
   const [versionsLoading, setVersionsLoading] = useState(false)
   const [policyPanelTab, setPolicyPanelTab] = useState<'violations' | 'history'>('violations')
+  const [notifConfig, setNotifConfig] = useState<NotifConfig>({ slack_webhook: '', email_recipients: '', enabled: false })
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifSaved, setNotifSaved] = useState(false)
+  const [approvalHistory, setApprovalHistory] = useState<ApprovalHistoryItem[]>([])
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'approved' | 'rejected'>('all')
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -308,6 +320,26 @@ export default function GovernancePage() {
   }, [approvalFilter])
 
 
+  const loadApprovalHistory = useCallback(() => {
+    setHistoryLoading(true)
+    fetch('/api/governance/approval-history?limit=30', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { items: [] })
+      .then(d => setApprovalHistory(d.items ?? []))
+      .catch(() => {})
+      .finally(() => setHistoryLoading(false))
+  }, [])
+
+  async function saveNotifConfig() {
+    setNotifSaving(true)
+    try {
+      const res = await fetch('/api/governance/notification-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(notifConfig),
+      })
+      if (res.ok) { const d = await res.json(); setNotifConfig(d) }
+      setNotifSaved(true); setTimeout(() => setNotifSaved(false), 2500)
+    } finally { setNotifSaving(false) }
+  }
+
   const loadViolations = useCallback(async () => {
     setLoadingViolations(true)
     try {
@@ -338,8 +370,13 @@ export default function GovernancePage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (tab === 'violations' && !violationsLoaded) loadViolations() }, [tab, violationsLoaded, loadViolations])
   useEffect(() => {
-    if (tab === 'approvals' && !approvalsLoaded) loadApprovals()
-  }, [tab, approvalsLoaded, loadApprovals])
+    if (tab === 'approvals') {
+      if (!approvalsLoaded) loadApprovals()
+      // load notification config and history when entering approvals tab
+      fetch('/api/governance/notification-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setNotifConfig(d) }).catch(() => {})
+      loadApprovalHistory()
+    }
+  }, [tab, approvalsLoaded, loadApprovals, loadApprovalHistory])
   useEffect(() => {
     if (approvalFilter !== 'rule') setPendingRulesLoaded(false)
     if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
@@ -614,6 +651,38 @@ export default function GovernancePage() {
         {/* approvals */}
         {tab === 'approvals' && (
           <div style={{ padding: '0 24px 24px' }}>
+            {/* ── Approval Notification Config ── */}
+            <div style={{ margin: '0 0 14px', padding: '14px 16px', background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>Approval Notifications</span>
+                <button onClick={() => setNotifConfig(c => ({ ...c, enabled: !c.enabled }))}
+                  style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', background: notifConfig.enabled ? '#16a34a' : 'var(--border)', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                  <span style={{ position: 'absolute', top: '2px', left: notifConfig.enabled ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+                </button>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Notify via Slack/email when items are submitted for approval</span>
+              </div>
+              {notifConfig.enabled && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>Slack Webhook URL</label>
+                    <input value={notifConfig.slack_webhook} onChange={e => setNotifConfig(c => ({ ...c, slack_webhook: e.target.value }))}
+                      placeholder="https://hooks.slack.com/services/…"
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>Email Recipients (comma-separated)</label>
+                    <input value={notifConfig.email_recipients} onChange={e => setNotifConfig(c => ({ ...c, email_recipients: e.target.value }))}
+                      placeholder="alice@company.com, bob@company.com"
+                      style={{ width: '100%', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+              )}
+              <button onClick={saveNotifConfig} disabled={notifSaving}
+                style={{ marginTop: '10px', padding: '5px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                {notifSaving ? 'Saving…' : notifSaved ? 'Saved ✓' : 'Save'}
+              </button>
+            </div>
+
             {/* Filter bar */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
               {(['all', 'pending', 'policy', 'contract', 'data_product', 'domain_ownership', 'glossary_term', 'rule'] as const).map(f => (
@@ -692,6 +761,43 @@ export default function GovernancePage() {
                 ))}
               </div>
             )}
+
+            {/* ── Approval History ── */}
+            <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>Recent Approval Activity</span>
+                {(['all', 'approved', 'rejected'] as const).map(f => (
+                  <button key={f} onClick={() => setHistoryFilter(f)}
+                    style={{ padding: '2px 8px', borderRadius: '5px', border: 'none', fontSize: '10px', cursor: 'pointer', background: historyFilter === f ? 'var(--foreground)' : 'var(--surface-muted)', color: historyFilter === f ? 'var(--background)' : 'var(--text-muted)', fontWeight: historyFilter === f ? 700 : 400, textTransform: 'capitalize' }}>
+                    {f}
+                  </button>
+                ))}
+              </div>
+              {historyLoading ? (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '10px 0' }}>Loading history…</div>
+              ) : approvalHistory.filter(h => historyFilter === 'all' || h.action === historyFilter).length === 0 ? (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '10px 0' }}>No approval history yet</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {approvalHistory.filter(h => historyFilter === 'all' || h.action === historyFilter).map(h => (
+                    <div key={h.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '8px 10px', background: 'var(--surface-muted)', borderRadius: '7px', border: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '13px', flexShrink: 0 }}>{h.action === 'approved' ? '✅' : '❌'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)' }}>{h.entity_name}</span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: '4px' }}>{h.entity_type}</span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                          {h.action === 'approved' ? 'Approved' : 'Rejected'} by <strong>{h.actor}</strong>
+                          {h.reason && <> — <em>{h.reason}</em></>}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>{h.timestamp.slice(0, 10)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Reject modal */}
             {rejectTarget && (
