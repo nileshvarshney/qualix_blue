@@ -145,9 +145,32 @@ export function TrendChart({
         <line x1={pad.left} x2={w - pad.right}
           y1={pad.top + chartH} y2={pad.top + chartH}
           stroke="#e5e7eb" strokeWidth="1" />
-        {gridLines.map(v => {
+        {gridLines.map((v, gi) => {
           const y = pad.top + chartH - ((v - min) / (max - min)) * chartH
-          return <g key={v}><line x1={pad.left} x2={w - pad.right} y1={y} y2={y} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3 3" /><text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9ca3af">{v}</text></g>
+          const label = gi === gridLines.length - 1 ? `${Math.round(v)}%` : String(Math.round(v))
+          return (
+            <g key={v}>
+              <line x1={pad.left} x2={w - pad.right} y1={y} y2={y}
+                stroke="#e5e7eb" strokeWidth="1" strokeDasharray="3 3" />
+              <text x={pad.left - 6} y={y + 4} textAnchor="end" fontSize="10" fill="#9ca3af">
+                {label}
+              </text>
+            </g>
+          )
+        })}
+        {/* Threshold reference lines at 90 and 75 */}
+        {([{ v: 90, color: '#16a34a' }, { v: 75, color: '#ea8b3a' }] as const).map(({ v, color }) => {
+          if (v <= min || v >= max) return null
+          const ty = pad.top + chartH - ((v - min) / (max - min)) * chartH
+          return (
+            <g key={v}>
+              <line x1={pad.left} x2={w - pad.right} y1={ty} y2={ty}
+                stroke={color} strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.45" />
+              <circle cx={pad.left - 3} cy={ty} r="3" fill={color} fillOpacity="0.7" />
+              <text x={pad.left - 9} y={ty + 4} textAnchor="end" fontSize="10"
+                fill={color} fontWeight="600">{v}</text>
+            </g>
+          )
         })}
         {validPts.map((d, i) => {
           const barH = Math.max(2, d.failed * 2)
