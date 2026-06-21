@@ -72,6 +72,12 @@ export default function AuditLogsPage() {
   const [verifyResult, setVerifyResult] = useState<{total_hashed:number; total_unverified:number; intact:number; tampered:number; tampered_ids:string[]} | null>(null)
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [showVerifyModal, setShowVerifyModal] = useState(false)
+  const [alertConfig, setAlertConfig] = useState({ slack_webhook: '', email_recipients: '', alert_types: ['off_hours', 'bulk_access', 'repeated_failures'] as string[], min_severity: 'medium', enabled: false })
+  const [alertConfigOpen, setAlertConfigOpen] = useState(false)
+  const [alertSaving, setAlertSaving] = useState(false)
+  const [alertSaved, setAlertSaved] = useState(false)
+  const [alertTestResult, setAlertTestResult] = useState<string | null>(null)
+  const [alertTestLoading, setAlertTestLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/audit')
@@ -121,6 +127,7 @@ export default function AuditLogsPage() {
       .then(r => r.json())
       .then(data => setAnomalies(Array.isArray(data) ? data : []))
       .catch(() => {})
+    fetch('/api/audit/alert-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setAlertConfig(d) }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -171,6 +178,25 @@ export default function AuditLogsPage() {
     finally { setVerifyLoading(false) }
   }
 
+  async function saveAlertConfig() {
+    setAlertSaving(true)
+    try {
+      const res = await fetch('/api/audit/alert-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(alertConfig) })
+      if (res.ok) setAlertConfig(await res.json())
+      setAlertSaved(true); setTimeout(() => setAlertSaved(false), 2500)
+    } finally { setAlertSaving(false) }
+  }
+
+  async function testAlertConfig() {
+    setAlertTestLoading(true); setAlertTestResult(null)
+    try {
+      const res = await fetch('/api/audit/alert-config/test', { method: 'POST' })
+      const d = await res.json()
+      setAlertTestResult(d.message ?? (d.ok ? 'Test sent' : 'Failed'))
+    } catch { setAlertTestResult('Could not reach backend') }
+    finally { setAlertTestLoading(false) }
+  }
+
   const filtered = logs.filter(l => {
     const matchFilter =
       filter === 'failed' ? l.result === 'failed' :
@@ -219,6 +245,73 @@ export default function AuditLogsPage() {
           ))}
         </div>
       )}
+
+      {/* ── Suspicious Activity Alert Config ── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0', flexShrink: 0, overflow: 'hidden' }}>
+        <button onClick={() => setAlertConfigOpen(o => !o)}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>🔔 Suspicious Activity Alert Config</span>
+          <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>{alertConfigOpen ? '▲ collapse' : '▼ expand'}</span>
+          <span style={{ background: alertConfig.enabled ? 'var(--status-ok-bg)' : 'var(--surface-muted)', color: alertConfig.enabled ? 'var(--status-ok-text)' : 'var(--text-muted)', fontSize: '10px', fontWeight: 600, padding: '1px 7px', borderRadius: '10px', flexShrink: 0 }}>
+            {alertConfig.enabled ? 'Active' : 'Disabled'}
+          </span>
+        </button>
+        {alertConfigOpen && (
+          <div style={{ padding: '0 14px 14px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '12px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 500 }}>Enable alerts</span>
+              <button onClick={() => setAlertConfig(c => ({ ...c, enabled: !c.enabled }))}
+                style={{ width: '36px', height: '20px', borderRadius: '10px', border: 'none', background: alertConfig.enabled ? '#16a34a' : 'var(--border)', cursor: 'pointer', position: 'relative' }}>
+                <span style={{ position: 'absolute', top: '2px', left: alertConfig.enabled ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} />
+              </button>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>Slack Webhook URL</label>
+              <input value={alertConfig.slack_webhook} onChange={e => setAlertConfig(c => ({ ...c, slack_webhook: e.target.value }))}
+                placeholder="https://hooks.slack.com/services/…"
+                style={{ width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '3px' }}>Email Recipients</label>
+              <input value={alertConfig.email_recipients} onChange={e => setAlertConfig(c => ({ ...c, email_recipients: e.target.value }))}
+                placeholder="alice@company.com, bob@company.com"
+                style={{ width: '100%', padding: '5px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Alert on</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                {[['off_hours', 'Off-hours access'], ['bulk_access', 'Bulk data access'], ['repeated_failures', 'Repeated auth failures'], ['unusual_ip', 'Unusual IP']].map(([v, l]) => {
+                  const active = alertConfig.alert_types.includes(v)
+                  return (
+                    <button key={v} onClick={() => setAlertConfig(c => ({ ...c, alert_types: active ? c.alert_types.filter(x => x !== v) : [...c.alert_types, v] }))}
+                      style={{ padding: '2px 8px', borderRadius: '10px', border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`, background: active ? 'var(--accent-bg)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>
+                      {l}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)' }}>Min severity</label>
+              <select value={alertConfig.min_severity} onChange={e => setAlertConfig(c => ({ ...c, min_severity: e.target.value }))}
+                style={{ padding: '3px 6px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)' }}>
+                {['low', 'medium', 'high'].map(s => <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button onClick={saveAlertConfig} disabled={alertSaving}
+                style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                {alertSaving ? 'Saving…' : alertSaved ? 'Saved ✓' : 'Save'}
+              </button>
+              <button onClick={testAlertConfig} disabled={alertTestLoading}
+                style={{ padding: '5px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer' }}>
+                {alertTestLoading ? 'Sending…' : 'Send Test Alert'}
+              </button>
+              {alertTestResult && <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{alertTestResult}</span>}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* search + category */}
       <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
