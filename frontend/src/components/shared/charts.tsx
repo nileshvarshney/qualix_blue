@@ -10,6 +10,25 @@ export function ScorePill({ score }: { score: number }) {
 
 let _chartInstanceCount = 0
 
+function smoothPath(points: { x: number; y: number }[]): string {
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M${points[0].x},${points[0].y}`
+  const n = points.length
+  const parts: string[] = [`M${points[0].x},${points[0].y}`]
+  for (let i = 1; i < n; i++) {
+    const prev = points[i - 1]
+    const curr = points[i]
+    const pp = points[Math.max(0, i - 2)]
+    const nx = points[Math.min(n - 1, i + 1)]
+    const cp1x = prev.x + (curr.x - pp.x) / 6
+    const cp1y = prev.y + (curr.y - pp.y) / 6
+    const cp2x = curr.x - (nx.x - prev.x) / 6
+    const cp2y = curr.y - (nx.y - prev.y) / 6
+    parts.push(`C${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${curr.x},${curr.y}`)
+  }
+  return parts.join(' ')
+}
+
 export function TrendChart({
   data,
   onPointClick,
@@ -75,11 +94,15 @@ export function TrendChart({
     score: d.score, date: d.date
   }))
 
+  const lastScore = pts[pts.length - 1]?.score ?? 0
+  const lineColor = lastScore >= 90 ? '#16a34a' : lastScore >= 75 ? '#ea8b3a' : '#dc2626'
+
   const hasAlerts = validPts.some(d => (d.alert_count ?? 0) > 0)
   const hasAnomalies = validPts.some(d => (d.anomaly_count ?? 0) > 0)
 
-  const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ')
-  const areaPath = `${linePath} L${pts[pts.length - 1].x},${pad.top + chartH} L${pts[0].x},${pad.top + chartH} Z`
+  const linePath = smoothPath(pts)
+  const bottomY = pad.top + chartH
+  const areaPath = `${linePath} L${pts[pts.length - 1].x},${bottomY} L${pts[0].x},${bottomY} Z`
 
   return (
     <div ref={wrapRef} style={{ position: 'relative' }}>
@@ -97,8 +120,8 @@ export function TrendChart({
         }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+            <stop offset="0%" stopColor={lineColor} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={lineColor} stopOpacity="0" />
           </linearGradient>
         </defs>
         {/* Zone bands */}
@@ -131,14 +154,25 @@ export function TrendChart({
           return <rect key={i} x={xForN(i) - 5} y={pad.top + chartH - barH} width="10" height={barH} fill="#ef4444" opacity="0.75" rx="2" />
         })}
         <path d={areaPath} fill={`url(#${gradientId})`} />
-        <path d={linePath} fill="none" stroke="#3b82f6" strokeWidth="2.5" strokeLinejoin="round" />
-        {pts.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={tooltip?.date === p.date ? 5 : 3}
-            fill={tooltip?.date === p.date ? '#fff' : '#3b82f6'}
-            stroke="#3b82f6" strokeWidth="2"
-            onClick={() => onPointClick?.(p.date)}
-            style={{ transition: 'r 0.1s', cursor: onPointClick ? 'pointer' : 'default' }} />
-        ))}
+        <path d={linePath} fill="none" stroke={lineColor} strokeWidth="2.5" strokeLinejoin="round" />
+        {pts.map((p, i) => {
+          const isActive = tooltip?.date === p.date
+          return (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r={12} fill="transparent"
+                onClick={() => onPointClick?.(p.date)}
+                style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
+              <circle cx={p.x} cy={p.y} r={isActive ? 6 : 3.5}
+                fill={isActive ? '#fff' : lineColor}
+                stroke={lineColor} strokeWidth={isActive ? 2.5 : 1.5}
+                style={{
+                  transition: 'r 0.12s ease',
+                  filter: isActive ? 'drop-shadow(0 1px 4px rgba(0,0,0,0.18))' : 'none',
+                  pointerEvents: 'none',
+                }} />
+            </g>
+          )
+        })}
         {hasAlerts && validPts.map((d, i) => (d.alert_count ?? 0) > 0 ? (
           <polygon key={`alert-${i}`}
             points={`${xForN(i)},${pad.top - 10} ${xForN(i) - 4},${pad.top - 4} ${xForN(i) + 4},${pad.top - 4}`}
