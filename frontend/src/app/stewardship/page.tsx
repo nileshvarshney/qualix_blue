@@ -48,6 +48,17 @@ interface TaskRow {
   actionType?: 'rule' | 'approval'
 }
 
+type CustomTask = {
+  id: string
+  task_type: string
+  entity_type?: string
+  entity_id?: string
+  assignee?: string
+  description?: string
+  status: string
+  created_at?: string
+}
+
 function scoreColor(s: number) {
   return s >= 90 ? 'var(--status-ok-text)' : s >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)'
 }
@@ -105,6 +116,8 @@ function domainIcon(name: string): string {
 export default function StewardshipPage() {
   const [domains, setDomains] = useState<DomainScore[]>([])
   const [tasks, setTasks] = useState<TaskRow[]>([])
+  const [customTasks, setCustomTasks] = useState<CustomTask[]>([])
+  const [markingDone, setMarkingDone] = useState<string | null>(null)
   const [comments, setComments] = useState<CommentItem[]>([])
   const [loading, setLoading] = useState(true)
   const [actioning, setActioning] = useState<string | null>(null)
@@ -120,7 +133,8 @@ export default function StewardshipPage() {
       fetch('/api/governance/approvals?status=pending').then(r => r.json()).catch(() => []),
       fetch('/api/rules').then(r => r.json()).catch(() => []),
       fetch('/api/comments?limit=30').then(r => r.json()).catch(() => []),
-    ]).then(([scoreRes, approvalRes, rulesRes, commentRes]) => {
+      fetch('/api/stewardship/tasks').then(r => r.json()).catch(() => []),
+    ]).then(([scoreRes, approvalRes, rulesRes, commentRes, customTasksRes]) => {
       // Ownership scores
       const rawScores = scoreRes.status === 'fulfilled' ? (Array.isArray(scoreRes.value) ? scoreRes.value : []) : []
       const mapped: DomainScore[] = rawScores.map((d: Record<string, unknown>) => ({
@@ -175,6 +189,12 @@ export default function StewardshipPage() {
         ? (Array.isArray(commentRes.value) ? commentRes.value : [])
         : []
       setComments(rawComments)
+
+      // Custom stewardship tasks
+      const customTasksRaw = customTasksRes.status === 'fulfilled' ? customTasksRes.value : []
+      const pending = (Array.isArray(customTasksRaw) ? customTasksRaw : []) as CustomTask[]
+      setCustomTasks(pending.filter(t => t.status !== 'completed'))
+
       setLoading(false)
     })
   }, [])
@@ -215,6 +235,19 @@ export default function StewardshipPage() {
     }
   }
 
+  async function markTaskDone(taskId: string) {
+    setMarkingDone(taskId)
+    try {
+      await fetch(`/api/stewardship/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed' }),
+      })
+      setCustomTasks(prev => prev.filter(t => t.id !== taskId))
+    } catch { /* leave in list on error */ }
+    finally { setMarkingDone(null) }
+  }
+
   // Group comments by entity for the discussions panel
   const entityGroups = comments.reduce<Record<string, CommentItem[]>>((acc, c) => {
     const key = `${c.entity_type}::${c.entity_id}`
@@ -248,9 +281,9 @@ export default function StewardshipPage() {
             Avg Ownership: {avgOwnership}%
           </span>
         )}
-        {tasks.length > 0 && (
+        {(tasks.length + customTasks.length) > 0 && (
           <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 7px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>
-            {tasks.length} pending
+            {tasks.length + customTasks.length} pending
           </span>
         )}
       </div>
@@ -297,8 +330,8 @@ export default function StewardshipPage() {
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>Pending Tasks</span>
-              {tasks.length > 0 && (
-                <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>{tasks.length}</span>
+              {(tasks.length + customTasks.length) > 0 && (
+                <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: 3, fontSize: 10, fontWeight: 700 }}>{tasks.length + customTasks.length}</span>
               )}
               <button
                 onClick={() => setCreateOpen(o => !o)}
@@ -366,7 +399,7 @@ export default function StewardshipPage() {
               </div>
             )}
 
-            {tasks.length === 0 ? (
+            {tasks.length === 0 && customTasks.length === 0 ? (
               <div style={{ padding: '24px 14px', color: 'var(--text-muted)', fontSize: 12 }}>No pending tasks — all caught up</div>
             ) : (
               <div>
@@ -392,6 +425,46 @@ export default function StewardshipPage() {
                     ) : (
                       <Link href={t.href} style={{ fontSize: 11, color: 'var(--accent)', textDecoration: 'none', textAlign: 'right' }}>→ Review</Link>
                     )}
+                  </div>
+                ))}
+                {/* Custom tasks from /api/stewardship/tasks */}
+                {customTasks.map(t => (
+                  <div key={t.id} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: '12px',
+                    padding: '12px 16px', borderBottom: '1px solid var(--border)',
+                  }}>
+                    <span style={{
+                      background: 'var(--surface-muted)', color: 'var(--text-secondary)',
+                      fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px',
+                      textTransform: 'uppercase', whiteSpace: 'nowrap', marginTop: '2px',
+                    }}>
+                      {t.task_type}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', color: 'var(--foreground)', fontWeight: 500, marginBottom: '2px' }}>
+                        {t.description ?? `${t.entity_type ?? 'task'} ${t.entity_id ?? ''}`.trim()}
+                      </div>
+                      {t.assignee && (
+                        <span style={{
+                          fontSize: '10px', color: 'var(--text-muted)',
+                          background: 'var(--surface-muted)', padding: '1px 6px', borderRadius: '10px',
+                        }}>
+                          {t.assignee}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => markTaskDone(t.id)}
+                      disabled={markingDone === t.id}
+                      style={{
+                        fontSize: '11px', padding: '4px 10px', borderRadius: '5px',
+                        border: '1px solid var(--status-ok-text)', background: 'var(--status-ok-bg)',
+                        color: 'var(--status-ok-text)', cursor: markingDone === t.id ? 'not-allowed' : 'pointer',
+                        fontWeight: 600, opacity: markingDone === t.id ? 0.6 : 1, flexShrink: 0,
+                      }}
+                    >
+                      {markingDone === t.id ? '…' : 'Mark Done'}
+                    </button>
                   </div>
                 ))}
               </div>
