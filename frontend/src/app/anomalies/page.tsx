@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import EntityComments from '@/components/EntityComments'
 
 type AnomalyStatus = 'open' | 'resolved'
 type Severity = 'critical' | 'high' | 'medium' | 'low'
@@ -291,6 +292,8 @@ export default function AnomaliesPage() {
                       <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>Path: </span>{tablePath}
                     </div>
                   )}
+
+                  <EntityComments entityType="anomaly" entityId={a.id} />
                 </div>
               )}
             </div>
