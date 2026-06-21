@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Database, Layers, Table2, Eye } from 'lucide-react'
 import AssetDetailDrawer, { Asset as BaseAsset } from '@/components/asset-registry/AssetDetailDrawer'
+import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
 import { connectionIcons } from '@/lib/utils'
 
 type Asset = BaseAsset & {
@@ -30,14 +31,6 @@ function Badge({ label, bg, color }: { label: string; bg: string; color: string 
   )
 }
 
-const SENS_STYLE: Record<string, { bg: string; color: string }> = {
-  PHI:          { bg: '#fef2f2', color: '#dc2626' },
-  PII:          { bg: '#fff7ed', color: '#c2410c' },
-  RESTRICTED:   { bg: '#fff1f2', color: '#be123c' },
-  CONFIDENTIAL: { bg: '#fefce8', color: '#a16207' },
-  SENSITIVE:    { bg: '#eff6ff', color: '#1d4ed8' },
-}
-
 function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
   asset: Asset
   sensitivity?: { classification: string | null; count: number }
@@ -48,7 +41,6 @@ function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
   const [hover, setHover] = useState(false)
   const isActive = asset.is_active !== false
   const tags = asset.tag_names ?? []
-  const sensStyle = sensitivity?.classification ? SENS_STYLE[sensitivity.classification] : null
   return (
     <div
       onClick={onClick}
@@ -103,14 +95,7 @@ function TableRow({ asset, sensitivity, selected, onToggleSelect, onClick }: {
         {asset.quality_score != null ? `${Math.round(asset.quality_score)}%` : '—'}
       </span>
       <Badge label={isActive ? 'Active' : 'Inactive'} bg={isActive ? 'var(--status-ok-bg)' : 'var(--surface-muted)'} color={isActive ? 'var(--status-ok-text)' : 'var(--text-muted)'} />
-      <span style={{
-        background: sensStyle ? sensStyle.bg : 'transparent',
-        color: sensStyle ? sensStyle.color : 'var(--text-muted)',
-        padding: '1px 5px', borderRadius: '3px', fontSize: '9px', fontWeight: sensStyle ? 700 : 400,
-        whiteSpace: 'nowrap', display: 'inline-block', textAlign: 'center',
-      }}>
-        {sensStyle ? sensitivity!.classification! : sensitivity?.count === 0 ? '—' : sensitivity == null ? '' : '…'}
-      </span>
+      <SensitivityBadge classification={sensitivity?.classification} />
     </div>
   )
 }
