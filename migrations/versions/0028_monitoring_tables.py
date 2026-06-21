@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """monitoring: add asset_monitoring_metrics, sla_breach_predictions, correlated_incidents"""
 
 from alembic import op
@@ -58,7 +60,7 @@ def upgrade() -> None:
             sa.Column("asset_ids", VARIANT(), nullable=True),
             sa.Column("anomaly_ids", VARIANT(), nullable=True),
             sa.Column("asset_count", sa.Integer(), nullable=False),
-            sa.Column("severity", sa.String(20), nullable=False),
+            sa.Column("severity", sa.String(20), nullable=False, server_default="'medium'"),
             sa.Column("status", sa.String(20), nullable=False, server_default="'open'"),
             sa.Column("resolved_at", sa.DateTime(), nullable=True),
         )
