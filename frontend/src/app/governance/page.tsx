@@ -134,6 +134,90 @@ function VersionRow({ version }: { version: { version_number: number; changed_by
   )
 }
 
+interface GovernancePolicyQAProps {
+  policies: PolicyItem[]
+}
+
+function GovernancePolicyQA({ policies }: GovernancePolicyQAProps) {
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [history, setHistory] = useState<{ q: string; a: string }[]>([])
+
+  const askQuestion = async () => {
+    if (!question.trim()) return
+    setLoading(true)
+    setError(null)
+    const policyContext = policies.slice(0, 20).map(p => ({
+      name: p.name, domain: p.domain, status: p.status, enforcement: p.enforcement,
+      description: p.description,
+    }))
+    try {
+      const res = await fetch('/api/ai/governance-qa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question, policies: policyContext }),
+        cache: 'no-store',
+      })
+      const data = await res.json() as Record<string, unknown>
+      const ans = String(data.answer ?? data.response ?? data.text ?? JSON.stringify(data))
+      setAnswer(ans)
+      setHistory(prev => [{ q: question, a: ans }, ...prev].slice(0, 5))
+      setQuestion('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'AI query unavailable')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{ margin: '8px 0', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '1px solid #93c5fd', borderRadius: '8px', padding: '12px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+        <span style={{ fontSize: '13px' }}>🤖</span>
+        <span style={{ fontSize: '11px', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Policy Q&A</span>
+        <span style={{ fontSize: '10px', color: '#3b82f6', marginLeft: '4px' }}>Ask a question about your governance policies</span>
+      </div>
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <input
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askQuestion() } }}
+          placeholder="e.g. Which policies apply to the finance domain? Are any advisory policies enforcement candidates?"
+          style={{ flex: 1, padding: '7px 10px', borderRadius: '6px', border: '1px solid #93c5fd', fontSize: '12px', background: '#fff', color: 'var(--foreground)', outline: 'none' }}
+          disabled={loading}
+        />
+        <button
+          onClick={askQuestion}
+          disabled={loading || !question.trim()}
+          style={{ padding: '7px 14px', borderRadius: '6px', border: 'none', background: loading || !question.trim() ? 'var(--border)' : '#2563eb', color: '#fff', fontSize: '12px', fontWeight: 600, cursor: loading || !question.trim() ? 'default' : 'pointer' }}
+        >
+          {loading ? '…' : 'Ask'}
+        </button>
+      </div>
+      {error && <div style={{ marginTop: '8px', fontSize: '11.5px', color: 'var(--status-error-text)' }}>{error}</div>}
+      {answer && (
+        <div style={{ marginTop: '10px', padding: '10px', background: 'rgba(255,255,255,0.7)', borderRadius: '6px', border: '1px solid #bfdbfe' }}>
+          <div style={{ fontSize: '9.5px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Answer</div>
+          <p style={{ margin: 0, fontSize: '12.5px', color: '#1e3a5f', lineHeight: '1.65', whiteSpace: 'pre-wrap' }}>{answer}</p>
+        </div>
+      )}
+      {history.length > 1 && (
+        <div style={{ marginTop: '10px', borderTop: '1px solid #bfdbfe', paddingTop: '8px' }}>
+          <div style={{ fontSize: '9.5px', color: '#3b82f6', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Previous questions</div>
+          {history.slice(1).map((h, i) => (
+            <div key={i} style={{ marginBottom: '6px', opacity: 0.75 }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#1e40af' }}>Q: {h.q}</div>
+              <div style={{ fontSize: '10.5px', color: '#1e3a5f', marginTop: '2px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const }}>A: {h.a}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function GovernancePage() {
   const [tab, setTab] = useState<GovernanceTab>('scorecards')
   const [scorecardFilter, setScorecardFilter] = useState<ScorecardFilter>('all')
@@ -469,6 +553,11 @@ export default function GovernancePage() {
             <span style={{ background: scoreBg(d.overall), color: scoreColor(d.overall), padding: '1px 6px', borderRadius: '3px', fontSize: '11px', fontWeight: 700, textAlign: 'center' }}>{d.overall}</span>
           </div>
         ))}
+
+        {/* AI Policy Q&A */}
+        {tab === 'policies' && (
+          <GovernancePolicyQA policies={filteredPolicies} />
+        )}
 
         {/* policies */}
         {tab === 'policies' && !loading && filteredPolicies.length === 0 && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>No policies yet</div>}

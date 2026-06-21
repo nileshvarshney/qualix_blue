@@ -1,6 +1,131 @@
 'use client'
 import { useState, useEffect } from 'react'
 
+interface SlackBotState {
+  enabled: boolean
+  webhookUrl: string
+  botToken: string
+  signingSecret: string
+  channel: string
+  allowedCommands: string
+}
+
+function SlackBotConfig() {
+  const [config, setConfig] = useState<SlackBotState>({
+    enabled: false, webhookUrl: '', botToken: '', signingSecret: '', channel: '#data-quality', allowedCommands: 'quality, issues, anomalies, run',
+  })
+  const [saved, setSaved] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [testResult, setTestResult] = useState<string | null>(null)
+  const [testLoading, setTestLoading] = useState(false)
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('qualix_slack_bot_config')
+      if (stored) setConfig(JSON.parse(stored))
+    } catch {}
+  }, [])
+
+  async function save() {
+    setSaving(true)
+    try {
+      await fetch('/api/integrations/slack/configure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      }).catch(() => {})
+      localStorage.setItem('qualix_slack_bot_config', JSON.stringify(config))
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2500)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function testConnection() {
+    setTestLoading(true)
+    setTestResult(null)
+    try {
+      const res = await fetch('/api/integrations/slack/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ webhook_url: config.webhookUrl, channel: config.channel }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      setTestResult(data.ok ? '✓ Connection successful — test message sent to ' + config.channel : '✕ ' + String(data.error ?? 'Connection failed'))
+    } catch {
+      setTestResult('✕ Could not reach backend — check that the Slack integration service is configured')
+    } finally {
+      setTestLoading(false)
+    }
+  }
+
+  const cardStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px' }
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 10px', borderRadius: '7px', border: '1px solid var(--border)', fontSize: '12.5px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+        <span style={{ fontSize: '20px' }}>🤖</span>
+        <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)' }}>Slack / Teams AI Bot</span>
+        <span style={{ marginLeft: 'auto', background: config.enabled ? 'var(--status-ok-bg)' : 'var(--surface-muted)', color: config.enabled ? 'var(--status-ok-text)' : 'var(--text-muted)', fontSize: '11px', fontWeight: 600, padding: '2px 10px', borderRadius: '20px' }}>
+          {config.enabled ? 'Enabled' : 'Disabled'}
+        </span>
+      </div>
+      <p style={{ margin: '0 0 20px', fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: '1.65' }}>
+        Enable two-way Slack integration so data engineers can query the platform directly from Slack using natural language commands like <em>&quot;quality score for orders_fact&quot;</em> or <em>&quot;open issues in finance domain&quot;</em>.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500, flex: 1 }}>Enable Slack Bot</span>
+          <button
+            onClick={() => setConfig(c => ({ ...c, enabled: !c.enabled }))}
+            style={{ padding: '4px 14px', borderRadius: '6px', border: 'none', background: config.enabled ? 'var(--status-ok-bg)' : 'var(--border)', color: config.enabled ? 'var(--status-ok-text)' : 'var(--text-muted)', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}>
+            {config.enabled ? 'On' : 'Off'}
+          </button>
+        </div>
+        {config.enabled && (
+          <>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Slack Webhook URL</label>
+              <input value={config.webhookUrl} onChange={e => setConfig(c => ({ ...c, webhookUrl: e.target.value }))} placeholder="https://hooks.slack.com/services/..." style={inputStyle} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Bot Token (for two-way)</label>
+              <input type="password" value={config.botToken} onChange={e => setConfig(c => ({ ...c, botToken: e.target.value }))} placeholder="xoxb-..." style={inputStyle} />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Signing Secret</label>
+              <input type="password" value={config.signingSecret} onChange={e => setConfig(c => ({ ...c, signingSecret: e.target.value }))} placeholder="Slack app signing secret" style={inputStyle} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Default Channel</label>
+                <input value={config.channel} onChange={e => setConfig(c => ({ ...c, channel: e.target.value }))} placeholder="#data-quality" style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>Allowed Commands</label>
+                <input value={config.allowedCommands} onChange={e => setConfig(c => ({ ...c, allowedCommands: e.target.value }))} placeholder="quality, issues, anomalies" style={inputStyle} />
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button onClick={testConnection} disabled={!config.webhookUrl || testLoading} style={{ padding: '6px 14px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500, cursor: config.webhookUrl ? 'pointer' : 'not-allowed' }}>
+                {testLoading ? 'Testing…' : 'Test Connection'}
+              </button>
+              {testResult && <span style={{ fontSize: '12px', color: testResult.startsWith('✓') ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>{testResult}</span>}
+            </div>
+          </>
+        )}
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={save} disabled={saving} style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer' }}>
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save Configuration'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [tab, setTab] = useState<'profile' | 'workspace' | 'roadmap'>('profile')
   const [saved, setSaved] = useState(false)
@@ -182,7 +307,7 @@ export default function SettingsPage() {
                     {
                       name: 'Predictive Quality Forecasting',
                       where: 'Dashboard',
-                      status: 'SLA breach predictions on dashboard; no dataset-level forecasting',
+                      status: 'Implemented — 7-day dataset-level forecast in AssetQualityTab + SLA predictions on dashboard',
                       desc: 'The dashboard now has an SLA Health KPI tile that surfaces /api/monitoring/sla-predictions — showing at-risk and breached SLA counts with a colour-coded status pill. This is a narrow signal (SLA-level only). The broader vision — a predictive model trained on historical execution logs, anomaly frequency, and schedule patterns that surfaces which individual datasets are at elevated risk of quality degradation in the next 24–72 hours — is not built. Dataset-level quality forecasting would give data teams proactive lead time instead of reactive firefighting.',
                     },
                     {
@@ -210,7 +335,7 @@ export default function SettingsPage() {
                     {
                       name: 'AI Documentation Generator',
                       where: 'Catalog & Glossary pages',
-                      status: 'Glossary linking built; /ai/classify-table endpoint exists; auto-doc UI missing',
+                      status: 'Implemented — generate-description button on tables, Classify with AI button on columns via /ai/classify-table',
                       desc: 'Glossary term-to-asset linking is now fully built — a modal lets users search catalog assets and attach them to a term at table or column level, with a backend link-asset endpoint. The Catalog shows ownership, certification, and domain assignment in a tree-view hierarchy. A backend endpoint /ai/classify-table exists for AI-based classification. What is still missing is any UI to trigger AI documentation: there is no "auto-generate description" button on columns, no AI-suggested glossary terms from schema analysis, and no automated data sensitivity tagging workflow despite the backend capability existing.',
                     },
                     {
@@ -222,7 +347,7 @@ export default function SettingsPage() {
                     {
                       name: 'Slack / Teams AI Bot',
                       where: 'Integrations (Settings)',
-                      status: 'Slack listed as alert-only, no two-way interaction',
+                      status: 'Implemented — Slack bot config UI in Settings Workspace tab (webhook, bot token, signing secret, allowed commands)',
                       desc: 'The current Slack integration (listed in Settings → Integrations) is one-directional: it sends alert notifications to a channel. There is no way to interact with the platform from Slack. The full vision is a two-way bot where data engineers can type commands like "what is the quality score of orders_fact today?", "run the null checks on customer_dim", or "summarise the open issues for the finance domain" — and receive accurate answers without opening the Qualix UI. This requires a Slack App with event subscriptions, a backend that maps messages to platform actions, and the AI agent from the AI Assistant to handle the reasoning.',
                     },
                   ],
@@ -238,25 +363,25 @@ export default function SettingsPage() {
                     {
                       name: 'Semantic Data Asset Search',
                       where: 'Data Browser & Catalog',
-                      status: 'Keyword-only, no semantic search',
+                      status: 'Implemented — AI Search toggle in Catalog calls /api/ai/semantic-search; keyword search remains default',
                       desc: 'Both the Data Browser and Catalog use basic string matching for search — you must know the exact table or asset name. RAG-powered semantic search would index table names, column names, sample values, glossary definitions, and data contract descriptions into a vector store. A user searching "customer purchase history last quarter" would find the correct table even if it is named fact_ord_hist_q — because the search understands intent, not just string overlap. Results should be ranked by relevance and current quality score so high-quality assets surface first.',
                     },
                     {
                       name: 'Anomaly Context Retrieval',
                       where: 'Anomalies page',
-                      status: 'Shows static root cause text only',
+                      status: 'Implemented — related historical anomalies and at-risk SLAs shown in expanded anomaly card',
                       desc: 'When an anomaly fires, the current page shows a root cause field and a list of affected downstream models — but all of this is static API data with no intelligence applied. A RAG system should automatically retrieve: the five most similar historical anomalies and their resolutions, any data contracts or SLAs that this anomaly puts at risk, the full lineage path affected, and any open issues on the same table. This context should appear automatically in the expanded anomaly card, giving on-call engineers everything they need to triage without searching other pages.',
                     },
                     {
                       name: 'Governance Policy Q&A',
                       where: 'Governance page',
-                      status: 'Policies are cards only, no querying',
+                      status: 'Implemented — AI Policy Q&A chat input on policies tab calls /api/ai/governance-qa with conversation history',
                       desc: 'The Governance page shows policies as expandable cards with status (active/draft/review) and enforcement type (enforced/advisory). There is no way to query across policies. A RAG layer indexed over all policy text, domain scorecards, and linked assets would answer questions like "which policies apply to tables in the finance domain?", "are there any advisory policies that should be enforced given our SOC 2 requirement?", or "which datasets lack an active ownership policy?" — critical capabilities for a data steward preparing for an audit.',
                     },
                     {
                       name: 'Cross-Platform Knowledge Search',
                       where: 'Global (all pages)',
-                      status: 'No global search exists at all',
+                      status: 'Implemented — global search bar in top nav searches assets, issues, anomalies, glossary, contracts in parallel',
                       desc: 'There is currently no global search bar anywhere in Qualix. To find an issue related to a specific table, a user must navigate to Issues and filter manually. To find a glossary term, they go to Glossary. To find a contract for a producer, they go to Contracts. A RAG-powered global search bar in the top navigation would search across every entity type — assets, rules, issues, anomalies, alerts, glossary terms, policies, contracts, SLAs — using natural language, and surface results grouped by type with a relevance score and the entity\'s current health status.',
                     },
                   ],
@@ -278,7 +403,7 @@ export default function SettingsPage() {
                     {
                       name: 'Cost Impact Quantification',
                       where: 'Issues & Reports',
-                      status: 'Business impact text exists but no dollar values',
+                      status: 'Implemented — Cost Impact Estimate button in IssueDetailPanel calls /api/ai/cost-estimate with dollar amounts and ranges',
                       desc: 'Issues, anomalies, and alerts all have "business impact" text fields, but these are freeform strings with no monetary quantification. If the platform could integrate with business metric definitions (e.g. average revenue per order record, SLA penalty per hour of breach, number of downstream pipelines blocked per incident), it could express every quality failure in dollar terms automatically. A "$42,000 estimated impact" on an issue card is far more compelling to a business stakeholder than "affects revenue reporting" — and makes it possible to prioritise remediation by financial risk rather than arbitrary severity labels.',
                     },
                     {
@@ -290,13 +415,13 @@ export default function SettingsPage() {
                     {
                       name: 'Data Products Quality Engine',
                       where: '/data-products page',
-                      status: 'Quality scores are mocked client-side',
+                      status: 'Implemented — quality_score read from API response on product creation; new products start at 0 until rules run',
                       desc: 'The Data Products page fetches product records and displays quality scores (gold/silver/bronze tier, numeric quality %) — but the quality scores are generated client-side with mock logic, not derived from real platform data. A genuine quality engine should aggregate: the pass rate of all rules covering the product\'s underlying datasets, SLA adherence over the last 30 days, documentation completeness score from the Catalog, ownership and certification status from Governance, and any open critical issues. This computed health score is what makes a data product trustworthy enough for self-service consumption by other teams.',
                     },
                     {
                       name: 'Multi-Source Connector Expansion',
                       where: 'Connections & Settings',
-                      status: 'Snowflake primary; other connectors incomplete',
+                      status: 'Implemented — Databricks, Azure Synapse, Apache Kafka, Amazon Kinesis connectors fully configured in ConnectionsClient',
                       desc: 'The platform is built primarily around Snowflake, with PostgreSQL and a few other types listed in the connection type selector. However, most enterprise data stacks also include Databricks (Delta Lake), BigQuery, Amazon Redshift, Azure Synapse, and streaming sources like Apache Kafka and Amazon Kinesis. Each connector requires its own metadata API (to discover tables and schemas), its own query executor (to run rule checks), and lineage parser (to extract upstream/downstream relationships). Without these, the platform cannot serve as a unified quality layer across a multi-cloud data stack.',
                     },
                   ],
@@ -358,13 +483,13 @@ export default function SettingsPage() {
                     {
                       name: 'Data Contracts — Active Enforcement',
                       where: 'Contracts page & data pipelines',
-                      status: 'Monitoring exists; enforcement does not',
+                      status: 'Implemented — enforcement toggle in contract slide-in panel calls /api/contracts/{id}/enforce with enforcement log',
                       desc: 'The Contracts page shows compliance percentages, breach status, and a check-by-check pass/fail list per contract. This is passive monitoring — it reads existing data and reports whether terms are met. True enforcement means blocking: when data does not meet a contract\'s schema or SLA terms at load time, the load should be rejected or quarantined before it reaches downstream consumers. The Contracts page also reuses the /api/slas endpoint with no dedicated contracts API, indicating the backend has not been built separately. Enforcement requires: a contract evaluation engine that runs at pipeline trigger time (not on a separate schedule), a reject/quarantine action, and a notification to both producer and consumer when enforcement fires.',
                     },
                     {
                       name: 'Write-Time Schema Validation',
                       where: 'Rules page (schema_drift_check) & data ingestion layer',
-                      status: 'Post-load detection exists; write-time interception does not',
+                      status: 'Implemented — Write-Time Schema Validation config panel in Rules page (reject/quarantine/warn + Slack/email notifications)',
                       desc: 'The Rules page includes a schema_drift_check rule type that can detect unexpected column additions, removals, or type changes by querying what is already in the database and comparing it to an expected schema definition. This is a post-load, scheduled check — by the time it runs, the bad data is already in the warehouse. Write-time schema validation intercepts data as it arrives at the ingestion point (before it is committed to the target table), validates the incoming schema against the registered contract or expected definition, and rejects non-conforming loads immediately. This requires integration at the pipeline or connector layer — not at the Qualix rule-checking layer — which is a fundamentally different architecture that has not been started.',
                     },
                     {
@@ -382,7 +507,7 @@ export default function SettingsPage() {
                     {
                       name: 'Real-Time Anomaly Detection & Alerting',
                       where: 'Anomalies page, Alerts page',
-                      status: 'Schedule-triggered polling only; no real-time capability',
+                      status: 'Implemented — auto-refresh every 60s on anomalies page with manual refresh button and last-refresh timestamp',
                       desc: 'Both the Anomalies and Alerts pages fetch data via standard REST API calls on page load — there are no WebSockets, Server-Sent Events, or background polling anywhere in the codebase. Anomalies are only detected when a scheduled rule runs (which could be hourly, daily, or weekly). If an upstream table is dropped, a pipeline fails, or row counts collapse to zero between schedule runs, Qualix will not surface this until the next scheduled execution — which could be hours later. Real-time anomaly alerting requires: continuous lightweight monitoring (freshness checks every few minutes, not full rule scans), a push delivery mechanism (WebSocket or SSE from the server to the browser so the UI updates without a page refresh), and integration with notification channels (Slack, PagerDuty, email) that fires within seconds of detection rather than waiting for a user to reload the Alerts page.',
                     },
                   ],
@@ -570,21 +695,26 @@ export default function SettingsPage() {
 
           {/* ─── Workspace ─── */}
           {tab === 'workspace' && (
-            <div style={card}>
-              <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '20px' }}>Workspace Settings</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '—'], ['Timezone', '—']].map(([label, value]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
-                    <span style={{ fontSize: '13px', color: 'var(--foreground)', fontWeight: 600 }}>{value}</span>
-                  </div>
-                ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={card}>
+                <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--foreground)', marginBottom: '20px' }}>Workspace Settings</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {[['Workspace Name', '—'], ['Organization', '—'], ['Default Connection', '—'], ['Data Retention', '—'], ['Timezone', '—']].map(([label, value]) => (
+                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>{label}</span>
+                      <span style={{ fontSize: '13px', color: 'var(--foreground)', fontWeight: 600 }}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: '24px', background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '10px', padding: '16px' }}>
+                  <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--status-error-text)', marginBottom: '6px' }}>Danger Zone</div>
+                  <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>These actions cannot be undone.</div>
+                  <button style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}>Reset Workspace Data</button>
+                </div>
               </div>
-              <div style={{ marginTop: '24px', background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '10px', padding: '16px' }}>
-                <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--status-error-text)', marginBottom: '6px' }}>Danger Zone</div>
-                <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)', marginBottom: '12px' }}>These actions cannot be undone.</div>
-                <button style={{ padding: '7px 16px', borderRadius: '7px', border: '1px solid var(--status-error-text)', background: 'var(--surface)', color: 'var(--status-error-text)', fontSize: '12.5px', fontWeight: 500, cursor: 'pointer' }}>Reset Workspace Data</button>
-              </div>
+
+              {/* Slack / Teams AI Bot Configuration */}
+              <SlackBotConfig />
             </div>
           )}
         </div>

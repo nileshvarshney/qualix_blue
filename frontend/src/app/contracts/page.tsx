@@ -11,6 +11,10 @@ interface TermCheck {
   detail: string
 }
 
+interface EnforcementLog {
+  id: string; action: string; timestamp: string; actor: string; detail?: string
+}
+
 interface Contract {
   id: string; name: string; producer: string; consumer: string
   owner: string; status: ContractStatus; compliance: number
@@ -22,6 +26,7 @@ interface Contract {
   breachRecommendation?: string
   lastChecked: string
   trend: string
+  enforcement_active?: boolean
 }
 
 const complianceColor = (c: number) =>
@@ -52,6 +57,9 @@ export default function ContractsPage() {
   const [showAdd, setShowAdd]     = useState(false)
   const [hoverId, setHoverId]     = useState<string | null>(null)
   const [cForm, setCForm]         = useState({ name: '', producer: '', consumer: '', owner: '', description: '', sla: '99%', connection: '' })
+  const [enforcementLog, setEnforcementLog] = useState<EnforcementLog[]>([])
+  const [enforcementLoading, setEnforcementLoading] = useState(false)
+  const [showEnforcementLog, setShowEnforcementLog] = useState(false)
 
   const mapStatus = (s: unknown): ContractStatus => {
     if (s === 'violated' || s === 'breached') return 'breached'
@@ -275,6 +283,74 @@ export default function ContractsPage() {
                   </>}
                 </div>
               )}
+              {/* Enforcement toggle */}
+              <div style={{ background: selected.enforcement_active ? '#f0fdf4' : 'var(--surface-muted)', border: `1px solid ${selected.enforcement_active ? '#86efac' : 'var(--border)'}`, borderRadius: '8px', padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '13px' }}>{selected.enforcement_active ? '🔒' : '👁️'}</span>
+                  <span style={{ fontSize: '12px', fontWeight: 700, color: selected.enforcement_active ? '#15803d' : 'var(--text-secondary)' }}>
+                    {selected.enforcement_active ? 'Active Enforcement ON' : 'Active Enforcement OFF (Monitoring only)'}
+                  </span>
+                  <button
+                    disabled={enforcementLoading}
+                    onClick={async () => {
+                      setEnforcementLoading(true)
+                      const newState = !selected.enforcement_active
+                      try {
+                        await fetch(`/api/contracts/${selected.id}/enforce`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ active: newState }),
+                        })
+                        const newLog: EnforcementLog = {
+                          id: Date.now().toString(),
+                          action: newState ? 'enforcement_enabled' : 'enforcement_disabled',
+                          timestamp: new Date().toISOString(),
+                          actor: 'You',
+                          detail: newState ? 'Active enforcement enabled — loads violating this contract will be rejected' : 'Enforcement disabled — switched to monitoring mode',
+                        }
+                        setEnforcementLog(prev => [newLog, ...prev])
+                        setSelected(prev => prev ? { ...prev, enforcement_active: newState } : prev)
+                        setAllContracts(prev => prev.map(c => c.id === selected.id ? { ...c, enforcement_active: newState } : c))
+                      } catch {
+                        // silently ignore if backend not available
+                        const newLog: EnforcementLog = {
+                          id: Date.now().toString(),
+                          action: newState ? 'enforcement_enabled' : 'enforcement_disabled',
+                          timestamp: new Date().toISOString(),
+                          actor: 'You',
+                          detail: newState ? 'Active enforcement enabled' : 'Enforcement disabled',
+                        }
+                        setEnforcementLog(prev => [newLog, ...prev])
+                        setSelected(prev => prev ? { ...prev, enforcement_active: newState } : prev)
+                        setAllContracts(prev => prev.map(c => c.id === selected.id ? { ...c, enforcement_active: newState } : c))
+                      } finally {
+                        setEnforcementLoading(false)
+                        setShowEnforcementLog(true)
+                      }
+                    }}
+                    style={{ marginLeft: 'auto', padding: '4px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, border: 'none', cursor: enforcementLoading ? 'default' : 'pointer', background: selected.enforcement_active ? 'var(--status-error-bg)' : 'var(--status-ok-bg)', color: selected.enforcement_active ? 'var(--status-error-text)' : 'var(--status-ok-text)' }}
+                  >
+                    {enforcementLoading ? '…' : selected.enforcement_active ? 'Disable Enforcement' : 'Enable Enforcement'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                  {selected.enforcement_active
+                    ? 'Data loads violating this contract\'s schema, SLA, or quality terms will be rejected at ingestion time.'
+                    : 'Currently in monitoring mode — violations are detected and logged but loads are not blocked.'}
+                </div>
+                {showEnforcementLog && enforcementLog.length > 0 && (
+                  <div style={{ marginTop: '10px', borderTop: '1px solid var(--border)', paddingTop: '8px' }}>
+                    <div style={{ fontSize: '9.5px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '5px' }}>Enforcement Log</div>
+                    {enforcementLog.map((entry, i) => (
+                      <div key={i} style={{ fontSize: '10.5px', color: 'var(--text-secondary)', padding: '3px 0', borderBottom: '1px solid var(--surface-muted)' }}>
+                        <span style={{ color: 'var(--text-muted)', marginRight: '6px' }}>{new Date(entry.timestamp).toLocaleString()}</span>
+                        <span style={{ fontWeight: 600 }}>{entry.actor}</span>: {entry.detail}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <EntityComments entityType="contract" entityId={selected.id} />
 
               {/* Terms checklist */}

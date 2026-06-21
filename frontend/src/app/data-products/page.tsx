@@ -147,7 +147,7 @@ export default function DataProductsPage() {
         id: String(created.product_id ?? `dp_${Date.now()}`), name: form.name,
         description: form.description, domain: form.domain,
         owner: form.owner || 'Unassigned', status: form.status, tier: form.tier,
-        qualityScore: form.status === 'certified' ? 95 : form.status === 'published' ? 85 : 70,
+        qualityScore: Number(created.quality_score ?? created.qualityScore ?? 0),
         consumers: 0, datasets: 0, sla: form.sla, freshness: 'Just now',
         lastUpdated: new Date().toISOString(), tags,
       }
@@ -157,7 +157,7 @@ export default function DataProductsPage() {
         id: `dp_${Date.now()}`, name: form.name, description: form.description,
         domain: form.domain, owner: form.owner || 'Unassigned',
         status: form.status, tier: form.tier,
-        qualityScore: form.status === 'certified' ? 95 : form.status === 'published' ? 85 : 70,
+        qualityScore: 0,
         consumers: 0, datasets: 0, sla: form.sla, freshness: 'Just now',
         lastUpdated: new Date().toISOString(), tags,
       }, ...prev])

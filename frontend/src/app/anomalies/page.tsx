@@ -69,6 +69,80 @@ interface AiExplanation {
   [key: string]: unknown
 }
 
+function AnomalyContextPanel({ assetId, currentId }: { assetId: string; currentId: string }) {
+  const [related, setRelated] = useState<Record<string, unknown>[]>([])
+  const [slas, setSlas] = useState<Record<string, unknown>[]>([])
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!assetId || assetId === '') { setLoaded(true); return }
+    Promise.allSettled([
+      fetch(`/api/anomalies?asset_id=${assetId}&limit=6`).then(r => r.json()),
+      fetch(`/api/monitoring/sla-predictions?asset_id=${assetId}&limit=4`).then(r => r.json()),
+    ]).then(([anomaliesRes, slasRes]) => {
+      const anomalies = anomaliesRes.status === 'fulfilled'
+        ? (Array.isArray(anomaliesRes.value) ? anomaliesRes.value : (anomaliesRes.value?.items ?? [])) as Record<string, unknown>[]
+        : []
+      const slaItems = slasRes.status === 'fulfilled'
+        ? (Array.isArray(slasRes.value) ? slasRes.value : (slasRes.value?.items ?? [])) as Record<string, unknown>[]
+        : []
+      setRelated(anomalies.filter((a: Record<string, unknown>) => String(a.detection_id ?? a.id) !== currentId).slice(0, 5))
+      setSlas(slaItems.slice(0, 3))
+      setLoaded(true)
+    })
+  }, [assetId, currentId])
+
+  if (!loaded || (related.length === 0 && slas.length === 0)) return null
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      {related.length > 0 && (
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+            Historical anomalies on same asset
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {related.map((a, i) => {
+              const sev = String(a.severity ?? 'medium')
+              const sevColor = sev === 'critical' ? 'var(--status-error-text)' : sev === 'high' ? '#ea580c' : 'var(--status-warn-text)'
+              const dt = String(a.detected_at ?? a.created_at ?? '').replace('T', ' ').slice(0, 16)
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px', padding: '3px 0', borderBottom: '1px solid var(--surface-muted)' }}>
+                  <span style={{ color: sevColor, fontWeight: 700, fontSize: '10px', textTransform: 'uppercase', minWidth: '50px' }}>{sev}</span>
+                  <span style={{ flex: 1, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {String(a.anomaly_type ?? a.detector_type ?? '').replace(/_/g, ' ')}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '10px', whiteSpace: 'nowrap' }}>{dt}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+      {slas.length > 0 && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
+            At-risk SLAs
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {slas.map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11.5px' }}>
+                <span style={{ color: '#ea580c', fontSize: '12px' }}>⚠</span>
+                <span style={{ flex: 1, color: '#7c2d12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {String(s.sla_name ?? s.name ?? s.asset_name ?? '—')}
+                </span>
+                <span style={{ color: '#c2410c', fontSize: '10px', fontWeight: 600 }}>
+                  {s.breach_probability != null ? `${Math.round(Number(s.breach_probability) * 100)}% risk` : String(s.status ?? '')}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AnomalyAiExplanation({ anomalyId }: { anomalyId: string }) {
   const [data, setData] = useState<AiExplanation | null>(null)
   const [loading, setLoading] = useState(true)
@@ -170,21 +244,31 @@ export default function AnomaliesPage() {
   const [filter, setFilter]       = useState<FilterType>('all')
   const [expanded, setExpanded]   = useState<string | null>(null)
   const [search, setSearch]       = useState('')
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+
+  const loadAnomalies = useCallback(async () => {
+    try {
+      const [raw, catalog] = await Promise.all([
+        fetch('/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+        fetch('/api/catalog',   { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+      ])
+      const items  = (Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).items ?? [])) as Record<string, unknown>[]
+      const assets = (Array.isArray(catalog) ? catalog : ((catalog as Record<string, unknown>).items ?? [])) as AssetInfo[]
+      const assetMap = Object.fromEntries(assets.map(a => [a.asset_id, a]))
+      setAnomalies(items.map(d => mapDetection(d, assetMap)))
+      setLastRefresh(new Date())
+    } catch {
+      setAnomalies([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
-      fetch('/api/catalog',   { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
-    ])
-      .then(([raw, catalog]) => {
-        const items  = (Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).items ?? [])) as Record<string, unknown>[]
-        const assets = (Array.isArray(catalog) ? catalog : ((catalog as Record<string, unknown>).items ?? [])) as AssetInfo[]
-        const assetMap = Object.fromEntries(assets.map(a => [a.asset_id, a]))
-        setAnomalies(items.map(d => mapDetection(d, assetMap)))
-      })
-      .catch(() => setAnomalies([]))
-      .finally(() => setLoading(false))
-  }, [])
+    loadAnomalies()
+    const interval = setInterval(loadAnomalies, 60_000)
+    return () => clearInterval(interval)
+  }, [loadAnomalies])
 
   const total    = anomalies.length
   const critical = anomalies.filter(a => a.severity === 'critical').length
@@ -223,13 +307,23 @@ export default function AnomaliesPage() {
           <div style={{ fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--foreground)' }}>Anomalies</div>
           <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px' }}>
             {loading ? 'Loading…' : `${total} detected · ${critical} critical · ${open} open`}
+            {lastRefresh && !loading && (
+              <span style={{ marginLeft: '6px' }}>
+                · auto-refresh every 60s · last: {lastRefresh.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </span>
+            )}
           </div>
         </div>
-        {!loading && critical > 0 && (
-          <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 10px', fontSize: 'var(--text-xs)', fontWeight: 600 }}>
-            ⚡ {critical} critical · {open} open
-          </span>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={() => { setLoading(true); loadAnomalies() }} style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+            ↺ Refresh
+          </button>
+          {!loading && critical > 0 && (
+            <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', border: '1px solid #fca5a5', borderRadius: '6px', padding: '4px 10px', fontSize: 'var(--text-xs)', fontWeight: 600 }}>
+              ⚡ {critical} critical · {open} open
+            </span>
+          )}
+        </div>
       </div>
 
       {/* stat cards */}
@@ -375,6 +469,8 @@ export default function AnomaliesPage() {
                       <span style={{ fontWeight: 600, color: 'var(--foreground)' }}>Path: </span>{tablePath}
                     </div>
                   )}
+
+                  <AnomalyContextPanel assetId={a.assetId} currentId={a.id} />
 
                   <AnomalyAiExplanation anomalyId={a.id} />
 

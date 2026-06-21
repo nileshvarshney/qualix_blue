@@ -107,6 +107,14 @@ export default function RulesClient({ initialRules, connections }: Props) {
   const [tableFilter, setTableFilter] = useState('')
   const [scopeFilter, setScopeFilter] = useState<'all' | 'generic' | 'object-specific'>('all')
 
+  // Write-time schema validation state
+  const [schemaValidPanel, setSchemaValidPanel] = useState(false)
+  const [schemaValidConfig, setSchemaValidConfig] = useState({
+    enabled: false, connectionId: '', action: 'reject' as 'reject' | 'quarantine' | 'warn', notifySlack: false, notifyEmail: false, emailRecipients: '',
+  })
+  const [schemaValidSaving, setSchemaValidSaving] = useState(false)
+  const [schemaValidSaved, setSchemaValidSaved] = useState(false)
+
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
@@ -599,6 +607,72 @@ export default function RulesClient({ initialRules, connections }: Props) {
             borderColor: activeCategory === cat.value ? categoryColors[cat.value] : 'var(--border)'
           }}>{cat.icon} {cat.label} ({categoryCounts[cat.value] || 0})</button>
         ))}
+      </div>
+
+      {/* Write-Time Schema Validation Config */}
+      <div style={{ flexShrink: 0 }}>
+        <button
+          onClick={() => setSchemaValidPanel(o => !o)}
+          style={{ fontSize: '11px', padding: '4px 12px', borderRadius: '6px', border: `1px solid ${schemaValidPanel ? 'var(--accent)' : 'var(--border)'}`, background: schemaValidPanel ? 'var(--accent-bg)' : 'var(--surface)', color: schemaValidPanel ? 'var(--accent)' : 'var(--text-secondary)', cursor: 'pointer', fontWeight: schemaValidPanel ? 700 : 400 }}>
+          🛡️ Write-Time Schema Validation {schemaValidConfig.enabled ? <span style={{ color: 'var(--status-ok-text)' }}>(Active)</span> : '(Config)'}
+        </button>
+        {schemaValidPanel && (
+          <div style={{ marginTop: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '4px' }}>Write-Time Schema Validation</div>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-secondary)', lineHeight: '1.55' }}>
+              Intercept incoming data loads and reject those that violate registered schema definitions — before data reaches the target table. Requires pipeline integration.
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', fontWeight: 500, flex: 1 }}>Enable write-time interception</span>
+              <button
+                onClick={() => setSchemaValidConfig(c => ({ ...c, enabled: !c.enabled }))}
+                style={{ padding: '4px 14px', borderRadius: '6px', border: 'none', background: schemaValidConfig.enabled ? 'var(--status-ok-bg)' : 'var(--border)', color: schemaValidConfig.enabled ? 'var(--status-ok-text)' : 'var(--text-muted)', fontWeight: 600, fontSize: '12px', cursor: 'pointer' }}>
+                {schemaValidConfig.enabled ? 'On' : 'Off'}
+              </button>
+            </div>
+            {schemaValidConfig.enabled && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Action on violation</label>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {(['reject', 'quarantine', 'warn'] as const).map(action => (
+                      <button key={action} onClick={() => setSchemaValidConfig(c => ({ ...c, action }))}
+                        style={{ padding: '4px 10px', borderRadius: '5px', border: `1px solid ${schemaValidConfig.action === action ? 'var(--accent)' : 'var(--border)'}`, background: schemaValidConfig.action === action ? 'var(--accent-bg)' : 'transparent', color: schemaValidConfig.action === action ? 'var(--accent)' : 'var(--text-muted)', fontSize: '11px', cursor: 'pointer', fontWeight: schemaValidConfig.action === action ? 700 : 400, textTransform: 'capitalize' }}>
+                        {action === 'reject' ? '🚫 Reject' : action === 'quarantine' ? '🔒 Quarantine' : '⚠️ Warn only'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input type="checkbox" checked={schemaValidConfig.notifySlack} onChange={e => setSchemaValidConfig(c => ({ ...c, notifySlack: e.target.checked }))} />
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Notify Slack on violation</span>
+                  <input type="checkbox" checked={schemaValidConfig.notifyEmail} onChange={e => setSchemaValidConfig(c => ({ ...c, notifyEmail: e.target.checked }))} style={{ marginLeft: '12px' }} />
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Notify email</span>
+                </div>
+                {schemaValidConfig.notifyEmail && (
+                  <input value={schemaValidConfig.emailRecipients} onChange={e => setSchemaValidConfig(c => ({ ...c, emailRecipients: e.target.value }))} placeholder="data-team@company.com, dq@company.com" style={{ ...inp(), fontSize: '12px' }} />
+                )}
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button
+                disabled={schemaValidSaving}
+                onClick={async () => {
+                  setSchemaValidSaving(true)
+                  await fetch('/api/rules/schema-validation-config', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(schemaValidConfig),
+                  }).catch(() => {})
+                  setSchemaValidSaving(false)
+                  setSchemaValidSaved(true)
+                  setTimeout(() => setSchemaValidSaved(false), 2000)
+                }}
+                style={{ padding: '5px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11.5px', fontWeight: 600, cursor: 'pointer' }}>
+                {schemaValidSaving ? 'Saving…' : schemaValidSaved ? 'Saved ✓' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bulk Actions Bar */}

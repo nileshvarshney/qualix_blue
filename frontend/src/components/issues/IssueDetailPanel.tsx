@@ -147,6 +147,95 @@ function AiRcaSection({ runId }: { runId: string }) {
   )
 }
 
+interface CostEstimate {
+  estimated_cost?: number
+  currency?: string
+  cost_range?: { min: number; max: number }
+  affected_records?: number
+  downtime_hours?: number
+  pipeline_impact?: string
+  [key: string]: unknown
+}
+
+const SEV_MULTIPLIER: Record<string, number> = { critical: 5000, high: 2000, medium: 500, low: 100 }
+
+function CostImpactSection({ issue }: { issue: Issue }) {
+  const [data, setData] = useState<CostEstimate | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [show, setShow] = useState(false)
+
+  function estimate() {
+    if (show && data) { setShow(false); return }
+    setShow(true)
+    if (data) return
+    setLoading(true)
+    setError(null)
+    fetch('/api/ai/cost-estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        issue_id: issue.issue_id,
+        severity: issue.severity,
+        asset_name: issue.asset_name,
+        title: issue.title,
+      }),
+      cache: 'no-store',
+    })
+      .then(r => r.json())
+      .then(d => setData(d as CostEstimate))
+      .catch(() => {
+        const base = SEV_MULTIPLIER[issue.severity] ?? 500
+        setData({ estimated_cost: base, currency: 'USD', pipeline_impact: 'Unable to reach cost estimation service — showing severity-based estimate' })
+      })
+      .finally(() => setLoading(false))
+  }
+
+  const fmt = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+
+  return (
+    <div>
+      <button
+        onClick={estimate}
+        style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '5px', border: '1px solid var(--border)', background: show ? 'var(--surface-muted)' : 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+      >
+        {show ? '▾ Hide cost impact' : '💰 Estimate cost impact'}
+      </button>
+      {show && (
+        <div style={{ marginTop: '6px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '10px 14px' }}>
+          <div style={{ fontSize: '10px', fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Cost Impact Estimate</div>
+          {loading && <div style={{ fontSize: '12px', color: '#d97706' }}>Calculating…</div>}
+          {error && <div style={{ fontSize: '12px', color: 'var(--status-error-text)' }}>{error}</div>}
+          {!loading && data && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {data.estimated_cost != null && (
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                  <span style={{ fontSize: '22px', fontWeight: 700, color: '#92400e', lineHeight: 1 }}>{fmt(data.estimated_cost)}</span>
+                  <span style={{ fontSize: '10px', color: '#d97706' }}>estimated {data.currency ?? 'USD'} impact</span>
+                </div>
+              )}
+              {data.cost_range && (
+                <div style={{ fontSize: '11px', color: '#b45309' }}>
+                  Range: {fmt(data.cost_range.min)} — {fmt(data.cost_range.max)}
+                </div>
+              )}
+              {data.affected_records != null && (
+                <div style={{ fontSize: '11px', color: '#92400e' }}>Affected records: {data.affected_records.toLocaleString()}</div>
+              )}
+              {data.downtime_hours != null && (
+                <div style={{ fontSize: '11px', color: '#92400e' }}>Pipeline downtime: {data.downtime_hours}h</div>
+              )}
+              {data.pipeline_impact && (
+                <div style={{ fontSize: '11.5px', color: '#78350f', lineHeight: '1.5' }}>{data.pipeline_impact}</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function IssueDetailPanel({
   issue,
   onClose,
@@ -313,6 +402,8 @@ export default function IssueDetailPanel({
         {issue.run_id && !editing && (
           <AiRcaSection runId={issue.run_id} />
         )}
+
+        {!editing && <CostImpactSection issue={issue} />}
 
         {editing && (
           <div>

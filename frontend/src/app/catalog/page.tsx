@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Database, Layers, Table2, Eye } from 'lucide-react'
 import AssetDetailDrawer, { Asset as BaseAsset } from '@/components/asset-registry/AssetDetailDrawer'
 import { connectionIcons } from '@/lib/utils'
@@ -108,6 +108,37 @@ export default function CatalogPage() {
   const [bulkPatch, setBulkPatch] = useState<{ criticality?: string; certification_status?: string; owner_name?: string }>({})
   const [bulkApplying, setBulkApplying] = useState(false)
   const [bulkError, setBulkError] = useState<string | null>(null)
+  const [aiSearchMode, setAiSearchMode] = useState(false)
+  const [aiSearchResults, setAiSearchResults] = useState<Asset[] | null>(null)
+  const [aiSearchLoading, setAiSearchLoading] = useState(false)
+  const [aiSearchError, setAiSearchError] = useState<string | null>(null)
+  const aiDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const runAiSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setAiSearchResults(null); return }
+    setAiSearchLoading(true)
+    setAiSearchError(null)
+    try {
+      const res = await fetch('/api/ai/semantic-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, entity_types: ['asset', 'table', 'view'], limit: 20 }),
+        cache: 'no-store',
+      })
+      const data = await res.json() as Record<string, unknown>
+      const results = Array.isArray(data.results) ? data.results as Record<string, unknown>[] : Array.isArray(data) ? data as Record<string, unknown>[] : []
+      const matched = assets.filter(a => results.some(r =>
+        String(r.asset_id ?? r.id ?? '') === a.asset_id ||
+        String(r.table_name ?? r.sf_table_name ?? '') === (a.sf_table_name ?? '')
+      ))
+      setAiSearchResults(matched.length > 0 ? matched : null)
+    } catch {
+      setAiSearchError('AI search unavailable — falling back to keyword search')
+      setAiSearchResults(null)
+    } finally {
+      setAiSearchLoading(false)
+    }
+  }, [assets])
 
   function toggleSelect(e: React.MouseEvent, assetId: string) {
     e.stopPropagation()
@@ -193,6 +224,7 @@ export default function CatalogPage() {
   }
 
   const filtered = useMemo(() => {
+    if (aiSearchMode && aiSearchResults !== null) return aiSearchResults
     if (!search.trim()) return assets
     const q = search.toLowerCase()
     return assets.filter(a =>
@@ -203,7 +235,7 @@ export default function CatalogPage() {
       (a.domain_name ?? '').toLowerCase().includes(q) ||
       (a.owner_name ?? '').toLowerCase().includes(q)
     )
-  }, [assets, search])
+  }, [assets, search, aiSearchMode, aiSearchResults])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Map<string, Map<string, Asset[]>>>()
@@ -241,12 +273,27 @@ export default function CatalogPage() {
           {totalTables} tables
         </span>
         <div style={{ flex: 1 }} />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search tables, schemas, domains, owners…"
-          style={{ width: '260px', padding: '4px 8px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            onClick={() => { setAiSearchMode(m => !m); setAiSearchResults(null); setAiSearchError(null) }}
+            style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '5px', border: `1px solid ${aiSearchMode ? '#7c3aed' : 'var(--border)'}`, background: aiSearchMode ? '#f5f3ff' : 'var(--surface)', color: aiSearchMode ? '#7c3aed' : 'var(--text-muted)', cursor: 'pointer', fontWeight: aiSearchMode ? 700 : 400 }}>
+            ✨ AI Search {aiSearchMode ? 'ON' : 'OFF'}
+          </button>
+          <input
+            value={search}
+            onChange={e => {
+              setSearch(e.target.value)
+              if (aiSearchMode) {
+                if (aiDebounce.current) clearTimeout(aiDebounce.current)
+                aiDebounce.current = setTimeout(() => runAiSearch(e.target.value), 450)
+              }
+            }}
+            placeholder={aiSearchMode ? 'Describe what you\'re looking for…' : 'Search tables, schemas, domains, owners…'}
+            style={{ width: '280px', padding: '4px 8px', borderRadius: '5px', border: `1px solid ${aiSearchMode ? '#7c3aed' : 'var(--border)'}`, fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)', outline: 'none' }}
+          />
+          {aiSearchLoading && <span style={{ fontSize: '10px', color: '#7c3aed' }}>…</span>}
+          {aiSearchError && <span style={{ fontSize: '10px', color: 'var(--status-warn-text)' }}>AI unavailable</span>}
+        </div>
       </div>
 
       {/* column headers */}

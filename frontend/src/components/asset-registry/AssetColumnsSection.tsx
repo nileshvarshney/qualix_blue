@@ -114,6 +114,13 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<string | null>(null)
 
+  // AI classify-table state
+  const [classifyOpen, setClassifyOpen] = useState(false)
+  const [classifying, setClassifying] = useState(false)
+  const [classifyResult, setClassifyResult] = useState<Record<string, unknown> | null>(null)
+  const [classifyError, setClassifyError] = useState<string | null>(null)
+  const [appliedClassify, setAppliedClassify] = useState<Set<string>>(new Set())
+
   // Samples
   const [showSamples, setShowSamples] = useState(false)
   const [sampleRows, setSampleRows] = useState<Record<string, unknown>[] | null>(null)
@@ -298,6 +305,45 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
     }
   }
 
+  // ── AI Classify Table ─────────────────────────────────────────────────────
+  async function runClassifyTable() {
+    setClassifying(true)
+    setClassifyError(null)
+    setClassifyResult(null)
+    setAppliedClassify(new Set())
+    try {
+      const res = await fetch(`/api/ai/classify-table`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset_id: assetId,
+          table_name: sourceMeta?.sf_table_name,
+          schema_name: sourceMeta?.sf_schema_name,
+          database_name: sourceMeta?.sf_database_name,
+          columns: (columns ?? []).map(c => ({ name: c.column_name, type: c.data_type })),
+        }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      setClassifyResult(data)
+    } catch (e: unknown) {
+      setClassifyError((e as Error).message)
+    } finally {
+      setClassifying(false)
+    }
+  }
+
+  async function applyColumnDescription(colName: string, description: string) {
+    setAppliedClassify(prev => new Set([...prev, colName]))
+    await fetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description }),
+    }).catch(() => {/* silently continue */})
+    setColumns(prev => (prev ?? []).map(c =>
+      c.column_name === colName ? { ...c, description } : c
+    ))
+  }
+
   // ── Samples ───────────────────────────────────────────────────────────────
   const canSample = Boolean(connectionId && sourceMeta?.sf_table_name)
 
@@ -356,6 +402,12 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
               onClick={() => { setScanOpen(o => !o); if (!scanOpen && !findings) runAIScan() }}
               style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid #d97706', background: scanOpen ? '#fffbeb' : 'var(--surface)', color: '#d97706', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
               🔍 Scan with AI
+            </button>
+            {/* AI Classify button */}
+            <button
+              onClick={() => { setClassifyOpen(o => !o); if (!classifyOpen && !classifyResult) runClassifyTable() }}
+              style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid #7c3aed', background: classifyOpen ? '#f5f3ff' : 'var(--surface)', color: '#7c3aed', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              ✨ Classify with AI
             </button>
             <button onClick={handleViewSamples} disabled={!canSample}
               style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: canSample ? 'var(--accent-bg)' : 'var(--surface)', color: canSample ? 'var(--accent)' : 'var(--text-muted)', cursor: canSample ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
@@ -436,6 +488,57 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
                   </span>
                 </div>
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── AI Classify Table panel ── */}
+        {classifyOpen && (
+          <div style={{ borderBottom: '1px solid var(--border)', background: '#f5f3ff', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#5b21b6' }}>AI Column Classification</span>
+              <button onClick={runClassifyTable} disabled={classifying}
+                style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #7c3aed', background: 'transparent', color: '#7c3aed', cursor: classifying ? 'not-allowed' : 'pointer' }}>
+                {classifying ? 'Classifying…' : 'Re-classify'}
+              </button>
+              <button onClick={() => setClassifyOpen(false)} style={{ marginLeft: 'auto', fontSize: '11px', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>✕ close</button>
+            </div>
+            {classifying && <div style={{ fontSize: '12px', color: '#7c3aed' }}>Analyzing table schema with AI…</div>}
+            {classifyError && <div style={{ fontSize: '12px', color: 'var(--status-error-text)' }}>Classification failed: {classifyError}</div>}
+            {!classifying && classifyResult && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {classifyResult.table_description != null && (
+                  <div style={{ padding: '8px 10px', background: 'rgba(255,255,255,0.6)', borderRadius: '6px', fontSize: '12px', color: '#4c1d95', lineHeight: '1.6' }}>
+                    <strong>Table summary:</strong> {String(classifyResult.table_description)}
+                  </div>
+                )}
+                {Array.isArray(classifyResult.columns) && classifyResult.columns.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: '10px', fontWeight: 700, color: '#5b21b6', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Column Descriptions</div>
+                    {(classifyResult.columns as Record<string, unknown>[]).map((col, i) => {
+                      const name = String(col.column_name ?? col.name ?? '')
+                      const desc = String(col.description ?? col.business_meaning ?? '')
+                      const applied = appliedClassify.has(name)
+                      if (!name || !desc) return null
+                      return (
+                        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '5px 0', borderBottom: '1px solid #ddd6fe' }}>
+                          <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#4c1d95', minWidth: '120px', fontWeight: 600, paddingTop: '1px' }}>{name}</span>
+                          <span style={{ flex: 1, fontSize: '11.5px', color: '#3b0764', lineHeight: '1.5' }}>{desc}</span>
+                          <button
+                            onClick={() => applyColumnDescription(name, desc)}
+                            disabled={applied}
+                            style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: 'none', background: applied ? 'var(--status-ok-bg)' : '#7c3aed', color: applied ? 'var(--status-ok-text)' : '#fff', cursor: applied ? 'default' : 'pointer', flexShrink: 0 }}>
+                            {applied ? '✓ Applied' : 'Apply'}
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {!classifyResult.table_description && !Array.isArray(classifyResult.columns) && (
+                  <div style={{ fontSize: '12px', color: '#7c3aed' }}>Classification complete. Check column descriptions in the table below.</div>
+                )}
+              </div>
             )}
           </div>
         )}

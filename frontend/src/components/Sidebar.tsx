@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { loadConnections } from '@/lib/seedData'
@@ -367,6 +367,145 @@ const SECTION_KEY_MAP: Record<string, string> = {
 const RAIL_W = 72
 const TOP_H  = 56
 
+/* ─── Global Search ─── */
+interface SearchResult {
+  id: string; type: string; label: string; sub?: string; href: string
+}
+
+const ENTITY_HREF: Record<string, string> = {
+  asset: '/catalog', table: '/catalog', issue: '/issues', anomaly: '/anomalies',
+  contract: '/contracts', glossary_term: '/glossary', policy: '/governance',
+  alert: '/alerts', rule: '/rules',
+}
+
+function GlobalSearch() {
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const search = useCallback(async (q: string) => {
+    if (!q.trim()) { setResults([]); return }
+    setLoading(true)
+    try {
+      const sources = await Promise.allSettled([
+        fetch(`/api/catalog?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        fetch(`/api/issues?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        fetch(`/api/anomalies?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        fetch(`/api/glossary?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        fetch(`/api/contracts?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+      ])
+      const mapped: SearchResult[] = []
+      const [catalog, issues, anomalies, glossary, contracts] = sources
+
+      if (catalog.status === 'fulfilled') {
+        const items = Array.isArray(catalog.value) ? catalog.value : (catalog.value?.items ?? [])
+        for (const a of (items as Record<string, unknown>[]).slice(0, 3)) {
+          mapped.push({ id: String(a.asset_id ?? a.id ?? ''), type: String(a.asset_type ?? 'asset'),
+            label: String(a.display_name ?? a.physical_name ?? a.qualified_name ?? ''),
+            sub: String(a.connection_name ?? ''), href: '/catalog' })
+        }
+      }
+      if (issues.status === 'fulfilled') {
+        const items = Array.isArray(issues.value) ? issues.value : []
+        for (const i of (items as Record<string, unknown>[]).slice(0, 3)) {
+          mapped.push({ id: String(i.issue_id ?? i.id ?? ''), type: 'issue',
+            label: String(i.title ?? ''), sub: String(i.severity ?? ''), href: '/issues' })
+        }
+      }
+      if (anomalies.status === 'fulfilled') {
+        const items = Array.isArray(anomalies.value) ? anomalies.value : (anomalies.value?.items ?? [])
+        for (const a of (items as Record<string, unknown>[]).slice(0, 2)) {
+          mapped.push({ id: String(a.detection_id ?? a.id ?? ''), type: 'anomaly',
+            label: String(a.asset_name ?? a.table_name ?? ''), sub: String(a.anomaly_type ?? ''), href: '/anomalies' })
+        }
+      }
+      if (glossary.status === 'fulfilled') {
+        const items = Array.isArray(glossary.value) ? glossary.value : []
+        for (const t of (items as Record<string, unknown>[]).slice(0, 2)) {
+          mapped.push({ id: String(t.term_id ?? t.id ?? ''), type: 'term',
+            label: String(t.term_name ?? t.name ?? ''), sub: String(t.domain ?? ''), href: '/glossary' })
+        }
+      }
+      if (contracts.status === 'fulfilled') {
+        const items = Array.isArray(contracts.value) ? contracts.value : []
+        for (const c of (items as Record<string, unknown>[]).slice(0, 2)) {
+          mapped.push({ id: String(c.contract_id ?? c.id ?? ''), type: 'contract',
+            label: String(c.contract_name ?? c.name ?? ''), sub: String(c.producer_team ?? ''), href: '/contracts' })
+        }
+      }
+      setResults(mapped.filter(r => r.label))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value
+    setQuery(q)
+    setOpen(true)
+    if (debounce.current) clearTimeout(debounce.current)
+    debounce.current = setTimeout(() => search(q), 280)
+  }
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [])
+
+  const TYPE_ICON: Record<string, string> = {
+    table: '🗃️', view: '👁️', asset: '📊', issue: '🐛', anomaly: '⚡',
+    contract: '📋', term: '📖', policy: '🔐', alert: '🔔', rule: '📏',
+  }
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', flex: 1, maxWidth: 360, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '8px', padding: '5px 10px' }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, color: 'var(--text-muted)' }}>
+          <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          value={query}
+          onChange={handleChange}
+          onFocus={() => query && setOpen(true)}
+          placeholder="Search assets, issues, anomalies, terms…"
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '12px', color: 'var(--foreground)', minWidth: 0 }}
+        />
+        {loading && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>…</span>}
+      </div>
+      {open && (query.length > 0) && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 4px 16px rgba(0,0,0,0.12)', zIndex: 200, maxHeight: '340px', overflowY: 'auto' }}>
+          {results.length === 0 && !loading && (
+            <div style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
+              No results for &quot;{query}&quot;
+            </div>
+          )}
+          {results.map((r, i) => (
+            <Link key={i} href={r.href} onClick={() => setOpen(false)} style={{ textDecoration: 'none' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid var(--surface-muted)', cursor: 'pointer' }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>{TYPE_ICON[r.type] ?? '📄'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.label}</div>
+                  {r.sub && <div style={{ fontSize: '10px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.type} · {r.sub}</div>}
+                </div>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /* ─── Component ─── */
 export default function Sidebar() {
   const pathname = usePathname()
@@ -446,6 +585,9 @@ export default function Sidebar() {
           </div>
 
         </div>
+
+        {/* Global search */}
+        <GlobalSearch />
 
         {/* Right side controls */}
         <TopBarConnectionSelector />
