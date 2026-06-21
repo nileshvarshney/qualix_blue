@@ -1,8 +1,15 @@
 'use client'
 import React from 'react'
 import { useState, useEffect, useCallback } from 'react'
+import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
 
 type Tab = 'masking' | 'dsr' | 'consent' | 'residency'
+
+type DomainSummary = {
+  name: string
+  counts: Record<string, number>
+  total: number
+}
 
 interface MaskingPolicy {
   policy_id: string; asset_id: string; column_name: string; masking_type: string
@@ -455,6 +462,19 @@ function ResidencyTab() {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function PrivacyPage() {
   const [tab, setTab] = useState<Tab>('masking')
+  const [domainSummary, setDomainSummary] = useState<DomainSummary[]>([])
+  const [domainSummaryLoading, setDomainSummaryLoading] = useState(true)
+  const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch('/api/classifications/summary')
+      .then(r => r.json())
+      .then(data => {
+        if (data && Array.isArray(data.domains)) setDomainSummary(data.domains as DomainSummary[])
+      })
+      .catch(() => {})
+      .finally(() => setDomainSummaryLoading(false))
+  }, [])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'masking', label: 'Data Masking' },
@@ -468,6 +488,62 @@ export default function PrivacyPage() {
       <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px' }}>Workspace · <span style={{ color: 'var(--text-secondary)' }}>Privacy</span></div>
       <h1 style={{ fontSize: '24px', fontWeight: 700, color: 'var(--foreground)', margin: '0 0 4px' }}>Data Protection & Privacy</h1>
       <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 20px' }}>Manage masking policies, data subject requests, consent records, and residency requirements</p>
+
+      {/* Sensitivity by Domain */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', marginBottom: '20px' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)' }}>Sensitivity by Domain</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>classified assets per domain</span>
+        </div>
+        {domainSummaryLoading ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>Loading…</div>
+        ) : domainSummary.length === 0 ? (
+          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No classified assets found</div>
+        ) : (
+          <div>
+            {domainSummary.map((d, i) => (
+              <div key={d.name} style={{ borderBottom: i < domainSummary.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div
+                  onClick={() => setExpandedDomains(prev => {
+                    const next = new Set(prev)
+                    if (next.has(d.name)) { next.delete(d.name) } else { next.add(d.name) }
+                    return next
+                  })}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 20px', cursor: 'pointer' }}
+                >
+                  <span style={{ fontSize: '10px', color: 'var(--text-muted)', width: '10px' }}>
+                    {expandedDomains.has(d.name) ? '▼' : '▶'}
+                  </span>
+                  <span style={{ fontWeight: 600, fontSize: '12px', color: 'var(--foreground)', flex: 1 }}>{d.name}</span>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {Object.entries(d.counts).map(([cls, count]) => (
+                      <span key={cls} style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                        <SensitivityBadge classification={cls} />
+                        <span style={{ fontSize: '9px', color: 'var(--text-muted)' }}>{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', minWidth: '30px', textAlign: 'right' }}>
+                    {d.total}
+                  </span>
+                </div>
+                {expandedDomains.has(d.name) && (
+                  <div style={{ padding: '0 20px 10px 40px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                    {Object.entries(d.counts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([cls, count]) => (
+                        <div key={cls} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 0' }}>
+                          <SensitivityBadge classification={cls} />
+                          <span>{count} asset{count > 1 ? 's' : ''}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: '2px', marginBottom: '20px', borderBottom: '1px solid var(--border)', paddingBottom: '0' }}>
         {tabs.map(t => (
