@@ -29,6 +29,13 @@ function smoothPath(points: { x: number; y: number }[]): string {
   return parts.join(' ')
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+function formatAxisDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export function TrendChart({
   data,
   onPointClick,
@@ -42,7 +49,14 @@ export function TrendChart({
   upperBand?: ForecastPoint[]
   lowerBand?: ForecastPoint[]
 }) {
-  const [tooltip, setTooltip] = useState<{ x: number; y: number; score: number; date: string } | null>(null)
+  const [tooltip, setTooltip] = useState<{
+    x: number; y: number
+    score: number; date: string
+    prevScore: number | null
+    failed: number
+    alertCount: number
+    anomalyCount: number
+  } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [containerW, setContainerW] = useState(600)
   const [instanceId] = useState(() => ++_chartInstanceCount)
@@ -113,10 +127,24 @@ export function TrendChart({
           if (!svgRef.current) return
           const rect = svgRef.current.getBoundingClientRect()
           const relX = ((e.clientX - rect.left) / rect.width) * w
-          let closest = pts[0], minDist = Infinity
-          pts.forEach(p => { const d = Math.abs(p.x - relX); if (d < minDist) { minDist = d; closest = p } })
-          if (minDist < 30) setTooltip({ x: (closest.x / w) * 100, y: (closest.y / h) * 100, score: closest.score, date: closest.date })
-          else setTooltip(null)
+          let closestIdx = 0, minDist = Infinity
+          pts.forEach((p, i) => { const d = Math.abs(p.x - relX); if (d < minDist) { minDist = d; closestIdx = i } })
+          if (minDist < 30) {
+            const p = pts[closestIdx]
+            const orig = validPts[closestIdx]
+            setTooltip({
+              x: (p.x / w) * 100,
+              y: (p.y / h) * 100,
+              score: p.score,
+              date: p.date,
+              prevScore: closestIdx > 0 ? pts[closestIdx - 1].score : null,
+              failed: orig.failed ?? 0,
+              alertCount: orig.alert_count ?? 0,
+              anomalyCount: orig.anomaly_count ?? 0,
+            })
+          } else {
+            setTooltip(null)
+          }
         }}>
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -210,10 +238,22 @@ export function TrendChart({
             onClick={() => onPointClick?.(d.date)}
             style={{ cursor: onPointClick ? 'pointer' : 'default' }} />
         ) : null)}
-        {validPts.filter((_, i) => i % Math.ceil(validPts.length / 7) === 0 || i === validPts.length - 1).map((d) => {
-          const idx = validPts.indexOf(d)
-          return <text key={idx} x={xForN(idx)} y={h - 8} textAnchor="middle" fontSize="10" fill="#9ca3af">{d.date}</text>
-        })}
+        {(() => {
+          const todayIso = new Date().toISOString().slice(0, 10)
+          return validPts
+            .filter((_, i) => i % Math.ceil(validPts.length / 7) === 0 || i === validPts.length - 1)
+            .map(d => {
+              const idx = validPts.indexOf(d)
+              const isToday = d.date === todayIso
+              return (
+                <text key={idx} x={xForN(idx)} y={h - 8} textAnchor="middle" fontSize="10"
+                  fill={isToday ? 'var(--accent, #3b82f6)' : '#9ca3af'}
+                  fontWeight={isToday ? '600' : '400'}>
+                  {isToday ? 'Today' : formatAxisDate(d.date)}
+                </text>
+              )
+            })
+        })()}
         {/* Confidence band shaded area */}
         {hasForecast && upperBand?.length && lowerBand?.length && (() => {
           const uPts = upperBand.map((d, i) => ({
@@ -260,18 +300,56 @@ export function TrendChart({
           </>
         )}
       </svg>
-      {tooltip && (
-        <div style={{
-          position: 'absolute', left: `${tooltip.x}%`, top: `${tooltip.y}%`,
-          transform: 'translate(-50%, -130%)', background: '#1e293b', color: '#fff',
-          padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
-          pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(0,0,0,0.2)', zIndex: 10
-        }}>
-          <div>{tooltip.date}</div>
-          <div style={{ color: '#60a5fa', fontSize: '16px' }}>{tooltip.score}%</div>
-          <div style={{ position: 'absolute', bottom: '-5px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderTop: '5px solid #1e293b' }} />
-        </div>
-      )}
+      {tooltip && (() => {
+        const delta = tooltip.prevScore !== null ? tooltip.score - tooltip.prevScore : null
+        const scoreColor = tooltip.score >= 90 ? '#4ade80' : tooltip.score >= 75 ? '#fbbf24' : '#f87171'
+        const clampedX = Math.max(10, Math.min(85, tooltip.x))
+        const translateX = clampedX < 15 ? '0%' : clampedX > 85 ? '-100%' : '-50%'
+        const arrowLeft = clampedX < 15 ? '20px' : clampedX > 85 ? 'calc(100% - 20px)' : '50%'
+        return (
+          <div style={{
+            position: 'absolute', left: `${clampedX}%`, top: `${tooltip.y}%`,
+            transform: `translate(${translateX}, -130%)`,
+            background: '#0f172a', border: '1px solid rgba(255,255,255,0.08)',
+            color: '#fff', padding: '10px 14px', borderRadius: '10px',
+            fontSize: '12px', fontWeight: 500, pointerEvents: 'none',
+            whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+            zIndex: 10, minWidth: '160px',
+          }}>
+            <div style={{ color: '#94a3b8', fontSize: '11px', marginBottom: '6px' }}>
+              {formatDate(tooltip.date)}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: (tooltip.failed > 0 || tooltip.alertCount + tooltip.anomalyCount > 0) ? '6px' : 0 }}>
+              <span style={{ fontSize: '20px', fontWeight: 700, color: scoreColor, letterSpacing: '-0.5px' }}>
+                {tooltip.score.toFixed(1)}%
+              </span>
+              {delta !== null && (
+                <span style={{ fontSize: '11px', color: delta >= 0 ? '#4ade80' : '#f87171', fontWeight: 600 }}>
+                  {delta >= 0 ? '↑ +' : '↓ '}{delta.toFixed(1)} vs prev
+                </span>
+              )}
+            </div>
+            {tooltip.failed > 0 && (
+              <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '2px' }}>
+                {tooltip.failed} failed run{tooltip.failed !== 1 ? 's' : ''}
+              </div>
+            )}
+            {(tooltip.alertCount + tooltip.anomalyCount) > 0 && (
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>
+                {tooltip.alertCount > 0 && `${tooltip.alertCount} alert${tooltip.alertCount !== 1 ? 's' : ''}`}
+                {tooltip.alertCount > 0 && tooltip.anomalyCount > 0 && ' · '}
+                {tooltip.anomalyCount > 0 && `${tooltip.anomalyCount} anomal${tooltip.anomalyCount !== 1 ? 'ies' : 'y'}`}
+              </div>
+            )}
+            <div style={{
+              position: 'absolute', bottom: '-5px', left: arrowLeft,
+              transform: 'translateX(-50%)', width: 0, height: 0,
+              borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
+              borderTop: '5px solid #0f172a',
+            }} />
+          </div>
+        )
+      })()}
       {(hasAlerts || hasAnomalies || hasForecast) && (
         <div style={{ display: 'flex', gap: '12px', fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px', justifyContent: 'flex-end' }}>
           {hasAlerts && <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><span style={{ color: '#8b5cf6' }}>▲</span> Alerts</span>}
