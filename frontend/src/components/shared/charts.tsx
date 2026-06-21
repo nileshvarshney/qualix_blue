@@ -224,6 +224,29 @@ export function TrendChart({
             </g>
           )
         })}
+        {/* Min/max annotations */}
+        {validPts.length >= 5 && (() => {
+          const scores = validPts.map(d => d.score)
+          const maxScore = Math.max(...scores)
+          const minScore = Math.min(...scores)
+          if (maxScore - minScore < 5) return null
+          const maxIdx = scores.indexOf(maxScore)
+          const minIdx = scores.indexOf(minScore)
+          if (maxIdx === minIdx) return null
+          const clampX = (x: number) => Math.max(pad.left + 20, Math.min(w - pad.right - 20, x))
+          return (
+            <>
+              <text x={clampX(pts[maxIdx].x)} y={pts[maxIdx].y - 10}
+                textAnchor="middle" fontSize="9" fill="#16a34a" fontWeight="600">
+                ↑ {maxScore.toFixed(1)}
+              </text>
+              <text x={clampX(pts[minIdx].x)} y={pts[minIdx].y + 14}
+                textAnchor="middle" fontSize="9" fill="#dc2626" fontWeight="600">
+                ↓ {minScore.toFixed(1)}
+              </text>
+            </>
+          )
+        })()}
         {hasAlerts && validPts.map((d, i) => (d.alert_count ?? 0) > 0 ? (
           <polygon key={`alert-${i}`}
             points={`${xForN(i)},${pad.top - 10} ${xForN(i) - 4},${pad.top - 4} ${xForN(i) + 4},${pad.top - 4}`}
