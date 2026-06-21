@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import EntityComments from '@/components/EntityComments'
 
 type ContractStatus = 'active' | 'breached' | 'warning'
 type FilterType = 'all' | 'active' | 'breached'
@@ -274,6 +275,8 @@ export default function ContractsPage() {
                   </>}
                 </div>
               )}
+              <EntityComments entityType="contract" entityId={selected.id} />
+
               {/* Terms checklist */}
               {selected.terms.length > 0 && (
                 <div style={{ border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>

@@ -62,6 +62,91 @@ function MetaField({ label, value, href }: { label: string; value?: string | nul
   )
 }
 
+interface AiRcaResult {
+  root_cause?: string
+  analysis?: string
+  recommendations?: string[]
+  business_impact?: string
+  summary?: string
+  [key: string]: unknown
+}
+
+function AiRcaSection({ runId }: { runId: string }) {
+  const [data, setData] = useState<AiRcaResult | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState<string | null>(null)
+
+  function load() {
+    setLoading(true)
+    setErr(null)
+    fetch(`/api/ai/rca/${runId}`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setData(d as AiRcaResult))
+      .catch(e => setErr(e instanceof Error ? e.message : 'AI analysis unavailable'))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [runId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const panelStyle: CSSProperties = {
+    background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
+    border: '1px solid #93c5fd',
+    borderRadius: '8px',
+    padding: '12px 14px',
+  }
+
+  const body = data?.root_cause || data?.analysis || data?.summary
+
+  return (
+    <div style={panelStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '13px' }}>🤖</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI Root Cause Analysis</span>
+        </div>
+        <button
+          onClick={load}
+          disabled={loading}
+          style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '4px', border: '1px solid #93c5fd', background: 'transparent', color: '#1d4ed8', cursor: 'pointer', opacity: loading ? 0.6 : 1 }}
+        >
+          {loading ? '…' : '↺ Regenerate'}
+        </button>
+      </div>
+      {loading && <div style={{ fontSize: '12px', color: '#3b82f6' }}>Analyzing run history…</div>}
+      {err && <div style={{ fontSize: '12px', color: 'var(--status-error-text)' }}>{err}</div>}
+      {!loading && !err && data && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {body && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>Root Cause</div>
+              <p style={{ margin: 0, fontSize: '12.5px', color: '#1e3a5f', lineHeight: '1.6' }}>{body}</p>
+            </div>
+          )}
+          {data.business_impact && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>Business Impact</div>
+              <p style={{ margin: 0, fontSize: '12.5px', color: '#1e3a5f', lineHeight: '1.6' }}>{data.business_impact}</p>
+            </div>
+          )}
+          {Array.isArray(data.recommendations) && data.recommendations.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '3px' }}>Recommendations</div>
+              <ul style={{ margin: 0, paddingLeft: '16px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {data.recommendations.map((r, i) => (
+                  <li key={i} style={{ fontSize: '12.5px', color: '#1e3a5f', lineHeight: '1.6' }}>{r}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!body && !data.business_impact && !Array.isArray(data.recommendations) && (
+            <div style={{ fontSize: '12px', color: '#3b82f6' }}>Analysis complete — no specific root cause identified in the run history.</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function IssueDetailPanel({
   issue,
   onClose,
@@ -224,6 +309,10 @@ export default function IssueDetailPanel({
             </div>
           )}
         </div>
+
+        {issue.run_id && !editing && (
+          <AiRcaSection runId={issue.run_id} />
+        )}
 
         {editing && (
           <div>

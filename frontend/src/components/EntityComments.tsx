@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface Comment {
   comment_id: string
@@ -22,6 +22,15 @@ function fmtTime(iso: string | null): string {
   try {
     return new Date(iso).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch { return iso }
+}
+
+function renderBodyWithMentions(text: string) {
+  const parts = text.split(/(@\S+)/g)
+  return parts.map((part, i) =>
+    part.startsWith('@') ? (
+      <span key={i} style={{ color: 'var(--accent)', fontWeight: 600, background: 'var(--accent-bg)', borderRadius: '3px', padding: '0 2px' }}>{part}</span>
+    ) : part
+  )
 }
 
 interface ThreadProps {
@@ -51,7 +60,7 @@ function CommentThread({ root, replies, currentEmail, onResolve, onReply }: Thre
             <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{fmtTime(root.created_at)}</span>
             {resolved && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--status-ok-text)', background: 'var(--status-ok-bg)', padding: '1px 5px', borderRadius: 3 }}>✓ resolved</span>}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{root.body}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderBodyWithMentions(root.body)}</div>
           {!resolved && (
             <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
               <button onClick={() => onReply(root.comment_id, root.author_email)}
@@ -81,7 +90,7 @@ function CommentThread({ root, replies, currentEmail, onResolve, onReply }: Thre
                     <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--foreground)' }}>{authorLabel(r.author_email)}</span>
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{fmtTime(r.created_at)}</span>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{r.body}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{renderBodyWithMentions(r.body)}</div>
                 </div>
               </div>
             </div>
@@ -98,6 +107,8 @@ function CommentThread({ root, replies, currentEmail, onResolve, onReply }: Thre
   )
 }
 
+interface MentionUser { email: string; name?: string }
+
 export default function EntityComments({ entityType, entityId }: { entityType: string; entityId: string }) {
   const [open, setOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
@@ -108,11 +119,64 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   const [postError, setPostError] = useState<string | null>(null)
   const [resolveError, setResolveError] = useState<string | null>(null)
   const [currentEmail, setCurrentEmail] = useState<string | null>(null)
+  const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([])
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionAnchor, setMentionAnchor] = useState(0)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    fetch('/api/me').then(r => r.json()).then(d => setCurrentEmail(d.email ?? null)).catch(() => {})
+    fetch('/api/me').then(r => r.json()).then(d => {
+      setCurrentEmail(d.email ?? null)
+    }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    fetch('/api/users').then(r => r.ok ? r.json() : []).then((data: unknown) => {
+      const items = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.items ?? [])
+      setMentionUsers((items as Record<string, unknown>[]).map(u => ({
+        email: String(u.email ?? ''),
+        name: u.full_name ? String(u.full_name) : undefined,
+      })).filter(u => u.email))
+    }).catch(() => {})
+  }, [])
+
+  const handleBodyChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value
+    setBody(val)
+    const cursor = e.target.selectionStart ?? val.length
+    const textBefore = val.slice(0, cursor)
+    const match = textBefore.match(/@(\w*)$/)
+    if (match) {
+      setMentionQuery(match[1])
+      setMentionAnchor(cursor - match[0].length)
+    } else {
+      setMentionQuery(null)
+    }
+  }, [])
+
+  const filteredMentions = mentionQuery !== null
+    ? mentionUsers.filter(u =>
+        u.email.toLowerCase().includes(mentionQuery.toLowerCase()) ||
+        (u.name?.toLowerCase().includes(mentionQuery.toLowerCase()))
+      ).slice(0, 6)
+    : []
+
+  function insertMention(user: MentionUser) {
+    const handle = user.email.split('@')[0]
+    const before = body.slice(0, mentionAnchor)
+    const after = body.slice(mentionAnchor + 1 + (mentionQuery ?? '').length)
+    const newBody = `${before}@${handle} ${after}`
+    setBody(newBody)
+    setMentionQuery(null)
+    setTimeout(() => {
+      const ta = textareaRef.current
+      if (ta) {
+        const pos = mentionAnchor + handle.length + 2
+        ta.focus()
+        ta.setSelectionRange(pos, pos)
+      }
+    }, 0)
+  }
 
   useEffect(() => {
     setLoaded(false)
@@ -238,19 +302,47 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
 
           {resolveError && <div style={{ fontSize: 11, color: 'var(--status-error-text)', marginBottom: 4 }}>{resolveError}</div>}
 
-          <textarea
-            ref={textareaRef}
-            value={body}
-            onChange={e => setBody(e.target.value)}
-            placeholder="Add a comment…"
-            rows={2}
-            style={{
-              width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--border)',
-              fontSize: 12, background: 'var(--surface)', color: 'var(--foreground)',
-              resize: 'vertical', outline: 'none', boxSizing: 'border-box',
-            }}
-            onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) post() }}
-          />
+          <div style={{ position: 'relative' }}>
+            <textarea
+              ref={textareaRef}
+              value={body}
+              onChange={handleBodyChange}
+              placeholder="Add a comment… (type @ to mention someone)"
+              rows={2}
+              style={{
+                width: '100%', padding: '7px 9px', borderRadius: 6, border: '1px solid var(--border)',
+                fontSize: 12, background: 'var(--surface)', color: 'var(--foreground)',
+                resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Escape') { setMentionQuery(null); return }
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { setMentionQuery(null); post() }
+              }}
+            />
+            {filteredMentions.length > 0 && mentionQuery !== null && (
+              <div style={{
+                position: 'absolute', bottom: '100%', left: 0, right: 0, background: 'var(--surface)',
+                border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                zIndex: 50, maxHeight: 180, overflowY: 'auto',
+              }}>
+                {filteredMentions.map(u => (
+                  <div key={u.email} onMouseDown={e => { e.preventDefault(); insertMention(u) }}
+                    style={{ padding: '7px 12px', cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--accent-bg)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700 }}>
+                      {(u.name ?? u.email).slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      {u.name && <div style={{ fontWeight: 600, color: 'var(--foreground)' }}>{u.name}</div>}
+                      <div style={{ color: 'var(--text-muted)', fontSize: 11 }}>{u.email}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {postError && <div style={{ fontSize: 11, color: 'var(--status-error-text)', marginTop: 3 }}>{postError}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
             <button

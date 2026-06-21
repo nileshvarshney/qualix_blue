@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
+import EntityComments from '@/components/EntityComments'
 
 /* ─── Types ─── */
 interface LineageNode {
@@ -1277,6 +1278,11 @@ export default function LineagePage() {
               </div>
             </div>
           )}
+            {selected && (
+              <div style={{ padding: '0 24px 16px' }}>
+                <EntityComments entityType="asset" entityId={selected} />
+              </div>
+            )}
             </>
           )}
 

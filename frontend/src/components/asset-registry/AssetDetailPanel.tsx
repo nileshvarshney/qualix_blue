@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import EntityComments from '@/components/EntityComments'
 import AssetDescriptionField from './AssetDescriptionField'
 import AssetColumnsSection from './AssetColumnsSection'
 import AssetProfilingTab from './AssetProfilingTab'
@@ -243,6 +244,12 @@ export default function AssetDetailPanel({
       {/* Issues tab content */}
       {isLeaf && activeTab === 'issues' && (
         <AssetIssuesTab assetId={asset.asset_id} domainId={asset.domain_id} />
+      )}
+
+      {isLeaf && (
+        <div style={{ padding: '0 16px' }}>
+          <EntityComments entityType="dataset" entityId={asset.asset_id} />
+        </div>
       )}
     </div>
   )

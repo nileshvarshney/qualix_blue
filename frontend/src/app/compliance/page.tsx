@@ -33,6 +33,10 @@ export default function CompliancePage() {
   const [assessing, setAssessing] = useState<string | null>(null)
   const [evidenceDays, setEvidenceDays] = useState(30)
   const [exportingEvidence, setExportingEvidence] = useState(false)
+  const [autoMapping, setAutoMapping] = useState(false)
+  const [aiGaps, setAiGaps] = useState<{ gaps?: { control: string; action: string }[]; summary?: string; [key: string]: unknown } | null>(null)
+  const [aiGapsLoading, setAiGapsLoading] = useState(false)
+  const [aiGapsError, setAiGapsError] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/compliance')
@@ -132,6 +136,51 @@ export default function CompliancePage() {
         })))
       }
     } finally { setAssessing(null) }
+  }
+
+  async function handleAutoMap() {
+    if (!selectedFw) return
+    setAutoMapping(true)
+    try {
+      await fetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
+      const cr = await fetch(`/api/compliance/${selectedFw}/controls`)
+      const cd = await cr.json()
+      setControls((Array.isArray(cd) ? cd : []).map((c: Record<string, unknown>) => ({
+        id: String(c.req_id ?? ''),
+        code: String(c.req_code ?? ''),
+        name: String(c.req_name ?? ''),
+        description: String(c.req_description ?? ''),
+        framework: String(c.framework_name ?? ''),
+        status: (c.status as 'passed' | 'failed' | 'not-assessed') ?? 'not-assessed',
+        rulesMapped: Number(c.rules_mapped ?? 0),
+        lastAssessed: c.last_assessed ? String(c.last_assessed).slice(0, 10) : null,
+        evidence: String(c.evidence ?? ''),
+        ruleTypes: String(c.dq_rule_types ?? ''),
+      })))
+    } finally { setAutoMapping(false) }
+  }
+
+  function runAiGapAnalysis() {
+    if (!selectedFw) return
+    setAiGapsLoading(true)
+    setAiGapsError(null)
+    const fw = frameworks.find(f => f.id === selectedFw)
+    fetch('/api/ai/compliance-gaps', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        framework_id: selectedFw,
+        framework_name: fw?.name,
+        controls: controls.map(c => ({ code: c.code, name: c.name, status: c.status, rules_mapped: c.rulesMapped })),
+        failed_count: controls.filter(c => c.status === 'failed').length,
+        not_assessed_count: controls.filter(c => c.status === 'not-assessed').length,
+      }),
+      cache: 'no-store',
+    })
+      .then(r => r.json())
+      .then(d => setAiGaps(d as typeof aiGaps))
+      .catch(e => setAiGapsError(e instanceof Error ? e.message : 'AI analysis unavailable'))
+      .finally(() => setAiGapsLoading(false))
   }
 
   async function handleExportEvidence() {
@@ -269,18 +318,38 @@ export default function CompliancePage() {
 
       {/* Controls Table */}
       <div style={card}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
           <div style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--foreground)' }}>
             Controls {selectedFw ? `· ${frameworks.find(f => f.id === selectedFw)?.name}` : ''}
           </div>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            {(['all', 'passed', 'failed', 'not-assessed'] as const).map(f => (
-              <button key={f} onClick={() => setFilter(f)} style={{
-                padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer',
-                fontSize: '12px', fontWeight: 500, textTransform: 'capitalize',
-                background: filter === f ? 'var(--foreground)' : 'var(--surface-muted)', color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
-              }}>{f.replace('-', ' ')}</button>
-            ))}
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {selectedFw && (
+              <>
+                <button
+                  onClick={handleAutoMap}
+                  disabled={autoMapping}
+                  style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #93c5fd', background: '#dbeafe', color: '#1d4ed8', fontSize: '11.5px', fontWeight: 600, cursor: autoMapping ? 'not-allowed' : 'pointer', opacity: autoMapping ? 0.6 : 1 }}
+                >
+                  {autoMapping ? 'Mapping…' : '⚡ Auto-Map Rules'}
+                </button>
+                <button
+                  onClick={runAiGapAnalysis}
+                  disabled={aiGapsLoading || controls.length === 0}
+                  style={{ padding: '5px 12px', borderRadius: '6px', border: '1px solid #93c5fd', background: aiGapsLoading ? 'var(--surface-muted)' : '#f0f9ff', color: aiGapsLoading ? 'var(--text-muted)' : '#1d4ed8', fontSize: '11.5px', fontWeight: 600, cursor: (aiGapsLoading || controls.length === 0) ? 'not-allowed' : 'pointer' }}
+                >
+                  {aiGapsLoading ? '🤖 Analyzing…' : '🤖 AI Gap Analysis'}
+                </button>
+              </>
+            )}
+            <div style={{ display: 'flex', gap: '4px' }}>
+              {(['all', 'passed', 'failed', 'not-assessed'] as const).map(f => (
+                <button key={f} onClick={() => setFilter(f)} style={{
+                  padding: '5px 14px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                  fontSize: '12px', fontWeight: 500, textTransform: 'capitalize',
+                  background: filter === f ? 'var(--foreground)' : 'var(--surface-muted)', color: filter === f ? 'var(--background)' : 'var(--text-secondary)',
+                }}>{f.replace('-', ' ')}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -333,6 +402,47 @@ export default function CompliancePage() {
           </table>
         )}
       </div>
+
+      {/* AI Gap Analysis Panel */}
+      {(aiGaps || aiGapsLoading || aiGapsError) && selectedFw && (
+        <div style={{ ...card, marginTop: '20px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '1px solid #93c5fd' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+              <span style={{ fontSize: '16px' }}>🤖</span>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#1d4ed8' }}>AI Compliance Gap Analysis</span>
+              <span style={{ fontSize: '10px', color: '#3b82f6', background: '#dbeafe', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>AI Generated</span>
+            </div>
+            <button onClick={runAiGapAnalysis} disabled={aiGapsLoading} style={{ fontSize: '10px', padding: '3px 10px', borderRadius: '5px', border: '1px solid #93c5fd', background: 'transparent', color: '#1d4ed8', cursor: 'pointer', opacity: aiGapsLoading ? 0.6 : 1 }}>
+              {aiGapsLoading ? '…' : '↺ Re-analyze'}
+            </button>
+          </div>
+          {aiGapsLoading && <div style={{ fontSize: '12.5px', color: '#3b82f6' }}>Analyzing compliance gaps…</div>}
+          {aiGapsError && <div style={{ fontSize: '12.5px', color: 'var(--status-error-text)' }}>{aiGapsError}</div>}
+          {!aiGapsLoading && !aiGapsError && aiGaps && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {aiGaps.summary && (
+                <p style={{ margin: 0, fontSize: '13px', color: '#1e3a5f', lineHeight: '1.7' }}>{aiGaps.summary}</p>
+              )}
+              {Array.isArray(aiGaps.gaps) && aiGaps.gaps.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Unmet Controls &amp; Recommended Actions</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {aiGaps.gaps.map((g, i) => (
+                      <div key={i} style={{ background: '#fff', borderRadius: '8px', padding: '10px 14px', border: '1px solid #bfdbfe' }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#1e40af', marginBottom: '3px' }}>{g.control}</div>
+                        <div style={{ fontSize: '12px', color: '#1e3a5f', lineHeight: '1.6' }}>{g.action}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!aiGaps.summary && !Array.isArray(aiGaps.gaps) && (
+                <div style={{ fontSize: '12.5px', color: '#3b82f6' }}>Analysis complete — check the response structure from your AI backend.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

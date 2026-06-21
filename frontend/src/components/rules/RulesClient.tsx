@@ -88,6 +88,10 @@ export default function RulesClient({ initialRules, connections }: Props) {
   }, [initialRules]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [showModal, setShowModal] = useState(false)
+  const [aiMode, setAiMode] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [aiGenerating, setAiGenerating] = useState(false)
+  const [aiGenError, setAiGenError] = useState<string | null>(null)
   const [editDrawer, setEditDrawer] = useState<Rule | null>(null)
   const [drawerTab, setDrawerTab] = useState<'config' | 'failed-records'>('config')
   const [saving, setSaving] = useState(false)
@@ -363,6 +367,40 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   const isGeneric = form.scope === 'generic'
   const canSave = form.name && form.connectionId && (isGeneric || form.tableName)
+
+  async function generateRuleFromPrompt() {
+    if (!aiPrompt.trim()) return
+    setAiGenerating(true)
+    setAiGenError(null)
+    try {
+      const res = await fetch('/api/ai/generate-rules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: aiPrompt, connection_id: form.connectionId }),
+      })
+      const data = await res.json() as Record<string, unknown>
+      if (!res.ok) throw new Error((data.detail as string) || (data.error as string) || 'Generation failed')
+
+      setForm(f => ({
+        ...f,
+        name:        typeof data.name        === 'string' ? data.name        : f.name,
+        description: typeof data.description === 'string' ? data.description : f.description,
+        category:    typeof data.category    === 'string' ? data.category    as typeof f.category : f.category,
+        type:        typeof data.rule_type   === 'string' ? data.rule_type   as typeof f.type    : (typeof data.type === 'string' ? data.type as typeof f.type : f.type),
+        severity:    typeof data.severity    === 'string' ? data.severity    as typeof f.severity : f.severity,
+        tableName:   typeof data.table_name  === 'string' ? data.table_name  : f.tableName,
+        columnName:  typeof data.column_name === 'string' ? data.column_name : f.columnName,
+        paramCondition: typeof data.condition === 'string' ? data.condition : f.paramCondition,
+        customSql:   typeof data.sql         === 'string' ? data.sql         : f.customSql,
+        scope:       typeof data.table_name === 'string' && data.table_name ? 'object-specific' : f.scope,
+      }))
+      setAiMode(false)
+    } catch (e) {
+      setAiGenError(e instanceof Error ? e.message : 'AI generation failed')
+    } finally {
+      setAiGenerating(false)
+    }
+  }
 
   async function save() {
     if (!canSave) return
@@ -860,13 +898,59 @@ export default function RulesClient({ initialRules, connections }: Props) {
       {showModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, backdropFilter: 'blur(4px)' }}>
           <div style={{ background: 'var(--surface)', borderRadius: '16px', padding: '24px', width: '560px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', maxHeight: '92vh', overflowY: 'auto' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <div>
                 <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>Add Quality Rule</div>
                 <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Define a new data quality check</div>
               </div>
               <button onClick={() => setShowModal(false)} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>✕</button>
             </div>
+
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: '2px', marginBottom: '16px', background: 'var(--surface-muted)', borderRadius: '8px', padding: '3px' }}>
+              <button
+                onClick={() => setAiMode(false)}
+                style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: !aiMode ? 'var(--surface)' : 'transparent', color: !aiMode ? 'var(--foreground)' : 'var(--text-secondary)', boxShadow: !aiMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+              >
+                🔧 Structured Form
+              </button>
+              <button
+                onClick={() => { setAiMode(true); setAiGenError(null) }}
+                style={{ flex: 1, padding: '6px 10px', borderRadius: '6px', border: 'none', fontSize: '12px', fontWeight: 600, cursor: 'pointer', background: aiMode ? '#dbeafe' : 'transparent', color: aiMode ? '#1d4ed8' : 'var(--text-secondary)', boxShadow: aiMode ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}
+              >
+                🤖 Describe in Plain Language
+              </button>
+            </div>
+
+            {/* AI generation panel */}
+            {aiMode && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '1px solid #93c5fd', borderRadius: '10px', padding: '14px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '12.5px', color: '#1e40af', fontWeight: 600 }}>Describe your rule in plain English</div>
+                <textarea
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                  placeholder={'e.g. "Check that the email column in the customers table is never null and matches a valid email format" or "Flag any orders where the total_amount is outside 0–100,000"'}
+                  rows={4}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid #93c5fd', fontSize: '12.5px', color: 'var(--foreground)', background: '#fff', resize: 'vertical', boxSizing: 'border-box' as const, outline: 'none', lineHeight: '1.6' }}
+                />
+                {aiGenError && <div style={{ fontSize: '12px', color: 'var(--status-error-text)' }}>{aiGenError}</div>}
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setAiMode(false)} style={{ padding: '7px 14px', borderRadius: '7px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button
+                    onClick={generateRuleFromPrompt}
+                    disabled={aiGenerating || !aiPrompt.trim()}
+                    style={{ padding: '7px 16px', borderRadius: '7px', border: 'none', background: aiGenerating || !aiPrompt.trim() ? 'var(--border)' : '#2563eb', color: aiGenerating || !aiPrompt.trim() ? 'var(--text-muted)' : '#fff', fontSize: '12px', fontWeight: 600, cursor: aiGenerating || !aiPrompt.trim() ? 'not-allowed' : 'pointer' }}
+                  >
+                    {aiGenerating ? '⏳ Generating…' : '✨ Generate Rule'}
+                  </button>
+                </div>
+                <div style={{ fontSize: '11px', color: '#3b82f6', lineHeight: '1.5' }}>
+                  AI will pre-fill the rule name, type, category, and parameters. You can review and adjust before saving.
+                </div>
+              </div>
+            )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <div>

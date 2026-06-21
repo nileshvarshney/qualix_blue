@@ -170,14 +170,14 @@ export default function SettingsPage() {
                     {
                       name: 'AI-Powered Root Cause Analysis',
                       where: 'Issues & Anomalies pages',
-                      status: 'Backend built; frontend not wired',
-                      desc: 'The AI backend endpoints are fully implemented: /ai/rca/{run_id} performs root cause analysis over 30-run historical trends, /ai/explain-failure generates actionable failure explanations — both with multi-provider support (Anthropic Claude, OpenAI, Ollama). However, the Issues and Anomalies frontend pages still display static API text for root cause, business impact, and recommendations. The frontend has not been updated to call these endpoints. What remains is wiring the UI: on issue/anomaly open, call the relevant AI endpoint and replace the static text with the streamed response, with a "Regenerate" button for on-demand refresh.',
+                      status: 'Implemented — /ai/rca and /ai/explain-failure wired to UI',
+                      desc: 'Now fully wired. IssueDetailPanel fetches /api/ai/rca/{run_id} when an issue with a run_id is opened — showing root cause, business impact, and recommendations in a blue AI panel with a Regenerate button. AnomaliesPage fetches /api/ai/explain-failure (POST with detection_id) on anomaly expand — same panel design. Both surfaces display loading states and error fallbacks. Regenerate triggers a fresh AI call without a page reload.',
                     },
                     {
                       name: 'Natural Language Rule Builder',
                       where: 'Rules page',
-                      status: 'Backend built (/ai/generate-rules); no frontend UI',
-                      desc: 'The backend endpoint /ai/generate-rules translates plain-English descriptions into validated rule definitions. /ai/generate-sql converts natural language to SQL for custom_sql rule types. Both endpoints are implemented with multi-provider support. What is still missing is any frontend integration: there is no "describe your rule" text input on the Rules page, no LLM-powered suggestion UI, and no way for a user to invoke these capabilities. The build required is a toggle in the rule creation modal that switches between "structured form" and "describe in plain language" modes, calling the AI endpoint and pre-filling the form fields from the response.',
+                      status: 'Implemented — AI mode toggle wired to /ai/generate-rules',
+                      desc: 'The rule creation modal now has a two-mode toggle: "Structured Form" (existing behavior) and "Describe in Plain Language" (new AI mode). In AI mode, a textarea lets users describe the rule in plain English. Clicking "Generate Rule" calls /api/ai/generate-rules (POST with description and connection_id), and the response pre-fills name, description, category, rule_type, severity, table_name, column_name, and parameter fields. The modal then switches back to structured mode for review and adjustment before saving. Error handling and loading states are included.',
                     },
                     {
                       name: 'Predictive Quality Forecasting',
@@ -204,8 +204,8 @@ export default function SettingsPage() {
                     {
                       name: 'Executive AI Reporting',
                       where: '/executive page',
-                      status: 'KPIs now live from API; AI narrative layer missing',
-                      desc: 'The /executive page now fetches real data: Overall Quality %, Open Issues, SLA Adherence, and Datasets Monitored all come from /api/dashboard. Active Incidents are displayed from /api/incidents with severity coloring. The page is no longer blank. What IS still missing is the AI narrative layer: a weekly auto-generated written summary that translates quality scores, incident counts, and SLA adherence into business language for leadership — identifying the most significant changes since last week, quantifying business impact where possible, and suggesting the top three priorities for the coming week.',
+                      status: 'Implemented — AI narrative panel wired to /ai/executive-summary',
+                      desc: 'The AI narrative layer is now built. After both /api/dashboard and /api/incidents load, the page POSTs a context payload (quality score, open issues, SLA adherence, datasets monitored, incident list) to /api/ai/executive-summary. The response renders in a blue "AI Weekly Summary" panel showing a written narrative, key highlights, and top priorities for the week. A Regenerate button triggers a fresh call. Error and loading states are handled gracefully.',
                     },
                     {
                       name: 'AI Documentation Generator',
@@ -216,8 +216,8 @@ export default function SettingsPage() {
                     {
                       name: 'Compliance Automation',
                       where: '/compliance page',
-                      status: 'Controls API wired with real data; auto-mapping and AI analysis missing',
-                      desc: 'The compliance page now fetches controls from /api/compliance/{frameworkId}/controls — populating control code, name, description, status (passed/failed/not_assessed), rule types covered, last assessed date, and evidence links. "Initialize Frameworks" seeds data, "Assess All Assets" triggers a run, and "Export Evidence" calls /api/audit/evidence-report. What is still missing: auto-mapping logic to populate controls from existing rules (the controls table is empty without manual seeding), an AI layer to highlight exactly which controls are unmet and what action closes each gap, and data masking/anonymization, right-to-erasure, and consent management workflows.',
+                      status: 'Implemented — Auto-Map Rules button and AI Gap Analysis wired',
+                      desc: 'Two new capabilities added to the Controls section. "Auto-Map Rules" button calls POST /api/compliance/{frameworkId}/auto-map (proxied to backend /compliance/frameworks/{id}/auto-map) and refreshes the controls table — automatically mapping active rules to controls without manual seeding. "AI Gap Analysis" button sends the current controls list to /api/ai/compliance-gaps (POST) and renders the response in a blue panel showing a narrative summary and a per-control list of recommended actions to close each gap. Both have loading and error states. Data masking/anonymization and consent management remain not built.',
                     },
                     {
                       name: 'Slack / Teams AI Bot',
@@ -284,8 +284,8 @@ export default function SettingsPage() {
                     {
                       name: 'Collaboration & Annotations',
                       where: 'Issues, Anomalies, Glossary — expanding to Datasets, Lineage, Contracts',
-                      status: 'Core comment system built; @mentions and full-page coverage still missing',
-                      desc: 'A threaded comment system is now implemented: GET/POST/DELETE endpoints at /api/comments with entity_type + entity_id parameters, plus a resolve endpoint. The EntityComments component renders discussion threads on Issues, Anomalies, and Glossary terms. The Stewardship hub shows a Recent Discussions feed that groups comments by entity with unresolved count, last excerpt, and author. What is still missing: @mentions with in-platform notifications (so tagging a colleague alerts them), and extending comments to datasets, lineage nodes, and contracts — the architecture supports it by passing a different entity_type, it just needs wiring per page.',
+                      status: 'Implemented — @mentions dropdown and full-page coverage complete',
+                      desc: 'EntityComments now has @mention support: typing @ opens a dropdown populated from /api/users, clicking a user inserts @handle into the textarea, and rendered comments highlight @handles in accent color. Comments are now wired to: datasets (AssetDetailPanel — entityType="dataset"), lineage nodes (lineage/page.tsx chains tab — entityType="asset"), and contracts (contracts/page.tsx slide-in panel — entityType="contract"). In-platform push notifications to mentioned users (server-side alerting) remain not built — the frontend captures the mention text but no backend notification is triggered.',
                     },
                     {
                       name: 'Data Products Quality Engine',
@@ -370,8 +370,8 @@ export default function SettingsPage() {
                     {
                       name: 'Automated PII Detection & Remediation',
                       where: 'Governance scorecards, Catalog',
-                      status: 'Backend built (/ai/discover-pii); no frontend UI — results invisible to users',
-                      desc: 'The backend endpoint /ai/discover-pii/{asset_id} is implemented and can scan column names and data patterns to suggest PII columns using AI-based detection. Domain-level classification scores now appear as one of the six governance scorecard dimensions, sourced from real API data. Column sensitivity tags (PII/PHI/SENSITIVE/CONFIDENTIAL/RESTRICTED/PUBLIC) exist in the AssetColumnsSection component visible in the asset detail drawer. What is still missing: any frontend UI to trigger the discover-pii endpoint, a review-and-confirm interface in the Catalog to accept or override AI detections, column-level PII labels in the main Catalog and Datasets list views, and remediation — masking SSNs, tokenizing credit card numbers, anonymizing email addresses at query or export time — does not exist at all.',
+                      status: 'Implemented — AI scan UI, review-and-confirm, and bulk apply built in AssetColumnsSection',
+                      desc: 'The full detect-review-confirm workflow exists in AssetColumnsSection: a "Scan with AI" button calls POST /api/ai/discover-pii/{assetId}, results appear in a panel showing column name, PII type, confidence bar, and suggested classification (PII/PHI/SENSITIVE/CONFIDENTIAL/RESTRICTED/PUBLIC). Checkboxes let users accept/reject individual findings; "Select All" and "Apply" (bulk-POSTs to /api/classifications/assets/{id}/classifications/bulk) save accepted tags. The AssetDetailPanel includes a dedicated Sensitivity tab and shows the sensitivity field in the overview. What is still missing: column-level PII badges surfaced in the main Catalog list row (currently only visible inside the detail drawer), and remediation at query/export time (masking, tokenization, anonymization) which requires backend enforcement and is not built.',
                     },
                     {
                       name: 'Governance Approval Workflows',
@@ -436,7 +436,7 @@ export default function SettingsPage() {
                     icon: '✅',
                     status: 'partial',
                     exists: '17 rule types built: null_check, uniqueness, duplicate, accepted_values, range, comparison, freshness, volume, schema_drift, referential_integrity, regex, business_rule, custom_sql, semantic_consistency, referential_sanity, business_metric, distribution_consistency, and an LLM semantic check. Rules have scheduling, execution logs, pause/resume, and a full issue status workflow (open → investigating → resolved). Dashboard shows 6-dimension quality scoring (completeness, accuracy, uniqueness, validity, timeliness, consistency). Anomalies page with severity levels and expandable root cause. Backend AI endpoints are now fully implemented: /ai/rca/{run_id} performs root cause analysis over 30-run historical trends, /ai/explain-failure generates failure explanations, /ai/generate-rules translates plain-English descriptions into validated rule definitions, and /ai/generate-sql converts natural language to SQL — all with multi-provider support (Anthropic Claude, OpenAI, Ollama). The 7-day quality trend chart on the dashboard has been upgraded to enterprise-grade: smooth bezier curves, score-zone background bands (green ≥90 / amber ≥75 / red <75), threshold reference lines at 90 and 75, score-aware line colour, rich tooltip showing delta vs previous day + failed runs + alert/anomaly counts, formatted dates with a "Today" label, and min/max score annotations. The chart is fully responsive via ResizeObserver.',
-                    gaps: 'The frontend has not been updated to call the AI backends — Issues and Anomalies pages still display static API text for root cause, business impact, and recommendations. No predictive quality scoring (backend returns only current state, no forecast). No automated remediation. All detection is schedule-triggered; nothing fires between schedule runs. LLM semantic check rule type exists in the UI but the frontend AI assistant page that would orchestrate it remains a placeholder.',
+                    gaps: 'AI root cause analysis and failure explanation are now wired to the Issues and Anomalies UIs (IssueDetailPanel calls /ai/rca/{run_id}, AnomaliesPage calls /ai/explain-failure). No predictive quality scoring (backend returns only current state, no forecast). No automated remediation. All detection is schedule-triggered; nothing fires between schedule runs. LLM semantic check rule type exists in the UI but the frontend AI assistant page that would orchestrate it remains a placeholder.',
                   },
                   {
                     area: 'Metadata & Catalog',
@@ -506,7 +506,7 @@ export default function SettingsPage() {
                     icon: '🤝',
                     status: 'partial',
                     exists: 'Ownership Coverage KPI on the Governance page shows real % from domain scorecards. /stewardship hub page provides: ownership coverage bar chart per domain (sorted worst-first), unified task queue of pending approvals and pending_review rules, and a recent-discussions feed grouping comments by entity with unresolved count and last excerpt. Threaded comment system built: GET/POST/DELETE/resolve endpoints at /api/comments, EntityComments component renders discussions on Issues, Anomalies, and Glossary terms. Governance Approvals tab has inline Approve/Reject for glossary terms, policies, contracts, and data products. Rules page has inline ✓/✕ approve/reject for pending_review rules. Dashboard Stewardship tile shows ownership score + pending count, linking to /stewardship.',
-                    gaps: 'No @mentions or in-platform push notifications to approvers or commenters. Comments not yet on datasets, lineage nodes, or contracts (architecture supports it — just pass a different entity_type). Stewardship task queue is read-only — no custom task creation. Approve/reject for rules is on the Rules page, not inline in the Stewardship queue. No notification sent to approvers when a new item enters the queue.',
+                    gaps: '@mentions are now rendered with an autocomplete dropdown (fetches users from /api/users) and highlight @handles in comments. Comments are now extended to datasets (AssetDetailPanel), lineage nodes (lineage page chains tab), and contracts (contracts slide-in panel). In-platform push notifications for mentions/approvals are still not built (no WebSocket/SSE notification channel). Stewardship task queue is read-only — no custom task creation. Approve/reject for rules is on the Rules page, not inline in the Stewardship queue.',
                   },
                 ]
 
@@ -563,7 +563,7 @@ export default function SettingsPage() {
 
               {/* Footer note */}
               <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: glossary term linking, governance approval workflows, compliance controls API, comments system, executive KPIs, AI backend endpoints, PII detection backend.
+                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: AI RCA wired to Issues/Anomalies, Natural Language Rule Builder in creation modal, Executive AI narrative panel, Compliance auto-map and AI gap analysis, PII detection UI confirmed built, @mentions and comments extended to datasets/lineage/contracts.
               </div>
             </div>
           )}
