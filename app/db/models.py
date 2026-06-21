@@ -908,6 +908,48 @@ class AnomalyDetection(Base):
     ai_explanation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
 
+class AssetMonitoringMetric(Base):
+    __tablename__ = "asset_monitoring_metrics"
+
+    metric_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
+    metric_date: Mapped[date] = mapped_column(Date, nullable=False)
+    row_count: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    freshness_hours: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    null_rate_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class SLABreachPrediction(Base):
+    __tablename__ = "sla_breach_predictions"
+
+    prediction_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
+    predicted_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    horizon_days: Mapped[int] = mapped_column(Integer, default=7)
+    forecast_scores: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    lower_band: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    upper_band: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    breach_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    breach_probability: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    is_at_risk: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CorrelatedIncident(Base):
+    __tablename__ = "correlated_incidents"
+
+    incident_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    detected_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    window_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    asset_ids: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    anomaly_ids: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    asset_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="medium")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class QualityCostConfig(Base):
     __tablename__ = "quality_cost_configs"
 
