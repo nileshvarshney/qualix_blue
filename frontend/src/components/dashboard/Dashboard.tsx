@@ -356,6 +356,50 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         </div>
       </div>
 
+      {/* Alert Summary Strip */}
+      {alertSummary !== null && (
+        <Link href="/alerts" style={{ textDecoration: 'none', display: 'block', marginBottom: '12px' }}>
+          <div style={{ ...card, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
+            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)')}
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              {alertSummary.open === 0
+                ? <CheckCircle2 size={14} color="#16a34a" strokeWidth={2.4} />
+                : <AlertTriangle size={14} color="#dc2626" strokeWidth={2.4} />}
+              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>Active Alerts</span>
+            </div>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {alertSummary.critical > 0 && (
+                <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                  {alertSummary.critical} critical
+                </span>
+              )}
+              {alertSummary.high > 0 && (
+                <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
+                  {alertSummary.high} high
+                </span>
+              )}
+              {alertSummary.open === 0 && (
+                <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
+                  All clear
+                </span>
+              )}
+              {alertSummary.open > 0 && (
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{alertSummary.open} open total</span>
+              )}
+            </div>
+            {alertSummary.acknowledged > 0 && (
+              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
+                {alertSummary.acknowledged} acknowledged
+              </span>
+            )}
+            <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, marginLeft: alertSummary.acknowledged > 0 ? '0' : 'auto' }}>
+              View all <ChevronRight size={12} />
+            </span>
+          </div>
+        </Link>
+      )}
+
       {/* Six Dimensions */}
       <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
         <SectionHeader
@@ -404,50 +448,6 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           })}
         </div>
       </div>
-
-      {/* Alert Summary Strip */}
-      {alertSummary !== null && (
-        <Link href="/alerts" style={{ textDecoration: 'none', display: 'block', marginBottom: '12px' }}>
-          <div style={{ ...card, padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
-            onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.08)')}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = 'none')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {alertSummary.open === 0
-                ? <CheckCircle2 size={14} color="#16a34a" strokeWidth={2.4} />
-                : <AlertTriangle size={14} color="#dc2626" strokeWidth={2.4} />}
-              <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)' }}>Active Alerts</span>
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {alertSummary.critical > 0 && (
-                <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
-                  {alertSummary.critical} critical
-                </span>
-              )}
-              {alertSummary.high > 0 && (
-                <span style={{ background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 700 }}>
-                  {alertSummary.high} high
-                </span>
-              )}
-              {alertSummary.open === 0 && (
-                <span style={{ background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
-                  All clear
-                </span>
-              )}
-              {alertSummary.open > 0 && (
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{alertSummary.open} open total</span>
-              )}
-            </div>
-            {alertSummary.acknowledged > 0 && (
-              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-muted)' }}>
-                {alertSummary.acknowledged} acknowledged
-              </span>
-            )}
-            <span style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '11px', color: 'var(--accent)', fontWeight: 600, marginLeft: alertSummary.acknowledged > 0 ? '0' : 'auto' }}>
-              View all <ChevronRight size={12} />
-            </span>
-          </div>
-        </Link>
-      )}
 
       {/* Trend + Failing Rules */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '12px', marginBottom: '12px' }}>
