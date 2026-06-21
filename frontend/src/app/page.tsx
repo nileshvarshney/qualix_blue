@@ -37,7 +37,7 @@ export default function HomePage() {
     fetch('/api/dashboard', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: Partial<DashboardStats>) => setStats({ ...EMPTY, ...data }))
-      .catch(err => console.error('Dashboard fetch failed:', err))
+      .catch(() => {})
   }, [])
 
   const loadIncidents = useCallback(() => {
@@ -55,6 +55,7 @@ export default function HomePage() {
 
   const showBanner = incidents.length > 0 && !dismissed
   const highSeverity = incidents.some(i => i.severity === 'high' || i.severity === 'critical')
+  const totalTables = incidents.reduce((s, i) => s + i.asset_count, 0)
 
   return (
     <>
@@ -67,9 +68,7 @@ export default function HomePage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
         }}>
           <span style={{ fontSize: '12.5px', fontWeight: 600, color: highSeverity ? 'var(--status-error-text)' : 'var(--status-warn-text)' }}>
-            ⚡ {incidents.length === 1
-              ? `${incidents[0].asset_count} tables degraded simultaneously`
-              : `${incidents.length} correlated incidents detected`} — possible upstream failure.
+            ⚡ {totalTables} tables degraded simultaneously — possible upstream failure detected
           </span>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
             <Link href="/observability" style={{
