@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   Gauge, AlertTriangle, Database, ShieldCheck, Activity, GitCompare, Fingerprint,
   Target, ListChecks, Clock, ChevronRight, Play, CheckCircle2, XCircle, TrendingUp,
-  TrendingDown,
+  TrendingDown, Eye, Users, Lock,
 } from 'lucide-react'
 import { DashboardStats, DimensionScores, TrendPoint } from '@/lib/types'
 import { formatNumber } from '@/lib/utils'
@@ -113,6 +113,15 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const [alertSummary, setAlertSummary] = useState<AlertSummary | null>(null)
   const [slaPredictions, setSlaPredictions] = useState<{ is_at_risk: boolean; breach_day: number | null }[]>([])
   const [slaLoading, setSlaLoading] = useState(true)
+  const [freshness, setFreshness]               = useState<{ status: string }[]>([])
+  const [freshnessLoading, setFreshnessLoading] = useState(true)
+  const [ownershipScores, setOwnershipScores]   = useState<{ ownership_score: number }[]>([])
+  const [pendingApprovals, setPendingApprovals] = useState(0)
+  const [stewardshipLoading, setStewardshipLoading] = useState(true)
+  const [complianceFrameworks, setComplianceFrameworks] = useState<{ status: string }[]>([])
+  const [complianceLoading, setComplianceLoading] = useState(true)
+  const [piiExposure, setPiiExposure]           = useState<{ unprotected_pii_tables: number } | null>(null)
+  const [privacyLoading, setPrivacyLoading]     = useState(true)
   const router = useRouter()
 
   const days = TIME_OPTIONS.find(o => o.label === timeFilter)?.days ?? 7
@@ -138,6 +147,41 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       .then((data: unknown) => setSlaPredictions(Array.isArray(data) ? data as { is_at_risk: boolean; breach_day: number | null }[] : []))
       .catch(() => {})
       .finally(() => setSlaLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/observability/freshness-board')
+      .then(r => r.json())
+      .then((d: unknown) => setFreshness(Array.isArray(d) ? (d as { status: string }[]) : []))
+      .catch(() => {})
+      .finally(() => setFreshnessLoading(false))
+  }, [])
+
+  useEffect(() => {
+    Promise.all([
+      fetch('/api/governance/scorecards').then(r => r.json()).catch(() => []),
+      fetch('/api/governance/approvals?status=pending').then(r => r.json()).catch(() => []),
+    ]).then(([scores, approvals]: [unknown, unknown]) => {
+      setOwnershipScores(Array.isArray(scores) ? (scores as { ownership_score: number }[]) : [])
+      setPendingApprovals(Array.isArray(approvals) ? approvals.length : 0)
+      setStewardshipLoading(false)
+    })
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/compliance')
+      .then(r => r.json())
+      .then((d: unknown) => setComplianceFrameworks(Array.isArray(d) ? (d as { status: string }[]) : []))
+      .catch(() => {})
+      .finally(() => setComplianceLoading(false))
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/privacy/pii-exposure')
+      .then(r => r.json())
+      .then((d: { unprotected_pii_tables?: number }) => setPiiExposure({ unprotected_pii_tables: d?.unprotected_pii_tables ?? 0 }))
+      .catch(() => setPiiExposure({ unprotected_pii_tables: 0 }))
+      .finally(() => setPrivacyLoading(false))
   }, [])
 
   useEffect(() => {
@@ -177,6 +221,21 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
   const healthyAssets = Math.max(stats.totalAssets - stats.atRiskTables.length, 0)
   const slaAtRisk    = slaPredictions.filter(p => p.is_at_risk && p.breach_day === null).length
   const slaBreached  = slaPredictions.filter(p => p.breach_day !== null).length
+
+  const freshnessOnTime   = freshness.filter(f => f.status === 'on_time').length
+  const freshnessAtRisk   = freshness.filter(f => f.status === 'at_risk').length
+  const freshnessBreached = freshness.filter(f => f.status === 'breached').length
+
+  const avgOwnership = ownershipScores.length > 0
+    ? Math.round(ownershipScores.reduce((s, d) => s + (d.ownership_score ?? 0), 0) / ownershipScores.length)
+    : null
+
+  const complianceCompliantCount   = complianceFrameworks.filter(f => f.status === 'compliant').length
+  const complianceHasNonCompliant  = complianceFrameworks.some(f => f.status === 'non-compliant')
+  const complianceHasPartial       = complianceFrameworks.some(f => f.status === 'partial')
+
+  const piiCount = piiExposure?.unprotected_pii_tables ?? 0
+
   const weeklyDelta: number | null = trend.length >= 2
     ? ((trend[trend.length - 1].score ?? 0) - (trend[0].score ?? 0))
     : null
@@ -399,6 +458,126 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </div>
         </Link>
       )}
+
+      {/* Platform Health */}
+      <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
+        <SectionHeader
+          icon={<Activity size={13} strokeWidth={2.4} />}
+          title="Platform Health"
+        />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+
+          {/* Observability */}
+          <Link href="/observability" style={{ textDecoration: 'none' }}>
+            <div style={platformTile}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <div style={{ ...platformIconWrap, background: 'var(--accent-bg)', color: 'var(--accent)' }}><Eye size={13} strokeWidth={2.2} /></div>
+                  <span style={platformLabel}>Observability</span>
+                </div>
+                <span style={{
+                  ...statusPill,
+                  background: freshnessLoading ? 'var(--surface-muted)' : freshnessBreached > 0 ? 'var(--status-error-bg)' : freshnessAtRisk > 0 ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)',
+                  color:      freshnessLoading ? 'var(--text-muted)'    : freshnessBreached > 0 ? 'var(--status-error-text)' : freshnessAtRisk > 0 ? 'var(--status-warn-text)' : 'var(--status-ok-text)',
+                }}>
+                  {freshnessLoading ? '—' : freshnessBreached > 0 ? 'Breached' : freshnessAtRisk > 0 ? 'At risk' : 'Healthy'}
+                </span>
+              </div>
+              <div style={platformMetric}>
+                {freshnessLoading ? '—'
+                  : freshness.length === 0 ? 'No data'
+                  : `${freshnessOnTime} on-time · ${freshnessAtRisk} at-risk · ${freshnessBreached} breached`}
+              </div>
+              <div style={platformLink}>View details <ChevronRight size={11} /></div>
+            </div>
+          </Link>
+
+          {/* Stewardship */}
+          <Link href="/stewardship" style={{ textDecoration: 'none' }}>
+            <div style={platformTile}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <div style={{ ...platformIconWrap, background: 'var(--accent-bg)', color: 'var(--accent)' }}><Users size={13} strokeWidth={2.2} /></div>
+                  <span style={platformLabel}>Stewardship</span>
+                </div>
+                <span style={{
+                  ...statusPill,
+                  background: stewardshipLoading ? 'var(--surface-muted)' : avgOwnership === null ? 'var(--surface-muted)' : avgOwnership >= 90 && pendingApprovals === 0 ? 'var(--status-ok-bg)' : avgOwnership >= 75 ? 'var(--status-warn-bg)' : 'var(--status-error-bg)',
+                  color:      stewardshipLoading ? 'var(--text-muted)'    : avgOwnership === null ? 'var(--text-muted)' : avgOwnership >= 90 && pendingApprovals === 0 ? 'var(--status-ok-text)' : avgOwnership >= 75 ? 'var(--status-warn-text)' : 'var(--status-error-text)',
+                }}>
+                  {stewardshipLoading ? '—' : avgOwnership === null ? 'No data' : avgOwnership >= 90 && pendingApprovals === 0 ? 'Healthy' : avgOwnership >= 75 ? 'Review' : 'Low'}
+                </span>
+              </div>
+              <div style={platformMetric}>
+                {stewardshipLoading ? '—'
+                  : avgOwnership === null ? 'No ownership data'
+                  : `${avgOwnership}% ownership · ${pendingApprovals} pending approval${pendingApprovals !== 1 ? 's' : ''}`}
+              </div>
+              <div style={platformLink}>View details <ChevronRight size={11} /></div>
+            </div>
+          </Link>
+
+          {/* Compliance */}
+          <Link href="/compliance" style={{ textDecoration: 'none' }}>
+            <div style={platformTile}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <div style={{ ...platformIconWrap, background: 'var(--accent-bg)', color: 'var(--accent)' }}><ShieldCheck size={13} strokeWidth={2.2} /></div>
+                  <span style={platformLabel}>Compliance</span>
+                </div>
+                <span style={{
+                  ...statusPill,
+                  background: complianceLoading ? 'var(--surface-muted)' : complianceHasNonCompliant ? 'var(--status-error-bg)' : complianceHasPartial ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)',
+                  color:      complianceLoading ? 'var(--text-muted)'    : complianceHasNonCompliant ? 'var(--status-error-text)' : complianceHasPartial ? 'var(--status-warn-text)' : 'var(--status-ok-text)',
+                }}>
+                  {complianceLoading ? '—' : complianceHasNonCompliant ? 'Failing' : complianceHasPartial ? 'Partial' : 'Compliant'}
+                </span>
+              </div>
+              <div style={platformMetric}>
+                {complianceLoading ? '—'
+                  : complianceFrameworks.length === 0 ? 'No frameworks'
+                  : `${complianceCompliantCount} / ${complianceFrameworks.length} framework${complianceFrameworks.length !== 1 ? 's' : ''} compliant`}
+              </div>
+              <div style={platformLink}>View details <ChevronRight size={11} /></div>
+            </div>
+          </Link>
+
+          {/* Privacy */}
+          <Link href="/privacy" style={{ textDecoration: 'none' }}>
+            <div style={platformTile}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                  <div style={{ ...platformIconWrap, background: 'var(--accent-bg)', color: 'var(--accent)' }}><Lock size={13} strokeWidth={2.2} /></div>
+                  <span style={platformLabel}>Privacy</span>
+                </div>
+                <span style={{
+                  ...statusPill,
+                  background: privacyLoading ? 'var(--surface-muted)' : piiCount > 0 ? 'var(--status-error-bg)' : 'var(--status-ok-bg)',
+                  color:      privacyLoading ? 'var(--text-muted)'    : piiCount > 0 ? 'var(--status-error-text)' : 'var(--status-ok-text)',
+                }}>
+                  {privacyLoading ? '—' : piiCount > 0 ? 'Exposed' : 'Protected'}
+                </span>
+              </div>
+              <div style={platformMetric}>
+                {privacyLoading ? '—'
+                  : piiExposure === null ? 'Loading…'
+                  : piiCount === 0 ? 'All PII tables protected'
+                  : `${piiCount} unprotected PII table${piiCount !== 1 ? 's' : ''}`}
+              </div>
+              <div style={platformLink}>View details <ChevronRight size={11} /></div>
+            </div>
+          </Link>
+
+        </div>
+      </div>
 
       {/* Six Dimensions */}
       <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
@@ -642,4 +821,21 @@ const kpiTile: React.CSSProperties = {
 const kpiLabel: React.CSSProperties = { fontSize: '11.5px', color: 'var(--text-secondary)', fontWeight: 500 }
 const kpiIconWrap: React.CSSProperties = {
   width: '22px', height: '22px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+}
+const platformTile: React.CSSProperties = {
+  background: 'var(--surface-muted)', borderRadius: '12px', border: '1px solid var(--border)',
+  padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
+}
+const platformIconWrap: React.CSSProperties = {
+  width: '22px', height: '22px', borderRadius: '6px',
+  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+}
+const platformLabel: React.CSSProperties = { fontSize: '12.5px', fontWeight: 700, color: 'var(--foreground)' }
+const platformMetric: React.CSSProperties = { fontSize: '11.5px', color: 'var(--text-secondary)', marginBottom: '10px', minHeight: '16px' }
+const platformLink: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '2px',
+  fontSize: '11px', color: 'var(--accent)', fontWeight: 600,
+}
+const statusPill: React.CSSProperties = {
+  padding: '2px 8px', borderRadius: '20px', fontSize: '10.5px', fontWeight: 700, whiteSpace: 'nowrap',
 }
