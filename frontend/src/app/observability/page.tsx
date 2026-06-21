@@ -42,6 +42,25 @@ interface CorrelatedIncident {
   resolved_at: string | null
 }
 
+interface ForecastDay {
+  date: string
+  projected_score: number
+  lower_bound: number
+  upper_bound: number
+}
+
+interface QualityForecast {
+  connection_id: string
+  forecast: ForecastDay[]
+}
+
+interface RemediateConfig {
+  enabled: boolean
+  threshold: number
+  rule_types: string[]
+  last_updated: string | null
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 30_000
@@ -167,6 +186,15 @@ export default function ObservabilityPage() {
   // Resolve button state
   const [resolvingId, setResolvingId] = useState<string | null>(null)
 
+  // Quality Forecast
+  const [forecast, setForecast] = useState<QualityForecast | null>(null)
+  const [forecastLoading, setForecastLoading] = useState(true)
+
+  // Auto-remediation config
+  const [remConfig, setRemConfig] = useState<RemediateConfig>({ enabled: false, threshold: 80, rule_types: ['null_check', 'freshness', 'volume'], last_updated: null })
+  const [remSaving, setRemSaving] = useState(false)
+  const [remSaved, setRemSaved] = useState(false)
+
   // ── Loaders (each independent) ─────────────────────────────────────────────
 
   const loadFreshness = useCallback(() => {
@@ -221,13 +249,37 @@ export default function ObservabilityPage() {
       })
   }, [])
 
+  const loadForecast = useCallback(() => {
+    fetch('/api/quality/forecast', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then((d: QualityForecast | null) => { if (d) setForecast(d) })
+      .catch(() => {})
+      .finally(() => setForecastLoading(false))
+  }, [])
+
+  async function saveRemConfig() {
+    setRemSaving(true)
+    try {
+      const res = await fetch('/api/rules/auto-remediate-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(remConfig),
+      })
+      if (res.ok) { const d = await res.json(); setRemConfig(d) }
+      setRemSaved(true)
+      setTimeout(() => setRemSaved(false), 2500)
+    } finally { setRemSaving(false) }
+  }
+
   // Initial load
   useEffect(() => {
     loadFreshness()
     loadPredictions()
     loadHeatmap()
     loadIncidents()
-  }, [loadFreshness, loadPredictions, loadHeatmap, loadIncidents])
+    loadForecast()
+    fetch('/api/rules/auto-remediate-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setRemConfig(d) }).catch(() => {})
+  }, [loadFreshness, loadPredictions, loadHeatmap, loadIncidents, loadForecast])
 
   // 30s independent polling for each section
   useInterval(loadFreshness, POLL_MS)
@@ -709,6 +761,93 @@ export default function ObservabilityPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* ── Section 5: Predictive Quality Forecast ── */}
+      <div>
+        <SectionHeader title="Predictive Quality Forecast" subtitle="7-day projection" lastUpdated={null} />
+        {forecastLoading ? (
+          <Skeleton />
+        ) : !forecast || forecast.forecast.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px', border: '1px solid var(--border)', borderRadius: '8px' }}>
+            No forecast data available
+          </div>
+        ) : (
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 80px 80px', gap: '0 8px', padding: '6px 12px', background: 'var(--surface-muted)', borderBottom: '1px solid var(--border)' }}>
+              {['Date', 'Confidence Band', 'Lower', 'Upper'].map(h => (
+                <span key={h} style={{ fontSize: '9px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h}</span>
+              ))}
+            </div>
+            {forecast.forecast.map((day, i) => {
+              const pct = Math.max(0, Math.min(100, day.projected_score))
+              const barColor = pct >= 90 ? '#86efac' : pct >= 75 ? '#fde68a' : '#fca5a5'
+              return (
+                <div key={day.date} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 80px 80px', gap: '0 8px', padding: '8px 12px', borderBottom: i < forecast.forecast.length - 1 ? '1px solid var(--border)' : 'none', alignItems: 'center' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{day.date}</span>
+                  <div style={{ position: 'relative', height: '16px', background: 'var(--surface-muted)', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', left: `${day.lower_bound}%`, width: `${day.upper_bound - day.lower_bound}%`, height: '100%', background: barColor, opacity: 0.35, borderRadius: '4px' }} />
+                    <div style={{ position: 'absolute', left: `${pct}%`, top: '2px', width: '3px', height: '12px', background: barColor, borderRadius: '2px', transform: 'translateX(-50%)' }} />
+                    <span style={{ position: 'absolute', right: '6px', top: '1px', fontSize: '10px', fontWeight: 700, color: 'var(--foreground)' }}>{day.projected_score.toFixed(1)}</span>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>{day.lower_bound.toFixed(1)}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>{day.upper_bound.toFixed(1)}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Section 6: Auto-Remediation Config ── */}
+      <div>
+        <SectionHeader title="Auto-Remediation" subtitle="trigger automatic fixes on score drop" lastUpdated={null} />
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--foreground)' }}>Enable Auto-Remediation</div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>When a quality score drops below the threshold, attempt automatic remediation</div>
+            </div>
+            <button onClick={() => setRemConfig(c => ({ ...c, enabled: !c.enabled }))}
+              style={{ width: '44px', height: '24px', borderRadius: '12px', border: 'none', background: remConfig.enabled ? '#16a34a' : 'var(--border)', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+              <span style={{ position: 'absolute', top: '3px', left: remConfig.enabled ? '22px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+            </button>
+          </div>
+          {remConfig.enabled && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Score threshold</label>
+                <input type="number" min={0} max={100} value={remConfig.threshold}
+                  onChange={e => setRemConfig(c => ({ ...c, threshold: Number(e.target.value) }))}
+                  style={{ width: '70px', padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '12px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none' }} />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>%  — trigger remediation when score drops below this</span>
+              </div>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '8px' }}>Apply to rule types</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {['null_check', 'freshness', 'volume', 'uniqueness', 'schema_drift', 'distribution_consistency'].map(rt => {
+                    const active = remConfig.rule_types.includes(rt)
+                    return (
+                      <button key={rt} onClick={() => setRemConfig(c => ({ ...c, rule_types: active ? c.rule_types.filter(x => x !== rt) : [...c.rule_types, rt] }))}
+                        style={{ padding: '3px 10px', borderRadius: '20px', border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`, background: active ? 'var(--accent-bg)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-muted)', fontSize: '11px', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>
+                        {rt}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button onClick={saveRemConfig} disabled={remSaving}
+              style={{ padding: '7px 18px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', opacity: remSaving ? 0.7 : 1 }}>
+              {remSaving ? 'Saving…' : remSaved ? 'Saved ✓' : 'Save Config'}
+            </button>
+            {remConfig.last_updated && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Last updated: {remConfig.last_updated.slice(0, 10)}</span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
