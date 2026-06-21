@@ -64,15 +64,15 @@ const SECTIONS: Section[] = [
   {
     key: 'admin',
     tabs: [
-      { href: '/users',        label: 'Users' },
-      { href: '/teams',        label: 'Teams' },
-      { href: '/roles',        label: 'Roles' },
-      { href: '/connections',  label: 'Connections' },
-      { href: '/security',     label: 'Security' },
+      { href: '/users',         label: 'Users' },
+      { href: '/teams',         label: 'Teams' },
+      { href: '/roles',         label: 'Roles' },
+      { href: '/connections',   label: 'Connections' },
+      { href: '/security',      label: 'Security' },
       { href: '/notifications', label: 'Notifications' },
-      { href: '/api-keys',     label: 'API Keys' },
-      { href: '/integrations', label: 'Integrations' },
-      { href: '/llm',          label: 'LLM / AI' },
+      { href: '/integrations',  label: 'Integrations' },
+      { href: '/api-keys',      label: 'API Keys' },
+      { href: '/llm',           label: 'LLM / AI' },
     ],
   },
 ]
