@@ -326,7 +326,22 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           </div>
         </div>
 
-        <AssetTagsSection assetId={asset.asset_id} editing={editing} />
+        {/* Description */}
+        <div style={{ margin: '6px 14px 0', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px' }}>
+          <div style={{ ...labelStyle, marginBottom: '4px' }}>Description</div>
+          {editing
+            ? <textarea
+                rows={4}
+                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                value={editForm.description}
+                onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Add a table description…"
+              />
+            : <div style={{ fontSize: '11.5px', color: asset.table_description ? 'var(--foreground)' : 'var(--text-muted)', lineHeight: 1.6 }}>
+                {asset.table_description || '—'}
+              </div>
+          }
+        </div>
 
         {/* Domain / Subdomain */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden', margin: '6px 14px 0' }}>
@@ -373,22 +388,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
         <AssetOwnersSection assetId={asset.asset_id} ownerType="owner" label="Additional Owners" editing={editing} />
         <AssetOwnersSection assetId={asset.asset_id} ownerType="technical_owner" label="Additional Technical Owners" editing={editing} />
 
-        {/* Description */}
-        <div style={{ margin: '6px 14px 0', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px' }}>
-          <div style={{ ...labelStyle, marginBottom: '4px' }}>Description</div>
-          {editing
-            ? <textarea
-                rows={4}
-                style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
-                value={editForm.description}
-                onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
-                placeholder="Add a table description…"
-              />
-            : <div style={{ fontSize: '11.5px', color: asset.table_description ? 'var(--foreground)' : 'var(--text-muted)', lineHeight: 1.6 }}>
-                {asset.table_description || '—'}
-              </div>
-          }
-        </div>
+        <AssetTagsSection assetId={asset.asset_id} editing={editing} />
 
         <AssetColumnsSection
           assetId={asset.asset_id}
