@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import EntityComments from '@/components/EntityComments'
 
 interface GlossaryTerm {
   id: string; name: string; definition: string; domain: string
@@ -518,6 +519,10 @@ export default function GlossaryPage() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            <div style={{ padding: '0 14px 16px' }}>
+              <EntityComments entityType="glossary_term" entityId={popup.id} />
             </div>
 
             {/* Link Asset modal (inline within popup) */}
