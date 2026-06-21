@@ -7,7 +7,10 @@ from app.db.database import get_db
 from app.db.models import AnomalyDetector, AnomalyDetection, DQRuleRun
 from app.core.security import get_current_user
 import uuid
+import logging
 from datetime import datetime, timezone
+
+logger = logging.getLogger("dq_platform.anomaly")
 
 router = APIRouter(prefix="/anomaly", tags=["Anomaly Detection"])
 _now = lambda: datetime.now(timezone.utc).replace(tzinfo=None)
@@ -93,6 +96,12 @@ async def run_detector(detector_id: str, db: AsyncSession = Depends(get_db), _=D
         db.add(detection)
         detector.last_trained_at = _now()
         await db.commit()
+        # Trigger correlation check (best-effort — never blocks the response)
+        try:
+            from app.services.monitoring_service import check_correlation
+            await check_correlation(detector.asset_id, detection.detection_id, db)
+        except Exception as _corr_err:
+            logger.warning("Correlation check failed: %s", _corr_err)
         return {"anomaly_found": True, "detection_id": detection.detection_id,
                 "z_score": round(z_score, 2), "observed": latest, "mean": round(mean, 2)}
     detector.last_trained_at = _now()

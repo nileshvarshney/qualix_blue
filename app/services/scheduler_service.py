@@ -361,6 +361,26 @@ async def load_all_schedules(db):
     logger.info(f"Loaded {loaded} schedule(s) from database into APScheduler")
 
 
+async def _nightly_collect_metrics() -> None:
+    """Nightly job: collect row_count, freshness, null_rate for all active assets."""
+    from app.db.database import AsyncSessionLocal
+    from app.services.monitoring_service import collect_asset_metrics
+    logger.info("Nightly metric collection starting")
+    async with AsyncSessionLocal() as db:
+        count = await collect_asset_metrics(db)
+    logger.info("Nightly metric collection complete: %d rows written", count)
+
+
+async def _nightly_predict_sla() -> None:
+    """Nightly job: compute SLA breach forecasts for all assets with SLAConfig."""
+    from app.db.database import AsyncSessionLocal
+    from app.services.monitoring_service import predict_sla_breaches
+    logger.info("Nightly SLA prediction starting")
+    async with AsyncSessionLocal() as db:
+        count = await predict_sla_breaches(db)
+    logger.info("Nightly SLA prediction complete: %d predictions upserted", count)
+
+
 async def _nightly_auto_discovery() -> None:
     """Nightly job: run asset discovery for every active Snowflake connection."""
     import asyncio as _asyncio
@@ -698,6 +718,20 @@ def start_scheduler():
             trigger=CronTrigger(hour=1, minute=0, timezone=settings.default_timezone),
             id="nightly_auto_discovery",
             replace_existing=True,
+        )
+        scheduler.add_job(
+            _nightly_predict_sla,
+            trigger=CronTrigger(hour=0, minute=10, timezone="UTC"),
+            id="nightly_predict_sla",
+            replace_existing=True,
+            misfire_grace_time=3600,
+        )
+        scheduler.add_job(
+            _nightly_collect_metrics,
+            trigger=CronTrigger(hour=3, minute=0, timezone="UTC"),
+            id="nightly_collect_metrics",
+            replace_existing=True,
+            misfire_grace_time=3600,
         )
         from app.core.config import settings as _s
         sweep_hours = getattr(_s, "policy_eval_interval_hours", 6)
