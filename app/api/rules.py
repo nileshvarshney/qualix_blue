@@ -267,6 +267,60 @@ async def import_rules(payload: RuleImportPayload, db: AsyncSession = Depends(ge
     return {"imported": len(created), "rule_ids": created}
 
 
+class AutoRemediateConfigRequest(BaseModel):
+    enabled: bool
+    threshold: int
+    rule_types: list[str]
+
+
+@router.get("/auto-remediate-config")
+async def get_auto_remediate_config(
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from app.services import config_service
+    import json as _j
+
+    enabled = await config_service.get_value("auto_remediation_enabled", db)
+    threshold = await config_service.get_value("auto_remediation_threshold", db)
+    rule_types_raw = await config_service.get_value("auto_remediation_rule_types", db)
+    try:
+        rule_types = _j.loads(rule_types_raw) if rule_types_raw else []
+    except Exception:
+        rule_types = []
+
+    try:
+        threshold_value = int(threshold) if threshold else 0
+    except (TypeError, ValueError):
+        threshold_value = 0
+
+    return {
+        "enabled": enabled == "true",
+        "threshold": threshold_value,
+        "rule_types": rule_types,
+        "last_updated": None,
+    }
+
+
+@router.post("/auto-remediate-config")
+async def update_auto_remediate_config(
+    body: AutoRemediateConfigRequest,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    from app.services import config_service
+    import json as _j
+
+    try:
+        await config_service.set_value("auto_remediation_enabled", "true" if body.enabled else "false", user.get("email"), db)
+        await config_service.set_value("auto_remediation_threshold", str(body.threshold), user.get("email"), db)
+        await config_service.set_value("auto_remediation_rule_types", _j.dumps(body.rule_types), user.get("email"), db)
+    except ValueError as e:
+        raise HTTPException(500, str(e))
+
+    return await get_auto_remediate_config(db=db, user=user)
+
+
 @router.get("/{rule_id}", response_model=RuleResponse)
 async def get_rule(rule_id: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(DQRule).where(DQRule.rule_id == rule_id))
@@ -817,57 +871,3 @@ async def get_rule_failed_records(
         "samples": masked_records,
         "masked_fields": masked_fields,
     }
-
-
-class AutoRemediateConfigRequest(BaseModel):
-    enabled: bool
-    threshold: int
-    rule_types: list[str]
-
-
-@router.get("/auto-remediate-config")
-async def get_auto_remediate_config(
-    db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    from app.services import config_service
-    import json as _j
-
-    enabled = await config_service.get_value("auto_remediation_enabled", db)
-    threshold = await config_service.get_value("auto_remediation_threshold", db)
-    rule_types_raw = await config_service.get_value("auto_remediation_rule_types", db)
-    try:
-        rule_types = _j.loads(rule_types_raw) if rule_types_raw else []
-    except Exception:
-        rule_types = []
-
-    try:
-        threshold_value = int(threshold) if threshold else 0
-    except (TypeError, ValueError):
-        threshold_value = 0
-
-    return {
-        "enabled": enabled == "true",
-        "threshold": threshold_value,
-        "rule_types": rule_types,
-        "last_updated": None,
-    }
-
-
-@router.post("/auto-remediate-config")
-async def update_auto_remediate_config(
-    body: AutoRemediateConfigRequest,
-    db: AsyncSession = Depends(get_db),
-    user=Depends(require_write),
-):
-    from app.services import config_service
-    import json as _j
-
-    try:
-        await config_service.set_value("auto_remediation_enabled", "true" if body.enabled else "false", user.get("email"), db)
-        await config_service.set_value("auto_remediation_threshold", str(body.threshold), user.get("email"), db)
-        await config_service.set_value("auto_remediation_rule_types", _j.dumps(body.rule_types), user.get("email"), db)
-    except ValueError as e:
-        raise HTTPException(500, str(e))
-
-    return await get_auto_remediate_config(db=db, user=user)

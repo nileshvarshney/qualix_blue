@@ -44,6 +44,23 @@ async def test_generate_proposal_skips_if_open_proposal_exists():
 
 
 @pytest.mark.asyncio
+async def test_generate_proposal_skips_if_existing_proposal_is_applied():
+    """A human-approved ("applied") proposal must still block a duplicate proposal
+    for the same rule/asset if the rule fails again."""
+    from app.services import remediation_service
+
+    db = AsyncMock()
+    existing_proposal = MagicMock()
+    existing_proposal.status = "applied"
+    existing_result = MagicMock()
+    existing_result.scalar_one_or_none.return_value = existing_proposal
+    db.execute.return_value = existing_result
+
+    result = await remediation_service.generate_proposal(_issue(), _run(), _rule(), db)
+    assert result is None
+
+
+@pytest.mark.asyncio
 async def test_generate_proposal_falls_back_to_escalation_with_insufficient_history():
     from app.services import remediation_service
 
@@ -127,6 +144,49 @@ async def test_apply_proposal_patches_config_and_reruns_then_resolves_issue():
     assert rule.rule_config["max_hours"] == 30
     assert rule.version == 2
     assert result.status == "auto_applied"
+    assert issue.status == "resolved"
+
+
+@pytest.mark.asyncio
+async def test_apply_proposal_resolves_issue_in_confirmed_state_after_passing_rerun():
+    """A human may have already moved the issue to 'confirmed' before approving the
+    remediation. The re-run passing is still proof the problem is fixed, so the issue
+    should be auto-resolved even though 'confirmed' isn't 'new' or directly wired to
+    'resolved' in ISSUE_TRANSITIONS."""
+    from app.services import remediation_service
+
+    proposal = MagicMock()
+    proposal.proposal_id = "prop-1"
+    proposal.issue_id = "iss-1"
+    proposal.rule_id = "rule-1"
+    proposal.classification = "auto_fixable"
+    proposal.config_field = "max_hours"
+    proposal.old_value = "24"
+    proposal.new_value = "30"
+
+    rule = _rule()
+    rule_result = MagicMock()
+    rule_result.scalar_one_or_none.return_value = rule
+
+    issue = _issue(status="confirmed")
+    issue_result = MagicMock()
+    issue_result.scalar_one_or_none.return_value = issue
+
+    db = AsyncMock()
+    db.execute.side_effect = [rule_result, issue_result]
+    db.add = MagicMock()
+    db.commit = AsyncMock()
+    db.refresh = AsyncMock()
+
+    rerun = MagicMock()
+    rerun.run_id = "run-2"
+    rerun.status = "passed"
+
+    with patch("app.services.execution_service.execute_rule", new_callable=AsyncMock, return_value=rerun):
+        result = await remediation_service.apply_proposal(proposal, "human@example.com", db)
+
+    assert rule.rule_config["max_hours"] == 30
+    assert result.status == "applied"
     assert issue.status == "resolved"
 
 

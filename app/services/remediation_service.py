@@ -178,7 +178,7 @@ async def generate_proposal(issue, run, rule, db):
         select(RemediationProposal).where(
             RemediationProposal.rule_id == rule.rule_id,
             RemediationProposal.asset_id == run.asset_id,
-            RemediationProposal.status.in_(["pending", "auto_applied", "approved"]),
+            RemediationProposal.status.in_(["pending", "auto_applied", "approved", "applied"]),
         )
     )
     if existing.scalar_one_or_none() is not None:
@@ -219,7 +219,7 @@ async def generate_proposal(issue, run, rule, db):
 
 
 async def apply_proposal(proposal, triggered_by: str, db):
-    from app.db.models import DQRule, Issue, ISSUE_TRANSITIONS, RemediationExecution, gen_uuid, now as model_now
+    from app.db.models import DQRule, Issue, RemediationExecution, gen_uuid, now as model_now
 
     if proposal.classification != "auto_fixable" or not proposal.config_field:
         raise ValueError("Only auto_fixable proposals with a computed fix can be applied")
@@ -258,9 +258,11 @@ async def apply_proposal(proposal, triggered_by: str, db):
         if rerun.status == "passed":
             issue_res = await db.execute(select(Issue).where(Issue.issue_id == proposal.issue_id))
             issue = issue_res.scalar_one_or_none()
-            can_resolve = issue and (
-                "resolved" in ISSUE_TRANSITIONS.get(issue.status, set()) or issue.status == "new"
-            )
+            # Any open-ish issue state can be auto-resolved here: a passing re-run is
+            # objective proof the underlying problem is fixed, regardless of what
+            # human-driven status (new/in_progress/confirmed/blocked) the issue was in.
+            # Only "resolved" and "closed" are terminal and left alone.
+            can_resolve = issue and issue.status not in ("resolved", "closed")
             if can_resolve:
                 issue.status = "resolved"
                 issue.resolved_at = model_now()
