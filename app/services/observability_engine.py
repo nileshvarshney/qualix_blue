@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from sqlalchemy import select
@@ -157,3 +157,169 @@ async def check_distribution(asset: Asset, db: AsyncSession) -> list[dict]:
 
     await db.commit()
     return findings
+
+
+import asyncio
+import uuid
+from datetime import timedelta
+
+from app.db.models import DQAlert, Issue
+
+DEDUP_WINDOW_HOURS = 4
+
+
+async def check_schema_drift(asset: Asset, db: AsyncSession) -> list[dict]:
+    """Thin wrapper around schema_drift_service. Establishes the baseline on first
+    sighting (no finding); thereafter returns one finding per open drift event.
+    Note: detect_drift() already creates its own DQAlert — callers must route
+    schema_drift findings through create_observability_issue(), not
+    create_observability_alert(), to avoid double-alerting."""
+    from app.services import schema_drift_service
+
+    baseline = await schema_drift_service.get_active_baseline(asset.asset_id, db)
+    if baseline is None:
+        await schema_drift_service.initialize_baseline(asset.asset_id, db)
+        return []
+
+    events = await schema_drift_service.detect_drift(asset.asset_id, db)
+    high_types = {"column_deleted", "type_changed"}
+    return [
+        {
+            "alert_type": "schema_drift",
+            "severity": "high" if ev.change_type in high_types else "medium",
+            "message": f"Schema drift: {ev.change_type} on column '{ev.column_name}'",
+            "column_name": ev.column_name,
+        }
+        for ev in events
+    ]
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def create_observability_issue(asset: Asset, finding: dict, db: AsyncSession) -> None:
+    """Creates an Issue for a finding, deduped on an open issue with the same title."""
+    label = finding["alert_type"]
+    title = f"[Observability] {label} on {asset.sf_table_name or asset.asset_id}"
+
+    existing = await db.execute(
+        select(Issue).where(
+            Issue.asset_id == asset.asset_id,
+            Issue.title == title,
+            Issue.status.not_in(["closed", "resolved"]),
+        )
+    )
+    if existing.scalar_one_or_none():
+        logger.debug("Observability issue dedup: open issue exists for %s", title)
+        return
+
+    issue = Issue(
+        issue_id=str(uuid.uuid4()),
+        title=title,
+        description=finding["message"],
+        issue_type="data_quality",
+        status="new",
+        severity=finding["severity"],
+        domain_id=asset.domain_id,
+        subdomain_id=asset.subdomain_id,
+        asset_id=asset.asset_id,
+        created_by="system",
+        created_at=_utcnow(),
+        updated_at=_utcnow(),
+    )
+    db.add(issue)
+    await db.commit()
+    logger.info("Observability issue created: %s", title)
+
+
+async def create_observability_alert(asset: Asset, finding: dict, db: AsyncSession) -> None:
+    """Creates a DQAlert + dispatches notification + creates an Issue, deduped
+    4h per (asset_id, alert_type). Use for freshness/volume/distribution findings
+    only — schema_drift findings already get their own alert from
+    schema_drift_service.detect_drift() and should use create_observability_issue()."""
+    window_start = _utcnow() - timedelta(hours=DEDUP_WINDOW_HOURS)
+    existing = await db.execute(
+        select(DQAlert).where(
+            DQAlert.asset_id == asset.asset_id,
+            DQAlert.alert_type == finding["alert_type"],
+            DQAlert.alert_status == "open",
+            DQAlert.created_at >= window_start,
+        )
+    )
+    if existing.scalar_one_or_none():
+        logger.debug(
+            "Observability alert dedup: open alert exists for %s/%s",
+            asset.asset_id, finding["alert_type"],
+        )
+        return
+
+    alert = DQAlert(
+        alert_id=str(uuid.uuid4()),
+        domain_id=asset.domain_id,
+        subdomain_id=asset.subdomain_id,
+        asset_id=asset.asset_id,
+        alert_type=finding["alert_type"],
+        severity=finding["severity"],
+        alert_status="open",
+        alert_message=finding["message"],
+        notification_channel="multi",
+        notification_sent=False,
+        created_at=_utcnow(),
+    )
+    db.add(alert)
+
+    await create_observability_issue(asset, finding, db)
+    await db.commit()
+    logger.info(
+        "Observability alert created: type=%s severity=%s asset=%s",
+        finding["alert_type"], finding["severity"], asset.asset_id,
+    )
+
+    asyncio.create_task(_dispatch_observability_notification(alert, asset, db))
+
+
+async def _dispatch_observability_notification(alert: DQAlert, asset: Asset, db: AsyncSession) -> None:
+    """Fire-and-forget notification dispatch, mirrors alert_service._dispatch_notification
+    but without a DQRule (observability findings aren't rule-driven)."""
+    try:
+        from app.db.database import AsyncSessionLocal
+        from app.services.notification_service import dispatch_alert
+        from app.db.models import Domain
+
+        async with AsyncSessionLocal() as session:
+            extra_emails: list[str] = []
+            domain_name = ""
+            domain_res = await session.execute(
+                select(Domain).where(Domain.domain_id == asset.domain_id)
+            )
+            domain = domain_res.scalar_one_or_none()
+            if domain:
+                domain_name = domain.domain_name
+                if domain.owner_email:
+                    extra_emails.append(domain.owner_email)
+            if getattr(asset, "owner_email", None):
+                extra_emails.append(asset.owner_email)
+
+            asset_name = f"{asset.sf_schema_name}.{asset.sf_table_name}" if asset.sf_table_name else ""
+
+            results = await dispatch_alert(
+                rule_name=alert.alert_type,
+                severity=alert.severity,
+                alert_message=alert.alert_message or "",
+                domain_name=domain_name,
+                asset_name=asset_name,
+                extra_emails=list(set(extra_emails)),
+            )
+
+            alert_res = await session.execute(
+                select(DQAlert).where(DQAlert.alert_id == alert.alert_id)
+            )
+            stored = alert_res.scalar_one_or_none()
+            if stored:
+                stored.notification_sent = any(results.values())
+                stored.notification_sent_at = _utcnow()
+                stored.notified_to = ", ".join(extra_emails) if extra_emails else None
+                await session.commit()
+    except Exception as e:
+        logger.error("Observability notification dispatch failed for alert %s: %s", alert.alert_id, e)

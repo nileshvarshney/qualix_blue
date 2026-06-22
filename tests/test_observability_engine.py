@@ -1,6 +1,6 @@
 from __future__ import annotations
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone, timedelta
 
 
@@ -168,3 +168,101 @@ async def test_check_distribution_shift_triggers_high():
     assert findings[0]["alert_type"] == "distribution_shift"
     assert findings[0]["severity"] == "high"
     assert findings[0]["column_name"] == "amount"
+
+
+# ─── check_schema_drift ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_check_schema_drift_no_baseline_initializes_no_finding():
+    from app.services.observability_engine import check_schema_drift
+    asset = MagicMock(asset_id="asset-1")
+
+    with patch("app.services.schema_drift_service.get_active_baseline", new=AsyncMock(return_value=None)), \
+         patch("app.services.schema_drift_service.initialize_baseline", new=AsyncMock()) as mock_init:
+        mock_db = AsyncMock()
+        findings = await check_schema_drift(asset, mock_db)
+        assert findings == []
+        mock_init.assert_called_once_with("asset-1", mock_db)
+
+
+@pytest.mark.asyncio
+async def test_check_schema_drift_with_events_returns_findings():
+    from app.services.observability_engine import check_schema_drift
+    asset = MagicMock(asset_id="asset-1")
+    baseline = MagicMock()
+    event = MagicMock(change_type="column_deleted", column_name="legacy_col")
+
+    with patch("app.services.schema_drift_service.get_active_baseline", new=AsyncMock(return_value=baseline)), \
+         patch("app.services.schema_drift_service.detect_drift", new=AsyncMock(return_value=[event])):
+        mock_db = AsyncMock()
+        findings = await check_schema_drift(asset, mock_db)
+        assert len(findings) == 1
+        assert findings[0]["alert_type"] == "schema_drift"
+        assert findings[0]["severity"] == "high"
+        assert findings[0]["column_name"] == "legacy_col"
+
+
+# ─── create_observability_alert ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_observability_alert_dedup_skips_when_open_alert_exists():
+    from app.services.observability_engine import create_observability_alert
+    asset = MagicMock(asset_id="asset-1", domain_id="dom-1", subdomain_id="sub-1")
+    finding = {"alert_type": "volume_shift", "severity": "high", "message": "dropped"}
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = MagicMock()  # an open alert already exists
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.add = MagicMock()
+
+    await create_observability_alert(asset, finding, mock_db)
+    mock_db.add.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_observability_alert_creates_alert_and_issue():
+    from app.services.observability_engine import create_observability_alert
+    asset = MagicMock(asset_id="asset-1", domain_id="dom-1", subdomain_id="sub-1", sf_table_name="orders")
+
+    call_no = [0]
+
+    async def execute(stmt, *a, **kw):
+        call_no[0] += 1
+        r = MagicMock()
+        r.scalar_one_or_none.return_value = None  # no existing open alert, no existing open issue
+        return r
+
+    mock_db = AsyncMock()
+    mock_db.execute = execute
+    mock_db.add = MagicMock()
+    mock_db.commit = AsyncMock()
+    mock_db.refresh = AsyncMock()
+
+    finding = {"alert_type": "volume_shift", "severity": "high", "message": "dropped 40%"}
+
+    with patch("asyncio.create_task") as mock_task:
+        await create_observability_alert(asset, finding, mock_db)
+
+    assert mock_db.add.call_count == 2  # DQAlert + Issue
+    added_types = {type(c.args[0]).__name__ for c in mock_db.add.call_args_list}
+    assert added_types == {"DQAlert", "Issue"}
+    mock_task.assert_called_once()
+
+
+# ─── create_observability_issue ────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_observability_issue_dedup_skips_when_open_issue_exists():
+    from app.services.observability_engine import create_observability_issue
+    asset = MagicMock(asset_id="asset-1", domain_id="dom-1", subdomain_id="sub-1", sf_table_name="orders")
+    finding = {"alert_type": "schema_drift", "severity": "high", "message": "col dropped"}
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = MagicMock()  # open issue already exists
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.add = MagicMock()
+
+    await create_observability_issue(asset, finding, mock_db)
+    mock_db.add.assert_not_called()
