@@ -32,7 +32,12 @@ Freshness, volume, and distribution shift have no automatic detection at all tod
 
 - User-configurable severity thresholds (v1 ships sensible hardcoded defaults).
 - Per-asset or per-column override of check enablement (toggles are per-connection only, matching the existing UI).
-- New frontend work — the existing continuous-config panel's request/response shape is treated as the contract; only the backend is built to match it.
+
+## Correction after deeper code inspection
+
+The existing continuous-config panel's actual request/response shape (`frontend/src/app/observability/page.tsx`, `ContinuousConfig` interface and `contDraft` state) is `{connection_id, name, interval_minutes, freshness_enabled, volume_enabled, next_check_at}` — not the `poll_interval_minutes`/`is_enabled`/`schema_drift_enabled`/`distribution_enabled` shape assumed earlier in this doc. The UI today has no pause control and no schema-drift/distribution toggles at all.
+
+Since a pause control was explicitly requested, and the engine adds two check types the UI has no way to enable/disable, this plan now includes a **small, scoped frontend addition** to the existing panel (not a new page): an `is_enabled` pause/resume toggle and `schema_drift_enabled`/`distribution_enabled` checkboxes, added alongside the existing two checkboxes. Everywhere below, field names match this corrected contract.
 
 ## Architecture
 
@@ -58,8 +63,8 @@ class ContinuousMonitoringConfig(Base):
     __tablename__ = "continuous_monitoring_configs"
     config_id: str               # PK
     connection_id: str           # FK -> snowflake_connections.connection_id, unique
-    poll_interval_minutes: int   # 5 | 15 | 30 | 60, default 15
-    is_enabled: bool             # default False
+    interval_minutes: int        # 5 | 15 | 30 | 60, default 15 — matches frontend field name
+    is_enabled: bool             # default True — pause/resume
     freshness_enabled: bool      # default True
     volume_enabled: bool         # default True
     schema_drift_enabled: bool   # default True
@@ -115,16 +120,28 @@ New service, one function per check, all taking `(asset, db)` and returning an o
 
 ```
 GET  /observability/continuous-config
-  -> list of ContinuousMonitoringConfig joined with connection_name, for every connection
-     (rows are created on-demand with defaults if a connection has none yet)
+  -> { connections: [ { connection_id, name, interval_minutes, is_enabled,
+                         freshness_enabled, volume_enabled, schema_drift_enabled,
+                         distribution_enabled, next_check_at }, ... ] }
+     one entry per SnowflakeConnection that has a ContinuousMonitoringConfig row.
+     next_check_at is computed as last_run_at + interval_minutes (null if never run).
 
 POST /observability/continuous-config
-  body: { connection_id, poll_interval_minutes, is_enabled,
+  body: { connection_id, interval_minutes, is_enabled,
           freshness_enabled, volume_enabled, schema_drift_enabled, distribution_enabled }
-  -> upserts the ContinuousMonitoringConfig row for that connection_id
+  -> upserts the ContinuousMonitoringConfig row for that connection_id, returns
+     the same { connections: [...] } shape as GET (matches what the frontend's
+     saveContConfig already expects back).
 ```
 
-This matches the shape the existing frontend proxy routes (`frontend/src/app/api/observability/continuous-config/route.ts`) already send/expect — no frontend changes needed.
+### Frontend (`frontend/src/app/observability/page.tsx`)
+
+Small, scoped addition to the existing Section 6b panel — no new page/route:
+
+- `ContinuousConfig` interface and `contDraft` state gain `is_enabled`, `schema_drift_enabled`, `distribution_enabled` (defaults: `true, true, true`).
+- The connection list row (`contConfigs.map(...)`) gains a paused badge when `!c.is_enabled`, plus `schema_drift`/`distribution` pills alongside the existing `freshness`/`volume` pills.
+- The "Add / Update Connection" form gains two more checkboxes (Schema Drift, Distribution) and a toggle switch (reusing the existing toggle-switch markup pattern from the Auto-Remediation panel's enable switch) for pause/resume.
+- The frontend proxy route `frontend/src/app/api/observability/continuous-config/route.ts` needs no change — it already forwards body/response verbatim.
 
 ## Error handling
 
