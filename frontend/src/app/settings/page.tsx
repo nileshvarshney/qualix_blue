@@ -603,9 +603,9 @@ export default function SettingsPage() {
                   features: [
                     {
                       name: 'Conversational AI Assistant',
-                      where: '/ai-assistant page',
-                      status: 'Placeholder only',
-                      desc: 'The /ai-assistant page currently renders a static placeholder component with hardcoded feature bullet points and no chat functionality. The Architecture page describes how it should work — using tool_use calls to list connections, create rules, and run checks — but none of that is implemented. The full build requires: a streaming chat UI, a backend agent loop using the Anthropic API with tool definitions for every platform action (list issues, run a schedule, query a dataset, create a rule), and context injection so the agent knows which connection is active and what the current quality scores are.',
+                      where: 'Floating widget (all pages)',
+                      status: 'Implemented — agentic chat widget with live tool-use',
+                      desc: 'The floating Qualix AI widget (bottom-right on every page) runs a real backend agent loop (/ai/agent) using the Anthropic API with native tool_use, looping up to 5 rounds per turn across 11 tools — list connections, list rules, dashboard stats, alerts, domains, recent runs, asset search, execute rules, and live warehouse schema/column/query/explain tools. The widget supports an expand toggle for longer conversations, persists chat history in localStorage, and a New Chat button to reset. The standalone /ai-assistant page was removed — it was a static placeholder that just pointed at this widget, which now covers the feature end to end.',
                     },
                     {
                       name: 'AI-Powered Root Cause Analysis',

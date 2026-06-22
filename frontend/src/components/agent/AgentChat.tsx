@@ -121,17 +121,54 @@ const INITIAL_MSG: AgentMessage = {
   timestamp: '2026-01-01T00:00:00.000Z'   // stable — avoids server/client hydration mismatch
 }
 
+const STORAGE_KEY = 'qualix-chat-messages'
+
 export default function AgentChat() {
   const [open, setOpen] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [messages, setMessages] = useState<AgentMessage[]>([INITIAL_MSG])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(null)
+  const [hydrated, setHydrated] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // Hydrate from localStorage after mount only — reading it during the
+  // initial useState would diverge from the server-rendered HTML.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as AgentMessage[]
+        if (Array.isArray(parsed) && parsed.length > 0) setMessages(parsed)
+      }
+    } catch {
+      // ignore corrupt storage
+    }
+    setHydrated(true)
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+    } catch {
+      // ignore storage quota / privacy-mode errors
+    }
+  }, [messages, hydrated])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
+
+  function newChat() {
+    setMessages([INITIAL_MSG])
+    try {
+      window.localStorage.removeItem(STORAGE_KEY)
+    } catch {
+      // ignore
+    }
+  }
 
   async function send(text?: string) {
     const msg = text || input.trim()
@@ -172,10 +209,13 @@ export default function AgentChat() {
       {/* Chat Panel */}
       {open && (
         <div className="slide-up" style={{
-          position: 'fixed', bottom: '80px', right: '20px', width: '400px', height: '580px',
+          position: 'fixed', bottom: '80px', right: '20px',
+          width: expanded ? 'min(900px, calc(100vw - 40px))' : '400px',
+          height: expanded ? '85vh' : '580px',
           background: 'var(--surface)', borderRadius: '20px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
           display: 'flex', flexDirection: 'column', zIndex: 1000,
-          border: '1px solid rgba(232,84,26,0.15)', overflow: 'hidden'
+          border: '1px solid rgba(232,84,26,0.15)', overflow: 'hidden',
+          transition: 'width 0.2s, height 0.2s'
         }}>
           {/* Header */}
           <div style={{
@@ -197,8 +237,18 @@ export default function AgentChat() {
                 Online & Ready
               </div>
             </div>
-            <button onClick={() => setOpen(false)} style={{
+            <button onClick={newChat} title="New chat" style={{
               marginLeft: 'auto', background: 'rgba(255,255,255,0.1)', border: 'none',
+              color: '#fff', width: '28px', height: '28px', borderRadius: '8px',
+              cursor: 'pointer', fontSize: '13px'
+            }}>＋</button>
+            <button onClick={() => setExpanded(e => !e)} title={expanded ? 'Collapse' : 'Expand'} style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none',
+              color: '#fff', width: '28px', height: '28px', borderRadius: '8px',
+              cursor: 'pointer', fontSize: '13px'
+            }}>{expanded ? '⤡' : '⤢'}</button>
+            <button onClick={() => setOpen(false)} title="Close" style={{
+              background: 'rgba(255,255,255,0.1)', border: 'none',
               color: '#fff', width: '28px', height: '28px', borderRadius: '8px',
               cursor: 'pointer', fontSize: '14px'
             }}>✕</button>
