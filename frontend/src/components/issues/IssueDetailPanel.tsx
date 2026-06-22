@@ -147,6 +147,131 @@ function AiRcaSection({ runId }: { runId: string }) {
   )
 }
 
+interface RemediationProposal {
+  proposal_id: string
+  issue_id: string
+  rule_id: string
+  run_id: string
+  asset_id: string
+  rule_type: string
+  classification: 'auto_fixable' | 'escalation_only'
+  proposed_action: string
+  config_field: string | null
+  old_value: string | null
+  new_value: string | null
+  confidence: 'high' | 'medium' | 'low' | null
+  status: 'pending' | 'auto_applied' | 'approved' | 'rejected' | 'applied' | 'apply_failed'
+  decided_by: string | null
+  decided_at: string | null
+  rerun_run_id: string | null
+  created_at: string | null
+}
+
+const CONFIDENCE_LABEL: Record<string, string> = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }
+
+function ProposedRemediationSection({ issueId }: { issueId: string }) {
+  const [proposal, setProposal] = useState<RemediationProposal | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    fetch(`/api/issues/${issueId}/remediation-proposal`, { cache: 'no-store' })
+      .then(r => r.json())
+      .then(d => setProposal(d as RemediationProposal | null))
+      .catch(() => setProposal(null))
+      .finally(() => setLoading(false))
+  }, [issueId])
+
+  async function decide(action: 'approve' | 'reject') {
+    if (!proposal) return
+    setBusy(true)
+    setErr(null)
+    try {
+      const res = await fetch(`/api/issues/${issueId}/remediation-proposal/${proposal.proposal_id}/${action}`, { method: 'POST' })
+      if (!res.ok) throw new Error(`Failed to ${action} (${res.status})`)
+      const updated = await res.json()
+      setProposal(updated as RemediationProposal)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : `Failed to ${action} remediation`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const panelStyle: CSSProperties = {
+    background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+    border: '1px solid #86efac',
+    borderRadius: '8px',
+    padding: '12px 14px',
+  }
+
+  if (loading) return null
+  if (!proposal) return null
+
+  const isPending = proposal.status === 'pending'
+  const isEscalation = proposal.classification === 'escalation_only'
+
+  return (
+    <div style={panelStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '13px' }}>🛠️</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+            Proposed Remediation
+          </span>
+        </div>
+        {proposal.confidence && (
+          <span style={{ fontSize: '10px', color: '#15803d', background: '#bbf7d0', padding: '2px 8px', borderRadius: '10px' }}>
+            {CONFIDENCE_LABEL[proposal.confidence] ?? proposal.confidence}
+          </span>
+        )}
+      </div>
+
+      <p style={{ margin: '0 0 8px', fontSize: '12.5px', color: '#14532d', lineHeight: '1.6' }}>{proposal.proposed_action}</p>
+
+      {proposal.config_field && (
+        <div style={{ fontSize: '11.5px', color: '#166534', marginBottom: '8px' }}>
+          <code>{proposal.config_field}</code>: {proposal.old_value} → {proposal.new_value}
+        </div>
+      )}
+
+      {err && <div style={{ fontSize: '12px', color: 'var(--status-error-text)', marginBottom: '8px' }}>{err}</div>}
+
+      {isPending && (
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {!isEscalation && (
+            <button
+              onClick={() => decide('approve')}
+              disabled={busy}
+              style={{ padding: '5px 10px', fontSize: '11px', borderRadius: '6px', border: 'none', background: '#16a34a', color: '#fff', cursor: 'pointer', fontWeight: 600, opacity: busy ? 0.6 : 1 }}
+            >
+              {busy ? 'Applying…' : 'Apply Fix'}
+            </button>
+          )}
+          <button
+            onClick={() => decide('reject')}
+            disabled={busy}
+            style={{ padding: '5px 10px', fontSize: '11px', borderRadius: '6px', border: '1px solid #86efac', background: 'transparent', color: '#15803d', cursor: 'pointer', opacity: busy ? 0.6 : 1 }}
+          >
+            {isEscalation ? 'Acknowledge' : 'Reject'}
+          </button>
+        </div>
+      )}
+
+      {!isPending && (
+        <div style={{ fontSize: '11.5px', color: '#166534' }}>
+          {proposal.status === 'auto_applied' && 'Auto-applied by the platform.'}
+          {proposal.status === 'applied' && `Applied by ${proposal.decided_by ?? 'a user'}.`}
+          {proposal.status === 'rejected' && `${isEscalation ? 'Acknowledged' : 'Rejected'} by ${proposal.decided_by ?? 'a user'}.`}
+          {proposal.status === 'apply_failed' && 'Apply attempt failed — see audit log.'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 interface CostEstimate {
   estimated_cost?: number
   currency?: string
@@ -401,6 +526,10 @@ export default function IssueDetailPanel({
 
         {issue.run_id && !editing && (
           <AiRcaSection runId={issue.run_id} />
+        )}
+
+        {issue.run_id && !editing && (
+          <ProposedRemediationSection issueId={issue.issue_id} />
         )}
 
         {!editing && <CostImpactSection issue={issue} />}
