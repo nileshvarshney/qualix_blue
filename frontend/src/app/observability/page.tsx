@@ -61,6 +61,11 @@ interface RemediateConfig {
   last_updated: string | null
 }
 
+interface ContinuousConfig {
+  connection_id: string; name: string; interval_minutes: number
+  freshness_enabled: boolean; volume_enabled: boolean; next_check_at: string | null
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 const POLL_MS = 30_000
@@ -195,6 +200,12 @@ export default function ObservabilityPage() {
   const [remSaving, setRemSaving] = useState(false)
   const [remSaved, setRemSaved] = useState(false)
 
+  // Continuous monitoring config
+  const [contConfigs, setContConfigs] = useState<ContinuousConfig[]>([])
+  const [contDraft, setContDraft] = useState({ connection_id: '', interval_minutes: 15, freshness_enabled: true, volume_enabled: true })
+  const [contSaving, setContSaving] = useState(false)
+  const [contSaved, setContSaved] = useState(false)
+
   // ── Loaders (each independent) ─────────────────────────────────────────────
 
   const loadFreshness = useCallback(() => {
@@ -271,6 +282,18 @@ export default function ObservabilityPage() {
     } finally { setRemSaving(false) }
   }
 
+  async function saveContConfig() {
+    if (!contDraft.connection_id) return
+    setContSaving(true)
+    try {
+      const res = await fetch('/api/observability/continuous-config', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contDraft),
+      })
+      if (res.ok) { const d = await res.json(); setContConfigs(d.connections ?? []) }
+      setContSaved(true); setTimeout(() => setContSaved(false), 2500)
+    } finally { setContSaving(false) }
+  }
+
   // Initial load
   useEffect(() => {
     loadFreshness()
@@ -279,6 +302,10 @@ export default function ObservabilityPage() {
     loadIncidents()
     loadForecast()
     fetch('/api/rules/auto-remediate-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setRemConfig(d) }).catch(() => {})
+    fetch('/api/observability/continuous-config', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : { connections: [] })
+      .then(d => setContConfigs(d.connections ?? []))
+      .catch(() => {})
   }, [loadFreshness, loadPredictions, loadHeatmap, loadIncidents, loadForecast])
 
   // 30s independent polling for each section
@@ -797,6 +824,56 @@ export default function ObservabilityPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* ── Section 6b: Continuous Monitoring Config ── */}
+      <div>
+        <SectionHeader title="Continuous Monitoring" subtitle="polling intervals per connection" lastUpdated={null} />
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px' }}>
+          {contConfigs.length > 0 && (
+            <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {contConfigs.map(c => (
+                <div key={c.connection_id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface-muted)', borderRadius: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>{c.name || c.connection_id}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>every {c.interval_minutes}m</span>
+                  {c.freshness_enabled && <span style={{ fontSize: '10px', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>freshness</span>}
+                  {c.volume_enabled && <span style={{ fontSize: '10px', background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>volume</span>}
+                  {c.next_check_at && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>next: {c.next_check_at.slice(11, 16)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>Add / Update Connection</div>
+            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>Connection ID</label>
+                <input value={contDraft.connection_id} onChange={e => setContDraft(d => ({ ...d, connection_id: e.target.value }))}
+                  placeholder="e.g. snowflake-prod"
+                  style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', width: '160px' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>Interval</label>
+                <select value={contDraft.interval_minutes} onChange={e => setContDraft(d => ({ ...d, interval_minutes: Number(e.target.value) }))}
+                  style={{ padding: '5px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)' }}>
+                  {[5, 15, 30, 60].map(v => <option key={v} value={v}>{v} min</option>)}
+                </select>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={contDraft.freshness_enabled} onChange={e => setContDraft(d => ({ ...d, freshness_enabled: e.target.checked }))} />
+                Freshness
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={contDraft.volume_enabled} onChange={e => setContDraft(d => ({ ...d, volume_enabled: e.target.checked }))} />
+                Volume
+              </label>
+              <button onClick={saveContConfig} disabled={contSaving || !contDraft.connection_id}
+                style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: contDraft.connection_id ? 'pointer' : 'not-allowed', opacity: (!contDraft.connection_id || contSaving) ? 0.6 : 1 }}>
+                {contSaving ? 'Saving…' : contSaved ? 'Saved ✓' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ── Section 6: Auto-Remediation Config ── */}
