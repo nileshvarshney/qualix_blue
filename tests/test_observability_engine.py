@@ -384,7 +384,10 @@ async def test_run_connection_checks_continues_after_one_asset_fails():
     r.scalars.return_value.all.return_value = [bad_asset, good_asset]
     mock_db.execute = AsyncMock(return_value=r)
 
+    calls = []
+
     async def flaky_check(asset, db):
+        calls.append(asset.asset_id)
         if asset.asset_id == "asset-bad":
             raise RuntimeError("boom")
         return []
@@ -392,3 +395,54 @@ async def test_run_connection_checks_continues_after_one_asset_fails():
     with patch("app.services.observability_engine._get_connector_for_connection", new=AsyncMock(return_value=None)), \
          patch("app.services.observability_engine.check_schema_drift", new=flaky_check):
         await _run_connection_checks(config, mock_db)  # must not raise
+
+    assert calls == ["asset-bad", "asset-good"]  # both assets were actually checked
+
+
+# ─── run_due_connections: connection-level failure isolation ──────────────────
+
+@pytest.mark.asyncio
+async def test_run_due_connections_continues_after_one_connection_fails():
+    from app.services.observability_engine import run_due_connections
+
+    original_last_run_at = _utcnow() - timedelta(minutes=20)
+
+    failing_config = MagicMock()
+    failing_config.is_enabled = True
+    failing_config.interval_minutes = 15
+    failing_config.last_run_at = original_last_run_at
+    failing_config.connection_id = "conn-fail"
+
+    ok_config = MagicMock()
+    ok_config.is_enabled = True
+    ok_config.interval_minutes = 15
+    ok_config.last_run_at = original_last_run_at
+    ok_config.connection_id = "conn-ok"
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [failing_config, ok_config]
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.commit = AsyncMock()
+
+    calls = []
+
+    async def flaky_run(config, db):
+        calls.append(config.connection_id)
+        if config.connection_id == "conn-fail":
+            raise RuntimeError("boom")
+        return None
+
+    with patch("app.services.observability_engine._run_connection_checks", new=flaky_run):
+        processed = await run_due_connections(mock_db)
+
+    # Both connections were attempted — the failure didn't stop the loop.
+    assert calls == ["conn-fail", "conn-ok"]
+    # Only the successful connection counts as processed this tick.
+    assert processed == 1
+    # The failing connection's last_run_at must NOT be advanced (it should
+    # remain unchanged so it is retried next tick).
+    assert failing_config.last_run_at == original_last_run_at
+    # The succeeding connection's last_run_at WAS advanced.
+    assert ok_config.last_run_at is not None
+    assert ok_config.last_run_at != original_last_run_at

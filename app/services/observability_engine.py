@@ -341,9 +341,9 @@ async def _get_connector_for_connection(connection_id: str, db: AsyncSession):
     if conn_record is None or not conn_record.password:
         return None
 
-    config = config_from_orm(conn_record)
-    config.password = _decrypt_password(conn_record)
     try:
+        config = config_from_orm(conn_record)
+        config.password = _decrypt_password(conn_record)
         return get_connector(config)
     except Exception as exc:
         logger.warning("Could not build connector for connection %s: %s", connection_id, exc)
@@ -416,7 +416,13 @@ async def run_due_connections(db: AsyncSession) -> int:
             elapsed_minutes = (now_dt - config.last_run_at).total_seconds() / 60
             if elapsed_minutes < config.interval_minutes:
                 continue
-        await _run_connection_checks(config, db)
+        try:
+            await _run_connection_checks(config, db)
+        except Exception as exc:
+            logger.error(
+                "Observability run failed for connection %s: %s", config.connection_id, exc
+            )
+            continue
         config.last_run_at = now_dt
         await db.commit()
         processed += 1
