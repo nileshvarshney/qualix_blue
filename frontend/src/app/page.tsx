@@ -30,6 +30,7 @@ interface CorrelatedIncident {
 
 export default function HomePage() {
   const [stats, setStats]         = useState<DashboardStats>(EMPTY)
+  const [statsLoading, setStatsLoading] = useState(true)
   const [incidents, setIncidents] = useState<CorrelatedIncident[]>([])
   const [dismissed, setDismissed] = useState(false)
 
@@ -38,6 +39,7 @@ export default function HomePage() {
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: Partial<DashboardStats>) => setStats({ ...EMPTY, ...data }))
       .catch(() => {})
+      .finally(() => setStatsLoading(false))
   }, [])
 
   const loadIncidents = useCallback(() => {
@@ -92,7 +94,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
-      <Dashboard stats={stats} />
+      <Dashboard stats={stats} loading={statsLoading} />
     </>
   )
 }

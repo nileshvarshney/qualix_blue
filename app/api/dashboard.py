@@ -263,7 +263,10 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
         .join(Asset, DQRuleRun.asset_id == Asset.asset_id)
         .outerjoin(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
         .join(Domain, DQRuleRun.domain_id == Domain.domain_id)
-        .where(DQRuleRun.quality_score.isnot(None))
+        .where(
+            DQRuleRun.quality_score.isnot(None),
+            DQRuleRun.quality_score < 95.0,  # only genuinely at-risk tables, not just "lowest of the healthy ones"
+        )
         .order_by(DQRuleRun.quality_score.asc())
         .limit(5)
     )
@@ -394,16 +397,26 @@ async def global_dashboard(
     total_rules   = (await db.execute(rq)).scalar() or 0
     open_alerts   = (await db.execute(alrt_q)).scalar() or 0
 
-    # ── Today's runs — joined with severity so critical_failures needs no extra query ──
-    today = datetime.now(timezone.utc).replace(tzinfo=None).date()
-    runs_q = (
-        select(DQRuleRun, DQRule.severity)
-        .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
-        .where(func.date(DQRuleRun.created_at) == today)
-    )
+    # ── Most recent day with runs — joined with severity so critical_failures needs no extra query ──
+    # Using "today" specifically misses data when the last execution was on an earlier
+    # calendar day (e.g. no checks have run yet today), which made passed/failed/score
+    # silently report as empty/100 even though recent runs existed.
+    latest_date_q = select(func.max(func.date(DQRuleRun.created_at)))
     if domain_scope:
-        runs_q = runs_q.where(DQRuleRun.domain_id == domain_scope)
-    all_today_rows = (await db.execute(runs_q)).all()
+        latest_date_q = latest_date_q.where(DQRuleRun.domain_id == domain_scope)
+    latest_run_date = (await db.execute(latest_date_q)).scalar()
+
+    if latest_run_date is not None:
+        runs_q = (
+            select(DQRuleRun, DQRule.severity)
+            .join(DQRule, DQRuleRun.rule_id == DQRule.rule_id)
+            .where(func.date(DQRuleRun.created_at) == latest_run_date)
+        )
+        if domain_scope:
+            runs_q = runs_q.where(DQRuleRun.domain_id == domain_scope)
+        all_today_rows = (await db.execute(runs_q)).all()
+    else:
+        all_today_rows = []
 
     # Deduplicate: keep only the LATEST run per rule so counts reflect current state,
     # not the number of executions. A rule run 10× today counts as 1 rule, not 10.
@@ -419,7 +432,8 @@ async def global_dashboard(
     critical_failures = sum(1 for run, sev in latest_runs if run.status in ("failed", "error") and sev == "critical")
 
     scores = [run.quality_score for run, _ in latest_runs if run.quality_score is not None]
-    overall_score = round(sum(scores) / len(scores), 1) if scores else 100.0
+    # No fallback to 100 — that silently presented "no data" as "perfect score".
+    overall_score = round(sum(scores) / len(scores), 1) if scores else None
 
     trend = await _build_trend(db, days=14, domain_id=domain_scope)
     sla_breaches = await _get_sla_breaches(db, domain_scope)

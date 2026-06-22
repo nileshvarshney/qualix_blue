@@ -1,5 +1,6 @@
 'use client'
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import AssetTreePanel, { AssetTreePanelHandle } from '@/components/asset-registry/AssetTreePanel'
 import AssetDetailPanel from '@/components/asset-registry/AssetDetailPanel'
 import AdhocDiscoveryModal from '@/components/datasets/AdhocDiscoveryModal'
@@ -25,7 +26,9 @@ interface Asset {
   source_meta?: { sf_table_name?: string; sf_schema_name?: string; sf_database_name?: string; row_count?: number }
 }
 
-export default function AssetRegistryPage() {
+function AssetRegistryInner() {
+  const searchParams = useSearchParams()
+  const initialSearch = searchParams.get('q') ?? undefined
   const [selected, setSelected] = useState<Asset | null>(null)
   const [loading, setLoading] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -55,7 +58,7 @@ export default function AssetRegistryPage() {
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
       <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
         <div style={{ width: panelOpen ? '280px' : '0px', overflow: 'hidden', transition: 'width 0.2s ease', display: 'flex', flexShrink: 0 }}>
-          <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} />
+          <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} initialSearch={initialSearch} />
         </div>
         <button
           onClick={() => setPanelOpen(p => !p)}
@@ -98,5 +101,13 @@ export default function AssetRegistryPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function AssetRegistryPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <AssetRegistryInner />
+    </Suspense>
   )
 }

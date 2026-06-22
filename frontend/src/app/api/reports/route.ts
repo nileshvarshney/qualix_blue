@@ -15,6 +15,29 @@ export async function GET() {
 }
 
 export async function POST() {
-  // Rule execution is triggered via the backend directly
-  return NextResponse.json({ message: 'Use the backend /executions endpoint to run rules' }, { status: 501 })
+  try {
+    const rulesRes = await fetch(`${BACKEND}/rules?is_active=true&limit=1000`, { cache: 'no-store' })
+    if (!rulesRes.ok) {
+      return NextResponse.json({ error: 'Failed to load active rules' }, { status: 502 })
+    }
+    const { items } = await rulesRes.json() as { items: { rule_id: string }[] }
+    const ruleIds = items.map(r => r.rule_id)
+    if (ruleIds.length === 0) {
+      return NextResponse.json({ message: 'No active rules to run', total: 0 })
+    }
+
+    const execRes = await fetch(`${BACKEND}/rules/bulk/execute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule_ids: ruleIds }),
+      cache: 'no-store',
+    })
+    const data = await execRes.json().catch(() => ({}))
+    if (!execRes.ok) {
+      return NextResponse.json(data, { status: execRes.status })
+    }
+    return NextResponse.json(data)
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 })
+  }
 }

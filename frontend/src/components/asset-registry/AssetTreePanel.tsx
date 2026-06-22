@@ -124,11 +124,11 @@ export interface AssetTreePanelHandle {
 }
 
 const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
-  onSelect: (id: string) => void; selectedId: string | null
-}>(function AssetTreePanel({ onSelect, selectedId }, ref) {
+  onSelect: (id: string) => void; selectedId: string | null; initialSearch?: string
+}>(function AssetTreePanel({ onSelect, selectedId, initialSearch }, ref) {
   const [roots, setRoots] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch ?? '')
   const [searchResults, setSearchResults] = useState<TreeNode[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [sourceId, setSourceId] = useState<string | null>(() => getStoredConnId())
@@ -206,17 +206,24 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
     })
   }, [])
 
-  async function doSearch(q: string) {
+  async function doSearch(q: string, autoSelectIfSingle = false) {
     if (!q.trim()) { setSearchResults(null); return }
     setSearching(true)
     try {
       const res = await fetch(`/api/asset-registry/search?q=${encodeURIComponent(q)}&limit=30`)
       const data = await res.json()
-      setSearchResults(Array.isArray(data) ? data : [])
+      const results: TreeNode[] = Array.isArray(data) ? data : []
+      setSearchResults(results)
+      if (autoSelectIfSingle && results.length === 1) onSelect(results[0].asset_id)
     } finally {
       setSearching(false)
     }
   }
+
+  useEffect(() => {
+    if (initialSearch) doSearch(initialSearch, true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearch])
 
   useImperativeHandle(ref, () => ({
     refresh: () => fetchTree(sourceId),

@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import CreateIssueModal from '@/components/issues/CreateIssueModal'
 
@@ -228,13 +229,17 @@ function CreateAlertDefinitionModal({ onClose, onCreated }: CreateModalProps) {
 }
 
 /* ─── Main Page ─── */
-export default function AlertsPage() {
+function AlertsPageInner() {
+  const searchParams = useSearchParams()
+  const initialFilter = searchParams.get('severity')
   const [alerts, setAlerts] = useState<RecentAlert[]>([])
   const [rules, setRules] = useState<AlertDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [rulesLoading, setRulesLoading] = useState(true)
   const [tab, setTab] = useState<'recent' | 'rules'>('recent')
-  const [alertFilter, setAlertFilter] = useState<AlertFilter>('all')
+  const [alertFilter, setAlertFilter] = useState<AlertFilter>(
+    initialFilter === 'critical' || initialFilter === 'high' || initialFilter === 'unacked' ? initialFilter : 'all'
+  )
   const [ruleFilter, setRuleFilter] = useState<RuleFilter>('all')
   const [search, setSearch] = useState('')
   const [popupAlert, setPopupAlert] = useState<RecentAlert | null>(null)
@@ -667,5 +672,13 @@ export default function AlertsPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function AlertsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <AlertsPageInner />
+    </Suspense>
   )
 }

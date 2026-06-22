@@ -83,6 +83,40 @@ function Dropdown({ label, options, value, onChange }: { label: string; options:
   )
 }
 
+function SkeletonBar({ width, height = '14px' }: { width: string; height?: string }) {
+  return (
+    <div style={{
+      width, height, borderRadius: '4px', background: 'var(--surface-muted)',
+      animation: 'qx-pulse 1.4s ease-in-out infinite',
+    }} />
+  )
+}
+
+function HeroSkeleton() {
+  return (
+    <div style={{ ...card, display: 'flex', alignItems: 'stretch', gap: '24px', padding: '20px 24px', marginBottom: '12px', flexWrap: 'wrap' }}>
+      <style>{'@keyframes qx-pulse { 0%, 100% { opacity: 0.5 } 50% { opacity: 1 } }'}</style>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
+        <div style={{ width: '108px', height: '108px', borderRadius: '50%', background: 'var(--surface-muted)', animation: 'qx-pulse 1.4s ease-in-out infinite' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '150px' }}>
+          <SkeletonBar width="120px" />
+          <SkeletonBar width="150px" height="5px" />
+        </div>
+      </div>
+      <div style={{ width: '1px', background: 'var(--border)', alignSelf: 'stretch' }} />
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+        {[0, 1, 2].map(i => (
+          <div key={i} style={{ ...kpiTile, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <SkeletonBar width="80px" height="11px" />
+            <SkeletonBar width="50px" height="22px" />
+            <SkeletonBar width="110px" height="11px" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: string; action?: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -101,8 +135,9 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
 interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
 interface DomainOption { domain_id: string; domain_name: string }
 
-export default function Dashboard({ stats }: { stats: DashboardStats }) {
+export default function Dashboard({ stats, loading = false }: { stats: DashboardStats; loading?: boolean }) {
   const [running, setRunning] = useState(false)
+  const [runMessage, setRunMessage] = useState<{ text: string; isError: boolean } | null>(null)
   const [timeFilter, setTimeFilter] = useState('Last 7 days')
   const [domainFilter, setDomainFilter] = useState('All domains')
   const [domains, setDomains] = useState<DomainOption[]>([])
@@ -212,9 +247,23 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
   async function runCheck() {
     setRunning(true)
-    await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
-    setRunning(false)
-    router.refresh()
+    setRunMessage(null)
+    try {
+      const res = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setRunMessage({ text: data.error || data.message || 'Failed to start check', isError: true })
+      } else if (data.total === 0) {
+        setRunMessage({ text: 'No active rules to run', isError: false })
+      } else {
+        setRunMessage({ text: `Queued ${data.total} rule check${data.total !== 1 ? 's' : ''}`, isError: false })
+        router.refresh()
+      }
+    } catch {
+      setRunMessage({ text: 'Failed to start check', isError: true })
+    } finally {
+      setRunning(false)
+    }
   }
 
   const score = stats.overallScore
@@ -236,8 +285,12 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
 
   const piiCount = piiExposure?.unprotected_pii_tables ?? 0
 
-  const weeklyDelta: number | null = trend.length >= 2
-    ? ((trend[trend.length - 1].score ?? 0) - (trend[0].score ?? 0))
+  // Use the first and last days that actually have a score — a day with no
+  // checks run yet (score: null) isn't a real "0", so it shouldn't be treated
+  // as one when computing the trend delta.
+  const scoredDays = trend.filter(t => t.score !== null)
+  const weeklyDelta: number | null = scoredDays.length >= 2
+    ? (scoredDays[scoredDays.length - 1].score! - scoredDays[0].score!)
     : null
 
   return (
@@ -258,18 +311,30 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             <div>
               <div style={{ fontSize: '18px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.3px', lineHeight: 1.2 }}>Data Quality Overview</div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>{formatNumber(stats.totalAssets)} datasets</span>
-                <span style={{ color: 'var(--border-strong)' }}>·</span>
-                <span>{stats.totalRules} active rules</span>
-                <span style={{ color: 'var(--border-strong)' }}>·</span>
-                <span style={{ color: stats.openAlerts > 0 ? 'var(--status-error-text)' : 'var(--text-muted)', fontWeight: stats.openAlerts > 0 ? 600 : 400 }}>
-                  {stats.openAlerts} open issues
-                </span>
+                {loading ? <span>Loading…</span> : (
+                  <>
+                    <span>{formatNumber(stats.totalAssets)} datasets</span>
+                    <span style={{ color: 'var(--border-strong)' }}>·</span>
+                    <span>{stats.totalRules} active rules</span>
+                    <span style={{ color: 'var(--border-strong)' }}>·</span>
+                    <span style={{ color: stats.openAlerts > 0 ? 'var(--status-error-text)' : 'var(--text-muted)', fontWeight: stats.openAlerts > 0 ? 600 : 400 }}>
+                      {stats.openAlerts} open issues
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {runMessage && (
+            <span style={{
+              fontSize: 'var(--text-xs)', fontWeight: 600,
+              color: runMessage.isError ? 'var(--status-error-text)' : 'var(--status-ok-text)',
+            }}>
+              {runMessage.text}
+            </span>
+          )}
           <button onClick={runCheck} disabled={running} style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             background: 'linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%)', border: 'none', padding: '7px 16px',
@@ -283,6 +348,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       </div>
 
       {/* Hero: score gauge + KPI tiles */}
+      {loading ? <HeroSkeleton /> : (
       <div style={{ ...card, display: 'flex', alignItems: 'stretch', gap: '24px', padding: '20px 24px', marginBottom: '12px', flexWrap: 'wrap' }}>
         {/* Overall score gauge */}
         <Link href="/reports" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '20px', flexShrink: 0 }}>
@@ -333,9 +399,11 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         <div style={{ width: '1px', background: 'var(--border)', alignSelf: 'stretch' }} />
 
         {/* KPI tiles */}
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(3, minmax(160px, 1fr))', gap: '16px' }}>
-          {/* Open Issues */}
-          <Link href="/issues" style={{ textDecoration: 'none' }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+          {/* Open Issues — this tile shows alert counts (openAlerts/criticalAlerts/mediumAlerts),
+              so it must link to /alerts, not the separate Issues tracker, or the destination
+              page won't match what the tile just showed. */}
+          <Link href={stats.criticalAlerts > 0 ? '/alerts?severity=critical' : '/alerts'} style={{ textDecoration: 'none' }}>
             <div style={kpiTile}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={kpiLabel}>Open Issues</span>
@@ -357,8 +425,9 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             </div>
           </Link>
 
-          {/* Datasets monitored */}
-          <Link href="/datasets" style={{ textDecoration: 'none' }}>
+          {/* Datasets monitored — /datasets is a bare redirect to /asset-registry, which
+              opens to a blank "select an asset" tree with no context. Link straight there. */}
+          <Link href="/asset-registry" style={{ textDecoration: 'none' }}>
             <div style={kpiTile}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
                 <span style={kpiLabel}>Datasets Monitored</span>
@@ -414,6 +483,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           </Link>
         </div>
       </div>
+      )}
 
       {/* Alert Summary Strip */}
       {alertSummary !== null && (
@@ -465,7 +535,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           icon={<Activity size={13} strokeWidth={2.4} />}
           title="Platform Health"
         />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
 
           {/* Observability */}
           <Link href="/observability" style={{ textDecoration: 'none' }}>
@@ -586,11 +656,11 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
           title="Six Dimensions of Quality"
           action={
             <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              {stats.totalRules} active rules · <Link href="/rules" style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none' }}>view all →</Link>
+              {loading ? '— active rules' : `${stats.totalRules} active rules`} · <Link href="/rules" style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none' }}>view all →</Link>
             </div>
           }
         />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '10px' }}>
           {([
             { name: 'Completeness', key: 'completeness' as const, category: 'completeness', icon: <ListChecks size={14} strokeWidth={2.2} /> },
             { name: 'Accuracy',     key: 'accuracy'     as const, category: 'accuracy',     icon: <Target size={14} strokeWidth={2.2} /> },
@@ -629,7 +699,8 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
       </div>
 
       {/* Trend + Failing Rules */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '12px', marginBottom: '12px' }}>
+      <style>{'@media (max-width: 760px) { .qx-trend-grid { grid-template-columns: 1fr !important; } }'}</style>
+      <div className="qx-trend-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '12px', marginBottom: '12px' }}>
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -682,7 +753,11 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             action={<Link href="/rules" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>View all →</Link>}
           />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {stats.failingRules.length === 0 ? (
+            {loading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '4px 8px' }}>
+                {[0, 1, 2].map(i => <SkeletonBar key={i} width="100%" height="32px" />)}
+              </div>
+            ) : stats.failingRules.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: 'var(--text-xs)', padding: '24px 8px', textAlign: 'center' }}>
                 <CheckCircle2 size={20} color="#16a34a" strokeWidth={2} />
                 No failing rules
@@ -716,7 +791,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
         <SectionHeader
           icon={<Database size={13} strokeWidth={2.4} />}
           title="Datasets Requiring Attention"
-          action={<Link href="/datasets" style={{ fontSize: '12.5px', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>View all {stats.totalAssets} →</Link>}
+          action={<Link href="/asset-registry" style={{ fontSize: '12.5px', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>View all {stats.totalAssets} →</Link>}
         />
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
           <thead>
@@ -727,7 +802,15 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
             </tr>
           </thead>
           <tbody>
-            {stats.atRiskTables.length === 0 ? (
+            {loading ? (
+              <tr>
+                <td colSpan={5} style={{ padding: '16px 12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {[0, 1, 2].map(i => <SkeletonBar key={i} width="100%" height="20px" />)}
+                  </div>
+                </td>
+              </tr>
+            ) : stats.atRiskTables.length === 0 ? (
               <tr>
                 <td colSpan={5} style={{ padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -744,7 +827,7 @@ export default function Dashboard({ stats }: { stats: DashboardStats }) {
                 <tr key={i} style={{ borderBottom: '1px solid #f3f1ea', cursor: 'pointer', transition: 'background 0.1s' }}
                   onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
                   onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  onClick={() => router.push('/datasets')}>
+                  onClick={() => router.push(`/asset-registry?q=${encodeURIComponent(parts[parts.length - 1])}`)}>
                   <td style={{ padding: '8px 12px' }}>
                     {parts.length > 1
                       ? <><span style={{ color: 'var(--text-muted)' }}>{parts[0]}.</span><span style={{ fontWeight: 600, color: 'var(--foreground)' }}>{parts.slice(1).join('.')}</span></>
