@@ -266,3 +266,129 @@ async def test_create_observability_issue_dedup_skips_when_open_issue_exists():
 
     await create_observability_issue(asset, finding, mock_db)
     mock_db.add.assert_not_called()
+
+
+# ─── run_due_connections ───────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_run_due_connections_skips_not_due():
+    from app.services.observability_engine import run_due_connections
+    config = MagicMock()
+    config.is_enabled = True
+    config.interval_minutes = 15
+    config.last_run_at = _utcnow()  # just ran — not due yet
+    config.connection_id = "conn-1"
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [config]
+    mock_db.execute = AsyncMock(return_value=r)
+
+    with patch("app.services.observability_engine._run_connection_checks", new=AsyncMock()) as mock_run:
+        processed = await run_due_connections(mock_db)
+
+    assert processed == 0
+    mock_run.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_due_connections_processes_due_connection_and_updates_last_run():
+    from app.services.observability_engine import run_due_connections
+    config = MagicMock()
+    config.is_enabled = True
+    config.interval_minutes = 15
+    config.last_run_at = _utcnow() - timedelta(minutes=20)
+    config.connection_id = "conn-1"
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [config]
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.commit = AsyncMock()
+
+    with patch("app.services.observability_engine._run_connection_checks", new=AsyncMock()) as mock_run:
+        processed = await run_due_connections(mock_db)
+
+    assert processed == 1
+    mock_run.assert_called_once_with(config, mock_db)
+    assert config.last_run_at is not None
+
+
+@pytest.mark.asyncio
+async def test_run_due_connections_first_run_when_last_run_at_is_none():
+    from app.services.observability_engine import run_due_connections
+    config = MagicMock()
+    config.is_enabled = True
+    config.interval_minutes = 15
+    config.last_run_at = None
+    config.connection_id = "conn-1"
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [config]
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.commit = AsyncMock()
+
+    with patch("app.services.observability_engine._run_connection_checks", new=AsyncMock()) as mock_run:
+        processed = await run_due_connections(mock_db)
+
+    assert processed == 1
+    mock_run.assert_called_once()
+
+
+# ─── _run_connection_checks ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_run_connection_checks_dispatches_enabled_checks_only():
+    from app.services.observability_engine import _run_connection_checks
+    config = MagicMock()
+    config.connection_id = "conn-1"
+    config.freshness_enabled = False
+    config.volume_enabled = False
+    config.schema_drift_enabled = True
+    config.distribution_enabled = False
+
+    asset = MagicMock(asset_id="asset-1", sf_database_name="DB", sf_schema_name="SCH", sf_table_name="TBL")
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [asset]
+    mock_db.execute = AsyncMock(return_value=r)
+
+    with patch("app.services.observability_engine._get_connector_for_connection", new=AsyncMock(return_value=None)), \
+         patch("app.services.observability_engine.check_schema_drift", new=AsyncMock(return_value=[{"alert_type": "schema_drift", "severity": "high", "message": "x", "column_name": "c"}])) as mock_drift, \
+         patch("app.services.observability_engine.create_observability_issue", new=AsyncMock()) as mock_issue, \
+         patch("app.services.observability_engine.create_observability_alert", new=AsyncMock()) as mock_alert:
+        await _run_connection_checks(config, mock_db)
+
+    mock_drift.assert_called_once()
+    mock_issue.assert_called_once()
+    mock_alert.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_run_connection_checks_continues_after_one_asset_fails():
+    from app.services.observability_engine import _run_connection_checks
+    config = MagicMock()
+    config.connection_id = "conn-1"
+    config.freshness_enabled = False
+    config.volume_enabled = False
+    config.schema_drift_enabled = True
+    config.distribution_enabled = False
+
+    bad_asset = MagicMock(asset_id="asset-bad")
+    good_asset = MagicMock(asset_id="asset-good")
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalars.return_value.all.return_value = [bad_asset, good_asset]
+    mock_db.execute = AsyncMock(return_value=r)
+
+    async def flaky_check(asset, db):
+        if asset.asset_id == "asset-bad":
+            raise RuntimeError("boom")
+        return []
+
+    with patch("app.services.observability_engine._get_connector_for_connection", new=AsyncMock(return_value=None)), \
+         patch("app.services.observability_engine.check_schema_drift", new=flaky_check):
+        await _run_connection_checks(config, mock_db)  # must not raise

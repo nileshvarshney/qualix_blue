@@ -323,3 +323,101 @@ async def _dispatch_observability_notification(alert: DQAlert, asset: Asset, db:
                 await session.commit()
     except Exception as e:
         logger.error("Observability notification dispatch failed for alert %s: %s", alert.alert_id, e)
+
+
+from app.db.models import ContinuousMonitoringConfig, SnowflakeConnection
+
+
+async def _get_connector_for_connection(connection_id: str, db: AsyncSession):
+    """Returns a connector instance for the connection, or None if unresolvable."""
+    from app.connectors.config import from_orm as config_from_orm
+    from app.connectors.factory import get_connector
+    from app.api.connections import _decrypt_password
+
+    result = await db.execute(
+        select(SnowflakeConnection).where(SnowflakeConnection.connection_id == connection_id)
+    )
+    conn_record = result.scalar_one_or_none()
+    if conn_record is None or not conn_record.password:
+        return None
+
+    config = config_from_orm(conn_record)
+    config.password = _decrypt_password(conn_record)
+    try:
+        return get_connector(config)
+    except Exception as exc:
+        logger.warning("Could not build connector for connection %s: %s", connection_id, exc)
+        return None
+
+
+async def _fetch_table_meta(asset: Asset, connector):
+    """Returns the connector's TableMetadataSchema for this asset, or None."""
+    if connector is None or not (asset.sf_database_name and asset.sf_schema_name and asset.sf_table_name):
+        return None
+    try:
+        return await connector.get_table_metadata(
+            asset.sf_database_name, asset.sf_schema_name, asset.sf_table_name
+        )
+    except Exception as exc:
+        logger.warning("Could not fetch table metadata for asset %s: %s", asset.asset_id, exc)
+        return None
+
+
+async def _run_connection_checks(config: ContinuousMonitoringConfig, db: AsyncSession) -> None:
+    """Runs every enabled check against every active asset on this connection.
+    Per-asset failures are logged and skipped — they never abort the connection's run."""
+    assets_result = await db.execute(
+        select(Asset).where(Asset.connection_id == config.connection_id, Asset.is_active == True)
+    )
+    assets = assets_result.scalars().all()
+
+    connector = None
+    if config.freshness_enabled or config.volume_enabled:
+        connector = await _get_connector_for_connection(config.connection_id, db)
+
+    for asset in assets:
+        try:
+            table_meta = await _fetch_table_meta(asset, connector) if connector else None
+
+            if config.freshness_enabled and table_meta is not None:
+                finding = check_freshness(asset, table_meta.last_modified_at, _utcnow())
+                if finding:
+                    await create_observability_alert(asset, finding, db)
+
+            if config.volume_enabled and table_meta is not None:
+                finding = await check_volume(asset, table_meta.row_count, db)
+                if finding:
+                    await create_observability_alert(asset, finding, db)
+
+            if config.schema_drift_enabled:
+                for finding in await check_schema_drift(asset, db):
+                    await create_observability_issue(asset, finding, db)
+
+            if config.distribution_enabled:
+                for finding in await check_distribution(asset, db):
+                    await create_observability_alert(asset, finding, db)
+        except Exception as exc:
+            logger.error("Observability check failed for asset %s: %s", asset.asset_id, exc)
+            continue
+
+
+async def run_due_connections(db: AsyncSession) -> int:
+    """Entry point called by the observability_tick scheduler job. Returns the
+    number of connections processed this tick."""
+    result = await db.execute(
+        select(ContinuousMonitoringConfig).where(ContinuousMonitoringConfig.is_enabled == True)
+    )
+    configs = result.scalars().all()
+
+    processed = 0
+    now_dt = _utcnow()
+    for config in configs:
+        if config.last_run_at is not None:
+            elapsed_minutes = (now_dt - config.last_run_at).total_seconds() / 60
+            if elapsed_minutes < config.interval_minutes:
+                continue
+        await _run_connection_checks(config, db)
+        config.last_run_at = now_dt
+        await db.commit()
+        processed += 1
+    return processed
