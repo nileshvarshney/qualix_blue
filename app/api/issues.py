@@ -398,6 +398,11 @@ def _fmt_proposal(p) -> dict:
 async def get_remediation_proposal(issue_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
     from app.db.models import RemediationProposal
 
+    issue_result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = issue_result.scalar_one_or_none()
+    if issue:
+        check_domain_access(user, issue.domain_id)
+
     result = await db.execute(
         select(RemediationProposal)
         .where(RemediationProposal.issue_id == issue_id)
@@ -418,6 +423,12 @@ async def approve_remediation_proposal(
 ):
     from app.db.models import RemediationProposal
     from app.services import remediation_service
+
+    issue_result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = issue_result.scalar_one_or_none()
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    check_domain_access(user, issue.domain_id)
 
     result = await db.execute(
         select(RemediationProposal).where(
@@ -444,6 +455,12 @@ async def reject_remediation_proposal(
     user=Depends(require_write),
 ):
     from app.db.models import RemediationProposal
+
+    issue_result = await db.execute(select(Issue).where(Issue.issue_id == issue_id))
+    issue = issue_result.scalar_one_or_none()
+    if not issue:
+        raise HTTPException(404, "Issue not found")
+    check_domain_access(user, issue.domain_id)
 
     result = await db.execute(
         select(RemediationProposal).where(

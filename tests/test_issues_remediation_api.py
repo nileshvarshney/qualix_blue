@@ -4,6 +4,19 @@ import pytest
 from fastapi import HTTPException
 
 ADMIN = {"email": "admin@example.com", "role": "admin", "user_id": "u1", "domain_id": None}
+DOMAIN_OWNER_OTHER = {
+    "email": "owner@example.com",
+    "role": "domain_owner",
+    "user_id": "u2",
+    "domain_id": "domain-other",
+}
+
+
+def _issue(**overrides):
+    issue = MagicMock()
+    issue.issue_id = overrides.get("issue_id", "iss-1")
+    issue.domain_id = overrides.get("domain_id", "dom-1")
+    return issue
 
 
 def _proposal(**overrides):
@@ -28,14 +41,18 @@ def _proposal(**overrides):
     return p
 
 
+def _result(value):
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = value
+    return result
+
+
 @pytest.mark.asyncio
 async def test_get_remediation_proposal_returns_latest():
     from app.api.issues import get_remediation_proposal
 
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = _proposal()
-    db.execute.return_value = result
+    db.execute.side_effect = [_result(_issue()), _result(_proposal())]
 
     out = await get_remediation_proposal("iss-1", db=db, user=ADMIN)
     assert out["proposal_id"] == "prop-1"
@@ -47,12 +64,22 @@ async def test_get_remediation_proposal_returns_none_when_absent():
     from app.api.issues import get_remediation_proposal
 
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = None
-    db.execute.return_value = result
+    db.execute.side_effect = [_result(_issue()), _result(None)]
 
     out = await get_remediation_proposal("iss-1", db=db, user=ADMIN)
     assert out is None
+
+
+@pytest.mark.asyncio
+async def test_get_remediation_proposal_enforces_domain_access():
+    from app.api.issues import get_remediation_proposal
+
+    db = AsyncMock()
+    db.execute.side_effect = [_result(_issue(domain_id="dom-1"))]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_remediation_proposal("iss-1", db=db, user=DOMAIN_OWNER_OTHER)
+    assert exc_info.value.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -61,9 +88,7 @@ async def test_approve_remediation_proposal_calls_apply_proposal():
 
     proposal = _proposal(status="pending")
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = proposal
-    db.execute.return_value = result
+    db.execute.side_effect = [_result(_issue()), _result(proposal)]
 
     applied = _proposal(status="applied")
     with patch("app.services.remediation_service.apply_proposal", new_callable=AsyncMock, return_value=applied) as mock_apply:
@@ -79,13 +104,23 @@ async def test_approve_remediation_proposal_rejects_non_pending():
 
     proposal = _proposal(status="rejected")
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = proposal
-    db.execute.return_value = result
+    db.execute.side_effect = [_result(_issue()), _result(proposal)]
 
     with pytest.raises(HTTPException) as exc_info:
         await approve_remediation_proposal("iss-1", "prop-1", db=db, user=ADMIN)
     assert exc_info.value.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_approve_remediation_proposal_enforces_domain_access():
+    from app.api.issues import approve_remediation_proposal
+
+    db = AsyncMock()
+    db.execute.side_effect = [_result(_issue(domain_id="dom-1"))]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await approve_remediation_proposal("iss-1", "prop-1", db=db, user=DOMAIN_OWNER_OTHER)
+    assert exc_info.value.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -94,12 +129,22 @@ async def test_reject_remediation_proposal_sets_status():
 
     proposal = _proposal(status="pending")
     db = AsyncMock()
-    result = MagicMock()
-    result.scalar_one_or_none.return_value = proposal
     db.commit = AsyncMock()
-    db.execute.return_value = result
+    db.execute.side_effect = [_result(_issue()), _result(proposal)]
 
     out = await reject_remediation_proposal("iss-1", "prop-1", db=db, user=ADMIN)
     assert proposal.status == "rejected"
     assert proposal.decided_by == "admin@example.com"
     assert out["status"] == "rejected"
+
+
+@pytest.mark.asyncio
+async def test_reject_remediation_proposal_enforces_domain_access():
+    from app.api.issues import reject_remediation_proposal
+
+    db = AsyncMock()
+    db.execute.side_effect = [_result(_issue(domain_id="dom-1"))]
+
+    with pytest.raises(HTTPException) as exc_info:
+        await reject_remediation_proposal("iss-1", "prop-1", db=db, user=DOMAIN_OWNER_OTHER)
+    assert exc_info.value.status_code == 403
