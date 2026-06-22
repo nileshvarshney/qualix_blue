@@ -260,3 +260,76 @@ async def quality_events_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ── Continuous Monitoring Configuration ───────────────────────────────────────
+
+from pydantic import BaseModel
+from app.db.models import ContinuousMonitoringConfig, SnowflakeConnection
+
+
+class ContinuousConfigUpdate(BaseModel):
+    connection_id: str
+    interval_minutes: int = 15
+    is_enabled: bool = True
+    freshness_enabled: bool = True
+    volume_enabled: bool = True
+    schema_drift_enabled: bool = True
+    distribution_enabled: bool = True
+
+
+async def _serialize_connections(db: AsyncSession) -> dict:
+    result = await db.execute(
+        select(ContinuousMonitoringConfig, SnowflakeConnection)
+        .join(SnowflakeConnection, SnowflakeConnection.connection_id == ContinuousMonitoringConfig.connection_id)
+    )
+    rows = result.all()
+    connections = []
+    for config, conn in rows:
+        next_check_at = None
+        if config.last_run_at is not None:
+            next_check_at = (config.last_run_at + timedelta(minutes=config.interval_minutes)).isoformat()
+        connections.append({
+            "connection_id": config.connection_id,
+            "name": conn.connection_name,
+            "interval_minutes": config.interval_minutes,
+            "is_enabled": config.is_enabled,
+            "freshness_enabled": config.freshness_enabled,
+            "volume_enabled": config.volume_enabled,
+            "schema_drift_enabled": config.schema_drift_enabled,
+            "distribution_enabled": config.distribution_enabled,
+            "next_check_at": next_check_at,
+        })
+    return {"connections": connections}
+
+
+@router.get("/continuous-config")
+async def get_continuous_config(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    return await _serialize_connections(db)
+
+
+@router.post("/continuous-config")
+async def update_continuous_config(
+    body: ContinuousConfigUpdate,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(ContinuousMonitoringConfig).where(
+            ContinuousMonitoringConfig.connection_id == body.connection_id
+        )
+    )
+    config = result.scalar_one_or_none()
+    if config is None:
+        config = ContinuousMonitoringConfig(connection_id=body.connection_id)
+        db.add(config)
+
+    config.interval_minutes = body.interval_minutes
+    config.is_enabled = body.is_enabled
+    config.freshness_enabled = body.freshness_enabled
+    config.volume_enabled = body.volume_enabled
+    config.schema_drift_enabled = body.schema_drift_enabled
+    config.distribution_enabled = body.distribution_enabled
+
+    await db.commit()
+    return await _serialize_connections(db)
