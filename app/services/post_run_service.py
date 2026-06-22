@@ -76,12 +76,19 @@ async def _run(run_id: str, asset_id: str, db) -> None:
         except Exception as e:
             logger.warning(f"post_run: explain_anomaly failed for detection {detection_info.get('detection_id')}: {e}")
 
-    # ── Step 4: Auto-create Issue for failures ────────────────────────────────
+    # ── Step 4: Auto-create Issue for failures, then propose a remediation ───
     if run.status == "failed":
+        issue = None
         try:
-            await _auto_create_issue(run, rule, asset, db)
+            issue = await _auto_create_issue(run, rule, asset, db)
         except Exception as e:
             logger.warning(f"post_run: issue creation failed for run {run_id}: {e}")
+        if issue is not None:
+            try:
+                from app.services import remediation_service
+                await remediation_service.generate_proposal(issue, run, rule, db)
+            except Exception as e:
+                logger.warning(f"post_run: remediation proposal generation failed for run {run_id}: {e}")
 
     # ── Step 5: Enrich existing DQAlert with AI explanation ──────────────────
     if explanation:
@@ -120,7 +127,7 @@ async def _trigger_anomaly_detection(asset_id: str, db) -> Optional[dict]:
     return await run_zscore_detector(detector.detector_id, db)
 
 
-async def _auto_create_issue(run, rule, asset, db) -> None:
+async def _auto_create_issue(run, rule, asset, db) -> Optional["Issue"]:
     from sqlalchemy import select
     from app.db.models import Issue
     from app.services import ai_service
@@ -132,9 +139,10 @@ async def _auto_create_issue(run, rule, asset, db) -> None:
             Issue.status.not_in(["closed", "resolved"]),
         )
     )
-    if existing.scalar_one_or_none() is not None:
+    existing_issue = existing.scalar_one_or_none()
+    if existing_issue is not None:
         logger.debug(f"post_run: open issue exists for rule {rule.rule_id} — skipping creation")
-        return
+        return existing_issue
 
     description = f"Rule '{rule.rule_name}' failed. Manual investigation required."
     try:
@@ -167,7 +175,9 @@ async def _auto_create_issue(run, rule, asset, db) -> None:
     )
     db.add(issue)
     await db.commit()
+    await db.refresh(issue)
     logger.info(f"post_run: auto-created issue for rule {rule.rule_id} on asset {asset.asset_id}")
+    return issue
 
 
 async def _enrich_alert(run_id: str, explanation: str, db) -> None:
