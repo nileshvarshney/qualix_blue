@@ -920,6 +920,51 @@ class AssetMonitoringMetric(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
 
 
+class ContinuousMonitoringConfig(Base):
+    __tablename__ = "continuous_monitoring_configs"
+
+    config_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    connection_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("snowflake_connections.connection_id", ondelete="CASCADE"),
+        nullable=False, unique=True,
+    )
+    interval_minutes: Mapped[int] = mapped_column(Integer, default=15)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    freshness_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    volume_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    schema_drift_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    distribution_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class VolumeBaseline(Base):
+    __tablename__ = "volume_baselines"
+
+    asset_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), primary_key=True
+    )
+    readings: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class DistributionBaseline(Base):
+    __tablename__ = "distribution_baselines"
+    __table_args__ = (
+        UniqueConstraint("asset_id", "column_name", name="uq_dist_baseline_asset_col"),
+    )
+
+    baseline_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id", ondelete="CASCADE"), nullable=False)
+    column_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    baseline_min: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_max: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_avg: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    baseline_std_dev: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    established_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class SLABreachPrediction(Base):
     __tablename__ = "sla_breach_predictions"
 
