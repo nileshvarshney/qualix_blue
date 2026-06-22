@@ -370,13 +370,14 @@ export default function GovernancePage() {
   useEffect(() => { loadData() }, [loadData])
   useEffect(() => { if (tab === 'violations' && !violationsLoaded) loadViolations() }, [tab, violationsLoaded, loadViolations])
   useEffect(() => {
-    if (tab === 'approvals') {
-      if (!approvalsLoaded) loadApprovals()
-      // load notification config and history when entering approvals tab
-      fetch('/api/governance/notification-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setNotifConfig(d) }).catch(() => {})
-      loadApprovalHistory()
-    }
-  }, [tab, approvalsLoaded, loadApprovals, loadApprovalHistory])
+    if (tab === 'approvals' && !approvalsLoaded) loadApprovals()
+  }, [tab, approvalsLoaded, loadApprovals])
+  useEffect(() => {
+    if (tab !== 'approvals') return
+    // load notification config and history once on tab entry
+    fetch('/api/governance/notification-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setNotifConfig(d) }).catch(() => {})
+    loadApprovalHistory()
+  }, [tab, loadApprovalHistory])
   useEffect(() => {
     if (approvalFilter !== 'rule') setPendingRulesLoaded(false)
     if (tab === 'approvals') { setApprovalsLoaded(false); loadApprovals() }
