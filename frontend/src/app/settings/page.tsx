@@ -712,7 +712,7 @@ export default function SettingsPage() {
                     {
                       name: 'Data Observability Engine',
                       where: 'Dashboard & Datasets',
-                      status: 'Not built — rules fire on schedule, no automatic detection',
+                      status: 'Built — continuous per-connection checks for freshness, volume, schema drift, and distribution shift, independent of scheduled rules',
                       desc: 'The platform currently only detects quality issues when a scheduled rule runs. There is no automatic detection of: table freshness (when was this table last loaded?), volume anomalies (row count dropped by 40% vs yesterday), schema drift (a column was dropped or its type changed), or distribution shifts (the range of a numeric column changed significantly). These checks should run continuously and independently of user-defined rules — firing alerts the moment a structural change or data absence is detected, which is often the earliest signal that an upstream pipeline has failed.',
                     },
                     {
