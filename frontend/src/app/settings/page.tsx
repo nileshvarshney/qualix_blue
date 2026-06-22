@@ -627,9 +627,9 @@ export default function SettingsPage() {
                     },
                     {
                       name: 'Agentic Monitoring & Auto-Remediation',
-                      where: 'Issues page & Schedules',
-                      status: 'Not built',
-                      desc: 'Today when a scheduled rule fails, a human must open the Issues page, investigate manually, and decide what to do. An autonomous agent should handle the first-response loop automatically: detect the failure from the execution log, classify it as a known pattern (e.g. late load, threshold drift, upstream schema change), propose a specific fix (e.g. "adjust null threshold from 5% to 8% based on the last 30 days of data"), and — with one-click human approval — apply the change and trigger a re-run. For well-understood recurring issues, fully automated remediation (no approval required) should be configurable.',
+                      where: 'Issues page & Observability page',
+                      status: 'Implemented — auto-detection, AI-proposed fixes, approve/reject UI, and configurable auto-apply',
+                      desc: 'When a scheduled rule fails, the post-run pipeline now classifies the failure (auto-fixable — freshness, volume, range, and distribution-consistency checks with a tunable parameter — vs. escalation-only for everything else), computes a concrete proposed fix from recent run history, and asks the AI provider to phrase the action with a confidence label. The proposal appears on the Issue detail panel with Apply Fix / Reject (or Acknowledge for escalation-only issues). The Observability page\'s Auto-Remediation panel — enable, rule-type whitelist — is now wired to a real backend: when enabled and the rule type is whitelisted (and severity is not critical), the fix is applied and the rule re-run automatically, resolving the issue if it passes.',
                     },
                   ],
                 },
