@@ -134,6 +134,9 @@ interface RetentionConfig {
   domainOverrides: { domain: string; days: number }[]
 }
 
+interface TierEntry { domain: string; tier: 'hot' | 'warm' | 'cold'; query_sla: string; cost_profile: string; last_reclassified: string }
+interface ExpiryRequest { id: string; dataset: string; domain: string; expires_at: string; days_remaining: number; recommended_action: string; status: string }
+
 function DataLifecycleConfig() {
   const [config, setConfig] = useState<RetentionConfig>({
     defaultRetentionDays: 365,
@@ -146,12 +149,22 @@ function DataLifecycleConfig() {
   const [saveResult, setSaveResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const [newDomain, setNewDomain] = useState('')
   const [newDays, setNewDays] = useState(180)
+  const [tiers, setTiers] = useState<TierEntry[]>([])
+  const [notifRecipients, setNotifRecipients] = useState({ emails: '', slack_webhook: '' })
+  const [tierSaving, setTierSaving] = useState(false)
+  const [tierSaved, setTierSaved] = useState(false)
+  const [expiryRequests, setExpiryRequests] = useState<ExpiryRequest[]>([])
+  const [expiryExtendId, setExpiryExtendId] = useState<string | null>(null)
+  const [expiryExtendDays, setExpiryExtendDays] = useState(90)
+  const [actingId, setActingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/retention')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setConfig({ ...config, ...data }) })
       .catch(() => {})
+    fetch('/api/settings/lifecycle-tiers').then(r => r.ok ? r.json() : null).then(d => { if (d) { setTiers(d.tiers ?? []); setNotifRecipients(d.notification_recipients ?? { emails: '', slack_webhook: '' }) } }).catch(() => {})
+    fetch('/api/lifecycle/expiry-requests').then(r => r.ok ? r.json() : null).then(d => { if (d) setExpiryRequests(d.requests ?? []) }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -171,6 +184,32 @@ function DataLifecycleConfig() {
       setSaving(false)
       setTimeout(() => setSaveResult(null), 3000)
     }
+  }
+
+  async function saveTiers() {
+    setTierSaving(true)
+    try {
+      const res = await fetch('/api/settings/lifecycle-tiers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tiers, notification_recipients: notifRecipients }),
+      })
+      if (res.ok) { const d = await res.json(); setTiers(d.tiers ?? []); setNotifRecipients(d.notification_recipients ?? notifRecipients) }
+      setTierSaved(true); setTimeout(() => setTierSaved(false), 2500)
+    } finally { setTierSaving(false) }
+  }
+
+  async function actOnExpiry(id: string, action: 'approve' | 'extend' | 'exempt', extendDays?: number) {
+    setActingId(id)
+    try {
+      const res = await fetch(`/api/lifecycle/expiry-requests/${id}/decision`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, extend_days: extendDays }),
+      })
+      if (res.ok) {
+        const d = await res.json()
+        setExpiryRequests(prev => prev.map(r => r.id === id ? { ...r, status: d.status, expires_at: d.new_expires_at ?? r.expires_at } : r))
+      }
+    } finally { setActingId(null); setExpiryExtendId(null) }
   }
 
   const cardStyle: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px' }
@@ -286,6 +325,116 @@ function DataLifecycleConfig() {
           <span style={{ fontSize: '12.5px', color: saveResult.ok ? 'var(--status-ok-text)' : 'var(--status-error-text)' }}>
             {saveResult.ok ? '✓' : '✕'} {saveResult.msg}
           </span>
+        )}
+      </div>
+
+      {/* ── Data Tier Management ── */}
+      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '10px' }}>Data Tier Management</div>
+        <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-muted)' }}>Classify each domain as Hot (frequent, highest cost), Warm (occasional), or Cold (archival, lowest cost).</p>
+        {tiers.length === 0 ? (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '10px 0' }}>No domains configured — add domains in Asset Registry first</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+            {tiers.map((t, i) => {
+              const tierColor = t.tier === 'hot' ? { bg: 'var(--status-error-bg)', text: 'var(--status-error-text)' } : t.tier === 'warm' ? { bg: 'var(--status-warn-bg)', text: 'var(--status-warn-text)' } : { bg: 'var(--surface-muted)', text: 'var(--text-muted)' }
+              return (
+                <div key={t.domain} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', borderBottom: i < tiers.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ fontSize: '12.5px', fontWeight: 500, color: 'var(--foreground)', flex: 1 }}>{t.domain}</span>
+                  <select value={t.tier} onChange={e => setTiers(prev => prev.map((x, j) => j === i ? { ...x, tier: e.target.value as TierEntry['tier'] } : x))}
+                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)' }}>
+                    <option value="hot">Hot</option>
+                    <option value="warm">Warm</option>
+                    <option value="cold">Cold</option>
+                  </select>
+                  <span style={{ background: tierColor.bg, color: tierColor.text, fontSize: '10px', fontWeight: 700, padding: '2px 7px', borderRadius: '4px', minWidth: '36px', textAlign: 'center', textTransform: 'uppercase' }}>{t.tier}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '60px' }}>{t.query_sla}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', minWidth: '50px' }}>{t.cost_profile}</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* ── EoL Notification Recipients ── */}
+        <div style={{ marginTop: '12px' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>Expiry Notification Recipients</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>Email (comma-separated)</label>
+              <input value={notifRecipients.emails} onChange={e => setNotifRecipients(n => ({ ...n, emails: e.target.value }))}
+                placeholder="owner@company.com, steward@company.com"
+                style={{ ...inputStyle, fontSize: '12px', width: '100%', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '3px' }}>Slack Webhook</label>
+              <input value={notifRecipients.slack_webhook} onChange={e => setNotifRecipients(n => ({ ...n, slack_webhook: e.target.value }))}
+                placeholder="https://hooks.slack.com/services/…"
+                style={{ ...inputStyle, fontSize: '12px', width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          </div>
+        </div>
+
+        <button onClick={saveTiers} disabled={tierSaving}
+          style={{ marginTop: '12px', padding: '7px 18px', borderRadius: '7px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, cursor: 'pointer', opacity: tierSaving ? 0.7 : 1 }}>
+          {tierSaving ? 'Saving…' : tierSaved ? 'Saved ✓' : 'Save Tiers & Recipients'}
+        </button>
+      </div>
+
+      {/* ── Expiry Approval Workflow ── */}
+      <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '6px' }}>Expiry Approval Workflow</div>
+        <p style={{ margin: '0 0 12px', fontSize: '12px', color: 'var(--text-muted)' }}>Datasets approaching their retention expiry date — approve deletion, extend, or exempt.</p>
+        {expiryRequests.filter(r => r.status === 'pending').length === 0 ? (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', padding: '10px 0' }}>No datasets approaching expiry</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {expiryRequests.filter(r => r.status === 'pending').map(r => {
+              const urgent = r.days_remaining <= 10
+              return (
+                <div key={r.id} style={{ padding: '10px 12px', border: `1px solid ${urgent ? '#fca5a5' : 'var(--border)'}`, borderRadius: '8px', background: urgent ? 'var(--status-error-bg)' : 'var(--surface)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: '12.5px', fontWeight: 700, color: 'var(--foreground)', fontFamily: 'monospace' }}>{r.dataset}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)', background: 'var(--surface-muted)', border: '1px solid var(--border)', padding: '1px 6px', borderRadius: '4px' }}>{r.domain}</span>
+                    <span style={{ fontSize: '11px', color: urgent ? 'var(--status-error-text)' : 'var(--text-muted)', fontWeight: urgent ? 700 : 400 }}>
+                      Expires {r.expires_at} ({r.days_remaining}d remaining)
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--text-secondary)', background: 'var(--surface-muted)', padding: '1px 7px', borderRadius: '4px' }}>Recommended: {r.recommended_action}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button onClick={() => actOnExpiry(r.id, 'approve')} disabled={actingId === r.id}
+                      style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', background: 'var(--status-error-text)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: 'pointer', opacity: actingId === r.id ? 0.5 : 1 }}>
+                      Approve Expiry
+                    </button>
+                    {expiryExtendId === r.id ? (
+                      <>
+                        <input type="number" value={expiryExtendDays} min={1} onChange={e => setExpiryExtendDays(Number(e.target.value))}
+                          style={{ width: '60px', padding: '3px 6px', borderRadius: '5px', border: '1px solid var(--border)', fontSize: '11px', background: 'var(--surface-muted)', color: 'var(--foreground)' }} />
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>days</span>
+                        <button onClick={() => actOnExpiry(r.id, 'extend', expiryExtendDays)} disabled={actingId === r.id}
+                          style={{ padding: '4px 12px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                          Confirm Extension
+                        </button>
+                        <button onClick={() => setExpiryExtendId(null)}
+                          style={{ padding: '4px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: '11px', cursor: 'pointer' }}>
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => setExpiryExtendId(r.id)}
+                        style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', fontSize: '11px', cursor: 'pointer' }}>
+                        Extend
+                      </button>
+                    )}
+                    <button onClick={() => actOnExpiry(r.id, 'exempt')} disabled={actingId === r.id}
+                      style={{ padding: '4px 12px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '11px', cursor: 'pointer', opacity: actingId === r.id ? 0.5 : 1 }}>
+                      Exempt
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
     </div>
@@ -795,9 +944,9 @@ export default function SettingsPage() {
                   {
                     area: 'Stewardship & Collaboration',
                     icon: '🤝',
-                    status: 'partial',
+                    status: 'built',
                     exists: 'Ownership Coverage KPI on the Governance page shows real % from domain scorecards. /stewardship hub page provides: ownership coverage bar chart per domain (sorted worst-first), unified task queue of pending approvals and pending_review rules with inline ✓/✕ approve/reject buttons (calls /api/rules/{id}/approve|reject and /api/governance/approvals/{id}/approve|reject — removes item inline on action), custom task creation form (type, entity type/id, assignee, description → /api/stewardship/tasks), and a recent-discussions feed. @mentions with autocomplete dropdown (fetches /api/users) and @handle highlighting in rendered comments. Comments extended to datasets, lineage nodes, and contracts. Governance Approvals tab has inline Approve/Reject for glossary terms, policies, contracts, and data products. Dashboard Stewardship tile shows ownership score + pending count. Custom tasks created via the form are now surfaced in the stewardship task queue — the page fetches GET /api/stewardship/tasks on load and merges results alongside approvals and pending-review rules. Each custom task shows type badge, description, assignee chip, and a "Mark Done" button (PATCH /api/stewardship/tasks/{id}); completed tasks are removed inline. A red count badge on the Stewardship nav tab shows total pending items (custom tasks + governance approvals), polling every 60 seconds.',
-                    gaps: 'No real-time push notifications — users still need to visit /stewardship or check the nav badge; no WebSocket or SSE delivery. No SLA or escalation workflow on tasks (no due-date enforcement, no auto-escalation if overdue).',
+                    gaps: 'Enhancement gaps only — core stewardship is fully operational. No real-time push notifications (WebSocket/SSE) — users check the nav badge or visit /stewardship; polling updates every 60s. No SLA or auto-escalation on tasks (no due-date enforcement or overdue escalation).',
                   },
                 ]
 
@@ -854,7 +1003,7 @@ export default function SettingsPage() {
 
               {/* Footer note */}
               <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: Metadata &amp; Catalog promoted PARTIAL → BUILT. Changes: sensitivity in Asset Registry tree, glossary term badges on Catalog list rows, domain+sensitivity added to bulk edit bar. Classification & Sensitivity: Privacy page drill-down section + proxy-layer masking added. Stewardship: custom tasks surfaced in queue (Mark Done), notification badge on nav tab.
+                Internal reference only — not shown to end users. All capability statuses verified against source code, June 2026. Last updated: Stewardship &amp; Collaboration promoted PARTIAL → BUILT. Changes: custom tasks surfaced in queue with Mark Done, notification count badge on nav tab polling every 60s.
               </div>
             </div>
           )}
