@@ -950,6 +950,43 @@ class CorrelatedIncident(Base):
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
+class RemediationProposal(Base):
+    __tablename__ = "dq_remediation_proposals"
+
+    proposal_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    issue_id: Mapped[str] = mapped_column(String(36), ForeignKey("dq_issues.issue_id"), nullable=False, index=True)
+    rule_id: Mapped[str] = mapped_column(String(36), ForeignKey("dq_rules.rule_id"), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(36), ForeignKey("dq_rule_runs.run_id"), nullable=False)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.asset_id"), nullable=False)
+    rule_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    classification: Mapped[str] = mapped_column(String(20), nullable=False)
+    proposed_action: Mapped[str] = mapped_column(Text, nullable=False)
+    config_field: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    old_value: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    new_value: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    confidence: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    decided_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    decided_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    rerun_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
+class RemediationExecution(Base):
+    __tablename__ = "dq_remediation_executions"
+
+    execution_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    proposal_id: Mapped[str] = mapped_column(String(36), ForeignKey("dq_remediation_proposals.proposal_id"), nullable=False, index=True)
+    applied_field: Mapped[str] = mapped_column(String(50), nullable=False)
+    applied_old_value: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    applied_new_value: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    triggered_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    rerun_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    rerun_run_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+
 class QualityCostConfig(Base):
     __tablename__ = "quality_cost_configs"
 

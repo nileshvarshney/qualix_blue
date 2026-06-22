@@ -91,6 +91,9 @@ CONFIG_DEFAULTS: list[dict] = [
     {"category": "quality", "key": "high_penalty",      "value": "15", "is_secret": False, "description": "Points deducted per high severity rule failure."},
     {"category": "quality", "key": "medium_penalty",    "value": "7",  "is_secret": False, "description": "Points deducted per medium severity rule failure."},
     {"category": "quality", "key": "low_penalty",       "value": "3",  "is_secret": False, "description": "Points deducted per low severity rule failure."},
+    {"category": "quality", "key": "auto_remediation_enabled",    "value": "false", "is_secret": False, "description": "Allow well-understood recurring rule failures to be auto-remediated without human approval."},
+    {"category": "quality", "key": "auto_remediation_threshold",  "value": "10",    "is_secret": False, "description": "Quality-score-drop %% that would trigger auto-remediation review (reserved for future use)."},
+    {"category": "quality", "key": "auto_remediation_rule_types", "value": "[]",    "is_secret": False, "description": "JSON array of rule_types eligible for auto-remediation without approval, e.g. [\"freshness_check\"]."},
 ]
 
 
