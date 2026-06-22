@@ -370,3 +370,95 @@ async def get_issue_audit(issue_id: str, db: AsyncSession = Depends(get_db), use
             for l in logs
         ]
     }
+
+
+def _fmt_proposal(p) -> dict:
+    return {
+        "proposal_id": p.proposal_id,
+        "issue_id": p.issue_id,
+        "rule_id": p.rule_id,
+        "run_id": p.run_id,
+        "asset_id": p.asset_id,
+        "rule_type": p.rule_type,
+        "classification": p.classification,
+        "proposed_action": p.proposed_action,
+        "config_field": p.config_field,
+        "old_value": p.old_value,
+        "new_value": p.new_value,
+        "confidence": p.confidence,
+        "status": p.status,
+        "decided_by": p.decided_by,
+        "decided_at": p.decided_at.isoformat() if p.decided_at else None,
+        "rerun_run_id": p.rerun_run_id,
+        "created_at": p.created_at.isoformat() if p.created_at else None,
+    }
+
+
+@router.get("/{issue_id}/remediation-proposal")
+async def get_remediation_proposal(issue_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    from app.db.models import RemediationProposal
+
+    result = await db.execute(
+        select(RemediationProposal)
+        .where(RemediationProposal.issue_id == issue_id)
+        .order_by(desc(RemediationProposal.created_at))
+    )
+    proposal = result.scalar_one_or_none()
+    if not proposal:
+        return None
+    return _fmt_proposal(proposal)
+
+
+@router.post("/{issue_id}/remediation-proposal/{proposal_id}/approve")
+async def approve_remediation_proposal(
+    issue_id: str,
+    proposal_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    from app.db.models import RemediationProposal
+    from app.services import remediation_service
+
+    result = await db.execute(
+        select(RemediationProposal).where(
+            RemediationProposal.proposal_id == proposal_id, RemediationProposal.issue_id == issue_id
+        )
+    )
+    proposal = result.scalar_one_or_none()
+    if not proposal:
+        raise HTTPException(404, "Remediation proposal not found")
+    if proposal.status != "pending":
+        raise HTTPException(400, f"Cannot approve a proposal with status '{proposal.status}'")
+    if proposal.classification != "auto_fixable":
+        raise HTTPException(400, "Escalation-only proposals cannot be applied — acknowledge them instead")
+
+    updated = await remediation_service.apply_proposal(proposal, user.get("email"), db)
+    return _fmt_proposal(updated)
+
+
+@router.post("/{issue_id}/remediation-proposal/{proposal_id}/reject")
+async def reject_remediation_proposal(
+    issue_id: str,
+    proposal_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(require_write),
+):
+    from app.db.models import RemediationProposal
+
+    result = await db.execute(
+        select(RemediationProposal).where(
+            RemediationProposal.proposal_id == proposal_id, RemediationProposal.issue_id == issue_id
+        )
+    )
+    proposal = result.scalar_one_or_none()
+    if not proposal:
+        raise HTTPException(404, "Remediation proposal not found")
+    if proposal.status != "pending":
+        raise HTTPException(400, f"Cannot reject a proposal with status '{proposal.status}'")
+
+    proposal.status = "rejected"
+    proposal.decided_by = user.get("email")
+    proposal.decided_at = model_now()
+    await db.commit()
+    await db.refresh(proposal)
+    return _fmt_proposal(proposal)
