@@ -841,9 +841,14 @@ async def get_auto_remediate_config(
     except Exception:
         rule_types = []
 
+    try:
+        threshold_value = int(threshold) if threshold else 0
+    except (TypeError, ValueError):
+        threshold_value = 0
+
     return {
         "enabled": enabled == "true",
-        "threshold": int(threshold) if threshold else 0,
+        "threshold": threshold_value,
         "rule_types": rule_types,
         "last_updated": None,
     }
@@ -858,8 +863,11 @@ async def update_auto_remediate_config(
     from app.services import config_service
     import json as _j
 
-    await config_service.set_value("auto_remediation_enabled", "true" if body.enabled else "false", user.get("email"), db)
-    await config_service.set_value("auto_remediation_threshold", str(body.threshold), user.get("email"), db)
-    await config_service.set_value("auto_remediation_rule_types", _j.dumps(body.rule_types), user.get("email"), db)
+    try:
+        await config_service.set_value("auto_remediation_enabled", "true" if body.enabled else "false", user.get("email"), db)
+        await config_service.set_value("auto_remediation_threshold", str(body.threshold), user.get("email"), db)
+        await config_service.set_value("auto_remediation_rule_types", _j.dumps(body.rule_types), user.get("email"), db)
+    except ValueError as e:
+        raise HTTPException(500, str(e))
 
     return await get_auto_remediate_config(db=db, user=user)
