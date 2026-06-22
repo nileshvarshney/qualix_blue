@@ -62,8 +62,10 @@ interface RemediateConfig {
 }
 
 interface ContinuousConfig {
-  connection_id: string; name: string; interval_minutes: number
-  freshness_enabled: boolean; volume_enabled: boolean; next_check_at: string | null
+  connection_id: string; name: string; interval_minutes: number; is_enabled: boolean
+  freshness_enabled: boolean; volume_enabled: boolean
+  schema_drift_enabled: boolean; distribution_enabled: boolean
+  next_check_at: string | null
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -202,7 +204,11 @@ export default function ObservabilityPage() {
 
   // Continuous monitoring config
   const [contConfigs, setContConfigs] = useState<ContinuousConfig[]>([])
-  const [contDraft, setContDraft] = useState({ connection_id: '', interval_minutes: 15, freshness_enabled: true, volume_enabled: true })
+  const [contDraft, setContDraft] = useState({
+    connection_id: '', interval_minutes: 15, is_enabled: true,
+    freshness_enabled: true, volume_enabled: true,
+    schema_drift_enabled: true, distribution_enabled: true,
+  })
   const [contSaving, setContSaving] = useState(false)
   const [contSaved, setContSaved] = useState(false)
 
@@ -833,11 +839,14 @@ export default function ObservabilityPage() {
           {contConfigs.length > 0 && (
             <div style={{ marginBottom: '14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
               {contConfigs.map(c => (
-                <div key={c.connection_id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface-muted)', borderRadius: '6px' }}>
+                <div key={c.connection_id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', background: 'var(--surface-muted)', borderRadius: '6px', opacity: c.is_enabled ? 1 : 0.55 }}>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1 }}>{c.name || c.connection_id}</span>
+                  {!c.is_enabled && <span style={{ fontSize: '10px', background: 'var(--surface)', color: 'var(--text-muted)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>paused</span>}
                   <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>every {c.interval_minutes}m</span>
                   {c.freshness_enabled && <span style={{ fontSize: '10px', background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>freshness</span>}
                   {c.volume_enabled && <span style={{ fontSize: '10px', background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>volume</span>}
+                  {c.schema_drift_enabled && <span style={{ fontSize: '10px', background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>schema drift</span>}
+                  {c.distribution_enabled && <span style={{ fontSize: '10px', background: 'var(--status-warn-bg)', color: 'var(--status-warn-text)', padding: '1px 6px', borderRadius: '4px', fontWeight: 600 }}>distribution</span>}
                   {c.next_check_at && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>next: {c.next_check_at.slice(11, 16)}</span>}
                 </div>
               ))}
@@ -867,6 +876,19 @@ export default function ObservabilityPage() {
                 <input type="checkbox" checked={contDraft.volume_enabled} onChange={e => setContDraft(d => ({ ...d, volume_enabled: e.target.checked }))} />
                 Volume
               </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={contDraft.schema_drift_enabled} onChange={e => setContDraft(d => ({ ...d, schema_drift_enabled: e.target.checked }))} />
+                Schema Drift
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={contDraft.distribution_enabled} onChange={e => setContDraft(d => ({ ...d, distribution_enabled: e.target.checked }))} />
+                Distribution
+              </label>
+              <button onClick={() => setContDraft(d => ({ ...d, is_enabled: !d.is_enabled }))}
+                style={{ width: '40px', height: '22px', borderRadius: '11px', border: 'none', background: contDraft.is_enabled ? '#16a34a' : 'var(--border)', cursor: 'pointer', position: 'relative', flexShrink: 0 }}
+                title={contDraft.is_enabled ? 'Enabled — click to pause' : 'Paused — click to resume'}>
+                <span style={{ position: 'absolute', top: '2px', left: contDraft.is_enabled ? '20px' : '2px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              </button>
               <button onClick={saveContConfig} disabled={contSaving || !contDraft.connection_id}
                 style={{ padding: '6px 14px', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#fff', fontSize: '11px', fontWeight: 600, cursor: contDraft.connection_id ? 'pointer' : 'not-allowed', opacity: (!contDraft.connection_id || contSaving) ? 0.6 : 1 }}>
                 {contSaving ? 'Saving…' : contSaved ? 'Saved ✓' : 'Save'}
