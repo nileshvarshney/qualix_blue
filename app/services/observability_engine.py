@@ -81,8 +81,7 @@ async def check_volume(asset: Asset, current_row_count: Optional[int], db: Async
                     ),
                 }
 
-    trim_to = min(max(len(prior_readings), 1), MAX_VOLUME_READINGS)
-    new_readings = (prior_readings + [current_row_count])[-trim_to:]
+    new_readings = (prior_readings + [current_row_count])[-MAX_VOLUME_READINGS:]
     if baseline:
         baseline.readings = new_readings
         baseline.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -398,6 +397,10 @@ async def _run_connection_checks(config: ContinuousMonitoringConfig, db: AsyncSe
                     await create_observability_alert(asset, finding, db)
         except Exception as exc:
             logger.error("Observability check failed for asset %s: %s", asset.asset_id, exc)
+            try:
+                await db.rollback()
+            except Exception:
+                pass
             continue
 
 

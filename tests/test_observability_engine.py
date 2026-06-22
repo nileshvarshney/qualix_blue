@@ -78,7 +78,7 @@ async def test_check_volume_drop_triggers_critical():
     finding = await check_volume(asset, 400, mock_db)  # 60% drop
     assert finding["alert_type"] == "volume_shift"
     assert finding["severity"] == "critical"
-    assert baseline.readings == [1000, 1000, 400]
+    assert baseline.readings == [1000, 1000, 1000, 400]
 
 
 @pytest.mark.asyncio
@@ -95,6 +95,35 @@ async def test_check_volume_within_threshold_no_finding():
 
     finding = await check_volume(asset, 950, mock_db)  # 5% drop
     assert finding is None
+
+
+@pytest.mark.asyncio
+async def test_check_volume_window_grows_across_calls():
+    """Regression test: the rolling window must grow (1, 2, 3, ...) up to
+    MAX_VOLUME_READINGS instead of staying stuck at size 1 after the first call."""
+    from app.services.observability_engine import check_volume
+
+    asset = MagicMock(asset_id="asset-1")
+    baseline = MagicMock()
+    baseline.readings = None  # cold start: no prior readings
+
+    mock_db = AsyncMock()
+    r = MagicMock()
+    r.scalar_one_or_none.return_value = baseline
+    mock_db.execute = AsyncMock(return_value=r)
+    mock_db.commit = AsyncMock()
+
+    await check_volume(asset, 1000, mock_db)
+    assert baseline.readings == [1000]
+
+    await check_volume(asset, 1000, mock_db)
+    assert baseline.readings == [1000, 1000]
+
+    await check_volume(asset, 1000, mock_db)
+    assert baseline.readings == [1000, 1000, 1000]
+
+    await check_volume(asset, 2000, mock_db)
+    assert baseline.readings == [1000, 1000, 1000, 2000]
 
 
 # ─── check_distribution ────────────────────────────────────────────────────────
