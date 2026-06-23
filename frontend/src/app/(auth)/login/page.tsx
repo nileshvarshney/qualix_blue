@@ -15,6 +15,8 @@ export default async function LoginPage({
       justifyContent: 'center',
       overflow: 'hidden',
       background: '#0f1117',
+      flexDirection: 'column',
+      gap: 24,
     }}>
       {/* Subtle radial glow behind the card */}
       <div style={{
@@ -25,21 +27,16 @@ export default async function LoginPage({
 
       <LoginCard returnUrl={returnUrl} />
 
-      {/* Floating brand badge — top-right */}
+      {/* Brand wordmark — below the card */}
       <div style={{
-        position: 'absolute', top: 20, right: 24, zIndex: 20,
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3,
-        background: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(8px)',
-        border: '1px solid rgba(255,255,255,0.09)',
-        borderRadius: 10,
-        padding: '8px 14px',
+        position: 'relative', zIndex: 10,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
       }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 0, lineHeight: 1 }}>
-          <span style={{ fontSize: 17, fontWeight: 300, color: 'rgba(255,255,255,0.90)', letterSpacing: '0.06em' }}>Qual</span>
-          <span style={{ fontSize: 17, fontWeight: 800, color: '#FF9050', letterSpacing: '-0.01em', fontStyle: 'italic' }}>ix</span>
+          <span style={{ fontSize: 34, fontWeight: 300, color: 'rgba(255,255,255,0.92)', letterSpacing: '0.07em' }}>Qual</span>
+          <span style={{ fontSize: 34, fontWeight: 800, color: '#FF9050', letterSpacing: '-0.01em', fontStyle: 'italic' }}>ix</span>
         </div>
-        <div style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500 }}>
+        <div style={{ fontSize: 19, color: 'rgba(255,255,255,0.50)', letterSpacing: '0.10em', textTransform: 'uppercase', fontWeight: 400 }}>
           AI Data Quality &amp; Governance
         </div>
       </div>
