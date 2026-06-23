@@ -36,10 +36,37 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
   const connRef = useRef<string | null>(null)
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(LS_KEY)
-      setConnections(raw ? JSON.parse(raw) : [])
-    } catch { setConnections([]) }
+    fetch('/api/connections')
+      .then(r => r.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setConnections(data.map((c: Record<string, unknown>) => ({
+            id: String(c.connection_id ?? c.id ?? ''),
+            name: String(c.connection_name ?? c.name ?? ''),
+            type: String(c.connection_type ?? c.type ?? '') as import('@/lib/types').ConnectionType,
+            status: String(c.status ?? 'active') as 'active' | 'inactive' | 'error',
+            host: String(c.host ?? ''),
+            database: String(c.database ?? ''),
+            createdAt: String(c.created_at ?? c.createdAt ?? new Date().toISOString()),
+            filterMode: (c.filterMode ?? 'exclude') as 'include' | 'exclude',
+            includedDatabases: Array.isArray(c.includedDatabases) ? c.includedDatabases as string[] : [],
+            includedSchemas: Array.isArray(c.includedSchemas) ? c.includedSchemas as { database: string; schema: string }[] : [],
+            excludedDatabases: Array.isArray(c.excludedDatabases) ? c.excludedDatabases as string[] : [],
+            excludedSchemas: Array.isArray(c.excludedSchemas) ? c.excludedSchemas as { database: string; schema: string }[] : [],
+          })))
+        } else {
+          try {
+            const raw = localStorage.getItem(LS_KEY)
+            setConnections(raw ? JSON.parse(raw) : [])
+          } catch { setConnections([]) }
+        }
+      })
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem(LS_KEY)
+          setConnections(raw ? JSON.parse(raw) : [])
+        } catch { setConnections([]) }
+      })
   }, [])
 
   // Poll job status

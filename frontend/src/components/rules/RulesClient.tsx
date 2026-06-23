@@ -95,6 +95,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   const [editDrawer, setEditDrawer] = useState<Rule | null>(null)
   const [drawerTab, setDrawerTab] = useState<'config' | 'failed-records'>('config')
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, { status: string; score: number }>>({})
   const router = useRouter()
@@ -413,6 +414,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   async function save() {
     if (!canSave) return
     setSaving(true)
+    setSaveError(null)
     const params: Record<string, unknown> = {}
     if (['range', 'range_check'].includes(form.type)) { if (form.paramMin) params.min = parseFloat(form.paramMin); if (form.paramMax) params.max = parseFloat(form.paramMax) }
     if (form.type === 'comparison_check') { params.operator = form.paramOperator; if (form.paramOperator === 'between') { if (form.paramMin) params.min = parseFloat(form.paramMin); if (form.paramMax) params.max = parseFloat(form.paramMax) } else { params.value = form.paramValue } }
@@ -431,17 +433,27 @@ export default function RulesClient({ initialRules, connections }: Props) {
     // For generic rules with no table, set to ALL_TABLES
     const tableName = form.tableName || (isGeneric ? 'ALL_TABLES' : '')
 
-    const res = await fetch('/api/rules', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: form.name, description: form.description, category: form.category, type: form.type, connectionId: form.connectionId, tableName, columnName: form.columnName || undefined, severity: form.severity, status: form.status, scope: form.scope, parameters: params })
-    })
-    const newRule = await res.json()
-    // New rules are always returned as pending_review (awaiting data stewards approval)
-    setRules(prev => [...prev, newRule])
-    setShowModal(false)
+    try {
+      const res = await fetch('/api/rules', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name, description: form.description, category: form.category, type: form.type, connectionId: form.connectionId, tableName, columnName: form.columnName || undefined, severity: form.severity, status: form.status, scope: form.scope, parameters: params })
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSaveError(String(data?.detail || data?.error || data?.message || `Error ${res.status}: failed to save rule`))
+        setSaving(false)
+        return
+      }
+      // New rules are always returned as pending_review (awaiting data stewards approval)
+      setRules(prev => [...prev, data])
+      setShowModal(false)
+      setSaveError(null)
+      setForm(f => ({ ...f, name: '', description: '', tableName: '', columnName: '', paramMin: '', paramMax: '', paramPattern: '', paramAge: '', paramRows: '', paramAcceptedValues: '', paramCondition: '', paramExpectedColumns: '', paramRefTable: '', paramRefColumn: '', paramValue: '', customSql: '', paramMetricSql: '', paramValidationPrompt: '' }))
+      router.refresh()
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Network error — could not save rule')
+    }
     setSaving(false)
-    setForm(f => ({ ...f, name: '', description: '', tableName: '', columnName: '', paramMin: '', paramMax: '', paramPattern: '', paramAge: '', paramRows: '', paramAcceptedValues: '', paramCondition: '', paramExpectedColumns: '', paramRefTable: '', paramRefColumn: '', paramValue: '', customSql: '', paramMetricSql: '', paramValidationPrompt: '' }))
-    router.refresh()
   }
 
   async function saveEdit() {
@@ -977,7 +989,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 <div style={{ fontSize: '17px', fontWeight: 700, color: 'var(--foreground)' }}>Add Quality Rule</div>
                 <div style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>Define a new data quality check</div>
               </div>
-              <button onClick={() => setShowModal(false)} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>✕</button>
+              <button onClick={() => { setShowModal(false); setSaveError(null) }} style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', width: '30px', height: '30px', borderRadius: '8px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '14px' }}>✕</button>
             </div>
 
             {/* Mode toggle */}
@@ -1170,8 +1182,15 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 </div>
               )}
 
+              {saveError && (
+                <div style={{ padding: '10px 14px', background: 'var(--status-error-bg)', border: '1px solid #fca5a5', borderRadius: '8px', fontSize: '12.5px', color: 'var(--status-error-text)', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                  <span style={{ flexShrink: 0 }}>⚠</span>
+                  <span>{saveError}</span>
+                </div>
+              )}
+
               <div style={{ display: 'flex', gap: '10px', paddingTop: '6px' }}>
-                <button onClick={() => setShowModal(false)} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
+                <button onClick={() => { setShowModal(false); setSaveError(null) }} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>Cancel</button>
                 <button onClick={save} disabled={saving || !canSave} style={{
                   flex: 2, padding: '10px', borderRadius: '8px', border: 'none', fontSize: '13px', fontWeight: 600,
                   cursor: canSave ? 'pointer' : 'not-allowed',

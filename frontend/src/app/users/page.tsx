@@ -119,6 +119,11 @@ export default function UsersPage() {
   }
 
   async function inviteUser() {
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+    if (!EMAIL_RE.test(inviteForm.email.trim())) {
+      setInviteError('Please enter a valid email address (e.g. user@example.com)')
+      return
+    }
     setInviteSaving(true)
     try {
       const res = await fetch('/api/users', {

@@ -17,3 +17,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ role: 'viewer', domain_id: null, email: '' })
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const auth = req.headers.get('Authorization')
+    const res = await fetch(`${BACKEND}/auth/me`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(auth ? { Authorization: auth } : {}),
+      },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) return NextResponse.json({ ok: false }, { status: res.status })
+    const data = await res.json().catch(() => ({}))
+    return NextResponse.json({ ok: true, ...data })
+  } catch {
+    return NextResponse.json({ ok: false }, { status: 500 })
+  }
+}

@@ -3,6 +3,20 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
+function stripHtml(str: unknown): string {
+  if (typeof str !== 'string') return String(str ?? '')
+  return str.replace(/<[^>]*>/g, '').trim()
+}
+
+function sanitizeTermBody(body: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...body,
+    term_name: stripHtml(body.term_name),
+    definition: stripHtml(body.definition),
+    synonyms: typeof body.synonyms === 'string' ? stripHtml(body.synonyms) : body.synonyms,
+  }
+}
+
 export async function GET() {
   try {
     const res = await fetch(`${BACKEND}/glossary/terms?limit=100`, { cache: 'no-store' })
@@ -14,7 +28,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const raw = await req.json()
+    const body = sanitizeTermBody(raw)
+    if (!body.term_name) return NextResponse.json({ error: 'term_name is required' }, { status: 400 })
     const res = await fetch(`${BACKEND}/glossary/terms`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -26,11 +42,12 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { id, ...rest } = body
+    const raw = await req.json()
+    const { id, ...rest } = raw
+    const sanitized = sanitizeTermBody(rest)
     const res = await fetch(`${BACKEND}/glossary/terms/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(rest),
+      body: JSON.stringify(sanitized),
     })
     const data = await res.json()
     return NextResponse.json(data, { status: res.status })

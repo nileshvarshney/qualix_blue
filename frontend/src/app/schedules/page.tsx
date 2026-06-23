@@ -10,6 +10,23 @@ const GRID = '1fr 100px 80px 80px 90px 90px 110px auto'
 const SCHED_FREQ_LABEL: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', custom: 'Custom (cron)' }
 const DOW_LABEL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
+function validateCron(expr: string): string | null {
+  const parts = expr.trim().split(/\s+/)
+  if (parts.length !== 5) return `Must have exactly 5 fields (got ${parts.length}): minute hour day-of-month month day-of-week`
+  const [minute, hour, dom, month, dow] = parts
+  const checkField = (val: string, min: number, max: number, name: string): string | null => {
+    if (val === '*') return null
+    if (/^(\*|\d+)\/\d+$/.test(val)) return null // step e.g. */5
+    if (/^\d+-\d+$/.test(val)) return null        // range e.g. 1-5
+    if (/^\d+(,\d+)+$/.test(val)) return null     // list e.g. 1,3,5
+    const n = Number(val)
+    if (isNaN(n)) return `${name} field "${val}" is not valid`
+    if (n < min || n > max) return `${name} value ${n} is out of range (${min}–${max})`
+    return null
+  }
+  return checkField(minute, 0, 59, 'Minute') ?? checkField(hour, 0, 23, 'Hour') ?? checkField(dom, 1, 31, 'Day-of-month') ?? checkField(month, 1, 12, 'Month') ?? checkField(dow, 0, 7, 'Day-of-week')
+}
+
 function buildCronExpression(frequency: string, time: string, dayOfWeek: string, customCron: string): string {
   if (frequency === 'custom') return customCron
   const [hourStr, minuteStr] = time.split(':')
@@ -169,6 +186,10 @@ export default function SchedulesPage() {
   }
 
   async function createSchedule() {
+    if (schedForm.frequency === 'custom') {
+      const cronErr = validateCron(schedForm.cron)
+      if (cronErr) { setCreateError(`Invalid cron expression: ${cronErr}`); return }
+    }
     const cronExpression = buildCronExpression(schedForm.frequency, schedForm.time, schedForm.dayOfWeek, schedForm.cron)
     if (!schedForm.name || !cronExpression) return
     setSchedSaving(true)

@@ -52,6 +52,10 @@ export default function CreateIssueModal({
       setError('Title is required')
       return
     }
+    if (title.trim().length > 200) {
+      setError('Title must be 200 characters or fewer')
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -93,7 +97,8 @@ export default function CreateIssueModal({
 
         <div>
           <label style={labelStyle}>Title *</label>
-          <input style={inputStyle} value={title} onChange={e => setTitle(e.target.value)} placeholder="Short summary of the issue" />
+          <input style={inputStyle} value={title} onChange={e => setTitle(e.target.value)} placeholder="Short summary of the issue" maxLength={200} />
+          <div style={{ fontSize: '10px', color: title.length > 180 ? 'var(--status-error-text)' : 'var(--text-muted)', textAlign: 'right', marginTop: '2px' }}>{title.length}/200</div>
         </div>
 
         <div>

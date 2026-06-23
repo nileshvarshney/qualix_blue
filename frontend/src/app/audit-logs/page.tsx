@@ -220,12 +220,6 @@ export default function AuditLogsPage() {
         {usersActive > 0 && <span style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{usersActive} users</span>}
         {systemEvents > 0 && <span style={{ background: 'rgba(124,58,237,0.08)', color: '#7c3aed', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{systemEvents} system</span>}
         {failedEvents > 0 && <span style={{ background: 'var(--status-error-bg)', color: 'var(--status-error-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600 }}>{failedEvents} failed</span>}
-        {coverage && (
-          <span title={coverage.uncovered_types.length ? `Uncovered: ${coverage.uncovered_types.join(', ')}` : 'All types covered'}
-            style={{ background: 'var(--status-info-bg)', color: 'var(--status-info-text)', padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, cursor: 'default' }}>
-            {coverage.coverage_pct}% coverage
-          </span>
-        )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
           <button onClick={handleVerify} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>🔒 Verify Integrity</button>
           <button onClick={() => exportAuditCsv(filtered)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer' }}>⬇ CSV</button>

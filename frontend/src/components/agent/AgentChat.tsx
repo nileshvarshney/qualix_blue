@@ -6,22 +6,20 @@ function QualixMark({ size }: { size: number }) {
   const id = useId()
   const gradId = `qm-grad-${id}`
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <svg width={size} height={size * (44 / 38)} viewBox="0 0 38 44" fill="none">
       <defs>
-        <linearGradient id={gradId} x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+        <linearGradient id={gradId} x1="2" y1="2" x2="36" y2="42" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor="#FF9050" />
           <stop offset="55%" stopColor="#E8541A" />
           <stop offset="100%" stopColor="#A82E06" />
         </linearGradient>
       </defs>
-      {/* Orange gradient background */}
-      <rect width="32" height="32" rx="7" fill={`url(#${gradId})`} />
-      {/* Q circle ring */}
-      <circle cx="14.5" cy="13.5" r="7.5" stroke="white" strokeWidth="2.2" fill="rgba(255,255,255,0.15)" />
-      {/* 4-pointed star */}
-      <path d="M14.5 8 L15.8 11.8 L19.5 13.5 L15.8 15.2 L14.5 19 L13.2 15.2 L9.5 13.5 L13.2 11.8 Z" fill="white" />
-      {/* Crown dot */}
-      <circle cx="14.5" cy="6" r="1.8" fill="white" opacity="0.9" />
+      {/* Qualix Q-mark: ring + tail + quality-compass star, no background */}
+      <circle cx="19" cy="19" r="14" stroke={`url(#${gradId})`} strokeWidth="4" fill="none" />
+      <circle cx="19" cy="19" r="8.5" stroke={`url(#${gradId})`} strokeWidth="1" fill="none" opacity="0.35" strokeDasharray="2.5 3" />
+      <path d="M19 12.5 L20.9 17.1 L25.5 19 L20.9 20.9 L19 25.5 L17.1 20.9 L12.5 19 L17.1 17.1 Z" fill={`url(#${gradId})`} />
+      <line x1="28" y1="29" x2="36" y2="42" stroke={`url(#${gradId})`} strokeWidth="4.5" strokeLinecap="round" />
+      <circle cx="19" cy="5" r="2.8" fill="#FF9050" />
     </svg>
   )
 }
@@ -104,6 +102,30 @@ function MarkdownText({ text }: { text: string }) {
     i++
   }
   return <div style={{ fontSize: '13px', lineHeight: '1.6', color: '#1e293b' }}>{elements}</div>
+}
+
+function ToolCallsDisclosure({ tools }: { tools: string[] }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ marginTop: '6px' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '4px', color: '#E8541A', fontSize: '10px', fontWeight: 500 }}
+      >
+        <span style={{ fontSize: '8px' }}>{open ? '▼' : '▶'}</span>
+        {tools.length} tool{tools.length !== 1 ? 's' : ''} used
+      </button>
+      {open && (
+        <div style={{ marginTop: '4px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+          {tools.map((t, j) => (
+            <span key={j} style={{ background: 'rgba(232,84,26,0.1)', color: '#E8541A', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>
+              ⚡ {t.replace(/_/g, ' ')}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 const SUGGESTIONS = [
@@ -225,8 +247,7 @@ export default function AgentChat() {
           }}>
             <div style={{
               width: '38px', height: '38px', borderRadius: '12px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(124,26,2,0.4)'
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
               <QualixMark size={38} />
             </div>
@@ -271,13 +292,7 @@ export default function AgentChat() {
                 }}>
                   {msg.role === 'assistant' ? <MarkdownText text={msg.content} /> : msg.content}
                   {msg.toolsUsed && msg.toolsUsed.length > 0 && (
-                    <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {msg.toolsUsed.map((t, j) => (
-                        <span key={j} style={{ background: 'rgba(232,84,26,0.1)', color: '#E8541A', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 500 }}>
-                          ⚡ {t.replace(/_/g, ' ')}
-                        </span>
-                      ))}
-                    </div>
+                    <ToolCallsDisclosure tools={msg.toolsUsed} />
                   )}
                 </div>
               </div>
@@ -352,17 +367,13 @@ export default function AgentChat() {
       <button onClick={() => setOpen(!open)} style={{
         position: 'fixed', bottom: '20px', right: '20px',
         width: '62px', height: '62px', borderRadius: '20px', border: 'none',
-        background: 'linear-gradient(145deg, #FF9050, #A82E06)',
-        cursor: 'pointer', zIndex: 1001,
-        boxShadow: open
-          ? '0 8px 28px rgba(124,26,2,0.5)'
-          : '0 8px 32px rgba(232,84,26,0.55)',
+        background: 'none', cursor: 'pointer', zIndex: 1001,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         transition: 'all 0.25s', transform: open ? 'scale(0.9)' : 'scale(1)'
       }}>
         {open
-          ? <span style={{ color: '#fff', fontSize: '22px', fontWeight: 300, lineHeight: 1 }}>✕</span>
-          : <QualixMark size={42} />}
+          ? <span style={{ color: '#E8541A', fontSize: '24px', fontWeight: 300, lineHeight: 1 }}>✕</span>
+          : <QualixMark size={48} />}
       </button>
 
       <style>{`

@@ -472,8 +472,17 @@ export default function SettingsPage() {
       .catch(() => { /* backend unavailable — keep local state */ })
   }, [])
 
-  function save() {
+  async function save() {
     localStorage.setItem('dg_settings_profile', JSON.stringify(profile))
+    try {
+      await fetch('/api/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: profile.name, timezone: profile.timezone }),
+      })
+    } catch {
+      // backend unavailable — localStorage fallback
+    }
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }

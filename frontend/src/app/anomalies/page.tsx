@@ -60,6 +60,19 @@ function fmtType(t: string) {
   return TYPE_LABEL[t] ?? t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
+function fmtObserved(raw: string): string {
+  if (!raw || raw === '—') return raw
+  if (raw.startsWith('{')) {
+    try {
+      const obj = JSON.parse(raw) as Record<string, unknown>
+      return Object.entries(obj).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v}`).join(', ')
+    } catch { /* fall through */ }
+  }
+  const n = Number(raw)
+  if (!isNaN(n)) return n % 1 === 0 ? String(n) : String(parseFloat(n.toFixed(4)))
+  return raw
+}
+
 interface AiExplanation {
   root_cause?: string
   analysis?: string
@@ -229,8 +242,8 @@ function mapDetection(d: Record<string, unknown>, assetMap: Record<string, Asset
     type:          String(d.anomaly_type ?? d.detector_type ?? 'Unknown'),
     severity:      (d.severity as Severity) ?? 'medium',
     detected:      String(d.detected_at ?? d.created_at ?? '').replace('T', ' ').slice(0, 16),
-    observedValue: String(d.observed_value ?? d.observed ?? '—'),
-    expectedRange: String(d.expected_range ?? d.baseline ?? '—'),
+    observedValue: fmtObserved(String(d.observed_value ?? d.observed ?? '—')),
+    expectedRange: fmtObserved(String(d.expected_range ?? d.baseline ?? '—')),
     confidence:    typeof d.confidence === 'number' ? d.confidence : 0,
     status:        d.is_acknowledged ? 'resolved' : ((d.status as AnomalyStatus) ?? 'open'),
     connection:    asset?.connection_name ?? String(d.connection_name ?? '—'),
@@ -255,7 +268,9 @@ export default function AnomaliesPage() {
       const items  = (Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).items ?? [])) as Record<string, unknown>[]
       const assets = (Array.isArray(catalog) ? catalog : ((catalog as Record<string, unknown>).items ?? [])) as AssetInfo[]
       const assetMap = Object.fromEntries(assets.map(a => [a.asset_id, a]))
-      setAnomalies(items.map(d => mapDetection(d, assetMap)))
+      const mapped = items.map(d => mapDetection(d, assetMap))
+      const seen = new Set<string>()
+      setAnomalies(mapped.filter(a => { if (!a.id || seen.has(a.id)) return false; seen.add(a.id); return true }))
       setLastRefresh(new Date())
     } catch {
       setAnomalies([])

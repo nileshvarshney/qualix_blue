@@ -337,6 +337,7 @@ export default function GlossaryPage() {
 
       {/* domain tabs + status filter pills */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '9px', color: 'var(--text-faint, var(--text-muted))', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Domain</span>
         {DOMAINS.map(d => (
           <button key={d} onClick={() => setDomain(d)} style={{
             padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
@@ -345,7 +346,8 @@ export default function GlossaryPage() {
             fontWeight: domain === d ? 600 : 400, fontSize: '11px',
           }}>{d}</button>
         ))}
-        <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
+        <div style={{ width: '1px', height: '20px', background: 'var(--border)', margin: '0 8px' }} />
+        <span style={{ fontSize: '9px', color: 'var(--text-faint, var(--text-muted))', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Status</span>
         {([['all', 'All'], ['approved', 'Approved'], ['pending_review', 'Pending Review'], ['draft', 'Draft'], ['deprecated', 'Deprecated']] as [StatusFilter, string][]).map(([f, l]) => (
           <button key={f} onClick={() => setStatusFilter(f)} style={{
             padding: '3px 8px', borderRadius: '5px', border: `1px solid ${statusFilter === f ? 'var(--accent)' : 'var(--border)'}`,
