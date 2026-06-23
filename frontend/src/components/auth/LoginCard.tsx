@@ -17,6 +17,7 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
   const [form, setForm] = useState<LoginForm>({ email: '', password: '', role: '' })
   const [errors, setErrors] = useState<LoginErrors>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetEmailError, setResetEmailError] = useState('')
   const [resetSent, setResetSent] = useState(false)
@@ -97,31 +98,6 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
       padding: '24px 28px 20px', width: 300,
       boxShadow: '0 28px 70px rgba(0,0,0,0.65)',
     }}>
-      {/* Header — always visible */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <div style={{
-          width: 34, height: 34,
-          background: 'linear-gradient(135deg, #FF9050, #A82E06)',
-          borderRadius: 9, flexShrink: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg viewBox="0 0 32 32" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="14.5" cy="13.5" r="7.5" stroke="white" strokeWidth="2.2" fill="rgba(255,255,255,0.15)" />
-            <line x1="19.8" y1="18.8" x2="27" y2="26" stroke="white" strokeWidth="2.6" strokeLinecap="round" />
-            <path d="M14.5 8 L15.8 11.8 L19.5 13.5 L15.8 15.2 L14.5 19 L13.2 15.2 L9.5 13.5 L13.2 11.8 Z" fill="white" />
-            <circle cx="14.5" cy="6" r="1.8" fill="white" opacity="0.9" />
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', letterSpacing: '0.4px', lineHeight: 1 }}>
-            Qualix
-          </div>
-          <div style={{ fontSize: 9, color: '#94a3b8', marginTop: 2 }}>
-            AI Data Quality &amp; Governance
-          </div>
-        </div>
-      </div>
-
       {mode === 'login' ? (
         <>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Welcome back</div>
@@ -152,17 +128,42 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
           {errors.email && <div style={errorStyle}>{errors.email}</div>}
 
           <label htmlFor="login-password" style={{ ...labelStyle, marginTop: 10 }}>Password</label>
-          <input
-            id="login-password"
-            type="password"
-            value={form.password}
-            onChange={e => {
-              setForm(f => ({ ...f, password: e.target.value }))
-              setErrors(prev => ({ ...prev, password: undefined }))
-            }}
-            placeholder="••••••••••••"
-            style={fieldStyle(!!errors.password)}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={e => {
+                setForm(f => ({ ...f, password: e.target.value }))
+                setErrors(prev => ({ ...prev, password: undefined }))
+              }}
+              placeholder="••••••••••••"
+              style={{ ...fieldStyle(!!errors.password), paddingRight: 32 }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              style={{
+                position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                color: '#94a3b8', display: 'flex', alignItems: 'center',
+              }}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              {showPassword ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
+            </button>
+          </div>
           {errors.password && <div style={errorStyle}>{errors.password}</div>}
           <div
             role="button"
