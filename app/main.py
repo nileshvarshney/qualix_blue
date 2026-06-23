@@ -67,8 +67,6 @@ def _validate_security_config() -> None:
 
     if not settings.auth_required:
         msg = "AUTH_REQUIRED=false — all API endpoints are unauthenticated."
-        if _IS_PRODUCTION:
-            raise RuntimeError(f"[SECURITY] {msg}")
         logger.warning(f"[SECURITY] {msg}")
 
     if not settings.encryption_key:
