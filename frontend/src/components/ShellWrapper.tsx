@@ -1,5 +1,5 @@
 'use client'
-import type { ReactNode } from 'react'
+import { type ReactNode, Suspense } from 'react'
 import { usePathname } from 'next/navigation'
 import Sidebar from '@/components/Sidebar'
 import AgentChat from '@/components/agent/AgentChat'
@@ -25,7 +25,7 @@ export default function ShellWrapper({ children }: { children: ReactNode }) {
         display: 'flex',
         flexDirection: 'column',
       }}>
-        <SectionTabBar />
+        <Suspense fallback={null}><SectionTabBar /></Suspense>
         <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
           {children}
         </div>

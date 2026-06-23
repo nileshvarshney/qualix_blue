@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import AssetTagsSection from './AssetTagsSection'
 import AssetDocumentsSection from './AssetDocumentsSection'
 import AssetColumnsSection from './AssetColumnsSection'
@@ -256,11 +257,16 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
         {/* Header */}
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, fontFamily: 'monospace' }}>{asset.sf_table_name ?? '—'}</span>
-          {!editing && (
+          {!editing && (<>
+            {asset.sf_table_name && (
+              <Link href={`/lineage?q=${encodeURIComponent(asset.sf_table_name)}`} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                View in Lineage
+              </Link>
+            )}
             <button onClick={openEdit} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer' }}>
               Edit
             </button>
-          )}
+          </>)}
           {editing && <>
             <button onClick={cancel} disabled={saving} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
               Cancel

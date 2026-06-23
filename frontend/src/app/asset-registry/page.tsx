@@ -1,6 +1,7 @@
 'use client'
 import { useState, useCallback, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import AssetTreePanel, { AssetTreePanelHandle } from '@/components/asset-registry/AssetTreePanel'
 import AssetDetailPanel from '@/components/asset-registry/AssetDetailPanel'
 import AdhocDiscoveryModal from '@/components/datasets/AdhocDiscoveryModal'
@@ -28,6 +29,7 @@ interface Asset {
 
 function AssetRegistryInner() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const initialSearch = searchParams.get('q') ?? undefined
   const [selected, setSelected] = useState<Asset | null>(null)
   const [loading, setLoading] = useState(false)
@@ -54,11 +56,18 @@ function AssetRegistryInner() {
     treePanelRef.current?.refresh()
   }, [])
 
+  const handleSearchChange = useCallback((q: string) => {
+    const params = new URLSearchParams()
+    if (q) params.set('q', q)
+    const qs = params.toString()
+    router.replace(qs ? `/asset-registry?${qs}` : '/asset-registry', { scroll: false })
+  }, [router])
+
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden', background: 'var(--background)' }}>
       <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
         <div style={{ width: panelOpen ? '280px' : '0px', overflow: 'hidden', transition: 'width 0.2s ease', display: 'flex', flexShrink: 0 }}>
-          <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} initialSearch={initialSearch} />
+          <AssetTreePanel ref={treePanelRef} onSelect={handleSelect} selectedId={selected?.asset_id ?? null} initialSearch={initialSearch} onSearchChange={handleSearchChange} />
         </div>
         <button
           onClick={() => setPanelOpen(p => !p)}

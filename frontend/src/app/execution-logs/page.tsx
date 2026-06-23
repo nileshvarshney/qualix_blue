@@ -1,5 +1,7 @@
 'use client'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { ExecLog, GroupedExecLog, RunStatus, StatFilter, mapExecLog, groupExecLogs } from '@/lib/executionLogs'
 
 const STAT: Record<RunStatus, { background: string; color: string; border: string }> = {
@@ -25,11 +27,13 @@ function dateGroup(ts: string): string {
 
 const GROUP_ORDER = ['Today', 'Yesterday']
 
-export default function ExecutionLogsPage() {
+function ExecutionLogsInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [logs, setLogs]                 = useState<ExecLog[]>([])
   const [loading, setLoading]           = useState(true)
-  const [statusFilter, setStatusFilter] = useState<StatFilter>('all')
-  const [search, setSearch]             = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatFilter>(() => (searchParams.get('status') as StatFilter) ?? 'all')
+  const [search, setSearch]             = useState(() => searchParams.get('q') ?? '')
   const [expanded, setExpanded]         = useState<string | null>(null)
   const [expandedRule, setExpandedRule] = useState<string | null>(null)
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -43,6 +47,15 @@ export default function ExecutionLogsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  // Sync filter state to URL so browser back restores it
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    const qs = params.toString()
+    router.replace(qs ? `/execution-logs?${qs}` : '/execution-logs', { scroll: false })
+  }, [search, statusFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const groups = useMemo(() => groupExecLogs(logs), [logs])
 
@@ -330,5 +343,13 @@ export default function ExecutionLogsPage() {
         })}
       </div>
     </div>
+  )
+}
+
+export default function ExecutionLogsPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <ExecutionLogsInner />
+    </Suspense>
   )
 }

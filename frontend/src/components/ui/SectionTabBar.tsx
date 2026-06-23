@@ -1,6 +1,6 @@
 'use client'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { NotificationBadge } from '@/components/nav/NotificationBadge'
 
 type Tab = { href: string; label: string }
@@ -83,8 +83,23 @@ function tabMatches(tabHref: string, pathname: string): boolean {
   return pathname === tabHref || pathname.startsWith(tabHref + '/')
 }
 
+function contextualHref(tabHref: string, pathname: string, searchParams: ReturnType<typeof useSearchParams>): string {
+  // FD-005: Lineage → Catalog passes current search query
+  if (tabHref === '/catalog' && pathname.startsWith('/lineage')) {
+    const q = searchParams.get('q')
+    return q ? `/catalog?q=${encodeURIComponent(q)}` : tabHref
+  }
+  // FD-002: Rules → Execution Logs passes current table filter as search query
+  if (tabHref === '/execution-logs' && pathname.startsWith('/rules')) {
+    const table = searchParams.get('table')
+    return table ? `/execution-logs?q=${encodeURIComponent(table)}` : tabHref
+  }
+  return tabHref
+}
+
 export default function SectionTabBar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams()
   const section = SECTIONS.find(s => s.tabs.some(t => tabMatches(t.href, pathname)))
   if (!section) return null
 
@@ -100,8 +115,9 @@ export default function SectionTabBar() {
     }}>
       {section.tabs.map(tab => {
         const isActive = tabMatches(tab.href, pathname)
+        const href = contextualHref(tab.href, pathname, searchParams)
         return (
-          <Link key={tab.href} href={tab.href} style={{ textDecoration: 'none' }}>
+          <Link key={tab.href} href={href} style={{ textDecoration: 'none' }}>
             <div style={{
               position: 'relative',
               padding: '11px 16px',

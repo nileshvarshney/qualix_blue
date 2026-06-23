@@ -1,5 +1,7 @@
 'use client'
-import { useState, useRef, useEffect, useCallback, useMemo, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, Suspense, type MouseEvent as ReactMouseEvent, type CSSProperties } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
 
 /* ─── Types ─── */
@@ -238,12 +240,14 @@ function buildChain(startId: string, edges: LineageEdge[], nodeMap: Map<string, 
 }
 
 /* ─── Main ─── */
-export default function LineagePage() {
+function LineageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [data, setData] = useState<LineageData | null>(null)
   const [loading, setLoading] = useState(true)
   const [isLive, setIsLive] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [showDropdown, setShowDropdown] = useState(false)
   const [columnData, setColumnData] = useState<ColumnInfo[] | null>(null)
   const [columnsLoading, setColumnsLoading] = useState(false)
@@ -294,6 +298,19 @@ export default function LineagePage() {
 
   // Load once on mount only — no auto-refresh. The user can hit "Refresh" manually.
   useEffect(() => { fetchLineage() }, [fetchLineage])
+
+  // Sync search to URL so browser back restores it
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    const qs = params.toString()
+    router.replace(qs ? `/lineage?${qs}` : '/lineage', { scroll: false })
+  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When data loads with a pre-filled search from URL, show the dropdown
+  useEffect(() => {
+    if (!loading && data && search.trim()) setShowDropdown(true)
+  }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selected column when table selection changes
   useEffect(() => { setSelectedColumn(null) }, [selected])
@@ -1553,5 +1570,13 @@ export default function LineagePage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function LineagePage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <LineageInner />
+    </Suspense>
   )
 }

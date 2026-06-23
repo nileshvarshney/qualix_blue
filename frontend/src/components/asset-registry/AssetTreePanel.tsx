@@ -124,8 +124,8 @@ export interface AssetTreePanelHandle {
 }
 
 const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
-  onSelect: (id: string) => void; selectedId: string | null; initialSearch?: string
-}>(function AssetTreePanel({ onSelect, selectedId, initialSearch }, ref) {
+  onSelect: (id: string) => void; selectedId: string | null; initialSearch?: string; onSearchChange?: (q: string) => void
+}>(function AssetTreePanel({ onSelect, selectedId, initialSearch, onSearchChange }, ref) {
   const [roots, setRoots] = useState<TreeNode[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState(initialSearch ?? '')
@@ -240,7 +240,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
       <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
         <input
           value={search}
-          onChange={e => { setSearch(e.target.value); doSearch(e.target.value) }}
+          onChange={e => { setSearch(e.target.value); doSearch(e.target.value); onSearchChange?.(e.target.value) }}
           placeholder="Search assets..."
           style={{ width: '100%', padding: '4px 8px', border: '1px solid var(--border)', borderRadius: '5px', fontSize: 'var(--text-sm)', background: 'var(--surface-muted)', color: 'var(--foreground)', outline: 'none', boxSizing: 'border-box' }}
         />

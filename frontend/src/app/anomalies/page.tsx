@@ -1,5 +1,7 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
 
 type AnomalyStatus = 'open' | 'resolved'
@@ -251,12 +253,14 @@ function mapDetection(d: Record<string, unknown>, assetMap: Record<string, Asset
   }
 }
 
-export default function AnomaliesPage() {
+function AnomaliesInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [anomalies, setAnomalies] = useState<Anomaly[]>([])
   const [loading, setLoading]     = useState(true)
-  const [filter, setFilter]       = useState<FilterType>('all')
+  const [filter, setFilter]       = useState<FilterType>(() => (searchParams.get('filter') as FilterType) ?? 'all')
   const [expanded, setExpanded]   = useState<string | null>(null)
-  const [search, setSearch]       = useState('')
+  const [search, setSearch]       = useState(() => searchParams.get('q') ?? '')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
   const loadAnomalies = useCallback(async () => {
@@ -284,6 +288,15 @@ export default function AnomaliesPage() {
     const interval = setInterval(loadAnomalies, 60_000)
     return () => clearInterval(interval)
   }, [loadAnomalies])
+
+  // Sync filter state to URL so browser back restores it
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    if (filter !== 'all') params.set('filter', filter)
+    const qs = params.toString()
+    router.replace(qs ? `/anomalies?${qs}` : '/anomalies', { scroll: false })
+  }, [search, filter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const total    = anomalies.length
   const critical = anomalies.filter(a => a.severity === 'critical').length
@@ -497,5 +510,13 @@ export default function AnomaliesPage() {
         })}
       </div>
     </div>
+  )
+}
+
+export default function AnomaliesPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <AnomaliesInner />
+    </Suspense>
   )
 }

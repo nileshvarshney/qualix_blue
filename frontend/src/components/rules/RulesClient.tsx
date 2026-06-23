@@ -4,6 +4,7 @@ import { Database, Layers, Table2 } from 'lucide-react'
 import { Rule, RuleCategory, RuleType, RuleStatus, Connection, AssetTreeNode } from '@/lib/types'
 import { categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { useSearchParams } from 'next/navigation'
 import { useRulesGrouping } from './useRulesGrouping'
 import RuleFailedRecordsTab from './RuleFailedRecordsTab'
 
@@ -99,13 +100,14 @@ export default function RulesClient({ initialRules, connections }: Props) {
   const [testing, setTesting] = useState<string | null>(null)
   const [testResults, setTestResults] = useState<Record<string, { status: string; score: number }>>({})
   const router = useRouter()
+  const searchParams = useSearchParams()
 
-  // Filters
-  const [search, setSearch] = useState('')
+  // Filters — initialized from URL params so browser back restores them
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [activeCategory, setActiveCategory] = useState<RuleCategory | 'all'>('all')
-  const [statusFilter, setStatusFilter] = useState<RuleStatus | 'all'>('all')
-  const [severityFilter, setSeverityFilter] = useState<string>('all')
-  const [tableFilter, setTableFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<RuleStatus | 'all'>(() => (searchParams.get('status') as RuleStatus | 'all') ?? 'all')
+  const [severityFilter, setSeverityFilter] = useState<string>(() => searchParams.get('severity') ?? 'all')
+  const [tableFilter, setTableFilter] = useState(() => searchParams.get('table') ?? '')
   const [scopeFilter, setScopeFilter] = useState<'all' | 'generic' | 'object-specific'>('all')
 
   // Write-time schema validation state
@@ -144,6 +146,17 @@ export default function RulesClient({ initialRules, connections }: Props) {
       setForm(f => ({ ...f, connectionId: connections[0].id }))
     }
   }, [connections])
+
+  // Sync filter state to URL so browser back restores it
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    if (severityFilter !== 'all') params.set('severity', severityFilter)
+    if (tableFilter) params.set('table', tableFilter)
+    const qs = params.toString()
+    router.replace(qs ? `/rules?${qs}` : '/rules', { scroll: false })
+  }, [search, statusFilter, severityFilter, tableFilter]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Asset registry lookup: assetId -> "database.schema.table" qualified name
   const [assetQualifiedNames, setAssetQualifiedNames] = useState<Record<string, string>>({})

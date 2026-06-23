@@ -1,10 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import RulesClient from '@/components/rules/RulesClient'
 import type { Rule, Connection } from '@/lib/types'
 import { loadRules, loadConnections } from '@/lib/seedData'
 
-export default function RulesPage() {
+function RulesInner() {
   const [rules, setRules] = useState<Rule[]>([])
   const [connections, setConnections] = useState<Connection[]>([])
 
@@ -18,4 +18,12 @@ export default function RulesPage() {
   }, [])
 
   return <RulesClient initialRules={rules} connections={connections} />
+}
+
+export default function RulesPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <RulesInner />
+    </Suspense>
+  )
 }

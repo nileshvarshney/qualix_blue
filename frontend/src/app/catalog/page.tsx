@@ -1,5 +1,7 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { Database, Layers, Table2, Eye } from 'lucide-react'
 import AssetDetailDrawer, { Asset as BaseAsset } from '@/components/asset-registry/AssetDetailDrawer'
 import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
@@ -158,10 +160,12 @@ function TableRow({ asset, sensitivity, termLinks, selected, onToggleSelect, onC
   )
 }
 
-export default function CatalogPage() {
+function CatalogInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [assets, setAssets] = useState<Asset[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [popup, setPopup] = useState<Asset | null>(null)
   const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
@@ -318,6 +322,14 @@ export default function CatalogPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  // Sync search to URL so browser back restores it
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (search) params.set('q', search)
+    const qs = params.toString()
+    router.replace(qs ? `/catalog?${qs}` : '/catalog', { scroll: false })
+  }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(key: string) {
     setExpanded(prev => {
@@ -596,5 +608,13 @@ export default function CatalogPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <CatalogInner />
+    </Suspense>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
 
 interface GlossaryTerm {
@@ -48,12 +49,20 @@ function statusLabel(s: string): string {
   return s
 }
 
-export default function GlossaryPage() {
+function TermParamReader({ onTermId }: { onTermId: (id: string) => void }) {
+  const params = useSearchParams()
+  const id = params.get('term')
+  useEffect(() => { if (id) onTermId(id) }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  return null
+}
+
+function GlossaryInner() {
   const [domain, setDomain] = useState('All')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [search, setSearch] = useState('')
   const [terms, setTerms] = useState<GlossaryTerm[]>([])
   const [loading, setLoading] = useState(true)
+  const [autoTermId, setAutoTermId] = useState<string | null>(null)
   const [showAdd, setShowAdd] = useState(false)
   const [popup, setPopup] = useState<GlossaryTerm | null>(null)
   const [termForm, setTermForm] = useState({ name: '', definition: '', domain: 'Revenue', synonyms: '', owner: '', status: 'draft' as 'approved' | 'draft' | 'deprecated' })
@@ -105,6 +114,13 @@ export default function GlossaryPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  // Open term from ?term= deep link once terms are loaded
+  useEffect(() => {
+    if (!autoTermId || loading || terms.length === 0) return
+    const target = terms.find(t => t.id === autoTermId)
+    if (target) openPopup(target)
+  }, [autoTermId, loading, terms]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     fetch('/api/me')
@@ -321,6 +337,9 @@ export default function GlossaryPage() {
 
   return (
     <div style={{ padding: '10px 16px', height: '100%', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', gap: '8px', background: 'var(--background)' }}>
+      <Suspense fallback={null}>
+        <TermParamReader onTermId={setAutoTermId} />
+      </Suspense>
 
       {/* top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -707,5 +726,13 @@ export default function GlossaryPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function GlossaryPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+      <GlossaryInner />
+    </Suspense>
   )
 }
