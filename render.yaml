@@ -27,6 +27,8 @@ services:
 
       - key: SF_PLATFORM_ROLE
         value: SYSADMIN
+      - key: SF_PLATFORM_WAREHOUSE
+        value: COMPUTE_WH
 
       # ── Set these in the Render dashboard (secrets) ──
       - key: SF_PLATFORM_ACCOUNT
@@ -34,8 +36,6 @@ services:
       - key: SF_PLATFORM_USER
         sync: false
       - key: SF_PLATFORM_PASSWORD
-        sync: false
-      - key: SF_PLATFORM_WAREHOUSE
         sync: false
       - key: SNOWFLAKE_APP_DATABASE
         sync: false
