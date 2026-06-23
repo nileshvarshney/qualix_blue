@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const runtime = 'edge'
+
 const PUBLIC_PATHS = ['/login']
 
 export default async function proxy(req: NextRequest) {
