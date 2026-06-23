@@ -31,6 +31,29 @@ _FRESHNESS_NAME_RE = re.compile(r"created|updated|modified|loaded|_at$", re.IGNO
 _PK_NAME_RE = re.compile(r"^id$|_id$|_key$|_pk$|_uuid$", re.IGNORECASE)
 _NUMERIC_TYPE_RE = re.compile(r"NUMBER|INT|FLOAT|DECIMAL|DOUBLE|REAL|NUMERIC", re.IGNORECASE)
 
+# Maps each rule_type to its ISO 8000 / DAMA quality dimension. Kept in sync with
+# the dimension_map in app/api/dashboard.py:quality_dimensions.
+RULE_TYPE_CATEGORY: dict[str, str] = {
+    "null_check": "completeness",
+    "volume_check": "completeness",
+    "business_rule_check": "accuracy",
+    "custom_sql_check": "accuracy",
+    "business_metric_check": "accuracy",
+    "llm_semantic_check": "accuracy",
+    "uniqueness_check": "uniqueness",
+    "duplicate_check": "uniqueness",
+    "range_check": "validity",
+    "accepted_values_check": "validity",
+    "regex_check": "validity",
+    "comparison_check": "validity",
+    "freshness_check": "timeliness",
+    "referential_integrity_check": "consistency",
+    "referential_sanity_check": "consistency",
+    "semantic_consistency_check": "consistency",
+    "distribution_consistency_check": "consistency",
+    "schema_drift_check": "consistency",
+}
+
 
 async def _build_dedup_set(asset_id: str, db: AsyncSession) -> set[tuple[str, Optional[str]]]:
     """Return set of (rule_type, target_column) for all rules on this asset (any status)."""
@@ -70,6 +93,7 @@ def _make_rule(
         subdomain_id=asset.subdomain_id,
         asset_id=asset.asset_id,
         rule_type=rule_type,
+        rule_category=RULE_TYPE_CATEGORY.get(rule_type),
         target_column=target_column,
         rule_config=rule_config,
         rule_sql=rule_sql,

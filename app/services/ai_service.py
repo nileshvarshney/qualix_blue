@@ -456,9 +456,9 @@ async def explain_anomaly(
     """Generate a 2-3 sentence plain-text explanation for a quality score anomaly."""
     prompt = (
         f"Asset: {asset.sf_schema_name}.{asset.sf_table_name}\n"
-        f"Anomaly: quality score dropped to {detection_info.get('observed_value', 'N/A')}\n"
-        f"Expected range: {detection_info.get('mean', 'N/A')} ± {detection_info.get('std', 'N/A')}\n"
-        f"Z-score: {detection_info.get('z_score', 'N/A')} (anomaly threshold: 2.5)\n"
+        f"Anomaly type: {detection_info.get('anomaly_type', 'score_anomaly')}\n"
+        f"Observed value: {detection_info.get('observed_value', 'N/A')}\n"
+        f"Expected range: {detection_info.get('expected_range', 'N/A')}\n"
         f"Confidence: {detection_info.get('confidence', 0):.0%}\n\n"
         "In 2-3 sentences, explain why the quality score may have deviated from normal "
         "and what the likely business impact is. Return plain text, no markdown, no bullet points."
@@ -1077,17 +1077,27 @@ async def predict_asset_quality(
 
     detector.last_trained_at = _now()
 
-    detection = AnomalyDetection(
-        detection_id=gen_uuid(),
-        detector_id=detector.detector_id,
-        asset_id=asset_id,
-        anomaly_type="quality_forecast",
-        severity=prediction.get("risk_level", "medium"),
-        observed_value=f"quality_score={recent_avg:.1f}%,trend={trend}",
-        expected_range=">=95%",
-        confidence=prediction.get("confidence", 0.5),
+    # Only record an anomaly when there's an actual forecasted risk — i.e. the same
+    # ">=95%" bar shown to users is genuinely at risk of being breached, or the LLM
+    # itself flagged elevated risk. Otherwise every healthy, stable asset would get a
+    # "quality forecast" anomaly logged on every nightly run, flooding the Anomalies page.
+    risk_level = prediction.get("risk_level", "medium")
+    risk_score = prediction.get("risk_score")
+    is_at_risk = recent_avg < 95 or risk_level in ("critical", "high") or (
+        isinstance(risk_score, (int, float)) and risk_score >= 0.5
     )
-    db.add(detection)
+    if is_at_risk:
+        detection = AnomalyDetection(
+            detection_id=gen_uuid(),
+            detector_id=detector.detector_id,
+            asset_id=asset_id,
+            anomaly_type="quality_forecast",
+            severity=risk_level,
+            observed_value=f"quality_score={recent_avg:.1f}%,trend={trend}",
+            expected_range=">=95%",
+            confidence=prediction.get("confidence", 0.5),
+        )
+        db.add(detection)
     await db.commit()
 
     return {

@@ -19,6 +19,11 @@ class ExplainFailureRequest(BaseModel):
     provider: Optional[str] = None
 
 
+class ExplainAnomalyRequest(BaseModel):
+    detection_id: str
+    provider: Optional[str] = None
+
+
 class GenerateSQLRequest(BaseModel):
     description: str
     table_name: str

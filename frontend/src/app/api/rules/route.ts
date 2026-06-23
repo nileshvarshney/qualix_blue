@@ -4,6 +4,29 @@ import { Rule } from '@/lib/types'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
+// Mirrors RULE_TYPE_CATEGORY in app/services/auto_rule_service.py — used when a rule's
+// rule_category column is null (e.g. rules created before that column was populated).
+const RULE_TYPE_CATEGORY: Record<string, Rule['category']> = {
+  null_check: 'completeness',
+  volume_check: 'completeness',
+  business_rule_check: 'accuracy',
+  custom_sql_check: 'accuracy',
+  business_metric_check: 'accuracy',
+  llm_semantic_check: 'accuracy',
+  uniqueness_check: 'uniqueness',
+  duplicate_check: 'uniqueness',
+  range_check: 'validity',
+  accepted_values_check: 'validity',
+  regex_check: 'validity',
+  comparison_check: 'validity',
+  freshness_check: 'timeliness',
+  referential_integrity_check: 'consistency',
+  referential_sanity_check: 'consistency',
+  semantic_consistency_check: 'consistency',
+  distribution_consistency_check: 'consistency',
+  schema_drift_check: 'consistency',
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
@@ -27,7 +50,7 @@ export async function GET(req: NextRequest) {
       id: r.rule_id as string,
       name: r.rule_name as string,
       description: (r.rule_description as string) ?? '',
-      category: (r.rule_category as Rule['category']) ?? 'completeness',
+      category: (r.rule_category as Rule['category']) ?? RULE_TYPE_CATEGORY[r.rule_type as string] ?? 'completeness',
       type: r.rule_type as Rule['type'],
       connectionId: defaultConnId,
       tableName: (r.sf_table_name as string) ?? '',

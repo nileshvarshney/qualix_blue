@@ -34,7 +34,7 @@ const RULE_TYPES: { value: RuleType; label: string; desc: string; category: Rule
   { value: 'uniqueness_check', label: 'Uniqueness Check', desc: 'Values must be unique across rows', category: 'uniqueness' },
   { value: 'duplicate_check', label: 'Duplicate Check', desc: 'Detect duplicate records', category: 'uniqueness' },
   { value: 'accepted_values_check', label: 'Accepted Values', desc: 'Values must be in allowed set', category: 'validity' },
-  { value: 'range_check', label: 'Range Check', desc: 'Values within min/max range', category: 'accuracy' },
+  { value: 'range_check', label: 'Range Check', desc: 'Values within min/max range', category: 'validity' },
   { value: 'comparison_check', label: 'Value Comparison', desc: 'Column compared to a value (>, <, =, …)', category: 'validity' },
   { value: 'freshness_check', label: 'Freshness Check', desc: 'Data updated within time window', category: 'timeliness' },
   { value: 'volume_check', label: 'Volume Check', desc: 'Row count within expected bounds', category: 'completeness' },
@@ -46,8 +46,8 @@ const RULE_TYPES: { value: RuleType; label: string; desc: string; category: Rule
   { value: 'semantic_consistency_check', label: 'Semantic Consistency', desc: 'Cross-column logical consistency', category: 'consistency' },
   { value: 'referential_sanity_check', label: 'Referential Sanity', desc: 'Validate referential data sanity', category: 'consistency' },
   { value: 'business_metric_check', label: 'Business Metric', desc: 'Aggregate metric within bounds', category: 'accuracy' },
-  { value: 'distribution_consistency_check', label: 'Distribution Check', desc: 'Statistical distribution validation', category: 'accuracy' },
-  { value: 'llm_semantic_check', label: 'LLM Semantic', desc: 'AI-powered semantic validation', category: 'validity' },
+  { value: 'distribution_consistency_check', label: 'Distribution Check', desc: 'Statistical distribution validation', category: 'consistency' },
+  { value: 'llm_semantic_check', label: 'LLM Semantic', desc: 'AI-powered semantic validation', category: 'accuracy' },
 ]
 
 /* ── Status config ────────────────────────────────────────────────── */

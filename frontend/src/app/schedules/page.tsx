@@ -278,7 +278,7 @@ export default function SchedulesPage() {
 
         {!loading && sorted.map(s => {
           const isSelected = selectedId === s.id
-          const rs         = RUN_STYLE[s.lastRunStatus]
+          const rs         = s.lastRunStatus ? RUN_STYLE[s.lastRunStatus] : { background: 'var(--surface-muted)', color: 'var(--text-muted)' }
           const ss         = STATUS_STYLE[s.status]
           const hasIssues  = s.issues.length > 0
           const isEditing  = editingId === s.id
@@ -341,7 +341,7 @@ export default function SchedulesPage() {
 
                 <div>
                   <span style={{ ...rs, padding: '1px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: 600, display: 'inline-block' }}>
-                    {s.lastRunStatus === 'passed' ? '✓' : s.lastRunStatus === 'failed' ? '✕' : '⚠'} {s.lastRunStatus}
+                    {s.lastRunStatus === null ? '—' : `${s.lastRunStatus === 'passed' ? '✓' : s.lastRunStatus === 'failed' ? '✕' : '⚠'} ${s.lastRunStatus}`}
                   </span>
                   {s.failedRules > 0 && <div style={{ fontSize: '9px', color: 'var(--status-error-text)' }}>{s.failedRules} rule{s.failedRules > 1 ? 's' : ''} failed</div>}
                 </div>

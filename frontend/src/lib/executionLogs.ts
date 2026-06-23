@@ -19,8 +19,14 @@ export interface GroupedExecLog {
 const FIVE_MIN_MS = 5 * 60 * 1000
 const STATUS_RANK: Record<RunStatus, number> = { passed: 0, warning: 1, failed: 2 }
 
+function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
 export function mapExecLog(l: Record<string, unknown>, i: number): ExecLog {
-  const durationSeconds = Number(l.duration_seconds ?? 0)
+  const durationMs = Number(l.duration_ms ?? l.duration_seconds_ms ?? 0)
+  const durationSeconds = durationMs ? durationMs / 1000 : Number(l.duration_seconds ?? 0)
   const dataset = [l.sf_database_name, l.sf_schema_name, l.sf_table_name]
     .filter(Boolean)
     .join('.')
@@ -31,20 +37,20 @@ export function mapExecLog(l: Record<string, unknown>, i: number): ExecLog {
     connection:    String(l.connection_name ?? l.connection ?? ''),
     status:        (l.status === 'error' ? 'failed' : l.status as RunStatus) ?? 'passed',
     score:         Number(l.quality_score ?? l.score ?? 100),
-    checked:       Number(l.checked_rows ?? l.checked ?? 0),
-    failed:        Number(l.failed_rows ?? l.failed ?? 0),
-    duration:      String(l.duration_seconds ? `${l.duration_seconds}s` : l.duration ?? '—'),
+    checked:       Number(l.total_rows_scanned ?? l.checked_rows ?? l.checked ?? 0),
+    failed:        Number(l.failed_rows_count ?? l.failed_rows ?? l.failed ?? 0),
+    duration:      durationSeconds ? formatDuration(durationSeconds * 1000) : String(l.duration ?? '—'),
     durationSeconds,
     ts:            String(l.execution_start_time ?? l.started_at ?? l.ts ?? ''),
     trigger:       String(l.trigger_type ?? l.trigger ?? 'Scheduled'),
     runBy:         String(l.run_by ?? l.runBy ?? 'scheduler'),
     ruleType:      String(l.rule_type ?? l.ruleType ?? ''),
-    failureReason: String(l.failure_reason ?? l.failureReason ?? ''),
-    rootCause:     String(l.root_cause ?? l.rootCause ?? ''),
+    failureReason: String(l.error_message ?? l.failure_reason ?? l.failureReason ?? ''),
+    rootCause:     String(l.ai_explanation ?? l.root_cause ?? l.rootCause ?? ''),
     impact:        String(l.impact ?? ''),
     recommendation: String(l.recommendation ?? ''),
-    query:         String(l.rule_query ?? l.query ?? ''),
-    errorSample:   String(l.error_sample ?? l.errorSample ?? ''),
+    query:         String(l.executed_sql ?? l.rule_query ?? l.query ?? ''),
+    errorSample:   String(l.error_message ?? l.error_sample ?? l.errorSample ?? ''),
   }
 }
 

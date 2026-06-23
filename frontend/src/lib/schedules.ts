@@ -30,7 +30,7 @@ export interface Schedule {
   id: string; name: string; dataset: string; tableFqn: string; cron: string; human: string
   frequency: string; runAtHour: number | null; runAtMinute: number | null
   rules: number; lastRun: string; nextRun: string; status: ScheduleStatus
-  lastRunStatus: LastRunStatus; lastDuration: string; connection: string
+  lastRunStatus: LastRunStatus | null; lastDuration: string; connection: string
   owner: string; failedRules: number; checkedRows: string; failedRows: string
   issues: RunIssue[]; bundledRules: BundledRule[]
 }
@@ -88,6 +88,37 @@ export function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
   const tableFqn = [s.asset_database, s.asset_schema, s.asset_name]
     .filter(v => typeof v === 'string' && v)
     .join('.') || dataset || '(unscoped)'
+
+  const bundledRules: BundledRule[] = Array.isArray(s.bundled_rules) ? (s.bundled_rules as Record<string, unknown>[]).map(r => ({
+    ruleId: String(r.rule_id ?? ''),
+    ruleName: String(r.rule_name ?? ''),
+    ruleDescription: String(r.rule_description ?? ''),
+    severity: (r.severity ?? 'medium') as BundledRule['severity'],
+    status: (r.status === 'disabled' ? 'disabled' : 'active') as BundledRule['status'],
+    lastRunStatus: mapLastRunStatus(r.last_run_status),
+    lastRunAt: typeof r.last_run_at === 'string' ? r.last_run_at : null,
+    lastDurationMs: typeof r.last_duration_ms === 'number' ? r.last_duration_ms : null,
+    nextRun: typeof r.next_run === 'string' ? r.next_run : null,
+    failedRowsCount: typeof r.failed_rows_count === 'number' ? r.failed_rows_count : null,
+    totalRowsScanned: typeof r.total_rows_scanned === 'number' ? r.total_rows_scanned : null,
+    failurePercentage: typeof r.failure_percentage === 'number' ? r.failure_percentage : null,
+    errorMessage: typeof r.error_message === 'string' ? r.error_message : null,
+    aiExplanation: typeof r.ai_explanation === 'string' ? r.ai_explanation : null,
+  })) : []
+
+  // The schedule object itself carries no last-run info — only its bundled rules do.
+  // Derive the schedule-level "last run" from whichever bundled rule ran most recently,
+  // and only report a status/timestamp if at least one rule has actually run.
+  const ranRules = bundledRules.filter(r => r.lastRunAt !== null)
+  const mostRecent = ranRules.length > 0
+    ? ranRules.reduce((a, b) => (a.lastRunAt! > b.lastRunAt! ? a : b))
+    : null
+  const failedRules = bundledRules.filter(r => r.lastRunStatus === 'failed').length
+  const warningRules = bundledRules.filter(r => r.lastRunStatus === 'warning').length
+  const lastRunStatus: LastRunStatus | null = mostRecent === null
+    ? null
+    : failedRules > 0 ? 'failed' : warningRules > 0 ? 'warning' : 'passed'
+
   return {
     id:            String(s.schedule_id ?? s.id ?? i),
     name:          String(s.schedule_name ?? s.name ?? ''),
@@ -99,34 +130,17 @@ export function mapSchedule(s: Record<string, unknown>, i: number): Schedule {
     runAtHour:     s.run_at_hour === null || s.run_at_hour === undefined ? null : Number(s.run_at_hour),
     runAtMinute:   s.run_at_minute === null || s.run_at_minute === undefined ? null : Number(s.run_at_minute),
     rules:         Number(s.rule_count ?? s.rules ?? 0),
-    lastRun:       String(s.last_run_at ?? s.lastRun ?? '—'),
+    lastRun:       String(s.last_run_at ?? s.lastRun ?? mostRecent?.lastRunAt ?? '—'),
     nextRun:       String(s.next_run_at ?? s.nextRun ?? '—'),
     status:        (s.is_active ? 'active' : 'paused') as ScheduleStatus,
-    lastRunStatus: (['passed', 'failed', 'warning'] as const).includes(s.last_run_status as 'passed' | 'failed' | 'warning')
-                     ? (s.last_run_status as 'passed' | 'failed' | 'warning')
-                     : 'passed',
-    lastDuration:  String(s.last_duration ?? s.lastDuration ?? '—'),
+    lastRunStatus,
+    lastDuration:  mostRecent?.lastDurationMs != null ? formatDuration(mostRecent.lastDurationMs) : String(s.last_duration ?? s.lastDuration ?? '—'),
     connection:    String(s.connection_name ?? s.connection ?? '(no connection)'),
     owner:         String(s.owner ?? ''),
-    failedRules:   Number(s.failed_rules ?? s.failedRules ?? 0),
+    failedRules:   Number(s.failed_rules ?? s.failedRules ?? failedRules),
     checkedRows:   String(s.checked_rows ?? s.checkedRows ?? '0'),
     failedRows:    String(s.failed_rows ?? s.failedRows ?? '0'),
     issues:        Array.isArray(s.issues) ? s.issues as RunIssue[] : [],
-    bundledRules:  Array.isArray(s.bundled_rules) ? (s.bundled_rules as Record<string, unknown>[]).map(r => ({
-                     ruleId: String(r.rule_id ?? ''),
-                     ruleName: String(r.rule_name ?? ''),
-                     ruleDescription: String(r.rule_description ?? ''),
-                     severity: (r.severity ?? 'medium') as BundledRule['severity'],
-                     status: (r.status === 'disabled' ? 'disabled' : 'active') as BundledRule['status'],
-                     lastRunStatus: mapLastRunStatus(r.last_run_status),
-                     lastRunAt: typeof r.last_run_at === 'string' ? r.last_run_at : null,
-                     lastDurationMs: typeof r.last_duration_ms === 'number' ? r.last_duration_ms : null,
-                     nextRun: typeof r.next_run === 'string' ? r.next_run : null,
-                     failedRowsCount: typeof r.failed_rows_count === 'number' ? r.failed_rows_count : null,
-                     totalRowsScanned: typeof r.total_rows_scanned === 'number' ? r.total_rows_scanned : null,
-                     failurePercentage: typeof r.failure_percentage === 'number' ? r.failure_percentage : null,
-                     errorMessage: typeof r.error_message === 'string' ? r.error_message : null,
-                     aiExplanation: typeof r.ai_explanation === 'string' ? r.ai_explanation : null,
-                   })) : [],
+    bundledRules,
   }
 }

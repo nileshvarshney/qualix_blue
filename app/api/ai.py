@@ -1,4 +1,3 @@
-from __future__ import annotations
 from typing import Optional
 import json as _json
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -7,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.schemas.ai import (
-    GenerateRulesRequest, ExplainFailureRequest, GenerateSQLRequest,
+    GenerateRulesRequest, ExplainFailureRequest, ExplainAnomalyRequest, GenerateSQLRequest,
     ClassifyTableRequest, ChatRequest, ChatResponse,
 )
 from app.services import ai_service
@@ -81,6 +80,43 @@ async def explain_failure(
             payload.run_id, payload.rule_id, payload.provider, db,
         )
         return {"explanation": explanation, "run_id": payload.run_id, "rule_id": payload.rule_id}
+    except RuntimeError as e:
+        raise _llm_err(e)
+
+
+@router.post("/explain-anomaly")
+@limiter.limit("20/minute")
+async def explain_anomaly_route(
+    request: Request,
+    payload: ExplainAnomalyRequest,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    from sqlalchemy import select
+    from app.db.models import AnomalyDetection, Asset
+
+    detection = (await db.execute(
+        select(AnomalyDetection).where(AnomalyDetection.detection_id == payload.detection_id)
+    )).scalar_one_or_none()
+    if not detection:
+        raise HTTPException(404, "Anomaly detection not found")
+    asset = (await db.execute(
+        select(Asset).where(Asset.asset_id == detection.asset_id)
+    )).scalar_one_or_none()
+    if not asset:
+        raise HTTPException(404, "Asset not found")
+
+    try:
+        explanation = await ai_service.explain_anomaly(
+            {
+                "anomaly_type": detection.anomaly_type,
+                "observed_value": detection.observed_value,
+                "expected_range": detection.expected_range,
+                "confidence": detection.confidence or 0,
+            },
+            asset, payload.provider, db,
+        )
+        return {"summary": explanation, "detection_id": payload.detection_id}
     except RuntimeError as e:
         raise _llm_err(e)
 

@@ -166,7 +166,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
       const ids: string[] = []
       for (const n of nodes) {
         if (n.asset_type === 'table' || n.asset_type === 'view') ids.push(n.asset_id)
-        if (n.children.length > 0) ids.push(...collectLeafIds(n.children))
+        if (n.children?.length > 0) ids.push(...collectLeafIds(n.children))
       }
       return ids
     }
@@ -195,9 +195,13 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
         fetch(`/api/asset-registry/${assetId}/children`)
           .then(r => r.json())
           .then(children => {
+            // Leaf nodes (e.g. columns) come back from the API without a `children`
+            // field at all — normalize so every node in the tree always has an array.
+            const normalized: TreeNode[] = (Array.isArray(children) ? children : [])
+              .map((c: TreeNode) => ({ ...c, children: c.children ?? [] }))
             setRoots(p => updateNodeInTree(p, assetId, {
               _loaded: true, _expanded: true,
-              children: Array.isArray(children) ? children : [],
+              children: normalized,
             }))
           })
         return updateNodeInTree(prev, assetId, { _expanded: true })

@@ -151,13 +151,13 @@ function AnomalyAiExplanation({ anomalyId }: { anomalyId: string }) {
   const load = useCallback(() => {
     setLoading(true)
     setErr(null)
-    fetch('/api/ai/explain-failure', {
+    fetch('/api/ai/explain-anomaly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ detection_id: anomalyId }),
       cache: 'no-store',
     })
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('AI analysis unavailable')))
       .then(d => setData(d as AiExplanation))
       .catch(e => setErr(e instanceof Error ? e.message : 'AI analysis unavailable'))
       .finally(() => setLoading(false))
