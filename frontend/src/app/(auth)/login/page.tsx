@@ -1,4 +1,5 @@
 import LoginCard from '@/components/auth/LoginCard'
+import StarFieldBg from '@/components/auth/StarFieldBg'
 
 export default async function LoginPage({
   searchParams,
@@ -24,6 +25,8 @@ export default async function LoginPage({
         background: 'radial-gradient(ellipse 60% 55% at 50% 48%, rgba(255,110,50,0.08) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
+
+      <StarFieldBg />
 
       <LoginCard returnUrl={returnUrl} />
 
