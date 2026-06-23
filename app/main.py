@@ -82,6 +82,36 @@ def _validate_security_config() -> None:
             logger.warning(f"[SECURITY] {msg}")
 
 
+async def _seed_admin_user() -> None:
+    """Create a default admin user if ADMIN_EMAIL/ADMIN_PASSWORD are set and no users exist."""
+    import os, uuid
+    from sqlalchemy import select as _select
+    from app.db.database import AsyncSessionLocal
+    from app.db.models import User
+    from app.core.security import hash_password
+
+    email = os.environ.get("ADMIN_EMAIL", "").strip().lower()
+    password = os.environ.get("ADMIN_PASSWORD", "").strip()
+    if not email or not password:
+        return
+
+    async with AsyncSessionLocal() as db:
+        count = (await db.execute(_select(User))).scalars().all()
+        if count:
+            return
+        user = User(
+            user_id=str(uuid.uuid4()),
+            email=email,
+            hashed_password=hash_password(password),
+            full_name="Admin",
+            role="Admin",
+            is_active=True,
+        )
+        db.add(user)
+        await db.commit()
+        logger.info("Seeded default admin user: %s", email)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load secrets from Vault / AWS SM before anything else
@@ -97,6 +127,7 @@ async def lifespan(app: FastAPI):
         from app.services.config_service import seed_config
         async with AsyncSessionLocal() as db:
             await seed_config(db)
+        await _seed_admin_user()
         # Ensure compliance frameworks (real regulatory definitions) are initialized
         try:
             from app.db.seed import seed_compliance_frameworks, auto_map_rules_to_controls

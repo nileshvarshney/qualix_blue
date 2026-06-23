@@ -45,5 +45,9 @@ services:
         sync: false
       - key: ENCRYPTION_KEY
         sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
       - key: GEMINI_API_KEY
         sync: false
