@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "cf:build": "npx @opennextjs/cloudflare build",
+    "cf:build": "BACKEND_URL=https://qualix-backend-7ly5.onrender.com npx @opennextjs/cloudflare build",
     "cf:dev": "npx wrangler dev",
     "cf:preview": "npm run cf:build && npx wrangler dev",
     "cf:deploy": "npm run cf:build && npx wrangler deploy"
