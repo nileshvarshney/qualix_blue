@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import ShellWrapper from '@/components/ShellWrapper'
+import { AuthProvider } from '@/context/AuthContext'
 
 export const metadata: Metadata = {
   title: 'Qualix — AI Data Quality & Governance',
@@ -20,7 +21,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body style={{ minHeight: '100vh', background: 'var(--background)' }}>
-        <ShellWrapper>{children}</ShellWrapper>
+        <AuthProvider>
+          <ShellWrapper>{children}</ShellWrapper>
+        </AuthProvider>
       </body>
     </html>
   )

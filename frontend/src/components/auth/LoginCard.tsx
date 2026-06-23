@@ -1,5 +1,7 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/AuthContext'
 
 const ROLES = [
   'Admin', 'Data Owner', 'Data Steward', 'Analyst',
@@ -8,15 +10,19 @@ const ROLES = [
 
 type Mode = 'login' | 'reset'
 type LoginForm = { email: string; password: string; role: string }
-type LoginErrors = { email?: string; password?: string; role?: string }
+type LoginErrors = { email?: string; password?: string; role?: string; form?: string }
 
-export default function LoginCard() {
+export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
   const [mode, setMode] = useState<Mode>('login')
   const [form, setForm] = useState<LoginForm>({ email: '', password: '', role: '' })
   const [errors, setErrors] = useState<LoginErrors>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetEmailError, setResetEmailError] = useState('')
   const [resetSent, setResetSent] = useState(false)
+
+  const { login } = useAuth()
+  const router = useRouter()
 
   function handleCancel() {
     setForm({ email: '', password: '', role: '' })
@@ -36,10 +42,31 @@ export default function LoginCard() {
     return Object.keys(e).length === 0
   }
 
-  function handleSignIn() {
-    if (validate()) {
-      // Auth wiring out of scope — replace with real call
-      console.log('sign in', form.email, form.role)
+  async function handleSignIn() {
+    if (!validate()) return
+    setIsSubmitting(true)
+    setErrors({})
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email, password: form.password, role: form.role }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setErrors({ form: err.detail || 'Invalid email or password' })
+        return
+      }
+
+      const data = await res.json()
+      login(data.access_token, data.user)
+      router.replace(returnUrl)
+    } catch {
+      setErrors({ form: 'Connection error. Please try again.' })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -100,6 +127,16 @@ export default function LoginCard() {
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Welcome back</div>
           <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 14 }}>Sign in to your workspace</div>
 
+          {errors.form && (
+            <div style={{
+              fontSize: 10, color: '#ef4444',
+              background: '#fef2f2', border: '1px solid #fecaca',
+              borderRadius: 6, padding: '6px 9px', marginBottom: 10,
+            }}>
+              {errors.form}
+            </div>
+          )}
+
           <label htmlFor="login-email" style={labelStyle}>Email address</label>
           <input
             id="login-email"
@@ -152,8 +189,14 @@ export default function LoginCard() {
           </select>
           {errors.role && <div style={errorStyle}>{errors.role}</div>}
 
-          <button onClick={handleSignIn} style={btnPrimaryStyle}>Sign In</button>
-          <button onClick={handleCancel} style={btnCancelStyle}>Cancel</button>
+          <button onClick={handleSignIn} disabled={isSubmitting} style={{
+            ...btnPrimaryStyle,
+            opacity: isSubmitting ? 0.7 : 1,
+            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+          }}>
+            {isSubmitting ? 'Signing in…' : 'Sign In'}
+          </button>
+          <button onClick={handleCancel} disabled={isSubmitting} style={btnCancelStyle}>Cancel</button>
 
           <div style={{ height: 1, background: '#f1f5f9', margin: '14px 0 0' }} />
           <div style={{ fontSize: 9, color: '#94a3b8', textAlign: 'center', marginTop: 8 }}>
