@@ -529,7 +529,7 @@ function AlertsPageInner() {
                 <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', width: 24, textAlign: 'right', flexShrink: 0 }}>#{String(r.priority ?? i + 1)}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(r.name ?? 'Rule')}</div>
-                  {r.description && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{String(r.description)}</div>}
+                  {!!r.description && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{String(r.description)}</div>}
                 </div>
                 <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: r.is_active ? '#dcfce7' : 'var(--surface-muted)', color: r.is_active ? '#16a34a' : 'var(--text-muted)', fontWeight: 600 }}>
                   {r.is_active ? 'Active' : 'Inactive'}
