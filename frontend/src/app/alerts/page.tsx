@@ -236,7 +236,10 @@ function AlertsPageInner() {
   const [rules, setRules] = useState<AlertDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [rulesLoading, setRulesLoading] = useState(true)
-  const [tab, setTab] = useState<'recent' | 'rules'>('recent')
+  const [tab, setTab] = useState<'recent' | 'rules' | 'routing' | 'maintenance' | 'flap'>('recent')
+  const [routingRules, setRoutingRules] = useState<Record<string, unknown>[]>([])
+  const [maintenanceWindows, setMaintenanceWindows] = useState<Record<string, unknown>[]>([])
+  const [flapConfig, setFlapConfig] = useState<Record<string, unknown> | null>(null)
   const [alertFilter, setAlertFilter] = useState<AlertFilter>(
     initialFilter === 'critical' || initialFilter === 'high' || initialFilter === 'unacked' ? initialFilter : 'all'
   )
@@ -292,6 +295,18 @@ function AlertsPageInner() {
         setRulesLoading(false)
       })
       .catch(() => setRulesLoading(false))
+  }, [])
+
+  useEffect(() => {
+    Promise.allSettled([
+      fetch('/api/alert-routing/rules').then(r => r.json()),
+      fetch('/api/alert-routing/maintenance-windows').then(r => r.json()),
+      fetch('/api/alert-routing/flap-detection').then(r => r.json()),
+    ]).then(([rules, windows, flap]) => {
+      if (rules.status === 'fulfilled') setRoutingRules(Array.isArray(rules.value) ? rules.value : [])
+      if (windows.status === 'fulfilled') setMaintenanceWindows(Array.isArray(windows.value) ? windows.value : [])
+      if (flap.status === 'fulfilled' && flap.value) setFlapConfig(flap.value)
+    }).catch(() => {})
   }, [])
 
   const unacked = alerts.filter(a => !a.ack).length
@@ -396,14 +411,20 @@ function AlertsPageInner() {
 
       {/* tabs + filter pills + search */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, flexWrap: 'wrap' }}>
-        {(['recent', 'rules'] as const).map(t => (
-          <button key={t} onClick={() => setTab(t)} style={{
+        {([
+          ['recent', `Recent (${filteredAlerts.length})`],
+          ['rules', `Definitions (${filteredRules.length})`],
+          ['routing', `Routing (${routingRules.length})`],
+          ['maintenance', `Maintenance (${maintenanceWindows.length})`],
+          ['flap', 'Flap Detection'],
+        ] as [string, string][]).map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t as typeof tab)} style={{
             padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
             background: tab === t ? 'var(--foreground)' : 'var(--surface-muted)',
             color: tab === t ? 'var(--background)' : 'var(--text-secondary)',
             fontWeight: tab === t ? 600 : 400, fontSize: '11px',
           }}>
-            {t === 'recent' ? `Recent (${filteredAlerts.length})` : `Definitions (${filteredRules.length})`}
+            {label}
           </button>
         ))}
         <div style={{ width: '1px', height: '14px', background: 'var(--border)', margin: '0 4px' }} />
@@ -498,6 +519,83 @@ function AlertsPageInner() {
             </div>
           )
         })}
+
+        {/* ── Routing Rules ── */}
+        {tab === 'routing' && (
+          routingRules.length === 0
+            ? <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No routing rules configured. Use the API to create routing rules.</div>
+            : routingRules.map((r, i) => (
+              <div key={String(r.rule_id ?? i)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${r.is_active ? '#6366f1' : 'var(--border)'}` }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', width: 24, textAlign: 'right', flexShrink: 0 }}>#{String(r.priority ?? i + 1)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(r.name ?? 'Rule')}</div>
+                  {r.description && <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{String(r.description)}</div>}
+                </div>
+                <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: r.is_active ? '#dcfce7' : 'var(--surface-muted)', color: r.is_active ? '#16a34a' : 'var(--text-muted)', fontWeight: 600 }}>
+                  {r.is_active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+            ))
+        )}
+
+        {/* ── Maintenance Windows ── */}
+        {tab === 'maintenance' && (
+          maintenanceWindows.length === 0
+            ? <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>No maintenance windows configured.</div>
+            : maintenanceWindows.map((w, i) => {
+              const start = w.start_at ? new Date(String(w.start_at)) : null
+              const end = w.end_at ? new Date(String(w.end_at)) : null
+              const now = new Date()
+              const isActive = start && end && now >= start && now <= end
+              return (
+                <div key={String(w.window_id ?? i)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${isActive ? '#f97316' : 'var(--border)'}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)' }}>{String(w.name ?? 'Window')}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+                      {start?.toLocaleString()} → {end?.toLocaleString()} · {String(w.recurrence ?? 'none')}
+                    </div>
+                  </div>
+                  {isActive && <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#fff7ed', color: '#f97316', fontWeight: 600 }}>Active Now</span>}
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {w.suppress_alerts ? '🔕 Alerts suppressed' : ''}
+                    {w.suppress_scans ? ' · 🚫 Scans suppressed' : ''}
+                  </div>
+                </div>
+              )
+            })
+        )}
+
+        {/* ── Flap Detection ── */}
+        {tab === 'flap' && (
+          <div style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '20px 24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--foreground)' }}>Flap Detection</div>
+                <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 6, background: flapConfig?.is_enabled ? '#dcfce7' : 'var(--surface-muted)', color: flapConfig?.is_enabled ? '#16a34a' : 'var(--text-muted)', fontWeight: 600 }}>
+                  {flapConfig?.is_enabled ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+                {[
+                  { label: 'Flap Threshold', value: String(flapConfig?.flap_threshold ?? 3), sub: 'fire/recover cycles' },
+                  { label: 'Detection Window', value: `${flapConfig?.window_minutes ?? 30}m`, sub: 'time window' },
+                  { label: 'Suppress Duration', value: `${flapConfig?.suppress_duration_minutes ?? 60}m`, sub: 'suppression period' },
+                ].map(k => (
+                  <div key={k.label} style={{ background: 'var(--surface-muted)', borderRadius: 8, padding: '14px 16px' }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--foreground)' }}>{k.value}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--foreground)', marginTop: 2 }}>{k.label}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{k.sub}</div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 16, marginBottom: 0, lineHeight: '1.6' }}>
+                When an alert fires and recovers {String(flapConfig?.flap_threshold ?? 3)} or more times within {String(flapConfig?.window_minutes ?? 30)} minutes,
+                it is classified as flapping and suppressed for {String(flapConfig?.suppress_duration_minutes ?? 60)} minutes to reduce noise.
+                Update via the API: <code style={{ background: 'var(--surface-muted)', padding: '1px 4px', borderRadius: 3 }}>PUT /alert-routing/flap-detection</code>
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* detail popup */}

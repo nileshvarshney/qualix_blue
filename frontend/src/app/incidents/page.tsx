@@ -20,6 +20,11 @@ const ST: Record<string, { bg: string; color: string }> = {
   resolved:      { bg: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)'    },
 }
 
+interface EscalationPolicy {
+  policy_id: string; name: string; severity: string; is_active: boolean
+  steps: Record<string, unknown>[] | null; repeat_interval_minutes: number; max_escalations: number
+}
+
 export default function IncidentsPage() {
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
@@ -28,6 +33,18 @@ export default function IncidentsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [incForm, setIncForm] = useState({ title: '', severity: 'medium', asset: '', description: '' })
   const [incSaving, setIncSaving] = useState(false)
+  const [tab, setTab] = useState<'incidents' | 'escalation'>('incidents')
+  const [policies, setPolicies] = useState<EscalationPolicy[]>([])
+  const [policiesLoading, setPoliciesLoading] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'escalation' && policies.length === 0 && !policiesLoading) {
+      setPoliciesLoading(true)
+      fetch('/api/escalation-policies').then(r => r.json()).then(data => {
+        setPolicies(Array.isArray(data) ? data : [])
+      }).catch(() => {}).finally(() => setPoliciesLoading(false))
+    }
+  }, [tab, policies.length, policiesLoading])
 
   useEffect(() => {
     fetch('/api/incidents')
@@ -141,8 +158,20 @@ export default function IncidentsPage() {
         <button onClick={() => setShowCreate(true)} style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>+ Report</button>
       </div>
 
-      {/* filter pills */}
+      {/* tabs */}
       <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+        {([['incidents', `Incidents (${incidents.length})`], ['escalation', 'Escalation Policies']] as [string, string][]).map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t as typeof tab)} style={{
+            padding: '4px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+            background: tab === t ? 'var(--foreground)' : 'var(--surface-muted)',
+            color: tab === t ? 'var(--background)' : 'var(--text-secondary)',
+            fontWeight: tab === t ? 600 : 400, fontSize: '11px',
+          }}>{label}</button>
+        ))}
+      </div>
+
+      {/* filter pills (only for incidents tab) */}
+      {tab === 'incidents' && <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
         {(['all','open','investigating','resolved'] as const).map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: '4px 10px', borderRadius: '6px', border: 'none', cursor: 'pointer',
@@ -151,17 +180,48 @@ export default function IncidentsPage() {
             fontWeight: filter === f ? 600 : 400, fontSize: '11px',
           }}>{f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}</button>
         ))}
-      </div>
+      </div>}
 
-      {/* column header */}
-      {!loading && filtered.length > 0 && (
+      {/* column header — incidents only */}
+      {tab === 'incidents' && !loading && filtered.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '4px 64px 1fr 90px auto', gap: '0 8px', padding: '0 6px 4px', flexShrink: 0, borderBottom: '1px solid var(--border)' }}>
           {['', 'Severity', 'Title', 'Status', 'Time'].map((h, i) => <span key={i} style={{ fontSize: '9px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>)}
         </div>
       )}
 
-      {/* scrollable list */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      {/* escalation policies tab */}
+      {tab === 'escalation' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
+          {policiesLoading && <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>Loading…</div>}
+          {!policiesLoading && policies.length === 0 && (
+            <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+              No escalation policies configured yet.
+              <br /><span style={{ fontSize: 11 }}>Use the API to create policies: <code>POST /escalation-policies</code></span>
+            </div>
+          )}
+          {!policiesLoading && policies.map(p => {
+            const sevColor: Record<string, string> = { critical: '#dc2626', high: '#f97316', medium: '#eab308', low: '#22c55e', all: '#6366f1' }
+            const color = sevColor[p.severity] ?? '#6b7280'
+            return (
+              <div key={p.policy_id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--surface-muted)', borderLeft: `2px solid ${p.is_active ? color : 'var(--border)'}` }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--foreground)' }}>{p.name}</span>
+                    <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: `${color}18`, color, fontWeight: 600 }}>{p.severity}</span>
+                    {!p.is_active && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>inactive</span>}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                    {p.steps?.length ?? 0} escalation step{(p.steps?.length ?? 0) !== 1 ? 's' : ''} · repeats every {p.repeat_interval_minutes}m · max {p.max_escalations} escalations
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* scrollable list — incidents only */}
+      {tab === 'incidents' && <div style={{ flex: 1, overflowY: 'auto' }}>
         {loading && <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>Loading…</div>}
         {!loading && filtered.length === 0 && (
           <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-xs)' }}>{incidents.length === 0 ? 'No incidents yet' : 'No incidents match filters'}</div>
@@ -183,7 +243,7 @@ export default function IncidentsPage() {
             </div>
           )
         })}
-      </div>
+      </div>}
 
       {/* create incident modal */}
       {showCreate && (
