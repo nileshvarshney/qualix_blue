@@ -47,6 +47,9 @@ from app.api.users import router as users_router
 from app.api.oauth import router as oauth_router
 from app.api.service_accounts import router as service_accounts_router
 from app.api import assets_compat
+from app.api import pipelines as pipelines_module
+from app.api import escalation_policies as escalation_policies_module
+from app.api import alert_routing as alert_routing_module
 
 setup_logging()
 logger = logging.getLogger("dataguard")
@@ -268,6 +271,9 @@ app.include_router(monitoring.router)
 app.include_router(teams_module.router)
 app.include_router(ownership_module.router)
 app.include_router(notifications_module.router)
+app.include_router(pipelines_module.router)
+app.include_router(escalation_policies_module.router)
+app.include_router(alert_routing_module.router)
 app.include_router(assets_compat.router)  # must be last — wildcard catches all /assets/*
 
 

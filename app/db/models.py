@@ -1801,3 +1801,175 @@ class AlertDefinition(Base):
     created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+# ---------------------------------------------------------------------------
+# Operations Module — Pipeline Orchestration
+# ---------------------------------------------------------------------------
+
+class Pipeline(Base):
+    __tablename__ = "ops_pipelines"
+
+    pipeline_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    cron_expr: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    trigger_config: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    connection_ids: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=3600)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    steps: Mapped[list["PipelineStep"]] = relationship(
+        "PipelineStep", back_populates="pipeline",
+        cascade="all, delete-orphan", order_by="PipelineStep.step_order",
+    )
+    runs: Mapped[list["PipelineRun"]] = relationship(
+        "PipelineRun", back_populates="pipeline", cascade="all, delete-orphan",
+    )
+
+
+class PipelineStep(Base):
+    __tablename__ = "ops_pipeline_steps"
+
+    step_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    pipeline_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ops_pipelines.pipeline_id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    step_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    step_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    step_config: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    depends_on: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=1800)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    pipeline: Mapped["Pipeline"] = relationship("Pipeline", back_populates="steps")
+
+
+class PipelineRun(Base):
+    __tablename__ = "ops_pipeline_runs"
+
+    run_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    pipeline_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ops_pipelines.pipeline_id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    triggered_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    trigger_type: Mapped[str] = mapped_column(String(30), nullable=False, default="manual")
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    pipeline: Mapped["Pipeline"] = relationship("Pipeline", back_populates="runs")
+    step_runs: Mapped[list["PipelineStepRun"]] = relationship(
+        "PipelineStepRun", back_populates="run", cascade="all, delete-orphan",
+    )
+
+
+class PipelineStepRun(Base):
+    __tablename__ = "ops_pipeline_step_runs"
+
+    step_run_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ops_pipeline_runs.run_id", ondelete="CASCADE"), nullable=False
+    )
+    step_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    step_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    output_summary: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+
+    run: Mapped["PipelineRun"] = relationship("PipelineRun", back_populates="step_runs")
+
+
+# ---------------------------------------------------------------------------
+# Operations Module — Escalation Policies
+# ---------------------------------------------------------------------------
+
+class EscalationPolicy(Base):
+    __tablename__ = "ops_escalation_policies"
+
+    policy_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="all")
+    steps: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    oncall_rotation: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    repeat_interval_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    max_escalations: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    routing_rules: Mapped[list["AlertRoutingRule"]] = relationship(
+        "AlertRoutingRule", back_populates="escalation_policy",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Operations Module — Alert Routing
+# ---------------------------------------------------------------------------
+
+class AlertRoutingRule(Base):
+    __tablename__ = "ops_alert_routing_rules"
+
+    rule_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    match_conditions: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    notification_channels: Mapped[Optional[list]] = mapped_column(JSONVariant, nullable=True)
+    escalation_policy_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("ops_escalation_policies.policy_id", ondelete="SET NULL"), nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+    escalation_policy: Mapped[Optional["EscalationPolicy"]] = relationship(
+        "EscalationPolicy", back_populates="routing_rules",
+    )
+
+
+class MaintenanceWindow(Base):
+    __tablename__ = "ops_maintenance_windows"
+
+    window_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    scope: Mapped[Optional[dict]] = mapped_column(JSONVariant, nullable=True)
+    start_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    recurrence: Mapped[str] = mapped_column(String(20), nullable=False, default="none")
+    suppress_alerts: Mapped[bool] = mapped_column(Boolean, default=True)
+    suppress_scans: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
+
+
+class FlapDetectionConfig(Base):
+    """Singleton config — only one row exists."""
+    __tablename__ = "ops_flap_detection_config"
+
+    config_id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    flap_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    window_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    suppress_duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    updated_by: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)

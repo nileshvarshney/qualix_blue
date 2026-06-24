@@ -346,6 +346,7 @@ const SECTION_KEY_MAP: Record<string, string> = {
   '/lineage': 'govern', '/catalog': 'govern', '/governance': 'govern',
   '/glossary': 'govern', '/contracts': 'govern', '/data-products': 'govern', '/slas': 'govern', '/domains': 'govern',
   '/alerts': 'operations', '/incidents': 'operations', '/audit-logs': 'operations', '/observability': 'operations',
+  '/command-center': 'operations', '/pipelines': 'operations', '/cost': 'operations',
   '/data-browser': 'explore', '/spot-check': 'explore', '/reports': 'explore',
   '/executive': 'explore',
   '/compliance': 'govern', '/privacy': 'govern',
@@ -1019,6 +1020,8 @@ export default function Sidebar() {
   const activeSectionKey =
     SECTION_KEY_MAP[pathname] ??
     (pathname.startsWith('/scan-jobs/') ? 'operations' : null) ??
+    (pathname.startsWith('/pipelines/') ? 'operations' : null) ??
+    (pathname.startsWith('/command-center/') ? 'operations' : null) ??
     'quality'
 
   return (
