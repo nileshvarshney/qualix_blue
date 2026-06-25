@@ -101,6 +101,47 @@ def _browse_columns_sync(conn: SnowflakeConnection, db_safe: str, schema_safe: s
         sf.close()
 
 
+# ── PostgreSQL browse helpers (uses PostgreSQLAdapter / psycopg2) ─────────────
+
+def _pg_connector(conn: SnowflakeConnection):
+    from app.connectors import get_connector, config_from_orm
+    from app.core.encryption import decrypt
+    cfg = config_from_orm(conn)
+    cfg.password = decrypt(conn.password) if conn.password else ""
+    return get_connector(cfg)
+
+
+async def _browse_tables_pg(conn: SnowflakeConnection, database: str, schema: str) -> list[dict]:
+    adapter = _pg_connector(conn)
+    tables = await adapter.list_tables(database, schema)
+    return [
+        {
+            "table_name": t.table_name,
+            "table_type": t.table_type,
+            "row_count": t.row_count or 0,
+            "bytes": None,
+            "comment": t.comment or "",
+            "last_altered": None,
+        }
+        for t in tables
+    ]
+
+
+async def _browse_columns_pg(conn: SnowflakeConnection, database: str, schema: str, table: str) -> list[dict]:
+    adapter = _pg_connector(conn)
+    columns = await adapter.list_columns(database, schema, table)
+    return [
+        {
+            "column_name": c.name,
+            "data_type": c.data_type,
+            "is_nullable": c.is_nullable,
+            "ordinal_position": c.ordinal_position,
+            "comment": c.comment or "",
+        }
+        for c in columns
+    ]
+
+
 async def _get_existing_table_names(db, connection_id: str, database: str, schema: str, table_names: list[str]) -> set[str]:
     if not table_names:
         return set()
@@ -276,6 +317,8 @@ async def run_discovery(job_id: str, payload: dict) -> None:
 
             conn = await _fetch_connection(payload["connection_id"], db)
             scan_run_id = payload.get("scan_run_id")
+            db_type = (conn.database_type or "snowflake").lower()
+            is_pg = db_type == "postgresql"
 
             filter_mode = conn.filter_mode or "exclude"
 
@@ -385,9 +428,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                     continue
 
                 try:
-                    tables = await asyncio.to_thread(
-                        _browse_tables_sync, conn, db_safe, schema_safe
-                    )
+                    if is_pg:
+                        tables = await _browse_tables_pg(conn, db_safe, schema_safe)
+                    else:
+                        tables = await asyncio.to_thread(
+                            _browse_tables_sync, conn, db_safe, schema_safe
+                        )
                     # Filter to specific tables if caller provided a list
                     if sel.get("tables"):
                         selected = set(sel["tables"])
@@ -461,9 +507,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                                     )
                                 )
                                 table_safe = _validate_ident(tname, "table")
-                                columns = await asyncio.to_thread(
-                                    _browse_columns_sync, conn, db_safe, schema_safe, table_safe
-                                )
+                                if is_pg:
+                                    columns = await _browse_columns_pg(conn, db_safe, schema_safe, table_safe)
+                                else:
+                                    columns = await asyncio.to_thread(
+                                        _browse_columns_sync, conn, db_safe, schema_safe, table_safe
+                                    )
                                 if (rule_count_res.scalar() or 0) == 0:
                                     try:
                                         await create_phase1_rules(existing_asset, columns, db)
@@ -543,9 +592,12 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         table_safe = _validate_ident(tname, "table")
 
                         # Fetch column metadata for LLM classification
-                        columns = await asyncio.to_thread(
-                            _browse_columns_sync, conn, db_safe, schema_safe, table_safe
-                        )
+                        if is_pg:
+                            columns = await _browse_columns_pg(conn, db_safe, schema_safe, table_safe)
+                        else:
+                            columns = await asyncio.to_thread(
+                                _browse_columns_sync, conn, db_safe, schema_safe, table_safe
+                            )
 
                         # LLM classify — on failure, fall back to Others domain
                         try:
@@ -595,8 +647,8 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                         db.add(asset)
                         db.add(AssetSourceMeta(
                             asset_id=asset_id_new,
-                            provider="snowflake",
-                            sf_account=conn.account,
+                            provider=db_type,
+                            sf_account=conn.account if not is_pg else conn.host,
                             sf_database_name=database,
                             sf_schema_name=schema,
                             sf_table_name=tname,
