@@ -5,24 +5,15 @@ export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
-  const connectionId = new URL(req.url).searchParams.get('connection_id') ?? await getPrimaryConnectionId()
-  if (!connectionId) return NextResponse.json({ nodes: [], edges: [] })
+  const connectionId = new URL(req.url).searchParams.get('connection_id')
+  const url = connectionId
+    ? `${BACKEND}/lineage?connection_id=${connectionId}`
+    : `${BACKEND}/lineage`
   try {
-    const res = await fetch(`${BACKEND}/lineage?connection_id=${connectionId}`, { cache: 'no-store' })
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ nodes: [], edges: [] })
     return NextResponse.json(await res.json())
   } catch {
     return NextResponse.json({ nodes: [], edges: [] })
   }
-}
-
-async function getPrimaryConnectionId(): Promise<string | null> {
-  try {
-    const res = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
-    if (!res.ok) return null
-    const conns: Record<string, unknown>[] = await res.json()
-    if (!Array.isArray(conns) || conns.length === 0) return null
-    const primary = conns.find(c => c.is_primary_target) ?? conns[0]
-    return primary?.connection_id as string ?? null
-  } catch { return null }
 }

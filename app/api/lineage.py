@@ -7,7 +7,7 @@ import sqlglot.expressions as exp
 from sqlglot.lineage import lineage as sqlglot_lineage
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 from app.db.database import get_db
 from app.db.models import (
@@ -259,11 +259,68 @@ async def _resolve_connection_id(connection_id: Optional[str], db: AsyncSession)
         return connection_id
     result = await db.execute(
         select(SnowflakeConnection.connection_id)
-        .where(SnowflakeConnection.is_active == True)
+        .where(
+            SnowflakeConnection.is_active == True,
+            or_(
+                SnowflakeConnection.database_type.is_(None),
+                SnowflakeConnection.database_type == "snowflake",
+            ),
+        )
         .order_by(SnowflakeConnection.is_primary_target.desc(), SnowflakeConnection.created_at.asc())
         .limit(1)
     )
     return result.scalar()
+
+
+def _compute_column_edges_sync(
+    view_assets: list[tuple[str, str, str]],
+    columns_by_asset: dict[str, list[tuple[str, str]]],
+    table_name_to_asset_id: dict[str, str],
+    schema: dict[str, dict[str, str]],
+) -> list[dict]:
+    """CPU-bound sqlglot lineage computation — run via asyncio.to_thread to avoid blocking event loop.
+
+    view_assets: list of (asset_id, sf_table_type, view_definition) for VIEW assets only.
+    """
+    edges: list[dict] = []
+    edge_set: set[tuple[str, str, str, str]] = set()
+    for asset_id, table_type, view_def in view_assets:
+        if not table_type or "VIEW" not in table_type.upper():
+            continue
+        if not view_def:
+            continue
+        output_cols = [c for c, _ in (columns_by_asset.get(asset_id) or [])]
+        if not output_cols:
+            try:
+                tree = sqlglot.parse_one(view_def, dialect="snowflake")
+                output_cols = [s.alias_or_name.upper() for s in tree.selects if s.alias_or_name]
+            except Exception as exc:
+                logger.debug("column projection parse failed for %s: %s", asset_id, exc)
+                continue
+        for col in output_cols:
+            try:
+                root = sqlglot_lineage(col, view_def, schema=schema, dialect="snowflake")
+            except Exception as exc:
+                logger.debug("column lineage failed for %s.%s: %s", asset_id, col, exc)
+                continue
+            for leaf in root.walk():
+                if not isinstance(leaf.expression, exp.Table):
+                    continue
+                src_table = leaf.expression.name
+                src_asset_id = table_name_to_asset_id.get((src_table or "").upper())
+                if not src_asset_id or src_asset_id == asset_id:
+                    continue
+                src_col = leaf.name.split(".")[-1]
+                key = (src_asset_id, src_col, asset_id, col)
+                if key not in edge_set:
+                    edge_set.add(key)
+                    edges.append({
+                        "fromAssetId": src_asset_id,
+                        "fromColumn": src_col,
+                        "toAssetId": asset_id,
+                        "toColumn": col,
+                    })
+    return edges
 
 
 def _classify_node_type(table_type: Optional[str]) -> str:
@@ -438,48 +495,21 @@ async def get_column_lineage(
             if table_name and cols:
                 schema[table_name.upper()] = {c: dt for c, dt in cols}
 
-        edges: list[dict] = []
-        edge_set: set[tuple[str, str, str, str]] = set()
-        for a in assets:
-            meta = a.source_meta
-            if not meta or not meta.sf_table_type or "VIEW" not in meta.sf_table_type.upper():
-                continue
-            if not meta.view_definition:
-                continue
+        # Serialise ORM objects to plain tuples before handing off to the thread —
+        # SQLAlchemy sessions are not thread-safe and lazy-loading inside a worker
+        # thread would race with the async context.
+        view_assets = [
+            (a.asset_id, (a.source_meta.sf_table_type or "") if a.source_meta else "", a.source_meta.view_definition or "" if a.source_meta else "")
+            for a in assets
+        ]
 
-            output_cols = [c for c, _ in (columns_by_asset.get(a.asset_id) or [])]
-            if not output_cols:
-                try:
-                    tree = sqlglot.parse_one(meta.view_definition, dialect="snowflake")
-                    output_cols = [s.alias_or_name.upper() for s in tree.selects if s.alias_or_name]
-                except Exception as exc:
-                    logger.debug("column projection parse failed for %s: %s", a.asset_id, exc)
-                    continue
-
-            for col in output_cols:
-                try:
-                    root = sqlglot_lineage(col, meta.view_definition, schema=schema, dialect="snowflake")
-                except Exception as exc:
-                    logger.debug("column lineage failed for %s.%s: %s", a.asset_id, col, exc)
-                    continue
-                for leaf in root.walk():
-                    if not isinstance(leaf.expression, exp.Table):
-                        continue
-                    src_table = leaf.expression.name
-                    src_asset_id = table_name_to_asset_id.get((src_table or "").upper())
-                    if not src_asset_id or src_asset_id == a.asset_id:
-                        continue
-                    src_col = leaf.name.split(".")[-1]
-                    key = (src_asset_id, src_col, a.asset_id, col)
-                    if key not in edge_set:
-                        edge_set.add(key)
-                        edges.append({
-                            "fromAssetId": src_asset_id,
-                            "fromColumn": src_col,
-                            "toAssetId": a.asset_id,
-                            "toColumn": col,
-                        })
-
+        edges = await asyncio.to_thread(
+            _compute_column_edges_sync,
+            view_assets,
+            columns_by_asset,
+            table_name_to_asset_id,
+            schema,
+        )
         return {"edges": edges}
     except Exception as exc:
         logger.warning("column lineage computation failed for connection %s: %s", conn_id, exc)

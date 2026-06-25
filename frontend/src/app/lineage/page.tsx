@@ -261,6 +261,8 @@ function LineageInner() {
   const [isPanning, setIsPanning] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [nodePositions, setNodePositions] = useState<Map<string, { x: number; y: number }>>(new Map())
+  const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => searchParams.get('connection_id') ?? '')
   const inputRef = useRef<HTMLInputElement>(null)
   const hasLoadedRef = useRef(false)
   const graphContainerRef = useRef<HTMLDivElement>(null)
@@ -272,10 +274,32 @@ function LineageInner() {
   const isInitialMountRef = useRef(true)
   const [activeTab, setActiveTab] = useState<'chains' | 'impact' | 'columns'>('chains')
 
+  // Fetch Snowflake connections for the selector
+  useEffect(() => {
+    fetch('/api/connections')
+      .then(r => r.json())
+      .then((conns: { id: string; name: string; type: string }[]) => {
+        setConnections(conns.filter(c => !c.type || c.type === 'snowflake').map(c => ({ id: c.id, name: c.name })))
+      })
+      .catch(() => {})
+  }, [])
+
+  // Reset graph state when connection switches
+  useEffect(() => {
+    hasLoadedRef.current = false
+    setSelected(null)
+    setSearch('')
+    setColumnEdges([])
+    setColumnData(null)
+  }, [activeConnectionId])
+
   const fetchLineage = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/snowflake/lineage')
+      const url = activeConnectionId
+        ? `/api/snowflake/lineage?connection_id=${activeConnectionId}`
+        : '/api/snowflake/lineage'
+      const res = await fetch(url)
       if (res.ok) {
         const json = await res.json()
         if (json.nodes && json.nodes.length > 0) {
@@ -295,9 +319,9 @@ function LineageInner() {
     }
     setLastRefresh(new Date())
     setLoading(false)
-  }, [])
+  }, [activeConnectionId])
 
-  // Load once on mount only — no auto-refresh. The user can hit "Refresh" manually.
+  // Reload lineage whenever the active connection changes
   useEffect(() => { fetchLineage() }, [fetchLineage])
 
   // Sync search to URL so browser back restores it.
@@ -397,11 +421,14 @@ function LineageInner() {
       setColumnEdges([])
       return
     }
-    fetch('/api/snowflake/column-lineage')
+    const url = activeConnectionId
+      ? `/api/snowflake/column-lineage?connection_id=${activeConnectionId}`
+      : '/api/snowflake/column-lineage'
+    fetch(url)
       .then(r => r.json())
       .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
       .catch(() => setColumnEdges([]))
-  }, [selected])
+  }, [selected, activeConnectionId])
 
   // ─── Derived layout (always computed, hooks-safe) ───
   const laidOut = useMemo(() => {
@@ -725,7 +752,21 @@ function LineageInner() {
         )}
         {!isLive && <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Demo mode · connect Snowflake for live lineage</span>}
         <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{timeSinceRefresh > 5 ? `Updated ${timeSinceRefresh}s ago` : 'Updated just now'}</span>
-        <button onClick={() => fetchLineage()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: 'auto' }}>🔄 Refresh</button>
+        {connections.length > 1 && (
+          <select
+            value={activeConnectionId}
+            onChange={e => setActiveConnectionId(e.target.value)}
+            style={{
+              fontSize: '11px', padding: '3px 6px', borderRadius: '6px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: 'var(--foreground)', cursor: 'pointer',
+            }}
+          >
+            <option value="">Auto (primary)</option>
+            {connections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
+        <button onClick={() => fetchLineage()} style={{ background: 'var(--surface)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '11px', color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: connections.length > 1 ? undefined : 'auto' }}>🔄 Refresh</button>
         <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } } @keyframes dashFlow { to { stroke-dashoffset: -24 } }`}</style>
       </div>
 
