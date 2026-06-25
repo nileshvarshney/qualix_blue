@@ -169,6 +169,8 @@ function CatalogInner() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [popup, setPopup] = useState<Asset | null>(null)
   const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
+  const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
+  const [activeConnectionId, setActiveConnectionId] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkPatch, setBulkPatch] = useState<{
     criticality?: string
@@ -258,11 +260,12 @@ function CatalogInner() {
   useEffect(() => {
     fetch('/api/connections')
       .then(r => r.json())
-      .then((conns: { name: string; type: string }[]) => {
+      .then((conns: { id: string; name: string; type: string }[]) => {
         if (Array.isArray(conns)) {
           const map: Record<string, string> = {}
           for (const c of conns) if (c.name && c.type) map[c.name] = c.type.toLowerCase()
           setConnTypeMap(map)
+          setConnections(conns.map(c => ({ id: c.id, name: c.name })))
         }
       })
       .catch(() => {})
@@ -279,7 +282,8 @@ function CatalogInner() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/catalog')
+    const url = activeConnectionId ? `/api/catalog?connection_id=${activeConnectionId}` : '/api/catalog'
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         const list: Asset[] = (Array.isArray(data) ? data : []).filter((a: Asset) => !!a.connection_name)
@@ -321,7 +325,7 @@ function CatalogInner() {
         }
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   // Sync search to URL so browser back restores it
   useEffect(() => {
@@ -395,6 +399,20 @@ function CatalogInner() {
           {totalTables} tables
         </span>
         <div style={{ flex: 1 }} />
+        {connections.length > 1 && (
+          <select
+            value={activeConnectionId}
+            onChange={e => setActiveConnectionId(e.target.value)}
+            style={{
+              fontSize: '11px', padding: '3px 6px', borderRadius: '6px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: 'var(--foreground)', cursor: 'pointer',
+            }}
+          >
+            <option value="">All connections</option>
+            {connections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
             onClick={() => { setAiSearchMode(m => !m); setAiSearchResults(null); setAiSearchError(null) }}

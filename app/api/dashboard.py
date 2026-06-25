@@ -144,7 +144,9 @@ async def _build_trend(
     return trend
 
 
-async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None) -> list[dict]:
+async def _get_sla_breaches(
+    db: AsyncSession, domain_scope: Optional[str] = None, connection_scope: Optional[str] = None
+) -> list[dict]:
     """
     Return top-5 tables whose 7-day average quality score is below 95.
     Shape: { table_name, schema_name, domain_name, score, days_below_sla }
@@ -180,6 +182,8 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
     )
     if domain_scope:
         q = q.where(DQRuleRun.domain_id == domain_scope)
+    if connection_scope:
+        q = q.where(Asset.connection_id == connection_scope)
 
     rows = (await db.execute(q)).all()
 
@@ -218,7 +222,9 @@ async def _get_sla_breaches(db: AsyncSession, domain_scope: Optional[str] = None
     return results[:5]
 
 
-async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = None) -> list[dict]:
+async def _get_at_risk_tables(
+    db: AsyncSession, domain_scope: Optional[str] = None, connection_scope: Optional[str] = None
+) -> list[dict]:
     """
     Return bottom-5 tables by most-recent run quality score.
     Shape: { table_name, schema_name, domain_name, score, score_delta }
@@ -270,6 +276,8 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
         .order_by(DQRuleRun.quality_score.asc())
         .limit(5)
     )
+    if connection_scope:
+        current_q = current_q.where(Asset.connection_id == connection_scope)
 
     current_rows = (await db.execute(current_q)).all()
     if not current_rows:
@@ -311,7 +319,9 @@ async def _get_at_risk_tables(db: AsyncSession, domain_scope: Optional[str] = No
     return results
 
 
-async def _get_recently_fixed(db: AsyncSession, domain_scope: Optional[str] = None) -> list[dict]:
+async def _get_recently_fixed(
+    db: AsyncSession, domain_scope: Optional[str] = None, connection_scope: Optional[str] = None
+) -> list[dict]:
     """
     Rules that had a failing execution in the last 24h that now show a passing execution.
     Shape: { rule_name, table_name, domain_name, fixed_at, new_score }
@@ -342,6 +352,8 @@ async def _get_recently_fixed(db: AsyncSession, domain_scope: Optional[str] = No
     )
     if domain_scope:
         q = q.where(DQRuleRun.domain_id == domain_scope)
+    if connection_scope:
+        q = q.where(Asset.connection_id == connection_scope)
 
     rows = (await db.execute(q)).all()
 
@@ -375,6 +387,7 @@ async def _get_recently_fixed(db: AsyncSession, domain_scope: Optional[str] = No
 @router.get("/global")
 async def global_dashboard(
     response: Response,
+    connection_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -390,6 +403,10 @@ async def global_dashboard(
         aq = aq.where(Asset.domain_id == domain_scope)
         rq = rq.where(DQRule.domain_id == domain_scope)
         alrt_q = alrt_q.where(DQAlert.domain_id == domain_scope)
+    if connection_id:
+        aq = aq.where(Asset.connection_id == connection_id)
+        rq = rq.join(Asset, DQRule.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
+        alrt_q = alrt_q.join(Asset, DQAlert.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
 
     # AsyncSession is single-connection — execute sequentially
     total_domains = (await db.execute(dq)).scalar() or 0
@@ -404,6 +421,8 @@ async def global_dashboard(
     latest_date_q = select(func.max(func.date(DQRuleRun.created_at)))
     if domain_scope:
         latest_date_q = latest_date_q.where(DQRuleRun.domain_id == domain_scope)
+    if connection_id:
+        latest_date_q = latest_date_q.join(Asset, DQRuleRun.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     latest_run_date = (await db.execute(latest_date_q)).scalar()
 
     if latest_run_date is not None:
@@ -414,6 +433,8 @@ async def global_dashboard(
         )
         if domain_scope:
             runs_q = runs_q.where(DQRuleRun.domain_id == domain_scope)
+        if connection_id:
+            runs_q = runs_q.join(Asset, DQRuleRun.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
         all_today_rows = (await db.execute(runs_q)).all()
     else:
         all_today_rows = []
@@ -436,9 +457,9 @@ async def global_dashboard(
     overall_score = round(sum(scores) / len(scores), 1) if scores else None
 
     trend = await _build_trend(db, days=14, domain_id=domain_scope)
-    sla_breaches = await _get_sla_breaches(db, domain_scope)
-    at_risk_tables = await _get_at_risk_tables(db, domain_scope)
-    recently_fixed = await _get_recently_fixed(db, domain_scope)
+    sla_breaches = await _get_sla_breaches(db, domain_scope, connection_id)
+    at_risk_tables = await _get_at_risk_tables(db, domain_scope, connection_id)
+    recently_fixed = await _get_recently_fixed(db, domain_scope, connection_id)
 
     return {
         "overall_quality_score": overall_score,

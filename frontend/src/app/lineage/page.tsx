@@ -274,12 +274,12 @@ function LineageInner() {
   const isInitialMountRef = useRef(true)
   const [activeTab, setActiveTab] = useState<'chains' | 'impact' | 'columns'>('chains')
 
-  // Fetch Snowflake connections for the selector
+  // Fetch connections for the selector — all types, lineage now supports Postgres too
   useEffect(() => {
     fetch('/api/connections')
       .then(r => r.json())
       .then((conns: { id: string; name: string; type: string }[]) => {
-        setConnections(conns.filter(c => !c.type || c.type === 'snowflake').map(c => ({ id: c.id, name: c.name })))
+        setConnections(conns.map(c => ({ id: c.id, name: c.name })))
       })
       .catch(() => {})
   }, [])

@@ -118,3 +118,35 @@ async def test_saved_search_delete_wrong_owner_raises():
     with pytest.raises(HTTPException) as exc_info:
         await delete_saved_search(search_id="some-id", db=mock_db, user=mock_user)
     assert exc_info.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_catalog_search_filters_by_connection_id_when_provided():
+    """With multiple connections configured, catalog search must scope to one when asked."""
+    from app.api.catalog import catalog_search
+
+    captured = []
+    db = AsyncMock()
+
+    async def execute_side_effect(stmt):
+        captured.append(stmt)
+        r = MagicMock()
+        r.scalars.return_value.all.return_value = []
+        r.all.return_value = []
+        return r
+    db.execute = AsyncMock(side_effect=execute_side_effect)
+
+    mock_user = {"email": "test@example.com", "role": "viewer", "domain_id": None}
+
+    with patch("app.api.catalog.enrich_asset_results", return_value={}):
+        await catalog_search(
+            q=None, type="asset", entity_type=None, domain_id=None,
+            classification=None, certification=None, owner=None, tag=None,
+            sort="relevance", page=1, page_size=10, db=db, user=mock_user,
+            connection_id="conn-pg",
+        )
+
+    assert any(
+        "conn-pg" in str(stmt.compile(compile_kwargs={"literal_binds": True}))
+        for stmt in captured
+    )

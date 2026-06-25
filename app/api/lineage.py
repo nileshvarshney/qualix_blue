@@ -7,7 +7,7 @@ import sqlglot.expressions as exp
 from sqlglot.lineage import lineage as sqlglot_lineage
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_
 
 from app.db.database import get_db
 from app.db.models import (
@@ -76,10 +76,10 @@ async def _enrich(asset: Asset, db: AsyncSession) -> dict:
     meta = asset.source_meta
     return {
         "asset_id": asset.asset_id,
-        "sf_table_name": meta.sf_table_name if meta else asset.physical_name,
-        "sf_schema_name": meta.sf_schema_name if meta else None,
-        "sf_database_name": meta.sf_database_name if meta else None,
-        "table_type": meta.sf_table_type if meta else asset.table_type,
+        "sf_table_name": _display_name(meta) if meta else asset.physical_name,
+        "sf_schema_name": _display_schema(meta) if meta else None,
+        "sf_database_name": _display_database(meta) if meta else None,
+        "table_type": _display_type(meta) if meta else asset.table_type,
         "table_description": asset.description or asset.table_description,
         "owner_name": asset.owner_name,
         "technical_owner_name": asset.technical_owner_name,
@@ -144,10 +144,10 @@ async def _bulk_enrich(assets: list[Asset], db: AsyncSession) -> dict[str, dict]
         meta = a.source_meta
         out[a.asset_id] = {
             "asset_id": a.asset_id,
-            "sf_table_name": meta.sf_table_name if meta else a.physical_name,
-            "sf_schema_name": meta.sf_schema_name if meta else None,
-            "sf_database_name": meta.sf_database_name if meta else None,
-            "table_type": meta.sf_table_type if meta else a.table_type,
+            "sf_table_name": _display_name(meta) if meta else a.physical_name,
+            "sf_schema_name": _display_schema(meta) if meta else None,
+            "sf_database_name": _display_database(meta) if meta else None,
+            "table_type": _display_type(meta) if meta else a.table_type,
             "table_description": a.description or a.table_description,
             "owner_name": a.owner_name,
             "technical_owner_name": a.technical_owner_name,
@@ -218,6 +218,8 @@ def _sync_fetch_view_definitions_bulk(conn: SnowflakeConnection, assets: list[As
 
 
 VIEW_DEFINITION_BACKFILL_LIMIT = 8
+VIEW_DEFINITION_BACKFILL_TIMEOUT = 8.0
+COLUMN_LINEAGE_TIMEOUT = 10.0
 
 
 async def _ensure_view_definitions(assets: list[Asset], conn_id: str, db: AsyncSession) -> None:
@@ -240,11 +242,21 @@ async def _ensure_view_definitions(assets: list[Asset], conn_id: str, db: AsyncS
     ]
     if not missing:
         return
-    batch = missing[:VIEW_DEFINITION_BACKFILL_LIMIT]
     sf_conn = await db.get(SnowflakeConnection, conn_id)
     if not sf_conn:
         return
-    fetched = await asyncio.to_thread(_sync_fetch_view_definitions_bulk, sf_conn, batch)
+    if (sf_conn.database_type or "snowflake").lower() != "snowflake":
+        # GET_DDL is Snowflake-only syntax — other providers never reach here.
+        return
+    batch = missing[:VIEW_DEFINITION_BACKFILL_LIMIT]
+    try:
+        fetched = await asyncio.wait_for(
+            asyncio.to_thread(_sync_fetch_view_definitions_bulk, sf_conn, batch),
+            timeout=VIEW_DEFINITION_BACKFILL_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("view definition backfill timed out for connection %s", conn_id)
+        return
     if not fetched:
         return
     for asset in batch:
@@ -259,17 +271,27 @@ async def _resolve_connection_id(connection_id: Optional[str], db: AsyncSession)
         return connection_id
     result = await db.execute(
         select(SnowflakeConnection.connection_id)
-        .where(
-            SnowflakeConnection.is_active == True,
-            or_(
-                SnowflakeConnection.database_type.is_(None),
-                SnowflakeConnection.database_type == "snowflake",
-            ),
-        )
+        .where(SnowflakeConnection.is_active == True)
         .order_by(SnowflakeConnection.is_primary_target.desc(), SnowflakeConnection.created_at.asc())
         .limit(1)
     )
     return result.scalar()
+
+
+def _display_name(meta) -> Optional[str]:
+    return meta.sf_table_name or meta.generic_object_name
+
+
+def _display_schema(meta) -> Optional[str]:
+    return meta.sf_schema_name or meta.generic_schema_name
+
+
+def _display_database(meta) -> Optional[str]:
+    return meta.sf_database_name or meta.generic_database_name
+
+
+def _display_type(meta) -> Optional[str]:
+    return meta.sf_table_type or meta.generic_object_type
 
 
 def _compute_column_edges_sync(
@@ -323,6 +345,27 @@ def _compute_column_edges_sync(
     return edges
 
 
+async def _compute_column_edges_with_timeout(
+    view_assets: list[tuple[str, str, str]],
+    columns_by_asset: dict[str, list[tuple[str, str]]],
+    table_name_to_asset_id: dict[str, str],
+    schema: dict[str, dict[str, str]],
+) -> list[dict]:
+    """Run _compute_column_edges_sync with a time budget so a connection with many
+    views/columns can't hang the request past an edge proxy's timeout in production."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(
+                _compute_column_edges_sync, view_assets, columns_by_asset,
+                table_name_to_asset_id, schema,
+            ),
+            timeout=COLUMN_LINEAGE_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.warning("column lineage computation timed out")
+        return []
+
+
 def _classify_node_type(table_type: Optional[str]) -> str:
     if table_type and "VIEW" in table_type.upper():
         return "output"
@@ -373,7 +416,7 @@ async def get_lineage_graph(
     table_name_to_asset_id: dict[str, str] = {}
     for a in assets:
         meta = a.source_meta
-        name = (meta.sf_table_name if meta else a.physical_name) or ""
+        name = (_display_name(meta) if meta else a.physical_name) or ""
         if name:
             table_name_to_asset_id[name.upper()] = a.asset_id
 
@@ -475,7 +518,7 @@ async def get_column_lineage(
         table_name_to_asset_id: dict[str, str] = {}
         for a in assets:
             meta = a.source_meta
-            name = (meta.sf_table_name if meta else a.physical_name) or ""
+            name = (_display_name(meta) if meta else a.physical_name) or ""
             if name:
                 table_name_to_asset_id[name.upper()] = a.asset_id
 
@@ -490,7 +533,7 @@ async def get_column_lineage(
         schema: dict[str, dict[str, str]] = {}
         for a in assets:
             meta = a.source_meta
-            table_name = (meta.sf_table_name if meta else a.physical_name) or ""
+            table_name = (_display_name(meta) if meta else a.physical_name) or ""
             cols = columns_by_asset.get(a.asset_id) or []
             if table_name and cols:
                 schema[table_name.upper()] = {c: dt for c, dt in cols}
@@ -503,8 +546,7 @@ async def get_column_lineage(
             for a in assets
         ]
 
-        edges = await asyncio.to_thread(
-            _compute_column_edges_sync,
+        edges = await _compute_column_edges_with_timeout(
             view_assets,
             columns_by_asset,
             table_name_to_asset_id,
@@ -533,7 +575,7 @@ async def get_lineage(
     is_view = meta and meta.sf_table_type and "VIEW" in meta.sf_table_type.upper()
     if meta and is_view and not meta.view_definition and asset.connection_id:
         sf_conn = await db.get(SnowflakeConnection, asset.connection_id)
-        if sf_conn:
+        if sf_conn and (sf_conn.database_type or "snowflake").lower() == "snowflake":
             view_def = await asyncio.to_thread(_sync_fetch_view_definition, sf_conn, asset)
             if view_def:
                 meta.view_definition = view_def
@@ -559,7 +601,7 @@ async def get_lineage(
 
     # ── Downstream ────────────────────────────────────────────────────────────
     downstream_assets: list[Asset] = []
-    table_name = (meta.sf_table_name if meta else None) or asset.physical_name or ""
+    table_name = (_display_name(meta) if meta else None) or asset.physical_name or ""
     if asset.connection_id and table_name:
         candidate_result = await db.execute(
             select(Asset).join(

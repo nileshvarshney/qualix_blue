@@ -44,7 +44,11 @@ export async function GET(req: NextRequest) {
   }
 
   // Default: return enriched assets list
-  const res = await fetch(`${BACKEND}/asset-registry/enriched`);
+  const connection_id = searchParams.get('connection_id') ?? '';
+  const enrichedUrl = connection_id
+    ? `${BACKEND}/asset-registry/enriched?connection_id=${connection_id}`
+    : `${BACKEND}/asset-registry/enriched`;
+  const res = await fetch(enrichedUrl);
   const data = await res.json();
   return NextResponse.json(data, { status: res.status });
 }

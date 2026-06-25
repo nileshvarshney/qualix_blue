@@ -33,14 +33,28 @@ export default function HomePage() {
   const [statsLoading, setStatsLoading] = useState(true)
   const [incidents, setIncidents] = useState<CorrelatedIncident[]>([])
   const [dismissed, setDismissed] = useState(false)
+  const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
+  const [activeConnectionId, setActiveConnectionId] = useState('')
 
   useEffect(() => {
-    fetch('/api/dashboard', { cache: 'no-store' })
+    fetch('/api/connections')
+      .then(r => r.json())
+      .then((conns: { id: string; name: string }[]) => {
+        if (Array.isArray(conns)) setConnections(conns.map(c => ({ id: c.id, name: c.name })))
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const url = activeConnectionId
+      ? `/api/dashboard?connection_id=${activeConnectionId}`
+      : '/api/dashboard'
+    fetch(url, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: Partial<DashboardStats>) => setStats({ ...EMPTY, ...data }))
       .catch(() => {})
       .finally(() => setStatsLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const loadIncidents = useCallback(() => {
     fetch('/api/monitoring/correlated-incidents', { cache: 'no-store' })
@@ -92,6 +106,22 @@ export default function HomePage() {
               ✕
             </button>
           </div>
+        </div>
+      )}
+      {connections.length > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '8px 24px 0' }}>
+          <select
+            value={activeConnectionId}
+            onChange={e => setActiveConnectionId(e.target.value)}
+            style={{
+              fontSize: '11px', padding: '3px 6px', borderRadius: '6px',
+              border: '1px solid var(--border)', background: 'var(--surface)',
+              color: 'var(--foreground)', cursor: 'pointer',
+            }}
+          >
+            <option value="">All connections</option>
+            {connections.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
         </div>
       )}
       <Dashboard stats={stats} loading={statsLoading} />

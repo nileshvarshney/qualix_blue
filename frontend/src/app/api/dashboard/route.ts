@@ -1,11 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const connectionId = new URL(req.url).searchParams.get('connection_id')
+  const globalUrl = connectionId
+    ? `${BACKEND}/dashboard/global?connection_id=${connectionId}`
+    : `${BACKEND}/dashboard/global`
   try {
     const [globalRes, dimRes, alertsRes] = await Promise.all([
-      fetch(`${BACKEND}/dashboard/global`, { cache: 'no-store' }),
+      fetch(globalUrl, { cache: 'no-store' }),
       fetch(`${BACKEND}/dashboard/dimensions`, { cache: 'no-store' }),
       fetch(`${BACKEND}/alerts/enriched?status=open&limit=10`, { cache: 'no-store' }),
     ])

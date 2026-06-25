@@ -44,6 +44,7 @@ async def _search_via_ilike(
     offset: int,
     owner: Optional[str] = None,
     restrict_asset_ids: Optional[set[str]] = None,
+    connection_id: Optional[str] = None,
 ) -> tuple[list[dict], int]:
     """Snowflake-compatible ILIKE-based catalog search."""
     domain_names = await _domain_map(db)
@@ -66,6 +67,8 @@ async def _search_via_ilike(
             q_stmt = q_stmt.where(Asset.certification_status == certification)
         if owner:
             q_stmt = q_stmt.where(Asset.owner_user_id.ilike(f"%{owner}%"))
+        if connection_id:
+            q_stmt = q_stmt.where(Asset.connection_id == connection_id)
         if restrict_asset_ids is not None:
             q_stmt = q_stmt.where(Asset.asset_id.in_(restrict_asset_ids))
         for a in (await db.execute(q_stmt)).scalars().all():
@@ -129,6 +132,7 @@ async def catalog_search(
     certification: Optional[str] = Query(None),
     owner: Optional[str] = Query(None),
     tag: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     sort: str = Query("relevance"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -180,6 +184,7 @@ async def catalog_search(
         db, q or "", effective_type, domain_id, certification,
         limit=10000, offset=0,
         owner=owner, restrict_asset_ids=restrict_asset_ids,
+        connection_id=connection_id,
     )
 
     # Enrich asset results

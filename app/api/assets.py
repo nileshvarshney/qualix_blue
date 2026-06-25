@@ -48,6 +48,7 @@ class BulkUpdatePayload(BaseModel):
 async def list_assets_enriched(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -64,6 +65,8 @@ async def list_assets_enriched(
         q = q.where(Asset.domain_id == effective_domain)
     if subdomain_id:
         q = q.where(Asset.subdomain_id == subdomain_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     rows = (await db.execute(q)).all()
 
     # Bulk-fetch connection names for assets that have one
@@ -170,6 +173,7 @@ async def create_asset(payload: AssetCreate, db: AsyncSession = Depends(get_db),
 async def list_assets(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
@@ -181,6 +185,8 @@ async def list_assets(
         q = q.where(Asset.domain_id == domain_id)
     if subdomain_id:
         q = q.where(Asset.subdomain_id == subdomain_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     if is_active is not None:
         q = q.where(Asset.is_active == is_active)
     total = (await db.execute(select(sqlfunc.count()).select_from(q.subquery()))).scalar() or 0
@@ -194,6 +200,8 @@ async def list_assets(
         joined_q = joined_q.where(Asset.domain_id == domain_id)
     if subdomain_id:
         joined_q = joined_q.where(Asset.subdomain_id == subdomain_id)
+    if connection_id:
+        joined_q = joined_q.where(Asset.connection_id == connection_id)
     if is_active is not None:
         joined_q = joined_q.where(Asset.is_active == is_active)
     rows = (await db.execute(joined_q)).all()

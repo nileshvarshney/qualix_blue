@@ -123,8 +123,11 @@ async def test_ensure_view_definitions_backfills_missing(monkeypatch):
     table_asset = _FakeAsset("a2", _FakeSourceMeta("TABLE", None))
     assets = [view_asset, table_asset]
 
+    class _FakeSfConn:
+        database_type = "snowflake"
+
     db = AsyncMock()
-    db.get = AsyncMock(return_value=object())  # stand-in SnowflakeConnection
+    db.get = AsyncMock(return_value=_FakeSfConn())  # stand-in SnowflakeConnection
     db.commit = AsyncMock()
 
     def _bulk_fetch(_conn, missing_assets):
@@ -140,6 +143,238 @@ async def test_ensure_view_definitions_backfills_missing(monkeypatch):
 
     refs = extract_table_refs(view_asset.source_meta.view_definition)
     assert "UPSTREAM_TABLE" in refs
+
+
+@pytest.mark.asyncio
+async def test_resolve_connection_id_does_not_filter_by_type(monkeypatch):
+    """Auto-select (no connection_id given) must consider non-Snowflake connections too."""
+    from app.api.lineage import _resolve_connection_id
+    from unittest.mock import AsyncMock, MagicMock
+
+    captured_stmt = {}
+    db = AsyncMock()
+
+    async def execute_side_effect(stmt):
+        captured_stmt["stmt"] = stmt
+        r = MagicMock()
+        r.scalar.return_value = "pg-conn-1"
+        return r
+    db.execute = AsyncMock(side_effect=execute_side_effect)
+
+    result = await _resolve_connection_id(None, db)
+
+    assert result == "pg-conn-1"
+    compiled = str(captured_stmt["stmt"].compile(compile_kwargs={"literal_binds": True}))
+    assert "database_type" not in compiled
+
+
+def test_display_name_prefers_snowflake_field():
+    from app.api.lineage import _display_name
+
+    class M:
+        sf_table_name = "SF_TABLE"
+        generic_object_name = "pg_table"
+    assert _display_name(M()) == "SF_TABLE"
+
+
+def test_display_name_falls_back_to_generic_field():
+    from app.api.lineage import _display_name
+
+    class M:
+        sf_table_name = None
+        generic_object_name = "pg_table"
+    assert _display_name(M()) == "pg_table"
+
+
+def test_display_schema_falls_back_to_generic_field():
+    from app.api.lineage import _display_schema
+
+    class M:
+        sf_schema_name = None
+        generic_schema_name = "public"
+    assert _display_schema(M()) == "public"
+
+
+def test_display_database_falls_back_to_generic_field():
+    from app.api.lineage import _display_database
+
+    class M:
+        sf_database_name = None
+        generic_database_name = "analytics"
+    assert _display_database(M()) == "analytics"
+
+
+def test_display_type_falls_back_to_generic_field():
+    from app.api.lineage import _display_type
+
+    class M:
+        sf_table_type = None
+        generic_object_type = "TABLE"
+    assert _display_type(M()) == "TABLE"
+
+
+@pytest.mark.asyncio
+async def test_ensure_view_definitions_skips_non_snowflake_connection(monkeypatch):
+    """View-DDL backfill is Snowflake-only (GET_DDL syntax) — must not run for Postgres."""
+    view_asset = _FakeAsset("a1", _FakeSourceMeta("VIEW", None))
+    db = AsyncMock()
+
+    class FakePgConn:
+        database_type = "postgresql"
+    db.get = AsyncMock(return_value=FakePgConn())
+
+    called = False
+    def _bulk_fetch(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        return {}
+    monkeypatch.setattr("app.api.lineage._sync_fetch_view_definitions_bulk", _bulk_fetch)
+
+    await _ensure_view_definitions([view_asset], "conn-1", db)
+
+    assert called is False
+
+
+@pytest.mark.asyncio
+async def test_ensure_view_definitions_handles_timeout(monkeypatch):
+    """A slow GET_DDL backfill must not hang the request indefinitely."""
+    import time
+    import app.api.lineage as lineage_mod
+
+    view_asset = _FakeAsset("a1", _FakeSourceMeta("VIEW", None))
+    db = AsyncMock()
+
+    class _FakeSfConn:
+        database_type = "snowflake"
+    db.get = AsyncMock(return_value=_FakeSfConn())
+    db.commit = AsyncMock()
+
+    def _slow_fetch(*_args, **_kwargs):
+        time.sleep(0.3)
+        return {"a1": "CREATE VIEW v AS SELECT 1"}
+    monkeypatch.setattr(lineage_mod, "_sync_fetch_view_definitions_bulk", _slow_fetch)
+    monkeypatch.setattr(lineage_mod, "VIEW_DEFINITION_BACKFILL_TIMEOUT", 0.05)
+
+    await lineage_mod._ensure_view_definitions([view_asset], "conn-1", db)
+
+    assert view_asset.source_meta.view_definition is None
+    db.commit.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_compute_column_edges_with_timeout_returns_empty_on_timeout(monkeypatch):
+    """Column-lineage sqlglot computation must not hang the request indefinitely."""
+    import time
+    import app.api.lineage as lineage_mod
+
+    def _slow(*_args, **_kwargs):
+        time.sleep(0.3)
+        return [{"fromAssetId": "x", "fromColumn": "y", "toAssetId": "z", "toColumn": "w"}]
+    monkeypatch.setattr(lineage_mod, "_compute_column_edges_sync", _slow)
+    monkeypatch.setattr(lineage_mod, "COLUMN_LINEAGE_TIMEOUT", 0.05)
+
+    edges = await lineage_mod._compute_column_edges_with_timeout([], {}, {}, {})
+    assert edges == []
+
+
+@pytest.mark.asyncio
+async def test_lineage_graph_renders_postgres_asset_via_generic_fields(monkeypatch):
+    """A Postgres asset (no sf_* fields populated) must still render with a real name/schema."""
+    from app.main import app
+    from app.db.database import get_db
+    from app.core.security import get_current_user
+
+    _mock_user = {"email": "admin@example.com", "role": "admin", "user_id": "system", "full_name": "System Admin"}
+
+    async def _mock_current_user():
+        return _mock_user
+
+    class FakeMeta:
+        sf_table_name = None
+        sf_schema_name = None
+        sf_database_name = None
+        sf_table_type = None
+        generic_object_name = "customers"
+        generic_schema_name = "public"
+        generic_database_name = "appdb"
+        generic_object_type = "TABLE"
+        view_definition = None
+        last_modified_at = None
+        row_count = 50
+
+    class FakeAsset:
+        asset_id = "asset-pg-1"
+        asset_type = "table"
+        physical_name = "customers"
+        display_name = None
+        description = "Customer records"
+        table_description = "Customer records"
+        owner_name = "Alice"
+        technical_owner_name = "Bob"
+        is_active = True
+        connection_id = "conn-pg"
+        source_meta = FakeMeta()
+
+    class FakeConn:
+        connection_id = "conn-pg"
+        connection_name = "Postgres Prod"
+        database_type = "postgresql"
+        default_database = "appdb"
+        default_schema = "public"
+        warehouse = None
+        is_active = True
+        is_primary_target = False
+
+    from unittest.mock import AsyncMock, MagicMock
+    from sqlalchemy.engine import Result
+
+    async def mock_db():
+        db = AsyncMock()
+
+        def make_result(rows):
+            r = MagicMock(spec=Result)
+            r.scalars.return_value.all.return_value = rows
+            r.scalar.return_value = None
+            r.all.return_value = rows
+            return r
+
+        db.get = AsyncMock(side_effect=lambda model, pk: FakeConn() if pk == "conn-pg" else None)
+
+        call_count = 0
+
+        async def execute_side_effect(stmt):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return make_result([FakeAsset()])
+            return make_result([])
+
+        db.execute = AsyncMock(side_effect=execute_side_effect)
+        db.commit = AsyncMock()
+        yield db
+
+    app.dependency_overrides[get_db] = mock_db
+    app.dependency_overrides[get_current_user] = _mock_current_user
+
+    monkeypatch.setattr(
+        "app.api.lineage._resolve_connection_id",
+        AsyncMock(return_value="conn-pg"),
+    )
+
+    try:
+        from httpx import AsyncClient, ASGITransport
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/lineage?connection_id=conn-pg")
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["nodes"]) == 1
+        node = data["nodes"][0]
+        assert node["label"] == "customers"
+        assert node["schema"] == "public"
+        assert node["database"] == "appdb"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_current_user, None)
 
 
 @pytest.mark.asyncio
