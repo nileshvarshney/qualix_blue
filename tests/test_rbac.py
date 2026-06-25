@@ -178,3 +178,35 @@ async def test_get_user_effective_roles_inherits_team_roles():
     assert "data_engineer" in roles
     # Should have called execute 3 times (user_roles, memberships, team_roles)
     assert db.execute.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_no_credentials_always_raises_401():
+    """get_current_user must never return a synthetic admin — it must raise 401."""
+    from unittest.mock import MagicMock, patch
+    from app.core.security import get_current_user
+
+    mock_request = MagicMock()
+    mock_request.headers.get.return_value = None  # no X-API-Key
+
+    with patch("app.core.security.settings") as mock_settings:
+        mock_settings.auth_required = False  # simulate the insecure legacy env
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(request=mock_request, credentials=None)
+        assert exc_info.value.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_no_credentials_raises_401_when_auth_required_true():
+    """Regression: 401 also fires when auth_required=True (should already work)."""
+    from unittest.mock import MagicMock, patch
+    from app.core.security import get_current_user
+
+    mock_request = MagicMock()
+    mock_request.headers.get.return_value = None
+
+    with patch("app.core.security.settings") as mock_settings:
+        mock_settings.auth_required = True
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(request=mock_request, credentials=None)
+        assert exc_info.value.status_code == 401
