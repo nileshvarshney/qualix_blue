@@ -393,6 +393,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   const [testResult, setTestResult] = useState<{ result: TestResult; connName: string } | null>(null)
   const [activeCategory, setActiveCategory] = useState('databases')
   const [testingModal, setTestingModal] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const _router = useRouter()
 
   // On mount: reconcile localStorage against backend — drop connections
@@ -437,6 +438,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     setEditingId(null)
     setShowModal(false)
     setActiveCategory('databases')
+    setSaveError(null)
   }
 
   function openEdit(conn: Connection) {
@@ -457,26 +459,37 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   async function save() {
     if (!form.name) return
     setSaving(true)
+    setSaveError(null)
     const payload: Record<string, unknown> = { ...form }
     if (form.port) payload.port = parseInt(form.port)
 
-    if (editingId) {
-      // UPDATE existing connection
-      const res = await fetch('/api/connections', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: editingId, ...payload })
-      })
-      if (res.ok) {
+    try {
+      if (editingId) {
+        // UPDATE existing connection
+        const res = await fetch('/api/connections', {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: editingId, ...payload })
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setSaveError((data as { detail?: string }).detail || 'Failed to save connection')
+          setSaving(false)
+          return
+        }
         const updated = await res.json()
         setConnections(prev => prev.map(c => c.id === editingId ? updated : c))
-      }
-    } else {
-      // CREATE new connection
-      const res = await fetch('/api/connections', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      if (res.ok) {
+      } else {
+        // CREATE new connection
+        const res = await fetch('/api/connections', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}))
+          setSaveError((data as { detail?: string }).detail || 'Failed to save connection')
+          setSaving(false)
+          return
+        }
         const newConn = await res.json()
         setConnections(prev => [...prev, newConn])
         resetForm()
@@ -487,11 +500,13 @@ export default function ConnectionsClient({ initialConnections }: Props) {
         }
         return
       }
-    }
 
-    resetForm()
-    setSaving(false)
-    // state is managed locally — no server refresh needed
+      resetForm()
+      setSaving(false)
+    } catch {
+      setSaveError('Network error — could not reach the server')
+      setSaving(false)
+    }
   }
 
   async function testConn(id: string, connName: string) {
@@ -867,6 +882,13 @@ export default function ConnectionsClient({ initialConnections }: Props) {
                   </div>
                 )
               })()}
+
+              {/* Save error */}
+              {saveError && (
+                <div style={{ background: 'var(--status-error-bg)', border: '1px solid var(--status-error-text)', borderRadius: '6px', padding: '8px 12px', color: 'var(--status-error-text)', fontSize: '12px' }}>
+                  ⚠ {saveError}
+                </div>
+              )}
 
               {/* Buttons */}
               <div style={{ display:'flex', gap:'8px', paddingTop:'4px' }}>
