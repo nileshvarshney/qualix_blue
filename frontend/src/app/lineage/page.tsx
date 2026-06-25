@@ -307,9 +307,19 @@ function LineageInner() {
     router.replace(qs ? `/lineage?${qs}` : '/lineage', { scroll: false })
   }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When data loads with a pre-filled search from URL, show the dropdown
+  // When data loads with a pre-filled search from URL, auto-select exact match or show dropdown
   useEffect(() => {
-    if (!loading && data && search.trim()) setShowDropdown(true)
+    if (!loading && data && search.trim()) {
+      const q = search.trim()
+      const exactMatch = data.nodes.find(n => n.label.toLowerCase() === q.toLowerCase())
+      if (exactMatch) {
+        setSelected(exactMatch.id)
+        setColumnPopupOpen(true)
+        setShowDropdown(false)
+      } else {
+        setShowDropdown(true)
+      }
+    }
   }, [loading]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear selected column when table selection changes
@@ -710,66 +720,145 @@ function LineageInner() {
         <style>{`@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } } @keyframes dashFlow { to { stroke-dashoffset: -24 } }`}</style>
       </div>
 
-      {/* search + legend on same row */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', position: 'relative' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-          <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
-          <input ref={inputRef} value={search}
-            onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
-            onFocus={() => { if (search) setShowDropdown(true) }}
-            placeholder="Search tables, views, schemas..."
-            style={{
-              width: '100%', padding: '4px 32px 4px 28px', borderRadius: '6px',
-              border: `1px solid ${showDropdown && matches.length > 0 ? '#93c5fd' : 'var(--border)'}`,
-              fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)',
-              boxSizing: 'border-box', outline: 'none',
-              boxShadow: showDropdown && matches.length > 0 ? '0 0 0 2px #dbeafe' : 'none',
-            }}
-          />
-          {search && <button onClick={clearSearch} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px' }}>✕</button>}
+      {/* compact search + legend — only shown once a table is selected */}
+      {selected && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap', position: 'relative' }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+            <span style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', opacity: 0.5, pointerEvents: 'none' }}>🔍</span>
+            <input ref={inputRef} value={search}
+              onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
+              onFocus={() => { if (search) setShowDropdown(true) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && matches.length > 0) {
+                  const exact = matches.find(m => m.label.toLowerCase() === search.toLowerCase())
+                  const target = exact ?? matches[0]
+                  selectNode(target.id); setSearch(target.label)
+                }
+              }}
+              placeholder="Search tables, views, schemas..."
+              style={{
+                width: '100%', padding: '4px 32px 4px 28px', borderRadius: '6px',
+                border: `1px solid ${showDropdown && matches.length > 0 ? '#93c5fd' : 'var(--border)'}`,
+                fontSize: '11px', background: 'var(--surface)', color: 'var(--foreground)',
+                boxSizing: 'border-box', outline: 'none',
+                boxShadow: showDropdown && matches.length > 0 ? '0 0 0 2px #dbeafe' : 'none',
+              }}
+            />
+            {search && <button onClick={clearSearch} style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px' }}>✕</button>}
 
-          {showDropdown && matches.length > 0 && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', maxHeight: '280px', overflowY: 'auto' }}>
-              <div style={{ padding: '6px 12px', fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{matches.length} found</div>
-              {matches.map(m => {
-                const cfg = typeConfig[m.type] ?? typeConfig.warehouse
-                return (
-                  <div key={m.id} onMouseDown={() => { selectNode(m.id); setSearch(m.label) }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--surface-muted)' }}
-                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >
-                    <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><DbTypeIcon tableType={m.tableType} size={15} /></div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: '11.5px', color: 'var(--foreground)' }}>{m.label}</div>
-                      <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.sub}</div>
+            {showDropdown && matches.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', maxHeight: '280px', overflowY: 'auto' }}>
+                <div style={{ padding: '6px 12px', fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{matches.length} found</div>
+                {matches.map(m => {
+                  const cfg = typeConfig[m.type] ?? typeConfig.warehouse
+                  return (
+                    <div key={m.id} onMouseDown={() => { selectNode(m.id); setSearch(m.label) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--surface-muted)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><DbTypeIcon tableType={m.tableType} size={15} /></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '11.5px', color: 'var(--foreground)' }}>{m.label}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.sub}</div>
+                      </div>
+                      <span style={{ background: cfg.bg, color: cfg.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600 }}>{cfg.label}</span>
                     </div>
-                    <span style={{ background: cfg.bg, color: cfg.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600 }}>{cfg.label}</span>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-          {showDropdown && search.trim().length > 0 && matches.length === 0 && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
-              No objects found
-            </div>
-          )}
-        </div>
-
-        {/* legend pills — same row as search, only shown once a table is selected */}
-        {selected && Object.entries(typeConfig).map(([type, cfg]) => (
-          <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>
-            <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.border }} />
-            <span style={{ fontSize: '9.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
+                  )
+                })}
+              </div>
+            )}
+            {showDropdown && search.trim().length > 0 && matches.length === 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
+                No objects found
+              </div>
+            )}
           </div>
-        ))}
-      </div>
 
+          {Object.entries(typeConfig).map(([type, cfg]) => (
+            <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '2px 8px', borderRadius: '4px', flexShrink: 0 }}>
+              <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.border }} />
+              <span style={{ fontSize: '9.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Prominent search card — shown when no table is selected */}
       {!selected && (
-        <div style={{ padding: '64px 24px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
-          <div style={{ fontSize: '32px', marginBottom: '12px' }}>🔍</div>
-          <div style={{ fontSize: '13px' }}>Search for a table or view above to see its full upstream and downstream lineage</div>
+        <div style={{ padding: '48px 24px', textAlign: 'center', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
+          <div style={{ fontSize: '28px', marginBottom: '10px' }}>🔍</div>
+          <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--foreground)', marginBottom: '4px' }}>Find a table or view</div>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '24px' }}>
+            {data.nodes.length} object{data.nodes.length !== 1 ? 's' : ''} available — type to search, press Enter to select
+          </div>
+          <div style={{ position: 'relative', maxWidth: 480, margin: '0 auto', textAlign: 'left' }}>
+            <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', opacity: 0.5, pointerEvents: 'none', zIndex: 1 }}>🔍</span>
+            <input
+              ref={inputRef}
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              value={search}
+              onChange={e => { setSearch(e.target.value); setShowDropdown(true) }}
+              onFocus={() => { if (search) setShowDropdown(true) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && matches.length > 0) {
+                  const exact = matches.find(m => m.label.toLowerCase() === search.toLowerCase())
+                  const target = exact ?? matches[0]
+                  selectNode(target.id); setSearch(target.label)
+                }
+              }}
+              placeholder="Search tables, views, schemas..."
+              style={{
+                width: '100%', padding: '10px 40px 10px 38px', borderRadius: '10px',
+                border: `1.5px solid ${showDropdown && matches.length > 0 ? '#93c5fd' : 'var(--border)'}`,
+                fontSize: '13px', background: 'var(--surface)', color: 'var(--foreground)',
+                boxSizing: 'border-box', outline: 'none',
+                boxShadow: showDropdown && matches.length > 0 ? '0 0 0 3px #dbeafe' : '0 2px 8px rgba(0,0,0,0.06)',
+                transition: 'border-color 0.15s, box-shadow 0.15s',
+              }}
+            />
+            {search && (
+              <button onClick={clearSearch} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '14px', zIndex: 1 }}>✕</button>
+            )}
+
+            {showDropdown && matches.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', maxHeight: '320px', overflowY: 'auto' }}>
+                <div style={{ padding: '6px 12px', fontSize: '9px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>{matches.length} found</div>
+                {matches.map(m => {
+                  const cfg = typeConfig[m.type] ?? typeConfig.warehouse
+                  return (
+                    <div key={m.id} onMouseDown={() => { selectNode(m.id); setSearch(m.label) }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 12px', cursor: 'pointer', borderBottom: '1px solid var(--surface-muted)' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = 'var(--surface-muted)')}
+                      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    >
+                      <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: cfg.bg, border: `1px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><DbTypeIcon tableType={m.tableType} size={15} /></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: '11.5px', color: 'var(--foreground)' }}>{m.label}</div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{m.sub}</div>
+                      </div>
+                      <span style={{ background: cfg.bg, color: cfg.color, padding: '1px 6px', borderRadius: '4px', fontSize: '9.5px', fontWeight: 600 }}>{cfg.label}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+            {showDropdown && search.trim().length > 0 && matches.length === 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 200, marginTop: '4px', padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>
+                No objects found
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '20px', flexWrap: 'wrap' }}>
+            {Object.entries(typeConfig).map(([type, cfg]) => (
+              <div key={type} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: cfg.bg, border: `1px solid ${cfg.border}`, padding: '2px 8px', borderRadius: '4px' }}>
+                <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: cfg.border }} />
+                <span style={{ fontSize: '9.5px', color: cfg.color, fontWeight: 500 }}>{cfg.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
