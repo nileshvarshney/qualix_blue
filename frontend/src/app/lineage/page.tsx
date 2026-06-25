@@ -248,6 +248,8 @@ function LineageInner() {
   const [isLive, setIsLive] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '')
+  const targetSchema = useRef(searchParams.get('schema') ?? '')
+  const targetDatabase = useRef(searchParams.get('database') ?? '')
   const [showDropdown, setShowDropdown] = useState(false)
   const [columnData, setColumnData] = useState<ColumnInfo[] | null>(null)
   const [columnsLoading, setColumnsLoading] = useState(false)
@@ -262,7 +264,9 @@ function LineageInner() {
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [nodePositions, setNodePositions] = useState<Map<string, { x: number; y: number }>>(new Map())
   const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
+  const [containerWidth, setContainerWidth] = useState(0)
   const [activeConnectionId, setActiveConnectionId] = useState<string>(() => searchParams.get('connection_id') ?? '')
+  const prevConnectionIdRef = useRef(activeConnectionId)
   const inputRef = useRef<HTMLInputElement>(null)
   const hasLoadedRef = useRef(false)
   const graphContainerRef = useRef<HTMLDivElement>(null)
@@ -284,8 +288,13 @@ function LineageInner() {
       .catch(() => {})
   }, [])
 
-  // Reset graph state when connection switches
+  // Reset graph state when the connection actually changes (not on initial mount —
+  // clearing `search` then would wipe a `q` param pre-filled from a catalog navigation).
+  // Compares against the previous value rather than a one-shot flag so this stays
+  // correct under React Strict Mode's double-invoked mount effects in dev.
   useEffect(() => {
+    if (prevConnectionIdRef.current === activeConnectionId) return
+    prevConnectionIdRef.current = activeConnectionId
     hasLoadedRef.current = false
     setSelected(null)
     setSearch('')
@@ -335,6 +344,7 @@ function LineageInner() {
     }
     const params = new URLSearchParams()
     if (search) params.set('q', search)
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString()
     router.replace(qs ? `/lineage?${qs}` : '/lineage', { scroll: false })
   }, [search]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -343,7 +353,17 @@ function LineageInner() {
   useEffect(() => {
     if (!loading && data && search.trim()) {
       const q = search.trim()
-      const exactMatch = data.nodes.find(n => n.label.toLowerCase() === q.toLowerCase())
+      const candidates = data.nodes.filter(n => n.label.toLowerCase() === q.toLowerCase())
+      // Same table/view name can exist in multiple schemas/databases — when the
+      // catalog passed schema/database context, use it to pick the right one.
+      const schema = targetSchema.current.toLowerCase()
+      const database = targetDatabase.current.toLowerCase()
+      const exactMatch = (schema || database)
+        ? candidates.find(n =>
+            (!schema || n.schema.toLowerCase() === schema) &&
+            (!database || n.database.toLowerCase() === database))
+          ?? candidates[0]
+        : candidates[0]
       if (exactMatch) {
         setSelected(exactMatch.id)
         setColumnPopupOpen(true)
@@ -375,6 +395,19 @@ function LineageInner() {
     document.addEventListener('fullscreenchange', onFsChange)
     return () => document.removeEventListener('fullscreenchange', onFsChange)
   }, [])
+
+  // Track the graph container's rendered width so the SVG (and its dotted
+  // background) can fill it even when the laid-out graph content is narrower.
+  useEffect(() => {
+    const el = graphContainerRef.current
+    if (!el) return
+    const observer = new ResizeObserver(entries => {
+      const width = entries[0]?.contentRect.width
+      if (width) setContainerWidth(width)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [selected])
 
   // Fetch columns when a node is selected
   useEffect(() => {
@@ -632,7 +665,7 @@ function LineageInner() {
 
   if (data.nodes.length === 0) {
     return (
-      <div style={{ padding: '10px 16px', maxWidth: '1500px' }}>
+      <div style={{ padding: '10px 16px' }}>
         <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)', background: 'var(--surface)', borderRadius: '12px', border: '2px dashed var(--border)' }}>
           No lineage data yet — add connections and register datasets to see lineage
         </div>
@@ -659,8 +692,11 @@ function LineageInner() {
     layerLabels[layer] = labelMap[dominant] || dominant.toUpperCase()
   }
 
-  const maxX = Math.max(...laidOut.map(n => (n.x ?? 0) + NODE_W)) + 80
-  const maxY = Math.max(...laidOut.map(n => (n.y ?? 0) + NODE_H)) + 80
+  // Floor of 1000/500 keeps small graphs from looking cramped; the container-width
+  // floor makes the SVG (and its dotted background) fill the available viewport
+  // even when the laid-out graph content is narrower than the screen.
+  const maxX = Math.max(...laidOut.map(n => (n.x ?? 0) + NODE_W), 1000, containerWidth - 32) + 80
+  const maxY = Math.max(...laidOut.map(n => (n.y ?? 0) + NODE_H), 500) + 80
 
   const matches = search.trim().length > 0
     ? data.nodes.filter(n => n.label.toLowerCase().includes(search.toLowerCase()) || n.sub.toLowerCase().includes(search.toLowerCase()))
@@ -723,7 +759,7 @@ function LineageInner() {
   const timeSinceRefresh = Math.round((Date.now() - lastRefresh.getTime()) / 1000)
 
   return (
-    <div style={{ padding: '10px 16px', maxWidth: '1500px' }}>
+    <div style={{ padding: '10px 16px' }}>
 
       {/* compact top bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
@@ -1090,8 +1126,8 @@ function LineageInner() {
 
           <svg
             ref={svgRef}
-            width={Math.max(maxX, 1000)} height={Math.max(maxY, 500)} viewBox={`0 0 ${Math.max(maxX, 1000)} ${Math.max(maxY, 500)}`}
-            style={{ display: 'block', minWidth: `${Math.max(maxX, 1000)}px`, cursor: isPanning ? 'grabbing' : 'grab' }}
+            width={maxX} height={maxY} viewBox={`0 0 ${maxX} ${maxY}`}
+            style={{ display: 'block', minWidth: `${maxX}px`, cursor: isPanning ? 'grabbing' : 'grab' }}
             onMouseDown={handleSvgMouseDown}
             onMouseMove={handleSvgMouseMove}
             onMouseUp={handleSvgMouseUp}

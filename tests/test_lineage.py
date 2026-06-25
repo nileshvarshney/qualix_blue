@@ -214,25 +214,35 @@ def test_display_type_falls_back_to_generic_field():
 
 
 @pytest.mark.asyncio
-async def test_ensure_view_definitions_skips_non_snowflake_connection(monkeypatch):
-    """View-DDL backfill is Snowflake-only (GET_DDL syntax) — must not run for Postgres."""
+async def test_ensure_view_definitions_uses_pg_backfill_for_postgres_connection(monkeypatch):
+    """Postgres connections must use the information_schema-based backfill, not Snowflake's GET_DDL."""
     view_asset = _FakeAsset("a1", _FakeSourceMeta("VIEW", None))
     db = AsyncMock()
+    db.commit = AsyncMock()
 
     class FakePgConn:
         database_type = "postgresql"
     db.get = AsyncMock(return_value=FakePgConn())
 
-    called = False
-    def _bulk_fetch(*_args, **_kwargs):
-        nonlocal called
-        called = True
+    sf_called = False
+    def _sf_bulk_fetch(*_args, **_kwargs):
+        nonlocal sf_called
+        sf_called = True
         return {}
-    monkeypatch.setattr("app.api.lineage._sync_fetch_view_definitions_bulk", _bulk_fetch)
+    monkeypatch.setattr("app.api.lineage._sync_fetch_view_definitions_bulk", _sf_bulk_fetch)
+
+    pg_called_with = None
+    async def _pg_bulk_fetch(conn, assets):
+        nonlocal pg_called_with
+        pg_called_with = (conn, assets)
+        return {}
+    monkeypatch.setattr("app.api.lineage._fetch_pg_view_definitions_bulk", _pg_bulk_fetch)
 
     await _ensure_view_definitions([view_asset], "conn-1", db)
 
-    assert called is False
+    assert sf_called is False
+    assert pg_called_with is not None
+    assert pg_called_with[1] == [view_asset]
 
 
 @pytest.mark.asyncio
@@ -415,6 +425,7 @@ async def test_lineage_graph_nodes_include_owner_fields(monkeypatch):
     class FakeConn:
         connection_id = "conn-1"
         connection_name = "Prod"
+        database_type = "snowflake"
         default_database = "PROD"
         default_schema = "PUBLIC"
         warehouse = "WH"

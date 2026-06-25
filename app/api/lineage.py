@@ -22,12 +22,12 @@ logger = logging.getLogger("dq_platform.lineage")
 router = APIRouter(prefix="/lineage", tags=["Lineage"])
 
 
-def extract_table_refs(view_sql: str) -> list[str]:
+def extract_table_refs(view_sql: str, dialect: str = "snowflake") -> list[str]:
     """Return upper-cased table names from every FROM/JOIN in the view SQL, excluding CTE aliases."""
     if not view_sql or not view_sql.strip():
         return []
     try:
-        tree = sqlglot.parse_one(view_sql, dialect="snowflake")
+        tree = sqlglot.parse_one(view_sql, dialect=dialect)
     except Exception as exc:
         logger.debug("extract_table_refs parse error: %s", exc)
         return []
@@ -222,6 +222,39 @@ VIEW_DEFINITION_BACKFILL_TIMEOUT = 8.0
 COLUMN_LINEAGE_TIMEOUT = 10.0
 
 
+def sql_dialect_for(database_type: Optional[str]) -> str:
+    """Map a connection's database_type to the sqlglot dialect for parsing its view SQL."""
+    db_type = (database_type or "snowflake").lower()
+    if db_type in ("postgresql", "postgres"):
+        return "postgres"
+    return "snowflake"
+
+
+async def _fetch_pg_view_definitions_bulk(sf_conn: SnowflakeConnection, assets: list[Asset]) -> dict[str, str]:
+    """Fetch view_definition for many Postgres views via information_schema.views."""
+    from app.api.connections import _pg_adapter
+    adapter = _pg_adapter(sf_conn)
+    results: dict[str, str] = {}
+
+    async def _one(asset: Asset) -> None:
+        meta = asset.source_meta
+        if not meta or not meta.sf_table_name:
+            return
+        try:
+            view_def = await adapter.get_view_definition(
+                meta.sf_database_name or sf_conn.default_database,
+                meta.sf_schema_name,
+                meta.sf_table_name,
+            )
+            if view_def:
+                results[asset.asset_id] = view_def
+        except Exception as exc:
+            logger.debug("pg view_definition fetch failed for %s: %s", meta.sf_table_name, exc)
+
+    await asyncio.gather(*[_one(a) for a in assets])
+    return results
+
+
 async def _ensure_view_definitions(assets: list[Asset], conn_id: str, db: AsyncSession) -> None:
     """Backfill missing view_definition on VIEW assets so DDL/column lineage can be derived.
 
@@ -245,15 +278,21 @@ async def _ensure_view_definitions(assets: list[Asset], conn_id: str, db: AsyncS
     sf_conn = await db.get(SnowflakeConnection, conn_id)
     if not sf_conn:
         return
-    if (sf_conn.database_type or "snowflake").lower() != "snowflake":
-        # GET_DDL is Snowflake-only syntax — other providers never reach here.
-        return
+    db_type = (sf_conn.database_type or "snowflake").lower()
     batch = missing[:VIEW_DEFINITION_BACKFILL_LIMIT]
     try:
-        fetched = await asyncio.wait_for(
-            asyncio.to_thread(_sync_fetch_view_definitions_bulk, sf_conn, batch),
-            timeout=VIEW_DEFINITION_BACKFILL_TIMEOUT,
-        )
+        if db_type in ("postgresql", "postgres"):
+            fetched = await asyncio.wait_for(
+                _fetch_pg_view_definitions_bulk(sf_conn, batch),
+                timeout=VIEW_DEFINITION_BACKFILL_TIMEOUT,
+            )
+        elif db_type == "snowflake":
+            fetched = await asyncio.wait_for(
+                asyncio.to_thread(_sync_fetch_view_definitions_bulk, sf_conn, batch),
+                timeout=VIEW_DEFINITION_BACKFILL_TIMEOUT,
+            )
+        else:
+            return
     except asyncio.TimeoutError:
         logger.warning("view definition backfill timed out for connection %s", conn_id)
         return
@@ -443,6 +482,7 @@ async def get_lineage_graph(
             "techOwnerName": enr["technical_owner_name"],
         })
 
+    dialect = sql_dialect_for(conn.database_type if conn else None)
     edges: list[dict] = []
     edge_set: set[tuple[str, str]] = set()
     ddl_count = 0
@@ -450,7 +490,7 @@ async def get_lineage_graph(
         meta = a.source_meta
         if not meta or not meta.view_definition:
             continue
-        for ref in extract_table_refs(meta.view_definition):
+        for ref in extract_table_refs(meta.view_definition, dialect=dialect):
             src_id = table_name_to_asset_id.get(ref)
             if src_id and src_id != a.asset_id and (src_id, a.asset_id) not in edge_set:
                 edge_set.add((src_id, a.asset_id))
@@ -573,18 +613,29 @@ async def get_lineage(
     # ── Lazy-fetch view_definition for VIEW assets that don't have it stored ──
     meta = asset.source_meta
     is_view = meta and meta.sf_table_type and "VIEW" in meta.sf_table_type.upper()
-    if meta and is_view and not meta.view_definition and asset.connection_id:
-        sf_conn = await db.get(SnowflakeConnection, asset.connection_id)
-        if sf_conn and (sf_conn.database_type or "snowflake").lower() == "snowflake":
+    sf_conn = await db.get(SnowflakeConnection, asset.connection_id) if asset.connection_id else None
+    db_type = (sf_conn.database_type or "snowflake").lower() if sf_conn else "snowflake"
+    dialect = sql_dialect_for(db_type)
+    if meta and is_view and not meta.view_definition and sf_conn:
+        if db_type == "snowflake":
             view_def = await asyncio.to_thread(_sync_fetch_view_definition, sf_conn, asset)
-            if view_def:
-                meta.view_definition = view_def
-                await db.commit()
+        elif db_type in ("postgresql", "postgres"):
+            from app.api.connections import _pg_adapter
+            view_def = await _pg_adapter(sf_conn).get_view_definition(
+                meta.sf_database_name or sf_conn.default_database,
+                meta.sf_schema_name,
+                meta.sf_table_name,
+            )
+        else:
+            view_def = None
+        if view_def:
+            meta.view_definition = view_def
+            await db.commit()
 
     # ── Upstream ──────────────────────────────────────────────────────────────
     upstream_assets: list[Asset] = []
     if meta and meta.view_definition and asset.connection_id:
-        refs = extract_table_refs(meta.view_definition)
+        refs = extract_table_refs(meta.view_definition, dialect=dialect)
         if refs:
             result = await db.execute(
                 select(Asset).join(
@@ -616,7 +667,8 @@ async def get_lineage(
         )
         for candidate in candidate_result.scalars().all():
             refs_cand = extract_table_refs(
-                candidate.source_meta.view_definition if candidate.source_meta else ""
+                candidate.source_meta.view_definition if candidate.source_meta else "",
+                dialect=dialect,
             )
             if table_name.upper() in refs_cand:
                 downstream_assets.append(candidate)

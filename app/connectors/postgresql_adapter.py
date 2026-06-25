@@ -194,6 +194,24 @@ class PostgreSQLAdapter(BaseConnector):
                 cur.close(); conn.close()
         return await asyncio.to_thread(_run)
 
+    async def get_view_definition(
+        self, database: str, schema: str, view: str
+    ) -> Optional[str]:
+        def _run() -> Optional[str]:
+            conn = self._open_connection(database=database)
+            cur = conn.cursor()
+            try:
+                cur.execute(
+                    "SELECT view_definition FROM information_schema.views "
+                    "WHERE table_schema = %s AND table_name = %s",
+                    (schema, view),
+                )
+                row = cur.fetchone()
+                return row[0] if row else None
+            finally:
+                cur.close(); conn.close()
+        return await asyncio.to_thread(_run)
+
     async def get_table_metadata(
         self, database: str, schema: str, table: str
     ) -> TableMetadataSchema:
