@@ -299,8 +299,12 @@ function LineageInner() {
   // Load once on mount only — no auto-refresh. The user can hit "Refresh" manually.
   useEffect(() => { fetchLineage() }, [fetchLineage])
 
-  // Sync search to URL so browser back restores it
+  // Sync search to URL so browser back restores it.
+  // Guard: skip router.replace when the URL already has the correct ?q= value to avoid
+  // triggering a Suspense re-render loop when navigating from catalog with ?q=TABLE_NAME.
   useEffect(() => {
+    const currentQ = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('q') ?? ''
+    if (currentQ === search) return
     const params = new URLSearchParams()
     if (search) params.set('q', search)
     const qs = params.toString()
@@ -317,6 +321,7 @@ function LineageInner() {
         setColumnPopupOpen(true)
         setShowDropdown(false)
       } else {
+        // No exact match — show dropdown so the user can pick from partial matches
         setShowDropdown(true)
       }
     }
