@@ -132,6 +132,38 @@ async def execute_run_with_retries(run_id: str) -> None:
         success = await _execute_run(run_id)
 
 
+async def cleanup_stale_runs(stale_minutes: int = 30) -> int:
+    """Mark runs stuck in queued/running for >stale_minutes as timed_out.
+
+    Runs on startup to recover from server restarts that orphaned in-flight jobs.
+    Returns the number of runs cleaned up.
+    """
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=stale_minutes)
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(ScanJobRun).where(
+                ScanJobRun.status.in_(["queued", "running"]),
+                ScanJobRun.created_at < cutoff,
+            )
+        )
+        runs = result.scalars().all()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        for run in runs:
+            run.status = "timed_out"
+            run.ended_at = now
+            run.error_message = (
+                f"Timed out: exceeded {stale_minutes}-minute safety limit "
+                "(server may have restarted while this run was in progress)"
+            )
+            job = await db.get(ScanJob, run.job_id)
+            if job and job.last_run_status in ("queued", "running"):
+                job.last_run_status = "timed_out"
+                job.last_run_at = now
+        await db.commit()
+        return len(runs)
+
+
 async def append_log(
     run_id: str, level: str, message: str, context: Optional[dict] = None
 ) -> None:

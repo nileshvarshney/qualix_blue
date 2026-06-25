@@ -158,6 +158,10 @@ async def lifespan(app: FastAPI):
         from app.services.scheduler_service import load_all_scan_schedules
         async with AsyncSessionLocal() as db:
             await load_all_scan_schedules(db)
+        from app.services.scan_orchestrator import cleanup_stale_runs
+        n = await cleanup_stale_runs(stale_minutes=30)
+        if n:
+            logger.info("Cleaned up %d stale scan run(s) on startup", n)
 
     try:
         await asyncio.wait_for(_init_db(), timeout=120)

@@ -1,6 +1,7 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { useInterval } from '@/hooks/useInterval'
 
 type JobStatus = 'active' | 'inactive'
 type LastRunStatus = 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'running' | 'queued' | 'cancelled' | null
@@ -147,6 +148,7 @@ export default function ScanJobsPage() {
   const [loading, setLoading]             = useState(true)
   const [filter, setFilter]               = useState<FilterType>('all')
   const [runningId, setRunningId]         = useState<string | null>(null)
+  const [cancellingId, setCancellingId]   = useState<string | null>(null)
   const [collapsedConns, setCollapsedConns] = useState<Set<string>>(new Set())
   const [expandedJob, setExpandedJob]     = useState<string | null>(null)
   const [showCreate, setShowCreate]       = useState(false)
@@ -159,7 +161,8 @@ export default function ScanJobsPage() {
   const [createError, setCreateError]     = useState<string | null>(null)
   const [connOptions, setConnOptions]     = useState<{ id: string; name: string }[]>([])
 
-  useEffect(() => {
+  const loadJobs = useCallback((showLoader = false) => {
+    if (showLoader) setLoading(true)
     fetch('/api/scan-jobs')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
@@ -169,6 +172,11 @@ export default function ScanJobsPage() {
       })
       .catch(() => setLoading(false))
   }, [])
+
+  useEffect(() => { loadJobs(true) }, [loadJobs])
+
+  const hasActiveJobs = jobs.some(j => j.last_run_status === 'queued' || j.last_run_status === 'running')
+  useInterval(() => loadJobs(), hasActiveJobs ? 5000 : null)
 
   useEffect(() => {
     fetch('/api/connections')
@@ -242,12 +250,7 @@ export default function ScanJobsPage() {
             body: JSON.stringify({ ...body, is_active: true }),
           })
       if (!res.ok) throw new Error(`Failed to save job: ${res.status}`)
-      // Re-fetch jobs list after successful save
-      const listRes = await fetch('/api/scan-jobs')
-      if (!listRes.ok) throw new Error('Failed to reload jobs')
-      const data: Record<string, unknown>[] = await listRes.json()
-      const items: ScanJob[] = (Array.isArray(data) ? data : []).map(mapJob)
-      setJobs(items)
+      loadJobs()
       closeJobDialog()
     } catch (err) {
       console.error(err)
@@ -280,6 +283,17 @@ export default function ScanJobsPage() {
         setRunningId(null)
         setJobs(prev => prev.map(j => j.job_id === job.job_id
           ? { ...j, last_run_status: 'queued', last_run_at: new Date().toISOString() } : j))
+      })
+  }
+
+  function cancelJob(job: ScanJob) {
+    setCancellingId(job.job_id)
+    fetch(`/api/scan-jobs/${job.job_id}/cancel-latest`, { method: 'POST' })
+      .catch(() => {})
+      .finally(() => {
+        setCancellingId(null)
+        setJobs(prev => prev.map(j => j.job_id === job.job_id
+          ? { ...j, last_run_status: 'cancelled' } : j))
       })
   }
 
@@ -403,11 +417,19 @@ export default function ScanJobsPage() {
                         </span>
 
                         <div style={{ display: 'flex', gap: '4px' }}>
-                          <button onClick={() => runNow(job)} disabled={runningId === job.job_id || !job.is_active}
-                            title={!job.is_active ? 'Enable job to run' : 'Trigger run now'}
-                            style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: runningId === job.job_id ? 'var(--status-info-bg)' : 'var(--surface)', color: 'var(--status-info-text)', fontSize: '10px', cursor: (runningId === job.job_id || !job.is_active) ? 'not-allowed' : 'pointer', opacity: !job.is_active ? 0.5 : 1 }}>
-                            {runningId === job.job_id ? '⏳' : '▶'}
-                          </button>
+                          {(job.last_run_status === 'running' || job.last_run_status === 'queued') ? (
+                            <button onClick={() => cancelJob(job)} disabled={cancellingId === job.job_id}
+                              title="Cancel this run"
+                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--status-error-text)', background: 'var(--status-error-bg)', color: 'var(--status-error-text)', fontSize: '10px', fontWeight: 600, cursor: cancellingId === job.job_id ? 'not-allowed' : 'pointer', opacity: cancellingId === job.job_id ? 0.6 : 1 }}>
+                              {cancellingId === job.job_id ? '…' : '✕ Cancel'}
+                            </button>
+                          ) : (
+                            <button onClick={() => runNow(job)} disabled={runningId === job.job_id || !job.is_active}
+                              title={!job.is_active ? 'Enable job to run' : 'Trigger run now'}
+                              style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: runningId === job.job_id ? 'var(--status-info-bg)' : 'var(--surface)', color: 'var(--status-info-text)', fontSize: '10px', cursor: (runningId === job.job_id || !job.is_active) ? 'not-allowed' : 'pointer', opacity: !job.is_active ? 0.5 : 1 }}>
+                              {runningId === job.job_id ? '⏳' : '▶'}
+                            </button>
+                          )}
                           <button onClick={() => toggleActive(job)}
                             style={{ padding: '3px 8px', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', fontSize: '10px', cursor: 'pointer' }}>
                             {job.is_active ? '⏸' : '▶'}

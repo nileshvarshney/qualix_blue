@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -270,10 +270,36 @@ async def cancel_run(
     if run.status not in ("queued", "running"):
         raise HTTPException(409, f"Cannot cancel run with status '{run.status}'")
     run.status = "cancelled"
-    from datetime import datetime, timezone
     run.ended_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
     return {"run_id": run_id, "status": "cancelled"}
+
+
+@router.post("/{job_id}/cancel-latest", status_code=202)
+async def cancel_latest_run(
+    job_id: str,
+    db=Depends(get_db),
+    user: dict = Depends(get_current_user),
+):
+    """Cancel the most recent queued or running run for a job (no run_id required)."""
+    result = await db.execute(
+        select(ScanJobRun)
+        .where(ScanJobRun.job_id == job_id, ScanJobRun.status.in_(["queued", "running"]))
+        .order_by(desc(ScanJobRun.created_at))
+        .limit(1)
+    )
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(404, "No active run found for this job")
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    run.status = "cancelled"
+    run.ended_at = now
+    job = await db.get(ScanJob, job_id)
+    if job and job.last_run_status in ("queued", "running"):
+        job.last_run_status = "cancelled"
+        job.last_run_at = now
+    await db.commit()
+    return {"run_id": run.run_id, "status": "cancelled"}
 
 
 # ─── Serializers ──────────────────────────────────────────────────────────────
