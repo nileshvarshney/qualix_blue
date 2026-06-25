@@ -40,10 +40,10 @@ function clearTokenCookie() {
 }
 
 // Module-level hook — lets apiFetch trigger logout without a React dependency
-let _globalLogout: (() => void) | null = null
+let _globalLogout: ((expired?: boolean) => void) | null = null
 
 export function triggerGlobalLogout() {
-  _globalLogout?.()
+  _globalLogout?.(true)
 }
 
 export function getStoredToken(): string | null {
@@ -57,14 +57,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const loggingOut = useRef(false)
 
-  const logout = useCallback(() => {
+  const logout = useCallback((expired = false) => {
     if (loggingOut.current) return
     loggingOut.current = true
     localStorage.removeItem(TOKEN_KEY)
     clearTokenCookie()
     setUser(null)
     loggingOut.current = false
-    router.replace('/login')
+    if (expired) {
+      const returnUrl = encodeURIComponent(window.location.pathname + window.location.search)
+      router.replace(`/login?returnUrl=${returnUrl}&reason=session_expired`)
+    } else {
+      router.replace('/login')
+    }
   }, [router])
 
   const login = useCallback((token: string, userData: AuthUser) => {
@@ -104,6 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTokenCookie(token) // refresh cookie TTL
       })
       .catch(() => {
+        sessionStorage.setItem('session_expired', '1')
         localStorage.removeItem(TOKEN_KEY)
         clearTokenCookie()
       })

@@ -4,9 +4,9 @@ import StarFieldBg from '@/components/auth/StarFieldBg'
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ returnUrl?: string }>
+  searchParams: Promise<{ returnUrl?: string; reason?: string }>
 }) {
-  const { returnUrl = '/' } = await searchParams
+  const { returnUrl = '/', reason } = await searchParams
   return (
     <div style={{
       position: 'fixed',
@@ -28,7 +28,7 @@ export default async function LoginPage({
 
       <StarFieldBg />
 
-      <LoginCard returnUrl={returnUrl} />
+      <LoginCard returnUrl={returnUrl} reason={reason} />
 
       {/* Brand wordmark — below the card */}
       <div style={{

@@ -12,7 +12,7 @@ type Mode = 'login' | 'reset'
 type LoginForm = { email: string; password: string; role: string }
 type LoginErrors = { email?: string; password?: string; role?: string; form?: string }
 
-export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
+export default function LoginCard({ returnUrl = '/', reason }: { returnUrl?: string; reason?: string }) {
   const [mode, setMode] = useState<Mode>('login')
   const [form, setForm] = useState<LoginForm>({ email: '', password: '', role: '' })
   const [errors, setErrors] = useState<LoginErrors>({})
@@ -106,6 +106,16 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
         <>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginBottom: 2 }}>Welcome back</div>
           <div style={{ fontSize: 10, color: '#94a3b8', marginBottom: 14 }}>Sign in to your workspace</div>
+
+          {reason === 'session_expired' && (
+            <div style={{
+              fontSize: 10, color: '#92400e',
+              background: '#fffbeb', border: '1px solid #fde68a',
+              borderRadius: 6, padding: '6px 9px', marginBottom: 10,
+            }}>
+              Your session has expired. Please sign in again.
+            </div>
+          )}
 
           {errors.form && (
             <div style={{

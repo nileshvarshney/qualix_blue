@@ -35,7 +35,10 @@ export default function ShellWrapper({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isAuth) {
       const returnUrl = encodeURIComponent(pathname + window.location.search)
-      router.replace(`/login?returnUrl=${returnUrl}`)
+      const expired = sessionStorage.getItem('session_expired') === '1'
+      if (expired) sessionStorage.removeItem('session_expired')
+      const reason = expired ? '&reason=session_expired' : ''
+      router.replace(`/login?returnUrl=${returnUrl}${reason}`)
     }
   }, [isLoading, isAuthenticated, isAuth, pathname, router])
 
