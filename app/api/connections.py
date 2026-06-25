@@ -601,6 +601,33 @@ async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)
             p.default_database = conn.default_database
             p.default_schema = conn.default_schema
             test_result = await asyncio.to_thread(_test_snowflake_sync, p)
+
+        elif db_type == "postgresql":
+            plain_pw = _decrypt_password(conn) if conn.password else ""
+            cfg = config_from_orm(conn)
+            cfg.password = plain_pw
+            connector = get_connector(cfg)
+            pg_result = await connector.test_connection()
+            status_ok = pg_result.get("status") == "ok"
+            normalized_steps = []
+            for s in pg_result.get("steps", []):
+                step_status = s.get("status", "ok")
+                if step_status == "error":
+                    step_status = "fail"
+                normalized_steps.append({
+                    "label": s.get("label", ""),
+                    "status": step_status,
+                    "detail": s.get("detail", ""),
+                })
+            test_result = {
+                "success": status_ok,
+                "status": "active" if status_ok else "error",
+                "steps": normalized_steps,
+                "error_code": pg_result.get("error_code"),
+                "error_message": pg_result.get("message"),
+                "suggestion": pg_result.get("suggestion"),
+            }
+
         else:
             class _Payload:
                 pass
