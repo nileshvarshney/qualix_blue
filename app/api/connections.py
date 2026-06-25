@@ -864,9 +864,25 @@ async def _get_conn_or_404(connection_id: str, db: AsyncSession) -> SnowflakeCon
     return conn
 
 
+def _pg_adapter(conn: SnowflakeConnection):
+    """Return a PostgreSQLAdapter with decrypted credentials for the given connection."""
+    cfg = config_from_orm(conn)
+    cfg.password = _decrypt_password(conn)
+    return get_connector(cfg)
+
+
 @router.get("/{connection_id}/databases")
 async def browse_databases(connection_id: str, db: AsyncSession = Depends(get_db)):
     conn = await _get_conn_or_404(connection_id, db)
+    db_type = (conn.database_type or "snowflake").lower()
+
+    if db_type == "postgresql":
+        try:
+            adapter = _pg_adapter(conn)
+            databases = await adapter.list_databases()
+            return {"databases": [{"name": d, "owner": "", "comment": "", "created_on": ""} for d in databases]}
+        except Exception as e:
+            return {"databases": [], "error": str(e)}
 
     def _run():
         sf = _open_connector(conn)
@@ -903,6 +919,16 @@ async def browse_schemas(
     db: AsyncSession = Depends(get_db),
 ):
     conn = await _get_conn_or_404(connection_id, db)
+    db_type = (conn.database_type or "snowflake").lower()
+
+    if db_type == "postgresql":
+        try:
+            adapter = _pg_adapter(conn)
+            schemas = await adapter.list_schemas(database)
+            return {"schemas": [{"name": s, "owner": "", "comment": ""} for s in schemas]}
+        except Exception as e:
+            return {"schemas": [], "error": str(e)}
+
     db_safe = _safe_ident(database, "database")
 
     def _run():
@@ -943,6 +969,24 @@ async def browse_columns(
     db: AsyncSession = Depends(get_db),
 ):
     conn = await _get_conn_or_404(connection_id, db)
+    db_type = (conn.database_type or "snowflake").lower()
+
+    if db_type == "postgresql":
+        try:
+            adapter = _pg_adapter(conn)
+            cols = await adapter.list_columns(database, schema, table)
+            return {
+                "columns": [
+                    {"column_name": c.name, "data_type": c.data_type, "is_nullable": c.is_nullable, "ordinal_position": c.ordinal_position, "comment": c.comment or ""}
+                    for c in cols
+                ],
+                "database": database, "schema": schema, "table": table,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"columns": [], "error": str(e)}
+
     db_safe = _safe_ident(database, "database")
     schema_safe = _safe_ident(schema, "schema")
     table_safe = _safe_ident(table, "table")
@@ -981,6 +1025,24 @@ async def browse_tables(
     db: AsyncSession = Depends(get_db),
 ):
     conn = await _get_conn_or_404(connection_id, db)
+    db_type = (conn.database_type or "snowflake").lower()
+
+    if db_type == "postgresql":
+        try:
+            adapter = _pg_adapter(conn)
+            tbl_list = await adapter.list_tables(database, schema)
+            return {
+                "tables": [
+                    {"table_name": t.table_name, "table_type": t.table_type, "row_count": t.row_count or 0, "bytes": None, "comment": t.comment or "", "view_definition": None}
+                    for t in tbl_list
+                ],
+                "database": database, "schema": schema,
+            }
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"tables": [], "error": str(e)}
+
     db_safe = _safe_ident(database, "database")
     schema_safe = _safe_ident(schema, "schema")
 
@@ -1041,6 +1103,36 @@ async def preview_data(
 ):
     """Preview the first N rows of a table — powers the Live Data Browser."""
     conn = await _get_conn_or_404(connection_id, db)
+    db_type = (conn.database_type or "snowflake").lower()
+
+    if db_type == "postgresql":
+        try:
+            import psycopg2
+            from app.core.encryption import decrypt
+            plain_pw = decrypt(conn.password) if conn.password else ""
+            def _run_pg():
+                pgconn = psycopg2.connect(
+                    host=conn.host,
+                    port=int(conn.port) if conn.port else 5432,
+                    dbname=database,
+                    user=conn.username,
+                    password=plain_pw,
+                )
+                cur = pgconn.cursor()
+                cur.execute(f'SELECT * FROM "{schema}"."{table}" LIMIT {limit}')
+                col_names = [d[0] for d in cur.description]
+                col_types = ["text"] * len(col_names)
+                rows = [list(r) for r in cur.fetchall()]
+                cur.close()
+                pgconn.close()
+                return {"columns": col_names, "column_types": col_types, "rows": rows, "row_count": len(rows)}
+            data = await asyncio.to_thread(_run_pg)
+            return {"data": data, "database": database, "schema": schema, "table": table}
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"data": None, "error": str(e)}
+
     db_safe = _safe_ident(database, "database")
     schema_safe = _safe_ident(schema, "schema")
     table_safe = _safe_ident(table, "table")
