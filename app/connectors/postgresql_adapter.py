@@ -45,7 +45,6 @@ class PostgreSQLAdapter(BaseConnector):
                 user=cfg.username,
                 password=cfg.password or "",
                 connect_timeout=cfg.connect_timeout,
-                sslmode=cfg.ssl_mode or "prefer",
             )
         except psycopg2.OperationalError as exc:
             msg = str(exc)

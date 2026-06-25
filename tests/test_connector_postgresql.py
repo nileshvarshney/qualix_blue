@@ -202,9 +202,9 @@ async def test_sample_rows_uses_sql_identifier(monkeypatch):
             pass  # we only care that execute was called with a Composed object
 
     # The query passed to execute must be a psycopg2 Composed object, not a plain string
-    if executed_queries:
-        query_arg = executed_queries[0][0]
-        assert isinstance(query_arg, pgsql.Composed), (
-            f"Expected psycopg2.sql.Composed, got {type(query_arg).__name__!r}. "
-            "sample_rows must use psycopg2.sql.Identifier, not f-strings."
-        )
+    assert executed_queries, "execute() was never called — monkeypatch did not wire up correctly"
+    query_arg = executed_queries[0][0]
+    assert isinstance(query_arg, pgsql.Composed), (
+        f"Expected psycopg2.sql.Composed, got {type(query_arg).__name__!r}. "
+        "sample_rows must use psycopg2.sql.Identifier, not f-strings."
+    )
