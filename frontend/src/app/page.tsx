@@ -34,7 +34,10 @@ export default function HomePage() {
   const [incidents, setIncidents] = useState<CorrelatedIncident[]>([])
   const [dismissed, setDismissed] = useState(false)
   const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
-    try { return localStorage.getItem('qualix-active-conn') ?? '' } catch { return '' }
+    try {
+      const v = localStorage.getItem('qualix-active-conn')
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
   })
 
   useEffect(() => {
@@ -108,7 +111,7 @@ export default function HomePage() {
           </div>
         </div>
       )}
-      <Dashboard stats={stats} loading={statsLoading} />
+      <Dashboard stats={stats} loading={statsLoading} activeConnectionId={activeConnectionId} />
     </>
   )
 }

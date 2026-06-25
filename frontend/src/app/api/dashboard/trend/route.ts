@@ -6,7 +6,12 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(req: NextRequest) {
   try {
     const days = req.nextUrl.searchParams.get('days')
-    const url = days ? `${BACKEND}/dashboard/trend?days=${days}` : `${BACKEND}/dashboard/trend`
+    const connectionId = req.nextUrl.searchParams.get('connection_id')
+    const params = new URLSearchParams()
+    if (days) params.set('days', days)
+    if (connectionId) params.set('connection_id', connectionId)
+    const qs = params.toString()
+    const url = `${BACKEND}/dashboard/trend${qs ? `?${qs}` : ''}`
     const res = await fetch(url, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
     return NextResponse.json(data, { status: res.status })

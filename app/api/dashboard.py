@@ -32,6 +32,7 @@ async def _build_trend(
     domain_id: Optional[str] = None,
     subdomain_id: Optional[str] = None,
     asset_id: Optional[str] = None,
+    connection_id: Optional[str] = None,
 ) -> list[dict]:
     """
     Build quality trend in a handful of queries instead of one per day.
@@ -48,21 +49,24 @@ async def _build_trend(
     all_dates = [cutoff + timedelta(days=i) for i in range(days)]
 
     # ── Query 1: fetch all pre-aggregated scores in the range ──────────────
-    sq = select(DQQualityScore).where(
-        DQQualityScore.score_date >= cutoff,
-        DQQualityScore.score_date <= today,
-    )
-    if asset_id:
-        sq = sq.where(DQQualityScore.asset_id == asset_id, DQQualityScore.score_level == "table")
-    elif subdomain_id:
-        sq = sq.where(DQQualityScore.subdomain_id == subdomain_id, DQQualityScore.score_level == "subdomain")
-    elif domain_id:
-        sq = sq.where(DQQualityScore.domain_id == domain_id, DQQualityScore.score_level == "domain")
-    else:
-        sq = sq.where(DQQualityScore.score_level == "global")
-
-    score_rows = (await db.execute(sq)).scalars().all()
-    score_map = {r.score_date: r for r in score_rows}
+    # Skip when connection_id is set — no connection-level pre-aggregation exists;
+    # all dates fall through to the raw-run path (Query 2).
+    score_map: dict = {}
+    if not connection_id:
+        sq = select(DQQualityScore).where(
+            DQQualityScore.score_date >= cutoff,
+            DQQualityScore.score_date <= today,
+        )
+        if asset_id:
+            sq = sq.where(DQQualityScore.asset_id == asset_id, DQQualityScore.score_level == "table")
+        elif subdomain_id:
+            sq = sq.where(DQQualityScore.subdomain_id == subdomain_id, DQQualityScore.score_level == "subdomain")
+        elif domain_id:
+            sq = sq.where(DQQualityScore.domain_id == domain_id, DQQualityScore.score_level == "domain")
+        else:
+            sq = sq.where(DQQualityScore.score_level == "global")
+        score_rows = (await db.execute(sq)).scalars().all()
+        score_map = {r.score_date: r for r in score_rows}
 
     # ── Identify dates that need raw-run fallback ───────────────────────────
     missing_dates = [d for d in all_dates if d not in score_map]
@@ -71,7 +75,9 @@ async def _build_trend(
     raw_by_date: dict[date, list] = {}
     if missing_dates:
         rq = select(DQRuleRun).where(func.date(DQRuleRun.created_at).in_(missing_dates))
-        if domain_id:
+        if connection_id:
+            rq = rq.join(Asset, DQRuleRun.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
+        elif domain_id:
             rq = rq.where(DQRuleRun.domain_id == domain_id)
         if subdomain_id:
             rq = rq.where(DQRuleRun.subdomain_id == subdomain_id)
@@ -92,6 +98,8 @@ async def _build_trend(
         alq = alq.where(DQAlert.subdomain_id == subdomain_id)
     elif domain_id:
         alq = alq.where(DQAlert.domain_id == domain_id)
+    elif connection_id:
+        alq = alq.join(Asset, DQAlert.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     alert_rows = (await db.execute(alq)).all()
     alert_count_map: dict[date, int] = {}
     for r in alert_rows:
@@ -108,6 +116,8 @@ async def _build_trend(
             anq = anq.where(Asset.subdomain_id == subdomain_id)
         else:
             anq = anq.where(Asset.domain_id == domain_id)
+    elif connection_id:
+        anq = anq.join(Asset, AnomalyDetection.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     anq = anq.where(
         func.date(AnomalyDetection.detected_at) >= cutoff,
         func.date(AnomalyDetection.detected_at) <= today,
@@ -813,12 +823,13 @@ async def domain_history(
 @router.get("/trend")
 async def global_trend(
     days: int = Query(30, ge=7, le=90),
+    connection_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
     """Return quality trend for N days. Used by dashboard trend tab switcher."""
     domain_scope = get_domain_filter(user)
-    trend = await _build_trend(db, days=days, domain_id=domain_scope)
+    trend = await _build_trend(db, days=days, domain_id=domain_scope, connection_id=connection_id)
     return {"days": days, "trend": trend}
 
 
@@ -828,6 +839,7 @@ async def day_detail(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -864,6 +876,8 @@ async def day_detail(
         rq = rq.where(DQRuleRun.subdomain_id == subdomain_id)
     elif domain_scope:
         rq = rq.where(DQRuleRun.domain_id == domain_scope)
+    if connection_id:
+        rq = rq.where(Asset.connection_id == connection_id)
     rq = rq.order_by(desc(DQRuleRun.created_at)).limit(50)
     run_rows = (await db.execute(rq)).all()
     failed_runs = [
@@ -883,6 +897,8 @@ async def day_detail(
         aq = aq.where(DQAlert.subdomain_id == subdomain_id)
     elif domain_scope:
         aq = aq.where(DQAlert.domain_id == domain_scope)
+    elif connection_id:
+        aq = aq.join(Asset, DQAlert.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     aq = aq.order_by(desc(DQAlert.created_at)).limit(50)
     alert_rows = (await db.execute(aq)).scalars().all()
     alerts = [
@@ -903,6 +919,8 @@ async def day_detail(
             anq = anq.where(Asset.subdomain_id == subdomain_id)
         else:
             anq = anq.where(Asset.domain_id == domain_scope)
+    elif connection_id:
+        anq = anq.join(Asset, AnomalyDetection.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     anq = anq.order_by(desc(AnomalyDetection.detected_at)).limit(50)
     anomaly_rows = (await db.execute(anq)).scalars().all()
     anomalies = [
@@ -919,6 +937,7 @@ async def day_detail(
 @router.get("/dimensions")
 async def quality_dimensions(
     domain_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
     user: dict = Depends(get_current_user),
 ):
@@ -934,6 +953,8 @@ async def quality_dimensions(
     )
     if domain_scope:
         latest_q = latest_q.where(DQRule.domain_id == domain_scope)
+    if connection_id:
+        latest_q = latest_q.join(Asset, DQRuleRun.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     latest_date = (await db.execute(latest_q)).scalar()
 
     if latest_date is None:
@@ -948,6 +969,8 @@ async def quality_dimensions(
     )
     if domain_scope:
         q = q.where(DQRule.domain_id == domain_scope)
+    if connection_id:
+        q = q.join(Asset, DQRuleRun.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
 
     rows = (await db.execute(q)).all()
 

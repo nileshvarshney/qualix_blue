@@ -135,7 +135,7 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
 interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
 interface DomainOption { domain_id: string; domain_name: string }
 
-export default function Dashboard({ stats, loading = false }: { stats: DashboardStats; loading?: boolean }) {
+export default function Dashboard({ stats, loading = false, activeConnectionId = '' }: { stats: DashboardStats; loading?: boolean; activeConnectionId?: string }) {
   const [running, setRunning] = useState(false)
   const [runMessage, setRunMessage] = useState<{ text: string; isError: boolean } | null>(null)
   const [timeFilter, setTimeFilter] = useState('Last 7 days')
@@ -163,7 +163,8 @@ export default function Dashboard({ stats, loading = false }: { stats: Dashboard
   const domainId = domains.find(d => d.domain_name === domainFilter)?.domain_id ?? ''
 
   useEffect(() => {
-    fetch('/api/alerts')
+    const url = activeConnectionId ? `/api/alerts?connection_id=${activeConnectionId}` : '/api/alerts'
+    fetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         if (!Array.isArray(data)) return
@@ -174,7 +175,7 @@ export default function Dashboard({ stats, loading = false }: { stats: Dashboard
         setAlertSummary({ open, critical, high, acknowledged })
       })
       .catch(() => {})
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => {
     fetch('/api/monitoring/sla-predictions')
@@ -235,15 +236,20 @@ export default function Dashboard({ stats, loading = false }: { stats: Dashboard
 
   useEffect(() => {
     setTrendLoading(true)
-    const url = domainId
-      ? `/api/dashboard/history/domain/${domainId}?days=${days}`
-      : `/api/dashboard/trend?days=${days}`
+    let url: string
+    if (domainId) {
+      url = `/api/dashboard/history/domain/${domainId}?days=${days}`
+    } else {
+      const params = new URLSearchParams({ days: String(days) })
+      if (activeConnectionId) params.set('connection_id', activeConnectionId)
+      url = `/api/dashboard/trend?${params.toString()}`
+    }
     fetch(url)
       .then(r => r.json())
       .then((data: { trend?: TrendPoint[]; history?: TrendPoint[] }) => setTrend(data.trend ?? data.history ?? []))
       .catch(() => setTrend([]))
       .finally(() => setTrendLoading(false))
-  }, [days, domainId])
+  }, [days, domainId, activeConnectionId])
 
   async function runCheck() {
     setRunning(true)

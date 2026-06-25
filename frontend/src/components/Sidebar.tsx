@@ -20,8 +20,8 @@ const connIcons: Record<string, string> = {
 
 const ACTIVE_CONN_KEY = 'qualix-active-conn'
 
-function publishActiveConn(id: string) {
-  try { localStorage.setItem(ACTIVE_CONN_KEY, id) } catch {}
+function publishActiveConn(id: string | null) {
+  try { localStorage.setItem(ACTIVE_CONN_KEY, id ?? '__all__') } catch {}
   window.dispatchEvent(new CustomEvent('qualix-active-conn-changed', { detail: id }))
 }
 
@@ -39,7 +39,12 @@ function TopBarConnectionSelector() {
     setConnections(activeConns)
     if (activeConns.length === 0) { setActiveId(null); return }
     const saved = typeof window !== 'undefined' ? localStorage.getItem(ACTIVE_CONN_KEY) : null
-    const keep = saved && activeConns.find(c => c.id === saved)
+    if (saved === '__all__' && activeConns.length > 1) {
+      setActiveId(null)
+      publishActiveConn(null)
+      return
+    }
+    const keep = saved && saved !== '__all__' && activeConns.find(c => c.id === saved)
     const chosen = keep ? saved! : activeConns[0].id
     setActiveId(chosen)
     publishActiveConn(chosen)
@@ -69,7 +74,7 @@ function TopBarConnectionSelector() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  function selectConn(id: string) {
+  function selectConn(id: string | null) {
     setActiveId(id)
     setOpen(false)
     publishActiveConn(id)
@@ -109,11 +114,11 @@ function TopBarConnectionSelector() {
         borderRadius: '7px', cursor: 'pointer', minWidth: '150px',
         boxShadow: open ? '0 0 0 2px var(--accent-bg)' : 'none',
       }}>
-        <span style={{ fontSize: '14px' }}>{active ? (connIcons[active.type] ?? '🔗') : '🔗'}</span>
+        <span style={{ fontSize: '14px' }}>{activeId === null ? '📊' : (active ? (connIcons[active.type] ?? '🔗') : '🔗')}</span>
         <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--foreground)', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {active?.name ?? 'Select'}
+          {activeId === null ? 'All Connections' : (active?.name ?? 'Select')}
         </span>
-        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#16a34a', flexShrink: 0 }} />
+        <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: activeId === null ? '#3b82f6' : '#16a34a', flexShrink: 0 }} />
         <span style={{ fontSize: '9px', color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
       </div>
       <button onClick={handleRefresh} disabled={refreshing} style={{
@@ -130,6 +135,23 @@ function TopBarConnectionSelector() {
           border: '1px solid var(--border)', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
           zIndex: 100, minWidth: '240px', overflow: 'hidden',
         }}>
+          {connections.length > 1 && (
+            <button onClick={() => selectConn(null)} style={{
+              display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',
+              background: activeId === null ? 'var(--accent-bg)' : 'var(--surface)', border: 'none',
+              alignItems: 'center', gap: '10px', cursor: 'pointer',
+              borderBottom: '1px solid var(--border)',
+            }}>
+              <span style={{ fontSize: '15px' }}>📊</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12.5px', fontWeight: activeId === null ? 600 : 400, color: activeId === null ? 'var(--accent)' : 'var(--text-secondary)' }}>
+                  {activeId === null && '✓ '}All Connections
+                </div>
+                <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>View consolidated metrics</div>
+              </div>
+              <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#3b82f6' }} />
+            </button>
+          )}
           {connections.map(conn => (
             <button key={conn.id} onClick={() => selectConn(conn.id)} style={{
               display: 'flex', width: '100%', padding: '9px 14px', textAlign: 'left',

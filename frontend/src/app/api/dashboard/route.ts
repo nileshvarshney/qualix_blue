@@ -8,9 +8,12 @@ export async function GET(req: NextRequest) {
     ? `${BACKEND}/dashboard/global?connection_id=${connectionId}`
     : `${BACKEND}/dashboard/global`
   try {
+    const dimUrl = connectionId
+      ? `${BACKEND}/dashboard/dimensions?connection_id=${connectionId}`
+      : `${BACKEND}/dashboard/dimensions`
     const [globalRes, dimRes, alertsRes] = await Promise.all([
       fetch(globalUrl, { cache: 'no-store' }),
-      fetch(`${BACKEND}/dashboard/dimensions`, { cache: 'no-store' }),
+      fetch(dimUrl, { cache: 'no-store' }),
       fetch(`${BACKEND}/alerts/enriched?status=open&limit=10`, { cache: 'no-store' }),
     ])
 
