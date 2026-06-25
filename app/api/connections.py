@@ -13,7 +13,7 @@ from app.db.database import get_db
 from app.db.models import SnowflakeConnection
 from app.core.security import get_current_user
 from app.core.encryption import encrypt, decrypt
-from app.connectors import get_connector, config_from_orm
+from app.connectors import get_connector, config_from_orm, ConnectorConfig
 from app.schemas.connector_schemas import ConnectorHealth
 
 logger = logging.getLogger("dataguard.connections")
@@ -405,8 +405,40 @@ async def test_credentials(payload: ConnectionTestCredentials):
 
     if db_type == "snowflake":
         return await asyncio.to_thread(_test_snowflake_sync, payload)
-    else:
-        return await asyncio.to_thread(_test_generic_sync, payload, db_type)
+
+    if db_type == "postgresql":
+        cfg = ConnectorConfig(
+            connection_id="preview",
+            database_type="postgresql",
+            host=payload.host,
+            port=int(payload.port) if payload.port else 5432,
+            database=payload.default_database,
+            username=payload.sf_user,
+            password=payload.password or "",
+        )
+        connector = get_connector(cfg)
+        pg_result = await connector.test_connection()
+        status_ok = pg_result.get("status") == "ok"
+        normalized_steps = []
+        for s in pg_result.get("steps", []):
+            step_status = s.get("status", "ok")
+            if step_status == "error":
+                step_status = "fail"
+            normalized_steps.append({
+                "label": s.get("label", ""),
+                "status": step_status,
+                "detail": s.get("detail", ""),
+            })
+        return {
+            "success": status_ok,
+            "status": "active" if status_ok else "error",
+            "steps": normalized_steps,
+            "error_code": pg_result.get("error_code"),
+            "error_message": pg_result.get("message"),
+            "suggestion": pg_result.get("suggestion"),
+        }
+
+    return await asyncio.to_thread(_test_generic_sync, payload, db_type)
 
 
 # ── CRUD ──────────────────────────────────────────────────────────────────────

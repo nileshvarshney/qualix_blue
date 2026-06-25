@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { store } from '@/lib/store'
-import { Client as PgClient } from 'pg'
 
 /** Safe update — silently ignores failures (e.g. on edge runtimes with no persistence) */
 function safeUpdateStatus(id: string, status: string) {
@@ -223,74 +222,54 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
   }
 }
 
-// ── PostgreSQL live connection test ──────────────────────────────────────────
+// ── PostgreSQL live connection test — proxied to backend (pg runs server-side) ─
 async function testPostgreSQL(conn: Record<string, unknown>): Promise<TestResult> {
-  const steps: TestResult['steps'] = []
-  const t0 = Date.now()
-
-  // 1. Validate required fields
-  const missing: string[] = []
-  if (!conn.host)     missing.push('Host')
-  if (!conn.database) missing.push('Database')
-  if (missing.length > 0) {
-    steps.push({ label: 'Field validation', status: 'fail', detail: `Missing: ${missing.join(', ')}` })
-    return { success: false, status: 'error', steps, errorCode: 'MISSING_FIELDS', errorMessage: `Required fields missing: ${missing.join(', ')}`, suggestion: 'Edit the connection and fill in all required fields.' }
-  }
-  steps.push({ label: 'Field validation', status: 'ok', detail: 'All required fields present' })
-
-  // 2. Attempt live connection
-  const client = new PgClient({
-    host:     conn.host as string,
-    port:     conn.port ? Number(conn.port) : 5432,
-    database: conn.database as string,
-    user:     (conn.username as string) || undefined,
-    password: (conn.password as string) || undefined,
-    connectionTimeoutMillis: 10000,
-    ssl:      false,
-  })
-
+  // Cloudflare Workers can't use native TCP drivers, so forward to the backend
+  // which has psycopg2 installed and can do a real live test.
   try {
-    await client.connect()
-    steps.push({ label: 'TCP connection', status: 'ok', detail: `Connected to ${conn.host}:${conn.port || 5432}` })
+    const res = await fetch(`${BACKEND}/connections/test-credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        database_type: 'postgresql',
+        host:             conn.host,
+        port:             conn.port ? Number(conn.port) : 5432,
+        default_database: conn.database,
+        sf_user:          conn.username || null,
+        password:         conn.password || null,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`)
+    const backendResult = await res.json()
 
-    const res = await client.query('SELECT version()')
-    const version: string = res.rows[0]?.version || 'PostgreSQL'
-    steps.push({ label: 'Authentication', status: 'ok', detail: `Authenticated as "${conn.username || 'default'}"` })
-    steps.push({ label: 'Database access', status: 'ok', detail: `Database "${conn.database}" accessible — ${version.split(',')[0]}` })
-    await client.end()
-
-    safeUpdateStatus(conn.id as string, 'active')
-    return { success: true, status: 'active', steps, latencyMs: Date.now() - t0 }
-
+    // Normalise backend snake_case / status differences to frontend shape
+    const success = backendResult.success ?? false
+    const steps = (backendResult.steps ?? []).map((s: Record<string, string>) => ({
+      label:  s.label,
+      status: s.status === 'error' ? 'fail' : (s.status as 'ok' | 'fail' | 'skip'),
+      detail: s.detail ?? s.message ?? '',
+    }))
+    const result: TestResult = {
+      success,
+      status:       success ? 'active' : (backendResult.status ?? 'error'),
+      steps,
+      errorCode:    backendResult.error_code ?? backendResult.errorCode,
+      errorMessage: backendResult.error_message ?? backendResult.message ?? backendResult.errorMessage,
+      suggestion:   backendResult.suggestion,
+      latencyMs:    backendResult.latency_ms ?? backendResult.latencyMs,
+    }
+    safeUpdateStatus(conn.id as string, result.status)
+    return result
   } catch (err: unknown) {
-    await client.end().catch(() => {/* ignore */})
-    const e = err as Error & { code?: string }
-    const msg = e.message || ''
-
-    if (e.code === 'ECONNREFUSED' || e.code === 'ENOTFOUND' || e.code === 'ETIMEDOUT') {
-      steps.push({ label: 'TCP connection', status: 'fail', detail: `Cannot reach ${conn.host}:${conn.port || 5432} — ${msg}` })
-      safeUpdateStatus(conn.id as string, 'error')
-      return { success: false, status: 'error', steps, errorCode: 'NETWORK_ERROR', errorMessage: `Cannot connect to "${conn.host}:${conn.port || 5432}". ${msg}`, suggestion: 'Check host, port, and firewall rules.', latencyMs: Date.now() - t0 }
+    const msg = (err as Error).message || 'Unknown error'
+    return {
+      success: false, status: 'error',
+      steps: [{ label: 'Backend test', status: 'fail', detail: msg }],
+      errorCode: 'BACKEND_UNREACHABLE',
+      errorMessage: `Could not reach the test backend: ${msg}`,
+      suggestion: 'Ensure the backend service is running and BACKEND_URL is configured.',
     }
-
-    if (msg.toLowerCase().includes('password authentication failed') || msg.toLowerCase().includes('authentication failed')) {
-      steps.push({ label: 'TCP connection', status: 'ok', detail: `Reached ${conn.host}:${conn.port || 5432}` })
-      steps.push({ label: 'Authentication', status: 'fail', detail: `Authentication failed for user "${conn.username}"` })
-      safeUpdateStatus(conn.id as string, 'error')
-      return { success: false, status: 'error', steps, errorCode: 'AUTH_FAILED', errorMessage: `Authentication failed for user "${conn.username}". Check username and password.`, suggestion: 'Verify the username and password in your PostgreSQL server.', latencyMs: Date.now() - t0 }
-    }
-
-    if (msg.toLowerCase().includes('database') && msg.toLowerCase().includes('does not exist')) {
-      steps.push({ label: 'TCP connection', status: 'ok', detail: `Reached ${conn.host}:${conn.port || 5432}` })
-      steps.push({ label: 'Authentication', status: 'ok', detail: 'Credentials accepted' })
-      steps.push({ label: 'Database access', status: 'fail', detail: `Database "${conn.database}" does not exist` })
-      safeUpdateStatus(conn.id as string, 'error')
-      return { success: false, status: 'error', steps, errorCode: 'DATABASE_NOT_FOUND', errorMessage: `Database "${conn.database}" not found.`, suggestion: 'Verify the database name exists on this server.', latencyMs: Date.now() - t0 }
-    }
-
-    steps.push({ label: 'Connection', status: 'fail', detail: msg })
-    safeUpdateStatus(conn.id as string, 'error')
-    return { success: false, status: 'error', steps, errorCode: 'CONNECTION_ERROR', errorMessage: msg, suggestion: 'Check host, port, credentials, and pg_hba.conf settings.', latencyMs: Date.now() - t0 }
   }
 }
 
