@@ -59,6 +59,13 @@ _IS_PRODUCTION = settings.app_env.lower() in ("production", "prod")
 
 def _validate_security_config() -> None:
     """Abort or warn on insecure configurations at startup."""
+    if settings.app_env.lower() != "local" and (
+        not settings.auth_required or settings.is_weak_secret_key()
+    ):
+        raise RuntimeError(
+            "FATAL: auth_required must be True and secret_key must be "
+            "strong in non-local environments"
+        )
     if settings.is_weak_secret_key():
         msg = (
             "SECRET_KEY is weak or uses the default value. "

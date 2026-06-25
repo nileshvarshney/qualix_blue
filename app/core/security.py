@@ -152,13 +152,11 @@ async def get_current_user(
 
     # 2. Fall back to Bearer JWT
     if not credentials:
-        if settings.auth_required:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        return {"email": "admin@example.com", "role": "admin", "user_id": "system", "full_name": "System Admin"}
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     try:
         payload = decode_token(credentials.credentials)
         if payload.get("type") == "refresh":
