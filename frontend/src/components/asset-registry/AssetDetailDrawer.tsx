@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import AssetTagsSection from './AssetTagsSection'
 import AssetDocumentsSection from './AssetDocumentsSection'
 import AssetColumnsSection from './AssetColumnsSection'
@@ -91,6 +91,7 @@ function initialForm(asset: Asset): EditForm {
 }
 
 export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) {
+  const router = useRouter()
   const columnsSaveRef = useRef<(() => Promise<void>) | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -259,9 +260,9 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
           <span style={{ fontWeight: 700, fontSize: '13px', color: 'var(--foreground)', flex: 1, fontFamily: 'monospace' }}>{asset.sf_table_name ?? '—'}</span>
           {!editing && (<>
             {asset.sf_table_name && (
-              <Link href={`/lineage?q=${encodeURIComponent(asset.sf_table_name)}`} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              <button onClick={() => { onClose(); router.push(`/lineage?q=${encodeURIComponent(asset.sf_table_name ?? '')}`) }} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 View in Lineage
-              </Link>
+              </button>
             )}
             <button onClick={openEdit} style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--foreground)', cursor: 'pointer' }}>
               Edit

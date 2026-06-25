@@ -269,6 +269,7 @@ function LineageInner() {
   const dragNodeRef = useRef<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
   const nodeDraggedRef = useRef(false)
   const preserveTabRef = useRef(false)
+  const isInitialMountRef = useRef(true)
   const [activeTab, setActiveTab] = useState<'chains' | 'impact' | 'columns'>('chains')
 
   const fetchLineage = useCallback(async () => {
@@ -300,11 +301,14 @@ function LineageInner() {
   useEffect(() => { fetchLineage() }, [fetchLineage])
 
   // Sync search to URL so browser back restores it.
-  // Guard: skip router.replace when the URL already has the correct ?q= value to avoid
-  // triggering a Suspense re-render loop when navigating from catalog with ?q=TABLE_NAME.
+  // Skip on initial mount: `search` was initialized from the URL, so it already matches.
+  // Calling router.replace on mount triggers a Suspense re-render cycle in Next.js App Router
+  // that resets component state before lineage data can load (e.g. when navigating from catalog).
   useEffect(() => {
-    const currentQ = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('q') ?? ''
-    if (currentQ === search) return
+    if (isInitialMountRef.current) {
+      isInitialMountRef.current = false
+      return
+    }
     const params = new URLSearchParams()
     if (search) params.set('q', search)
     const qs = params.toString()
