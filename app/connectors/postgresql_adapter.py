@@ -18,6 +18,7 @@ from app.schemas.connector_schemas import (
 try:
     import psycopg2
     import psycopg2.extras
+    import psycopg2.sql as pgsql
     _PSYCOPG2_AVAILABLE = True
 except ImportError:
     _PSYCOPG2_AVAILABLE = False
@@ -44,6 +45,7 @@ class PostgreSQLAdapter(BaseConnector):
                 user=cfg.username,
                 password=cfg.password or "",
                 connect_timeout=cfg.connect_timeout,
+                sslmode=cfg.ssl_mode or "prefer",
             )
         except psycopg2.OperationalError as exc:
             msg = str(exc)
@@ -246,11 +248,22 @@ class PostgreSQLAdapter(BaseConnector):
     async def sample_rows(
         self, database: str, schema: str, table: str, limit: int = 100
     ) -> list[dict]:
+        import re
+        _IDENT_RE = re.compile(r'^[A-Za-z0-9_$]+$')
+        if not _IDENT_RE.match(schema):
+            raise ValueError(f"Invalid identifier for schema: {schema!r}")
+        if not _IDENT_RE.match(table):
+            raise ValueError(f"Invalid identifier for table: {table!r}")
+
         def _run() -> list[dict]:
             conn = self._open_connection(database=database)
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             try:
-                cur.execute(f"SELECT * FROM {schema}.{table} LIMIT %s", (limit,))
+                query = pgsql.SQL("SELECT * FROM {}.{} LIMIT %s").format(
+                    pgsql.Identifier(schema),
+                    pgsql.Identifier(table),
+                )
+                cur.execute(query, (limit,))
                 return [dict(row) for row in cur.fetchall()]
             finally:
                 cur.close(); conn.close()
