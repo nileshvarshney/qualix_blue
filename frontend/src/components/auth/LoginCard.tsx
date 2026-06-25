@@ -25,6 +25,10 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
   const { login } = useAuth()
   const router = useRouter()
 
+  function isValidEmail(v: string) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+  }
+
   function handleCancel() {
     setForm({ email: '', password: '', role: '' })
     setErrors({})
@@ -34,7 +38,7 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
     const e: LoginErrors = {}
     if (!form.email) {
       e.email = 'Email is required'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    } else if (!isValidEmail(form.email)) {
       e.email = 'Enter a valid email address'
     }
     if (!form.password) e.password = 'Password is required'
@@ -76,7 +80,7 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
       setResetEmailError('Email is required')
       return
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) {
+    if (!isValidEmail(resetEmail)) {
       setResetEmailError('Enter a valid email address')
       return
     }
@@ -121,6 +125,14 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
             onChange={e => {
               setForm(f => ({ ...f, email: e.target.value }))
               setErrors(prev => ({ ...prev, email: undefined }))
+            }}
+            onBlur={e => {
+              const v = e.target.value
+              if (!v) {
+                setErrors(prev => ({ ...prev, email: 'Email is required' }))
+              } else if (!isValidEmail(v)) {
+                setErrors(prev => ({ ...prev, email: 'Enter a valid email address' }))
+              }
             }}
             placeholder="your@email.com"
             style={fieldStyle(!!errors.email)}
@@ -224,6 +236,14 @@ export default function LoginCard({ returnUrl = '/' }: { returnUrl?: string }) {
                 onChange={e => {
                   setResetEmail(e.target.value)
                   setResetEmailError('')
+                }}
+                onBlur={e => {
+                  const v = e.target.value
+                  if (!v) {
+                    setResetEmailError('Email is required')
+                  } else if (!isValidEmail(v)) {
+                    setResetEmailError('Enter a valid email address')
+                  }
                 }}
                 placeholder="your@email.com"
                 style={fieldStyle(!!resetEmailError)}
