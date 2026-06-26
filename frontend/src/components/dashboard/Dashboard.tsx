@@ -5,9 +5,9 @@ import Link from 'next/link'
 import {
   Gauge, AlertTriangle, Database, ShieldCheck, Activity, GitCompare, Fingerprint,
   Target, ListChecks, Clock, ChevronRight, Play, CheckCircle2, XCircle, TrendingUp,
-  TrendingDown, Eye, Users, Lock,
+  TrendingDown, Eye, Users, Lock, Layers,
 } from 'lucide-react'
-import { DashboardStats, DimensionScores, TrendPoint } from '@/lib/types'
+import { DashboardStats, DimensionScores, TrendPoint, Connection } from '@/lib/types'
 import { formatNumber } from '@/lib/utils'
 import { apiFetch } from '@/lib/apiFetch'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
@@ -136,6 +136,122 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
 interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
 interface DomainOption { domain_id: string; domain_name: string }
 
+const ACTIVE_CONN_KEY = 'qualix-active-conn'
+
+function switchToConnection(id: string) {
+  try { localStorage.setItem(ACTIVE_CONN_KEY, id) } catch {}
+  window.dispatchEvent(new CustomEvent('qualix-active-conn-changed', { detail: id }))
+}
+
+const DB_TYPE_COLORS: Record<string, string> = {
+  snowflake: '#29B5E8', postgresql: '#336791', mysql: '#4479A1', bigquery: '#4285F4',
+  redshift: '#8C4FFF', databricks: '#FF3621', sqlserver: '#CC2927', oracle: '#F80000',
+  mongodb: '#4DB33D', s3: '#FF9900', gcs: '#4285F4', azureblob: '#0089D6',
+}
+
+function ConnTypeBadge({ type }: { type: string }) {
+  const color = DB_TYPE_COLORS[type] ?? '#6b7280'
+  return (
+    <span style={{
+      background: `${color}18`, color, border: `1px solid ${color}44`,
+      padding: '1px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 700,
+      textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0,
+    }}>
+      {type}
+    </span>
+  )
+}
+
+function ConnectionCard({ conn, stats, loading, onSelect }: {
+  conn: Connection
+  stats: Partial<DashboardStats> | undefined
+  loading: boolean
+  onSelect: () => void
+}) {
+  const score = stats?.overallScore ?? null
+  const color = scoreColor(score)
+  const assets = stats?.totalAssets ?? 0
+  const issues = stats?.openAlerts ?? 0
+  const passed = stats?.passed ?? 0
+  const failed = stats?.failed ?? 0
+  const isActive = conn.status === 'active'
+
+  return (
+    <div
+      onClick={onSelect}
+      style={{
+        background: 'var(--surface-muted)', borderRadius: '12px', border: '1px solid var(--border)',
+        padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
+        display: 'flex', flexDirection: 'column', gap: '12px',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+      onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+    >
+      {/* Header row */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {conn.name}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+            <ConnTypeBadge type={conn.type} />
+            <span style={{
+              fontSize: '10px', fontWeight: 600, padding: '1px 6px', borderRadius: '4px',
+              background: isActive ? 'var(--status-ok-bg)' : 'var(--surface-muted)',
+              color: isActive ? 'var(--status-ok-text)' : 'var(--text-muted)',
+            }}>
+              {isActive ? 'active' : 'inactive'}
+            </span>
+          </div>
+        </div>
+        {/* Mini score ring */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <RingGauge value={loading ? null : score} size={52} stroke={5} color={color} />
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '13px', fontWeight: 800, color: loading ? 'var(--text-muted)' : 'var(--foreground)', letterSpacing: '-0.5px' }}>
+              {loading ? '—' : score !== null ? score.toFixed(0) : '—'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics row */}
+      <div style={{ display: 'flex', gap: '12px', fontSize: '11.5px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Datasets</span>
+          <span style={{ fontWeight: 700, color: 'var(--foreground)', fontSize: '15px' }}>{loading ? '—' : assets}</span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Issues</span>
+          <span style={{ fontWeight: 700, fontSize: '15px', color: loading ? 'var(--text-muted)' : issues > 0 ? 'var(--status-error-text)' : '#16a34a' }}>
+            {loading ? '—' : issues}
+          </span>
+        </div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '10px', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today</span>
+          <span style={{ fontSize: '11.5px', color: 'var(--text-secondary)' }}>
+            {loading ? '—' : (
+              <><span style={{ color: '#16a34a', fontWeight: 700 }}>{passed}✓</span>{' '}<span style={{ color: '#dc2626', fontWeight: 700 }}>{failed}✗</span></>
+            )}
+          </span>
+        </div>
+      </div>
+
+      {/* Score bar */}
+      {!loading && (passed + failed > 0) && (
+        <div style={{ display: 'flex', height: '3px', borderRadius: '2px', overflow: 'hidden', gap: '1px' }}>
+          <div style={{ background: '#16a34a', flex: passed }} />
+          <div style={{ background: '#dc2626', flex: failed }} />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px', color: 'var(--accent)', fontWeight: 600 }}>
+        View details <ChevronRight size={11} />
+      </div>
+    </div>
+  )
+}
+
 export default function Dashboard({ stats, loading = false, activeConnectionId = '' }: { stats: DashboardStats; loading?: boolean; activeConnectionId?: string }) {
   const [running, setRunning] = useState(false)
   const [runMessage, setRunMessage] = useState<{ text: string; isError: boolean } | null>(null)
@@ -158,6 +274,9 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
   const [complianceLoading, setComplianceLoading] = useState(true)
   const [piiExposure, setPiiExposure]           = useState<{ unprotected_pii_tables: number } | null>(null)
   const [privacyLoading, setPrivacyLoading]     = useState(true)
+  const [connections, setConnections]           = useState<Connection[]>([])
+  const [connStats, setConnStats]               = useState<Record<string, Partial<DashboardStats>>>({})
+  const [connStatsLoading, setConnStatsLoading] = useState(false)
   const router = useRouter()
 
   const days = TIME_OPTIONS.find(o => o.label === timeFilter)?.days ?? 7
@@ -222,7 +341,7 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
   }, [])
 
   useEffect(() => {
-    fetch('/api/domains-list')
+    apiFetch('/api/domains-list')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         if (!Array.isArray(data)) return
@@ -234,6 +353,35 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
       })
       .catch(() => {})
   }, [])
+
+  // Load per-connection stats when All Connections is selected
+  useEffect(() => {
+    if (activeConnectionId) {
+      setConnections([])
+      setConnStats({})
+      return
+    }
+    apiFetch('/api/connections')
+      .then(r => r.json())
+      .then((data: Connection[]) => {
+        const conns = Array.isArray(data) ? data.filter(c => c.status === 'active') : []
+        setConnections(conns)
+        if (conns.length === 0) return
+        setConnStatsLoading(true)
+        Promise.all(
+          conns.map(c =>
+            apiFetch(`/api/dashboard?connection_id=${c.id}`)
+              .then(r => r.json())
+              .catch(() => null)
+          )
+        ).then(results => {
+          const map: Record<string, Partial<DashboardStats>> = {}
+          conns.forEach((c, i) => { if (results[i]) map[c.id] = results[i] as Partial<DashboardStats> })
+          setConnStats(map)
+        }).finally(() => setConnStatsLoading(false))
+      })
+      .catch(() => {})
+  }, [activeConnectionId])
 
   useEffect(() => {
     setTrendLoading(true)
@@ -534,6 +682,28 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
             </span>
           </div>
         </Link>
+      )}
+
+      {/* Connection Breakdown — only when All Connections is selected */}
+      {!activeConnectionId && connections.length > 0 && (
+        <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
+          <SectionHeader
+            icon={<Layers size={13} strokeWidth={2.4} />}
+            title="Connection Breakdown"
+            action={<Link href="/connections" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>Manage →</Link>}
+          />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+            {connections.map(conn => (
+              <ConnectionCard
+                key={conn.id}
+                conn={conn}
+                stats={connStats[conn.id]}
+                loading={connStatsLoading && !connStats[conn.id]}
+                onSelect={() => switchToConnection(conn.id)}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Platform Health */}
