@@ -348,7 +348,7 @@ const sections: Section[] = [
     railIconD: 'M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-9c2.5 3 4 6 4 9s-1.5 6-4 9c-2.5-3-4-6-4-9s1.5-6 4-9zM3 12h18',
   },
   {
-    key: 'govern', label: 'Governance', defaultHref: '/lineage',
+    key: 'govern', label: 'Governance', defaultHref: '/catalog',
     railIconD: 'M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z',
   },
   {
