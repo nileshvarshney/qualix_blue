@@ -1110,6 +1110,8 @@ async def preview_data(
     db_type = (conn.database_type or "snowflake").lower()
 
     if db_type == "postgresql":
+        schema_safe = _safe_ident(schema, "schema")
+        table_safe = _safe_ident(table, "table")
         try:
             import psycopg2
             from app.core.encryption import decrypt
@@ -1123,7 +1125,7 @@ async def preview_data(
                     password=plain_pw,
                 )
                 cur = pgconn.cursor()
-                cur.execute(f'SELECT * FROM "{schema}"."{table}" LIMIT {limit}')
+                cur.execute(f'SELECT * FROM "{schema_safe}"."{table_safe}" LIMIT {limit}')
                 col_names = [d[0] for d in cur.description]
                 col_types = ["text"] * len(col_names)
                 rows = [list(r) for r in cur.fetchall()]

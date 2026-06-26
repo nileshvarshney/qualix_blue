@@ -69,3 +69,63 @@ def test_post_test_credentials_requires_auth():
         "password": "guess",
     })
     assert resp.status_code == 401
+
+
+# ── SQL injection tests ────────────────────────────────────────────────────────
+
+from app.core.security import get_current_user
+
+
+def _make_authenticated_client_with_pg_conn():
+    """TestClient with auth and DB overridden, returning a mock PostgreSQL connection."""
+    pg_conn = MagicMock()
+    pg_conn.database_type = "postgresql"
+    pg_conn.host = "localhost"
+    pg_conn.port = "5432"
+    pg_conn.username = "testuser"
+    pg_conn.password = "enc_pass"
+
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _fake_user():
+        return {"email": "test@x.com", "role": "admin"}
+
+    async def _fake_db():
+        db = AsyncMock()
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = pg_conn
+        db.execute = AsyncMock(return_value=result)
+        yield db
+
+    app.dependency_overrides[get_current_user] = _fake_user
+    app.dependency_overrides[get_db] = _fake_db
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_preview_data_pg_rejects_malicious_schema():
+    """schema parameter containing SQL injection must return 400."""
+    client = _make_authenticated_client_with_pg_conn()
+    resp = client.get(
+        "/connections/abc/preview",
+        params={
+            "database": "mydb",
+            "schema": 'public"; DROP TABLE users;--',
+            "table": "users",
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_preview_data_pg_rejects_malicious_table():
+    """table parameter containing SQL injection must return 400."""
+    client = _make_authenticated_client_with_pg_conn()
+    resp = client.get(
+        "/connections/abc/preview",
+        params={
+            "database": "mydb",
+            "schema": "public",
+            "table": 'users"; SELECT 1;--',
+        },
+    )
+    assert resp.status_code == 400
