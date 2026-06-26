@@ -252,6 +252,32 @@ async def seed_connections(db):
     return existing
 
 
+# ── step 1b: source assets (one per connection — tree root nodes) ──────────────
+
+async def seed_source_assets(db, conn_map):
+    """Create one asset_type='source' per connection — required by /tree endpoint."""
+    existing = {r.connection_id
+                for r in (await db.execute(
+                    select(Asset).where(Asset.asset_type == "source")
+                )).scalars().all()}
+    new_sources = []
+    for conn in conn_map.values():
+        if conn.connection_id in existing:
+            continue
+        new_sources.append(Asset(
+            asset_id=uid(), connection_id=conn.connection_id,
+            asset_type="source",
+            physical_name=conn.connection_name,
+            display_name=conn.connection_name,
+            qualified_name=f"source:{conn.connection_id}",
+            description=conn.description,
+            status="active", is_active=True,
+            created_at=days_ago(90), updated_at=utcnow(),
+        ))
+    await batch(db, new_sources)  # no JSON
+    print(f"  Source assets: {len(new_sources)} new", flush=True)
+
+
 # ── step 2: assets ─────────────────────────────────────────────────────────────
 
 async def seed_assets(db, conn_map, domain_map, subdomain_map):
@@ -1286,6 +1312,8 @@ async def main():
 
         print("\n── Step 1:  Connections ──────────────────────────────────────────", flush=True)
         conn_map = await seed_connections(db)
+        print("\n── Step 1b: Source assets (tree root nodes) ─────────────────────", flush=True)
+        await seed_source_assets(db, conn_map)
         print("\n── Step 2:  Assets ──────────────────────────────────────────────", flush=True)
         asset_map = await seed_assets(db, conn_map, domain_map, subdomain_map)
         print("\n── Step 3:  Column metadata ─────────────────────────────────────", flush=True)
