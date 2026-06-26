@@ -875,7 +875,7 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
           { name: 'Uniqueness',   key: 'uniqueness'   as const, category: 'uniqueness',   icon: <Fingerprint size={14} strokeWidth={2.2} /> },
         ] as { name: string; key: keyof DimensionScores; category: string; icon: React.ReactNode }[]
 
-        const showMatrix = !activeConnectionId && connections.length > 0
+        const showMatrix = !activeConnectionId && connections.length > 1
 
         return (
           <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
