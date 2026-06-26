@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { store } from '@/lib/store'
+import { serverFetch } from '@/lib/serverFetch'
 
 /** Safe update — silently ignores failures (e.g. on edge runtimes with no persistence) */
 function safeUpdateStatus(id: string, status: string) {
@@ -582,7 +583,7 @@ export async function POST(req: NextRequest) {
   // would always fail auth. The backend also updates last_test_status + is_active.
   if (connectionId && connectionId !== '__preview__') {
     try {
-      const backendRes = await fetch(`${BACKEND}/connections/${connectionId}/test`, {
+      const backendRes = await serverFetch(req, `${BACKEND}/connections/${connectionId}/test`, {
         method: 'POST',
         cache: 'no-store',
       })
@@ -626,7 +627,7 @@ export async function POST(req: NextRequest) {
       // Also update is_active so the sidebar dropdown stays in sync
       if (result.status === 'active' || result.status === 'error') {
         try {
-          await fetch(`${BACKEND}/connections/${connectionId}`, {
+          await serverFetch(req, `${BACKEND}/connections/${connectionId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ is_active: result.status === 'active' }),

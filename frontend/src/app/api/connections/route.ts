@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Connection } from '@/lib/types'
+import { serverFetch } from '@/lib/serverFetch'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -43,9 +44,9 @@ function mapToBackend(body: Record<string, unknown>): Record<string, unknown> {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections`, { cache: 'no-store' })
     if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json()
     const items: Record<string, unknown>[] = Array.isArray(data) ? data : (data.items ?? [])
@@ -58,9 +59,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/connections`, {
+    const res = await serverFetch(req, `${BACKEND}/connections`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mapToBackend(body)),
       cache: 'no-store',
     })
@@ -76,9 +76,8 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
     const { id, ...updates } = body
-    const res = await fetch(`${BACKEND}/connections/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/connections/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(mapToBackend(updates)),
       cache: 'no-store',
     })
@@ -95,7 +94,10 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
-    const res = await fetch(`${BACKEND}/connections/${id}`, { method: 'DELETE', cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections/${id}`, {
+      method: 'DELETE',
+      cache: 'no-store',
+    })
     if (!res.ok) return NextResponse.json({ error: 'Delete failed' }, { status: res.status })
     return NextResponse.json({ success: true })
   } catch (e: unknown) {
