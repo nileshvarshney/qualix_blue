@@ -13,20 +13,22 @@ export async function loadConnections(): Promise<Connection[]> {
   } catch { return [] }
 }
 
-export async function loadRules(): Promise<Rule[]> {
+export async function loadRules(connectionId?: string): Promise<Rule[]> {
   if (typeof window === 'undefined') return []
   try {
-    const res = await apiFetch('/api/rules', { cache: 'no-store' })
+    const url = connectionId ? `/api/rules?connection_id=${encodeURIComponent(connectionId)}` : '/api/rules'
+    const res = await apiFetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return Array.isArray(data) ? data : (data.rules ?? [])
   } catch { return [] }
 }
 
-export async function loadReports(): Promise<Report[]> {
+export async function loadReports(connectionId?: string): Promise<Report[]> {
   if (typeof window === 'undefined') return []
   try {
-    const res = await apiFetch('/api/reports', { cache: 'no-store' })
+    const url = connectionId ? `/api/reports?connection_id=${encodeURIComponent(connectionId)}` : '/api/reports'
+    const res = await apiFetch(url, { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return Array.isArray(data) ? data : (data.reports ?? [])

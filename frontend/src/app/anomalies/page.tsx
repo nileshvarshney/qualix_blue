@@ -256,6 +256,12 @@ function mapDetection(d: Record<string, unknown>, assetMap: Record<string, Asset
 function AnomaliesInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [anomalies, setAnomalies] = useState<Anomaly[]>([])
   const [loading, setLoading]     = useState(true)
   const [filter, setFilter]       = useState<FilterType>(() => (searchParams.get('filter') as FilterType) ?? 'all')
@@ -263,11 +269,22 @@ function AnomaliesInner() {
   const [search, setSearch]       = useState(() => searchParams.get('q') ?? '')
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
   const loadAnomalies = useCallback(async () => {
     try {
+      const params = new URLSearchParams()
+      if (activeConnectionId) params.set('connection_id', activeConnectionId)
+      const qs = params.toString()
       const [raw, catalog] = await Promise.all([
-        fetch('/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
-        fetch('/api/catalog',   { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+        fetch(qs ? `/api/anomalies?${qs}` : '/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+        fetch(qs ? `/api/catalog?${qs}` : '/api/catalog',     { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
       ])
       const items  = (Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).items ?? [])) as Record<string, unknown>[]
       const assets = (Array.isArray(catalog) ? catalog : ((catalog as Record<string, unknown>).items ?? [])) as AssetInfo[]
@@ -281,7 +298,7 @@ function AnomaliesInner() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => {
     loadAnomalies()

@@ -114,17 +114,29 @@ def _pg_connector(conn: SnowflakeConnection):
 async def _browse_tables_pg(conn: SnowflakeConnection, database: str, schema: str) -> list[dict]:
     adapter = _pg_connector(conn)
     tables = await adapter.list_tables(database, schema)
-    return [
-        {
+    result = []
+    for t in tables:
+        entry = {
             "table_name": t.table_name,
             "table_type": t.table_type,
             "row_count": t.row_count or 0,
             "bytes": None,
             "comment": t.comment or "",
             "last_altered": None,
+            "view_definition": None,
         }
-        for t in tables
-    ]
+        if t.table_type and "VIEW" in t.table_type.upper():
+            try:
+                entry["view_definition"] = await adapter.get_view_definition(
+                    database, schema, t.table_name
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Failed to fetch view_definition for %s.%s.%s during scan: %s",
+                    database, schema, t.table_name, exc,
+                )
+        result.append(entry)
+    return result
 
 
 async def _browse_columns_pg(conn: SnowflakeConnection, database: str, schema: str, table: str) -> list[dict]:
@@ -496,6 +508,16 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             if existing_asset:
                                 _existing_scan_start = time.monotonic()
                                 scanned_ids.add(existing_asset.asset_id)
+                                # Backfill view_definition for existing PostgreSQL VIEW assets
+                                if (
+                                    is_pg
+                                    and "VIEW" in (table.get("table_type") or "").upper()
+                                    and existing_asset.source_meta
+                                    and not existing_asset.source_meta.view_definition
+                                    and table.get("view_definition")
+                                ):
+                                    existing_asset.source_meta.view_definition = table["view_definition"]
+                                    await db.commit()
                                 # Restore previously-missing assets back to active
                                 if existing_asset.status == "missing":
                                     existing_asset.status = "active"
@@ -655,6 +677,7 @@ async def run_discovery(job_id: str, payload: dict) -> None:
                             sf_table_type=table.get("table_type"),
                             row_count=table.get("row_count"),
                             bytes=table.get("bytes"),
+                            view_definition=table.get("view_definition"),
                         ))
                         db.add(
                             AuditLog(

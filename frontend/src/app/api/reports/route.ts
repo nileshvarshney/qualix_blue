@@ -1,12 +1,15 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/executions?limit=50`, { cache: 'no-store' })
+    const connectionId = req.nextUrl.searchParams.get('connection_id')
+    let url = `${BACKEND}/executions?limit=50`
+    if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
+    const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     return NextResponse.json(await res.json())
   } catch {

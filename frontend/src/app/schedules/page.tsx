@@ -38,6 +38,12 @@ function buildCronExpression(frequency: string, time: string, dayOfWeek: string,
 }
 
 export default function SchedulesPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [scheduleList, setScheduleList] = useState<Schedule[]>([])
   const [loading, setLoading]           = useState(true)
   const [runningId, setRunningId]       = useState<string | null>(null)
@@ -59,14 +65,25 @@ export default function SchedulesPage() {
   const [connOptions, setConnOptions] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
-    fetch('/api/schedules')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const url = `/api/schedules${params.toString() ? '?' + params.toString() : ''}`
+    fetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => {
     apiFetch('/api/connections')
@@ -102,7 +119,10 @@ export default function SchedulesPage() {
   const tableCount = new Set(filtered.map(s => s.tableFqn)).size
 
   async function refreshSchedules() {
-    const res = await fetch('/api/schedules')
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const url = `/api/schedules${params.toString() ? '?' + params.toString() : ''}`
+    const res = await fetch(url)
     const data: Record<string, unknown>[] = await res.json()
     setScheduleList((Array.isArray(data) ? data : []).map(mapSchedule))
   }

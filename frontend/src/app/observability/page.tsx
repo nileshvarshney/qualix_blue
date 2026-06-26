@@ -170,6 +170,13 @@ function Skeleton() {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ObservabilityPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
+
   // Freshness Board
   const [freshness, setFreshness] = useState<FreshnessEntry[]>([])
   const [freshnessLoading, setFreshnessLoading] = useState(true)
@@ -212,10 +219,22 @@ export default function ObservabilityPage() {
   const [contSaving, setContSaving] = useState(false)
   const [contSaved, setContSaved] = useState(false)
 
+  // ── Connection filter ──────────────────────────────────────────────────────
+
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
   // ── Loaders (each independent) ─────────────────────────────────────────────
 
   const loadFreshness = useCallback(() => {
-    fetch('/api/observability/freshness-board', { cache: 'no-store' })
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/observability/freshness-board${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: FreshnessEntry[]) => {
         setFreshness(d)
@@ -225,10 +244,10 @@ export default function ObservabilityPage() {
       .catch(() => {
         setFreshnessLoading(false)
       })
-  }, [])
+  }, [activeConnectionId])
 
   const loadPredictions = useCallback(() => {
-    fetch('/api/monitoring/sla-predictions?is_at_risk=true', { cache: 'no-store' })
+    fetch(`/api/monitoring/sla-predictions?is_at_risk=true${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: SLAPrediction[]) => {
         setPredictions(d)
@@ -238,10 +257,12 @@ export default function ObservabilityPage() {
       .catch(() => {
         setPredictionsLoading(false)
       })
-  }, [])
+  }, [activeConnectionId])
 
   const loadHeatmap = useCallback(() => {
-    fetch('/api/observability/quality-heatmap', { cache: 'no-store' })
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/observability/quality-heatmap${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : { domains: [], dates: [], matrix: [] }))
       .then((d: HeatmapData) => {
         setHeatmap(d)
@@ -251,10 +272,12 @@ export default function ObservabilityPage() {
       .catch(() => {
         setHeatmapLoading(false)
       })
-  }, [])
+  }, [activeConnectionId])
 
   const loadIncidents = useCallback(() => {
-    fetch('/api/monitoring/correlated-incidents', { cache: 'no-store' })
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/monitoring/correlated-incidents${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: CorrelatedIncident[]) => {
         setIncidents(d)
@@ -264,15 +287,15 @@ export default function ObservabilityPage() {
       .catch(() => {
         setIncidentsLoading(false)
       })
-  }, [])
+  }, [activeConnectionId])
 
   const loadForecast = useCallback(() => {
-    fetch('/api/quality/forecast', { cache: 'no-store' })
+    fetch(`/api/quality/forecast${activeConnectionId ? '?connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then((d: QualityForecast | null) => { if (d) setForecast(d) })
       .catch(() => {})
       .finally(() => setForecastLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   async function saveRemConfig() {
     setRemSaving(true)

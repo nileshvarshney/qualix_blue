@@ -10,11 +10,13 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
+    const connectionId = searchParams.get('connection_id')
 
     let url = `${BACKEND}/scan-jobs/runs?limit=200`
     if (status) url += `&status=${encodeURIComponent(status)}`
     if (startDate) url += `&start_date=${encodeURIComponent(startDate)}`
     if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`
+    if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
 
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])

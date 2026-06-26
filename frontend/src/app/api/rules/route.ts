@@ -32,9 +32,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = req.nextUrl
     const assetId = searchParams.get('asset_id')
     const domainId = searchParams.get('domain_id')
+    const connectionId = searchParams.get('connection_id')
     let url = `${BACKEND}/rules/enriched?limit=500`
     if (assetId) url += `&asset_id=${encodeURIComponent(assetId)}`
     if (domainId) url += `&domain_id=${encodeURIComponent(domainId)}`
+    if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
 
     const res = await fetch(url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`Backend ${res.status}`)

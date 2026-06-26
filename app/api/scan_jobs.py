@@ -97,6 +97,7 @@ async def list_scan_jobs(
 @router.get("/runs")
 async def list_all_runs(
     status: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     start_date: Optional[datetime] = Query(None),
     end_date: Optional[datetime] = Query(None),
     limit: int = Query(200, ge=1, le=500),
@@ -108,6 +109,8 @@ async def list_all_runs(
         .join(ScanJob, ScanJobRun.job_id == ScanJob.job_id)
         .outerjoin(SnowflakeConnection, ScanJob.connection_id == SnowflakeConnection.connection_id)
     )
+    if connection_id:
+        q = q.where(ScanJob.connection_id == connection_id)
     if status:
         q = q.where(ScanJobRun.status == status)
     if start_date:

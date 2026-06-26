@@ -114,6 +114,12 @@ function domainIcon(name: string): string {
 }
 
 export default function StewardshipPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [domains, setDomains] = useState<DomainScore[]>([])
   const [tasks, setTasks] = useState<TaskRow[]>([])
   const [customTasks, setCustomTasks] = useState<CustomTask[]>([])
@@ -127,13 +133,22 @@ export default function StewardshipPage() {
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
     setLoading(true)
+    const connParam = activeConnectionId ? `?connection_id=${activeConnectionId}` : ''
     Promise.allSettled([
-      fetch('/api/governance/scorecards').then(r => r.json()).catch(() => []),
-      fetch('/api/governance/approvals?status=pending').then(r => r.json()).catch(() => []),
-      fetch('/api/rules').then(r => r.json()).catch(() => []),
-      fetch('/api/comments?limit=30').then(r => r.json()).catch(() => []),
-      fetch('/api/stewardship/tasks').then(r => r.json()).catch(() => []),
+      fetch(`/api/governance/scorecards${connParam}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/governance/approvals?status=pending${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/rules${connParam}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/comments?limit=30${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/stewardship/tasks${connParam}`).then(r => r.json()).catch(() => []),
     ]).then(([scoreRes, approvalRes, rulesRes, commentRes, customTasksRes]) => {
       // Ownership scores
       const rawScores = scoreRes.status === 'fulfilled' ? (Array.isArray(scoreRes.value) ? scoreRes.value : []) : []
@@ -197,7 +212,7 @@ export default function StewardshipPage() {
 
       setLoading(false)
     })
-  }, [])
+  }, [activeConnectionId])
 
   async function handleAction(task: TaskRow, action: 'approve' | 'reject') {
     if (!task.actionId) return

@@ -1,26 +1,32 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, desc
 from datetime import datetime, timezone, date, timedelta
 from app.db.database import get_db
-from app.db.models import DQRule, DQRuleRun, DQQualityScore, SLAConfig
+from app.db.models import DQRule, DQRuleRun, DQQualityScore, SLAConfig, Asset
 from app.core.security import get_current_user
 
 router = APIRouter(prefix="/observability", tags=["Observability"])
 
 
 @router.get("/freshness-board")
-async def freshness_board(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def freshness_board(
+    connection_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
     """
     For each active freshness_check rule, show freshness status.
     Uses a single subquery to get the latest run per rule — avoids N+1.
     """
     # Batch: fetch all freshness rules and their most recent run in two queries
-    rules_result = await db.execute(
-        select(DQRule).where(DQRule.rule_type == "freshness_check", DQRule.is_active == True)
-    )
+    rules_q = select(DQRule).where(DQRule.rule_type == "freshness_check", DQRule.is_active == True)
+    if connection_id:
+        rules_q = rules_q.join(Asset, DQRule.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
+    rules_result = await db.execute(rules_q)
     rules = rules_result.scalars().all()
     if not rules:
         return []

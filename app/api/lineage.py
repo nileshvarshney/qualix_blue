@@ -220,6 +220,7 @@ def _sync_fetch_view_definitions_bulk(conn: SnowflakeConnection, assets: list[As
 VIEW_DEFINITION_BACKFILL_LIMIT = 8
 VIEW_DEFINITION_BACKFILL_TIMEOUT = 8.0
 COLUMN_LINEAGE_TIMEOUT = 10.0
+PG_VIEW_DEF_CONNECT_TIMEOUT = 5   # seconds — each psycopg2 connect must fit within VIEW_DEFINITION_BACKFILL_TIMEOUT
 
 
 def sql_dialect_for(database_type: Optional[str]) -> str:
@@ -234,6 +235,7 @@ async def _fetch_pg_view_definitions_bulk(sf_conn: SnowflakeConnection, assets: 
     """Fetch view_definition for many Postgres views via information_schema.views."""
     from app.api.connections import _pg_adapter
     adapter = _pg_adapter(sf_conn)
+    adapter.config.connect_timeout = PG_VIEW_DEF_CONNECT_TIMEOUT
     results: dict[str, str] = {}
 
     async def _one(asset: Asset) -> None:
@@ -249,7 +251,10 @@ async def _fetch_pg_view_definitions_bulk(sf_conn: SnowflakeConnection, assets: 
             if view_def:
                 results[asset.asset_id] = view_def
         except Exception as exc:
-            logger.debug("pg view_definition fetch failed for %s: %s", meta.sf_table_name, exc)
+            logger.warning(
+                "pg view_definition fetch failed for %s (%s: %s)",
+                meta.sf_table_name, type(exc).__name__, exc,
+            )
 
     await asyncio.gather(*[_one(a) for a in assets])
     return results
@@ -621,11 +626,18 @@ async def get_lineage(
             view_def = await asyncio.to_thread(_sync_fetch_view_definition, sf_conn, asset)
         elif db_type in ("postgresql", "postgres"):
             from app.api.connections import _pg_adapter
-            view_def = await _pg_adapter(sf_conn).get_view_definition(
-                meta.sf_database_name or sf_conn.default_database,
-                meta.sf_schema_name,
-                meta.sf_table_name,
-            )
+            try:
+                view_def = await _pg_adapter(sf_conn).get_view_definition(
+                    meta.sf_database_name or sf_conn.default_database,
+                    meta.sf_schema_name,
+                    meta.sf_table_name,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "pg view_definition fetch failed for asset %s (%s: %s)",
+                    asset_id, type(exc).__name__, exc,
+                )
+                view_def = None
         else:
             view_def = None
         if view_def:

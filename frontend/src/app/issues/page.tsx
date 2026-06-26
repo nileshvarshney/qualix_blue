@@ -67,14 +67,31 @@ export default function IssuesPage() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Issue | null>(null)
   const [showCreate, setShowCreate] = useState(false)
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
 
   useEffect(() => {
-    fetch('/api/issues')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString()
+    fetch(`/api/issues${qs ? '?' + qs : ''}`)
       .then(r => r.json())
       .then(data => setIssues(Array.isArray(data) ? data : []))
       .catch(() => setError('Failed to load issues'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const filtered = issues.filter(i =>
     (statusF === 'all' || i.status === statusF) &&

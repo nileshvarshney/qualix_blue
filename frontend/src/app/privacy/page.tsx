@@ -68,7 +68,7 @@ const lbl: React.CSSProperties = { fontSize: '12px', fontWeight: 600, color: 'va
 const submitBtn: React.CSSProperties = { marginTop: '16px', width: '100%', padding: '9px', borderRadius: '8px', border: 'none', cursor: 'pointer', background: 'var(--brand-primary)', color: '#fff', fontWeight: 600, fontSize: '13px' }
 
 // ── Masking Tab ──────────────────────────────────────────────────────────────
-function MaskingTab() {
+function MaskingTab({ activeConnectionId }: { activeConnectionId: string }) {
   const [policies, setPolicies] = useState<MaskingPolicy[]>([])
   const [exposure, setExposure] = useState<PIIExposure>({ unprotected_pii_tables: 0, assets: [] })
   const [showAdd, setShowAdd] = useState(false)
@@ -76,13 +76,16 @@ function MaskingTab() {
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString() ? `?${params}` : ''
     const [p, e] = await Promise.all([
-      fetch('/api/privacy/masking-policies').then(r => r.json()).catch(() => []),
-      fetch('/api/privacy/pii-exposure').then(r => r.json()).catch(() => ({ unprotected_pii_tables: 0, assets: [] })),
+      fetch(`/api/privacy/masking-policies${qs}`).then(r => r.json()).catch(() => []),
+      fetch(`/api/privacy/pii-exposure${qs}`).then(r => r.json()).catch(() => ({ unprotected_pii_tables: 0, assets: [] })),
     ])
     setPolicies(Array.isArray(p) ? p : [])
     setExposure(e)
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => { load() }, [load])
 
@@ -169,16 +172,19 @@ function MaskingTab() {
 }
 
 // ── DSR Tab ──────────────────────────────────────────────────────────────────
-function DSRTab() {
+function DSRTab({ activeConnectionId }: { activeConnectionId: string }) {
   const [dsrs, setDSRs] = useState<DSR[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ subject_email: '', request_type: 'erasure', description: '' })
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    const data = await fetch('/api/privacy/dsr').then(r => r.json()).catch(() => [])
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString() ? `?${params}` : ''
+    const data = await fetch(`/api/privacy/dsr${qs}`).then(r => r.json()).catch(() => [])
     setDSRs(Array.isArray(data) ? data : [])
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => { load() }, [load])
 
@@ -267,16 +273,19 @@ function DSRTab() {
 }
 
 // ── Consent Tab ──────────────────────────────────────────────────────────────
-function ConsentTab() {
+function ConsentTab({ activeConnectionId }: { activeConnectionId: string }) {
   const [records, setRecords] = useState<ConsentRecord[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ asset_id: '', purpose: '', legal_basis: 'consent', data_subject_type: '', requires_explicit_consent: false, opt_in: true })
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    const data = await fetch('/api/privacy/consent').then(r => r.json()).catch(() => [])
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString() ? `?${params}` : ''
+    const data = await fetch(`/api/privacy/consent${qs}`).then(r => r.json()).catch(() => [])
     setRecords(Array.isArray(data) ? data : [])
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => { load() }, [load])
 
@@ -366,16 +375,19 @@ function ConsentTab() {
 }
 
 // ── Residency Tab ─────────────────────────────────────────────────────────────
-function ResidencyTab() {
+function ResidencyTab({ activeConnectionId }: { activeConnectionId: string }) {
   const [policies, setPolicies] = useState<ResidencyPolicy[]>([])
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ asset_id: '', domain_id: '', allowed_regions: [] as string[], prohibited_regions: [] as string[], data_sovereignty_country: '', notes: '' })
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
-    const data = await fetch('/api/privacy/residency').then(r => r.json()).catch(() => [])
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString() ? `?${params}` : ''
+    const data = await fetch(`/api/privacy/residency${qs}`).then(r => r.json()).catch(() => [])
     setPolicies(Array.isArray(data) ? data : [])
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => { load() }, [load])
 
@@ -465,16 +477,33 @@ export default function PrivacyPage() {
   const [domainSummary, setDomainSummary] = useState<DomainSummary[]>([])
   const [domainSummaryLoading, setDomainSummaryLoading] = useState(true)
   const [expandedDomains, setExpandedDomains] = useState<Set<string>>(new Set())
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
 
   useEffect(() => {
-    fetch('/api/classifications/summary')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const qs = params.toString() ? `?${params}` : ''
+    fetch(`/api/classifications/summary${qs}`)
       .then(r => r.json())
       .then(data => {
         if (data && Array.isArray(data.domains)) setDomainSummary(data.domains as DomainSummary[])
       })
       .catch(() => {})
       .finally(() => setDomainSummaryLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'masking', label: 'Data Masking' },
@@ -557,10 +586,10 @@ export default function PrivacyPage() {
         ))}
       </div>
 
-      {tab === 'masking' && <MaskingTab />}
-      {tab === 'dsr' && <DSRTab />}
-      {tab === 'consent' && <ConsentTab />}
-      {tab === 'residency' && <ResidencyTab />}
+      {tab === 'masking' && <MaskingTab activeConnectionId={activeConnectionId} />}
+      {tab === 'dsr' && <DSRTab activeConnectionId={activeConnectionId} />}
+      {tab === 'consent' && <ConsentTab activeConnectionId={activeConnectionId} />}
+      {tab === 'residency' && <ResidencyTab activeConnectionId={activeConnectionId} />}
     </div>
   )
 }

@@ -35,6 +35,7 @@ class ConnectorConfig:
     # Execution tuning
     connect_timeout: int = 30
     query_timeout: int = 300
+    ssl_mode: Optional[str] = None   # psycopg2 sslmode: prefer|require|disable|verify-full
 
 
 def from_orm(conn: "SnowflakeConnection") -> ConnectorConfig:

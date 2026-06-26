@@ -35,6 +35,7 @@ async def list_alerts(
     status: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     alert_type: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
@@ -42,6 +43,8 @@ async def list_alerts(
     db: AsyncSession = Depends(get_db),
 ):
     q = select(DQAlert)
+    if connection_id:
+        q = q.join(Asset, DQAlert.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     if status:
         q = q.where(DQAlert.alert_status == status)
     if domain_id:
@@ -60,6 +63,7 @@ async def list_alerts(
 async def list_alerts_enriched(
     status: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
@@ -76,6 +80,8 @@ async def list_alerts_enriched(
         q = q.where(DQAlert.alert_status == status)
     if domain_id:
         q = q.where(DQAlert.domain_id == domain_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     if severity:
         q = q.where(DQAlert.severity == severity)
     q = q.order_by(desc(DQAlert.created_at)).limit(limit)

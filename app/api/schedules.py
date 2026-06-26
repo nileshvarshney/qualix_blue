@@ -228,9 +228,15 @@ async def get_rules_schedule_status(
 
 
 @router.get("/enriched")
-async def list_schedules_enriched(db: AsyncSession = Depends(get_db)):
+async def list_schedules_enriched(
+    connection_id: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
     """Returns schedules with linked target names, next scheduled run time, and bundle rule summaries."""
-    result = await db.execute(select(DQSchedule).order_by(DQSchedule.created_at.desc()))
+    q = select(DQSchedule).order_by(DQSchedule.created_at.desc())
+    if connection_id:
+        q = q.join(Asset, DQSchedule.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
+    result = await db.execute(q)
     schedules = result.scalars().all()
     out = []
     for s in schedules:

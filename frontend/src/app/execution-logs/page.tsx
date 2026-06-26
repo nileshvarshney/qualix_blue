@@ -32,6 +32,12 @@ function ExecutionLogsInner() {
   const router = useRouter()
   const [logs, setLogs]                 = useState<ExecLog[]>([])
   const [loading, setLoading]           = useState(true)
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [statusFilter, setStatusFilter] = useState<StatFilter>(() => (searchParams.get('status') as StatFilter) ?? 'all')
   const [search, setSearch]             = useState(() => searchParams.get('q') ?? '')
   const [expanded, setExpanded]         = useState<string | null>(null)
@@ -39,14 +45,26 @@ function ExecutionLogsInner() {
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    fetch('/api/execution-logs')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    setLoading(true)
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const url = `/api/execution-logs${activeConnectionId ? `?${params}` : ''}`
+    fetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setLogs((Array.isArray(data) ? data : []).map(mapExecLog))
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   // Sync filter state to URL so browser back restores it
   useEffect(() => {

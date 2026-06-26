@@ -6,7 +6,10 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(req: NextRequest) {
   try {
     const auth = req.headers.get('Authorization')
-    const res = await fetch(`${BACKEND}/observability/freshness-board`, {
+    const connectionId = req.nextUrl.searchParams.get('connection_id')
+    let url = `${BACKEND}/observability/freshness-board`
+    if (connectionId) url += `?connection_id=${encodeURIComponent(connectionId)}`
+    const res = await fetch(url, {
       cache: 'no-store',
       headers: {
         ...(auth ? { Authorization: auth } : {}),

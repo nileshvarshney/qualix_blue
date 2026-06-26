@@ -62,7 +62,7 @@ def _enrich_extra(asset, source_meta, rule, team, connection=None) -> dict:
     }
 
 
-def _apply_filters(q, *, status, severity, issue_type, asset_id, domain_id, rule_id, alert_id, run_id, assigned_team_id, assigned_to):
+def _apply_filters(q, *, status, severity, issue_type, asset_id, connection_id, domain_id, rule_id, alert_id, run_id, assigned_team_id, assigned_to):
     if status:
         q = q.where(Issue.status == status)
     if severity:
@@ -71,6 +71,8 @@ def _apply_filters(q, *, status, severity, issue_type, asset_id, domain_id, rule
         q = q.where(Issue.issue_type == issue_type)
     if asset_id:
         q = q.where(Issue.asset_id == asset_id)
+    if connection_id:
+        q = q.where(Issue.source_id == connection_id)
     if domain_id:
         q = q.where(Issue.domain_id == domain_id)
     if rule_id:
@@ -92,6 +94,7 @@ async def list_issues(
     severity: Optional[str] = Query(None),
     issue_type: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
     rule_id: Optional[str] = Query(None),
     alert_id: Optional[str] = Query(None),
@@ -105,7 +108,7 @@ async def list_issues(
 ):
     base = _apply_filters(
         select(Issue), status=status, severity=severity, issue_type=issue_type, asset_id=asset_id,
-        domain_id=domain_id, rule_id=rule_id, alert_id=alert_id, run_id=run_id,
+        connection_id=connection_id, domain_id=domain_id, rule_id=rule_id, alert_id=alert_id, run_id=run_id,
         assigned_team_id=assigned_team_id, assigned_to=assigned_to,
     )
     base = apply_domain_filter(base, Issue.domain_id, user)
@@ -124,6 +127,7 @@ async def list_issues_enriched(
     severity: Optional[str] = Query(None),
     issue_type: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
     rule_id: Optional[str] = Query(None),
     alert_id: Optional[str] = Query(None),
@@ -137,7 +141,7 @@ async def list_issues_enriched(
 ):
     q = _apply_filters(
         _enrich_query(), status=status, severity=severity, issue_type=issue_type, asset_id=asset_id,
-        domain_id=domain_id, rule_id=rule_id, alert_id=alert_id, run_id=run_id,
+        connection_id=connection_id, domain_id=domain_id, rule_id=rule_id, alert_id=alert_id, run_id=run_id,
         assigned_team_id=assigned_team_id, assigned_to=assigned_to,
     )
     q = apply_domain_filter(q, Issue.domain_id, user)

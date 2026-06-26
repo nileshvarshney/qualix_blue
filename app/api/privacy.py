@@ -32,16 +32,19 @@ def _fmt(p: MaskingPolicy) -> dict:
 @router.get("/masking-policies")
 async def list_masking_policies(
     asset_id: Optional[str] = None,
+    connection_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """List masking policies, optionally filtered by asset."""
+    """List masking policies, optionally filtered by asset or connection."""
     q = select(MaskingPolicy)
     if asset_id:
         asset = (await db.execute(select(Asset).where(Asset.asset_id == asset_id))).scalar_one_or_none()
         if asset:
             check_domain_access(user, asset.domain_id)
         q = q.where(MaskingPolicy.asset_id == asset_id)
+    if connection_id:
+        q = q.join(Asset, MaskingPolicy.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     result = await db.execute(q)
     return [_fmt(p) for p in result.scalars().all()]
 

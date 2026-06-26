@@ -117,12 +117,15 @@ async def _enrich_contract(c: DataContract, asset: Optional[Asset], db: AsyncSes
 @router.get("")
 async def list_contracts(
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(DataContract, Asset).outerjoin(Asset, DataContract.asset_id == Asset.asset_id)
     if asset_id:
         q = q.where(DataContract.asset_id == asset_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     if status:
         q = q.where(DataContract.status == status)
     result = await db.execute(q.order_by(desc(DataContract.created_at)))

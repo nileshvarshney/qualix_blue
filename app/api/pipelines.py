@@ -92,6 +92,7 @@ def _fmt_pipeline(p: Pipeline, include_steps: bool = False) -> dict:
 @router.get("")
 async def list_pipelines(
     is_active: bool | None = None,
+    connection_id: str | None = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -101,6 +102,8 @@ async def list_pipelines(
     q = q.order_by(Pipeline.created_at.desc())
     result = await db.execute(q)
     pipelines = result.scalars().all()
+    if connection_id:
+        pipelines = [p for p in pipelines if connection_id in (p.connection_ids or [])]
     return [_fmt_pipeline(p) for p in pipelines]
 
 

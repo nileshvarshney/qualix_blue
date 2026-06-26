@@ -60,6 +60,7 @@ async def list_rules_enriched(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
@@ -85,6 +86,8 @@ async def list_rules_enriched(
         q = q.where(DQRule.subdomain_id == subdomain_id)
     if asset_id:
         q = q.where(DQRule.asset_id == asset_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     if severity:
         q = q.where(DQRule.severity == severity)
     if status:
@@ -157,6 +160,7 @@ async def list_rules(
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     rule_type: Optional[str] = Query(None),
     severity: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
@@ -166,6 +170,8 @@ async def list_rules(
 ):
     from sqlalchemy import func as sqlfunc
     q = select(DQRule)
+    if connection_id:
+        q = q.join(Asset, DQRule.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     if domain_id:
         q = q.where(DQRule.domain_id == domain_id)
     if subdomain_id:

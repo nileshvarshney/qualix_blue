@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.db.database import get_db
-from app.db.models import AnomalyDetector, AnomalyDetection, DQRuleRun
+from app.db.models import AnomalyDetector, AnomalyDetection, DQRuleRun, Asset
 from app.core.security import get_current_user
 import uuid
 import logging
@@ -33,10 +33,12 @@ async def create_detector(payload: dict, db: AsyncSession = Depends(get_db), use
 
 
 @router.get("/detectors")
-async def list_detectors(asset_id: Optional[str] = None, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+async def list_detectors(asset_id: Optional[str] = None, connection_id: Optional[str] = None, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     q = select(AnomalyDetector).where(AnomalyDetector.is_active == True)
     if asset_id:
         q = q.where(AnomalyDetector.asset_id == asset_id)
+    if connection_id:
+        q = q.join(Asset, AnomalyDetector.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     result = await db.execute(q)
     rows = result.scalars().all()
     return [{"detector_id": r.detector_id, "asset_id": r.asset_id, "column_name": r.column_name,
@@ -110,11 +112,13 @@ async def run_detector(detector_id: str, db: AsyncSession = Depends(get_db), _=D
 
 
 @router.get("/detections")
-async def list_detections(asset_id: Optional[str] = None, is_acknowledged: Optional[bool] = None,
+async def list_detections(asset_id: Optional[str] = None, connection_id: Optional[str] = None, is_acknowledged: Optional[bool] = None,
                            db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     q = select(AnomalyDetection)
     if asset_id:
         q = q.where(AnomalyDetection.asset_id == asset_id)
+    if connection_id:
+        q = q.join(Asset, AnomalyDetection.asset_id == Asset.asset_id).where(Asset.connection_id == connection_id)
     if is_acknowledged is not None:
         q = q.where(AnomalyDetection.is_acknowledged == is_acknowledged)
     q = q.order_by(desc(AnomalyDetection.detected_at)).limit(100)

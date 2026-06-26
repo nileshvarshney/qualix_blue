@@ -36,17 +36,32 @@ function fmtNum(n: number | null | undefined): string {
 }
 
 export default function CostPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [overview, setOverview] = useState<CostOverview | null>(null)
   const [byDomain, setByDomain] = useState<DomainCost[]>([])
   const [topTables, setTopTables] = useState<TopTable[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
     setLoading(true)
+    const connSuffix = activeConnectionId ? `&connection_id=${activeConnectionId}` : ''
     Promise.allSettled([
-      fetch('/api/cost?endpoint=overview').then(r => r.json()),
-      fetch('/api/cost?endpoint=by-domain').then(r => r.json()),
-      fetch('/api/cost?endpoint=top-tables').then(r => r.json()),
+      fetch(`/api/cost?endpoint=overview${connSuffix}`).then(r => r.json()),
+      fetch(`/api/cost?endpoint=by-domain${connSuffix}`).then(r => r.json()),
+      fetch(`/api/cost?endpoint=top-tables${connSuffix}`).then(r => r.json()),
     ]).then(([ov, dom, top]) => {
       if (ov.status === 'fulfilled' && ov.value) setOverview(ov.value)
       if (dom.status === 'fulfilled') {
@@ -58,7 +73,7 @@ export default function CostPage() {
         setTopTables(items)
       }
     }).finally(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const currency = overview?.currency ?? 'USD'
   const maxDomainCost = byDomain.length > 0 ? Math.max(...byDomain.map(d => d.total_cost_impact ?? 0)) : 1

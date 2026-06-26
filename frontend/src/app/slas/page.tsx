@@ -48,6 +48,12 @@ function mapSlaStatus(s: unknown): SLAStatus {
 }
 
 export default function SLAsPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [filter, setFilter]   = useState<FilterType>('all')
   const [selected, setSelected] = useState<SLA | null>(null)
   const [allSlas, setAllSlas] = useState<SLA[]>([])
@@ -61,7 +67,17 @@ export default function SLAsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/slas')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/slas?${params}`)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -97,7 +113,7 @@ export default function SLAsPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const addSla = async () => {
     if (!sForm.name) return

@@ -6,10 +6,24 @@ import { loadReports } from '@/lib/seedData'
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
 
   useEffect(() => {
-    loadReports().then(setReports)
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
+
+  useEffect(() => {
+    loadReports(activeConnectionId || undefined).then(setReports)
+  }, [activeConnectionId])
 
   return <ReportsClient initialReports={reports} />
 }

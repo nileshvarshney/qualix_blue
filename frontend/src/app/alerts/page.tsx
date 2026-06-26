@@ -232,6 +232,12 @@ function CreateAlertDefinitionModal({ onClose, onCreated }: CreateModalProps) {
 function AlertsPageInner() {
   const searchParams = useSearchParams()
   const initialFilter = searchParams.get('severity')
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [alerts, setAlerts] = useState<RecentAlert[]>([])
   const [rules, setRules] = useState<AlertDefinition[]>([])
   const [loading, setLoading] = useState(true)
@@ -253,7 +259,17 @@ function AlertsPageInner() {
   const [incidentCreatedMsg, setIncidentCreatedMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/alerts')
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/alerts${activeConnectionId ? `?${params}` : ''}`)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -285,17 +301,19 @@ function AlertsPageInner() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => {
-    fetch('/api/alert-definitions')
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    fetch(`/api/alert-definitions${activeConnectionId ? `?${params}` : ''}`)
       .then(r => r.json())
       .then(data => {
         setRules(Array.isArray(data) ? data : [])
         setRulesLoading(false)
       })
       .catch(() => setRulesLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => {
     Promise.allSettled([

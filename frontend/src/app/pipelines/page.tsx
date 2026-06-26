@@ -125,6 +125,12 @@ const BLANK_PIPELINE = { name: '', description: '', trigger_type: 'manual', cron
 const BLANK_STEP = { name: '', step_type: 'scan_job', timeout_seconds: 1800 }
 
 export default function PipelinesPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [selected, setSelected] = useState<Pipeline | null>(null)
   const [runs, setRuns] = useState<Run[]>([])
@@ -138,14 +144,24 @@ export default function PipelinesPage() {
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<'dag' | 'runs'>('dag')
 
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/pipelines')
+      const params = new URLSearchParams()
+      if (activeConnectionId) params.set('connection_id', activeConnectionId)
+      const res = await fetch(`/api/pipelines?${params}`)
       const data = await res.json()
       setPipelines(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
-  }, [])
+  }, [activeConnectionId])
 
   useEffect(() => { load() }, [load])
 

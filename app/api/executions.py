@@ -325,6 +325,7 @@ def _enrich_run(run: DQRuleRun, **extra) -> dict:
 async def list_runs_enriched(
     rule_id: Optional[str] = Query(None),
     asset_id: Optional[str] = Query(None),
+    connection_id: Optional[str] = Query(None),
     domain_id: Optional[str] = Query(None),
     subdomain_id: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
@@ -350,6 +351,8 @@ async def list_runs_enriched(
         q = q.where(DQRuleRun.rule_id == rule_id)
     if asset_id:
         q = q.where(DQRuleRun.asset_id == asset_id)
+    if connection_id:
+        q = q.where(Asset.connection_id == connection_id)
     if subdomain_id:
         q = q.where(DQRuleRun.subdomain_id == subdomain_id)
     if status:

@@ -49,6 +49,12 @@ const termIcon = { pass: '✓', fail: '✕', warn: '⚠' }
 const COLS = '1fr 180px 90px 55px 45px 72px 90px'
 
 export default function ContractsPage() {
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [filter, setFilter]       = useState<FilterType>('all')
   const [selected, setSelected]   = useState<Contract | null>(null)
   const [search, setSearch]       = useState('')
@@ -61,6 +67,14 @@ export default function ContractsPage() {
   const [enforcementLoading, setEnforcementLoading] = useState(false)
   const [showEnforcementLog, setShowEnforcementLog] = useState(false)
 
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
   const mapStatus = (s: unknown): ContractStatus => {
     if (s === 'violated' || s === 'breached') return 'breached'
     if (s === 'warning') return 'warning'
@@ -68,7 +82,10 @@ export default function ContractsPage() {
   }
 
   useEffect(() => {
-    fetch('/api/contracts')
+    const params = new URLSearchParams()
+    if (activeConnectionId) params.set('connection_id', activeConnectionId)
+    const url = `/api/contracts${activeConnectionId ? `?${params}` : ''}`
+    fetch(url)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -96,7 +113,7 @@ export default function ContractsPage() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [])
+  }, [activeConnectionId])
 
   const [addError, setAddError] = useState<string | null>(null)
 

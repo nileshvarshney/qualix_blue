@@ -67,6 +67,12 @@ function RunHistoryInner() {
   const searchParams = useSearchParams()
   const jobFilter    = searchParams.get('job')
 
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [runs, setRuns]       = useState<Run[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter]   = useState<FilterType>('all')
@@ -75,11 +81,25 @@ function RunHistoryInner() {
   const [selectedRun, setSelectedRun] = useState<{ jobId: string; runId: string } | null>(null)
 
   useEffect(() => {
+    function onConnChanged(e: Event) {
+      setActiveConnectionId((e as CustomEvent<string>).detail ?? '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
+  }, [])
+
+  useEffect(() => {
     setLoading(true)
     const { start, end } = dayRange(logDate)
-    const url = jobFilter
-      ? `/api/scan-jobs/${jobFilter}/runs`
-      : `/api/run-history?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}`
+    let url: string
+    if (jobFilter) {
+      const params = new URLSearchParams()
+      if (activeConnectionId) params.set('connection_id', activeConnectionId)
+      const qs = params.toString()
+      url = `/api/scan-jobs/${jobFilter}/runs${qs ? `?${qs}` : ''}`
+    } else {
+      url = `/api/run-history?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`
+    }
     fetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
@@ -109,7 +129,7 @@ function RunHistoryInner() {
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [jobFilter, logDate])
+  }, [jobFilter, logDate, activeConnectionId])
 
   const totalRunning   = runs.filter(r => r.status === 'running').length
   const totalCompleted = runs.filter(r => r.status === 'succeeded' || r.status === 'partial_success').length
