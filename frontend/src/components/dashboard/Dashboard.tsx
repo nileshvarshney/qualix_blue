@@ -829,53 +829,129 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
       </div>
 
       {/* Six Dimensions */}
-      <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
-        <SectionHeader
-          icon={<Target size={13} strokeWidth={2.4} />}
-          title="Six Dimensions of Quality"
-          action={
-            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
-              {loading ? '— active rules' : `${stats.totalRules} active rules`} · <Link href="/rules" style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none' }}>view all →</Link>
-            </div>
-          }
-        />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '10px' }}>
-          {([
-            { name: 'Completeness', key: 'completeness' as const, category: 'completeness', icon: <ListChecks size={14} strokeWidth={2.2} /> },
-            { name: 'Accuracy',     key: 'accuracy'     as const, category: 'accuracy',     icon: <Target size={14} strokeWidth={2.2} /> },
-            { name: 'Validity',     key: 'validity'     as const, category: 'validity',     icon: <ShieldCheck size={14} strokeWidth={2.2} /> },
-            { name: 'Consistency',  key: 'consistency'  as const, category: 'consistency',  icon: <GitCompare size={14} strokeWidth={2.2} /> },
-            { name: 'Timeliness',   key: 'timeliness'   as const, category: 'timeliness',   icon: <Clock size={14} strokeWidth={2.2} /> },
-            { name: 'Uniqueness',   key: 'uniqueness'   as const, category: 'uniqueness',   icon: <Fingerprint size={14} strokeWidth={2.2} /> },
-          ] as { name: string; key: keyof DimensionScores; category: string; icon: React.ReactNode }[]).map(d => {
-            const val = stats.dimensions[d.key]
-            const color = scoreColor(val)
-            return (
-              <Link key={d.name} href={`/rules?category=${d.category}`} style={{ textDecoration: 'none' }}>
-                <div style={{
-                  background: 'var(--surface-muted)', borderRadius: '10px', padding: '14px 10px', border: '1px solid var(--border)',
-                  cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
-                  <div style={{ position: 'relative', width: '60px', height: '60px' }}>
-                    <RingGauge value={val} size={60} stroke={5} color={color} />
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.5px' }}>
-                        {val !== null ? val : '—'}{val !== null && <span style={{ fontSize: '9px' }}>%</span>}
-                      </span>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <span style={{ color }}>{d.icon}</span>
-                    <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{d.name}</span>
-                  </div>
+      {(() => {
+        const DIMS = [
+          { name: 'Completeness', key: 'completeness' as const, category: 'completeness', icon: <ListChecks size={14} strokeWidth={2.2} /> },
+          { name: 'Accuracy',     key: 'accuracy'     as const, category: 'accuracy',     icon: <Target size={14} strokeWidth={2.2} /> },
+          { name: 'Validity',     key: 'validity'     as const, category: 'validity',     icon: <ShieldCheck size={14} strokeWidth={2.2} /> },
+          { name: 'Consistency',  key: 'consistency'  as const, category: 'consistency',  icon: <GitCompare size={14} strokeWidth={2.2} /> },
+          { name: 'Timeliness',   key: 'timeliness'   as const, category: 'timeliness',   icon: <Clock size={14} strokeWidth={2.2} /> },
+          { name: 'Uniqueness',   key: 'uniqueness'   as const, category: 'uniqueness',   icon: <Fingerprint size={14} strokeWidth={2.2} /> },
+        ] as { name: string; key: keyof DimensionScores; category: string; icon: React.ReactNode }[]
+
+        const showMatrix = !activeConnectionId && connections.length > 0
+
+        return (
+          <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
+            <SectionHeader
+              icon={<Target size={13} strokeWidth={2.4} />}
+              title="Six Dimensions of Quality"
+              action={
+                <div style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>
+                  {loading ? '— active rules' : `${stats.totalRules} active rules`} · <Link href="/rules" style={{ color: 'var(--accent)', fontWeight: 500, textDecoration: 'none' }}>view all →</Link>
                 </div>
-              </Link>
-            )
-          })}
-        </div>
-      </div>
+              }
+            />
+
+            {showMatrix ? (
+              /* ── Per-connection matrix ── */
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      <th style={{ textAlign: 'left', padding: '8px 12px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '11px', minWidth: '140px' }}>Connection</th>
+                      {DIMS.map(d => (
+                        <th key={d.key} style={{ textAlign: 'center', padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '11px', whiteSpace: 'nowrap' }}>
+                          <Link href={`/rules?category=${d.category}`} style={{ color: 'inherit', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            {d.icon} {d.name}
+                          </Link>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {connections.map(conn => {
+                      const cs = connStats[conn.id]
+                      const isLoading = connStatsLoading && !cs
+                      const isRowActive = activeConnectionId === conn.id
+                      return (
+                        <tr
+                          key={conn.id}
+                          onClick={() => switchToConnection(conn.id)}
+                          style={{
+                            borderBottom: '1px solid var(--border)',
+                            background: isRowActive ? 'var(--accent-bg)' : 'transparent',
+                            cursor: 'pointer', transition: 'background 0.12s',
+                          }}
+                          onMouseEnter={e => { if (!isRowActive) e.currentTarget.style.background = 'var(--surface-muted)' }}
+                          onMouseLeave={e => { if (!isRowActive) e.currentTarget.style.background = 'transparent' }}
+                        >
+                          <td style={{ padding: '10px 12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '7px' }}>
+                              <ConnTypeBadge type={conn.type} />
+                              <span style={{ fontWeight: 600, color: 'var(--foreground)', fontSize: '12.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '130px' }}>
+                                {conn.name}
+                              </span>
+                            </div>
+                          </td>
+                          {DIMS.map(d => {
+                            const val = cs?.dimensions?.[d.key] ?? null
+                            const bg = isLoading || val === null ? 'var(--surface-muted)' : val >= 90 ? '#dcfce7' : val >= 75 ? '#fef3c7' : '#fee2e2'
+                            const color = isLoading || val === null ? 'var(--text-muted)' : val >= 90 ? '#16a34a' : val >= 75 ? '#b45309' : '#dc2626'
+                            return (
+                              <td key={d.key} style={{ padding: '10px', textAlign: 'center' }}>
+                                <span style={{
+                                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                  background: bg, color, borderRadius: '6px',
+                                  padding: '3px 10px', fontSize: '12px', fontWeight: 700,
+                                  minWidth: '40px',
+                                }}>
+                                  {isLoading ? '—' : val !== null ? `${val}` : '—'}
+                                </span>
+                              </td>
+                            )
+                          })}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* ── Single-connection ring gauges ── */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(95px, 1fr))', gap: '10px' }}>
+                {DIMS.map(d => {
+                  const val = stats.dimensions[d.key]
+                  const color = scoreColor(val)
+                  return (
+                    <Link key={d.name} href={`/rules?category=${d.category}`} style={{ textDecoration: 'none' }}>
+                      <div style={{
+                        background: 'var(--surface-muted)', borderRadius: '10px', padding: '14px 10px', border: '1px solid var(--border)',
+                        cursor: 'pointer', transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+                        <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+                          <RingGauge value={val} size={60} stroke={5} color={color} />
+                          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--foreground)', letterSpacing: '-0.5px' }}>
+                              {val !== null ? val : '—'}{val !== null && <span style={{ fontSize: '9px' }}>%</span>}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ color }}>{d.icon}</span>
+                          <span style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--foreground)' }}>{d.name}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Trend + Failing Rules */}
       <style>{'@media (max-width: 760px) { .qx-trend-grid { grid-template-columns: 1fr !important; } }'}</style>
