@@ -1,5 +1,4 @@
 """Tests that unauthenticated requests to sensitive endpoints return 401."""
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock
