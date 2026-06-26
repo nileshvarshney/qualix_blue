@@ -136,6 +136,42 @@ function SectionHeader({ icon, title, action }: { icon: React.ReactNode; title: 
 interface AlertSummary { open: number; critical: number; high: number; acknowledged: number }
 interface DomainOption { domain_id: string; domain_name: string }
 
+function MiniTrendChart({ data }: { data: { date: string; score: number | null; failed: number }[] }) {
+  const pts = data.filter(d => d.score !== null) as { date: string; score: number; failed: number }[]
+  if (pts.length < 2) {
+    return <div style={{ height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>No data</div>
+  }
+  const W = 240, H = 52, padX = 4, padY = 6
+  const scores = pts.map(p => p.score)
+  const minS = Math.max(0, Math.min(...scores) - 5)
+  const maxS = 100
+  const x = (i: number) => padX + (i / (pts.length - 1)) * (W - padX * 2)
+  const y = (s: number) => padY + (1 - (s - minS) / (maxS - minS)) * (H - padY * 2)
+  const lastS = pts[pts.length - 1].score
+  const lineColor = lastS >= 90 ? '#16a34a' : lastS >= 75 ? '#ea8b3a' : '#dc2626'
+  const pathD = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(' ')
+  const areaD = `${pathD} L${x(pts.length - 1).toFixed(1)},${H} L${x(0).toFixed(1)},${H} Z`
+  const maxFailed = Math.max(...pts.map(p => p.failed), 1)
+  return (
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block', height: '52px' }}>
+      {/* Failed bars */}
+      {pts.map((p, i) => p.failed > 0 && (
+        <rect key={i}
+          x={x(i) - 2} width={4}
+          y={H - (p.failed / maxFailed) * (H * 0.35)}
+          height={(p.failed / maxFailed) * (H * 0.35)}
+          fill="#ef444466" rx={1} />
+      ))}
+      {/* Area fill */}
+      <path d={areaD} fill={lineColor} fillOpacity={0.12} />
+      {/* Line */}
+      <path d={pathD} fill="none" stroke={lineColor} strokeWidth={1.8} strokeLinejoin="round" strokeLinecap="round" />
+      {/* Last point dot */}
+      <circle cx={x(pts.length - 1)} cy={y(lastS)} r={3} fill={lineColor} />
+    </svg>
+  )
+}
+
 const ACTIVE_CONN_KEY = 'qualix-active-conn'
 
 function switchToConnection(id: string) {
@@ -993,11 +1029,63 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
               <Dropdown label="domain" options={['All domains', ...domains.map(d => d.domain_name)]} value={domainFilter} onChange={setDomainFilter} />
             </div>
           </div>
-          {trendLoading
-            ? <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
-            : <TrendChart data={trend} onPointClick={setDrilldownDate} />}
+
+          {/* Per-connection trend grid when All Connections selected */}
+          {!activeConnectionId && connections.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(connections.length, 3)}, 1fr)`, gap: '10px' }}>
+              {connections.map(conn => {
+                const cs = connStats[conn.id]
+                const connTrend = cs?.trend ?? []
+                const scored = connTrend.filter(t => t.score !== null)
+                const lastScore = scored.length > 0 ? scored[scored.length - 1].score ?? null : null
+                const delta = scored.length >= 2 ? (scored[scored.length - 1].score! - scored[0].score!) : null
+                const isRowActive = activeConnectionId === conn.id
+                return (
+                  <div
+                    key={conn.id}
+                    onClick={() => switchToConnection(conn.id)}
+                    style={{
+                      background: isRowActive ? 'var(--accent-bg)' : 'var(--surface-muted)',
+                      border: `1px solid ${isRowActive ? 'var(--accent)' : 'var(--border)'}`,
+                      borderRadius: '10px', padding: '12px', cursor: 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isRowActive) { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' } }}
+                    onMouseLeave={e => { if (!isRowActive) { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conn.name}</div>
+                        <ConnTypeBadge type={conn.type} />
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '8px' }}>
+                        <div style={{ fontSize: '18px', fontWeight: 800, color: lastScore === null ? 'var(--text-muted)' : scoreColor(lastScore), letterSpacing: '-0.5px', lineHeight: 1 }}>
+                          {connStatsLoading && !cs ? '—' : lastScore !== null ? lastScore.toFixed(1) : '—'}
+                        </div>
+                        {delta !== null && (
+                          <div style={{ fontSize: '10px', fontWeight: 700, color: delta >= 0 ? '#16a34a' : '#dc2626', marginTop: '2px' }}>
+                            {delta >= 0 ? '▲' : '▼'}{Math.abs(delta).toFixed(1)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {connStatsLoading && !cs
+                      ? <div style={{ height: '52px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '11px' }}>Loading…</div>
+                      : <MiniTrendChart data={connTrend} />
+                    }
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            trendLoading
+              ? <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>Loading…</div>
+              : <TrendChart data={trend} onPointClick={setDrilldownDate} />
+          )}
+
           <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
-            Click any point on the chart to see that day&apos;s failed runs, alerts, and anomalies.
+            {!activeConnectionId && connections.length > 0
+              ? 'Click any connection to drill into its full trend.'
+              : 'Click any point on the chart to see that day\'s failed runs, alerts, and anomalies.'}
           </div>
         </div>
 
