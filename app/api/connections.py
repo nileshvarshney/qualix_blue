@@ -397,7 +397,7 @@ def _test_generic_sync(payload, db_type: str) -> dict:
 
 
 @router.post("/test-credentials")
-async def test_credentials(payload: ConnectionTestCredentials):
+async def test_credentials(payload: ConnectionTestCredentials, user: dict = Depends(get_current_user)):
     """Test connection credentials inline with multi-step diagnostics."""
     db_type = payload.database_type or "snowflake"
     if db_type not in SUPPORTED_DB_TYPES:
@@ -606,7 +606,7 @@ async def set_primary_target(
 # ── Test saved connection ────────────────────────────────────────────────────
 
 @router.post("/{connection_id}/test")
-async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def test_connection(connection_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     try:
         result = await db.execute(
             select(SnowflakeConnection).where(SnowflakeConnection.connection_id == connection_id)
@@ -872,7 +872,7 @@ def _pg_adapter(conn: SnowflakeConnection):
 
 
 @router.get("/{connection_id}/databases")
-async def browse_databases(connection_id: str, db: AsyncSession = Depends(get_db)):
+async def browse_databases(connection_id: str, db: AsyncSession = Depends(get_db), user: dict = Depends(get_current_user)):
     conn = await _get_conn_or_404(connection_id, db)
     db_type = (conn.database_type or "snowflake").lower()
 
@@ -917,6 +917,7 @@ async def browse_schemas(
     connection_id: str,
     database: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     conn = await _get_conn_or_404(connection_id, db)
     db_type = (conn.database_type or "snowflake").lower()
@@ -967,6 +968,7 @@ async def browse_columns(
     schema: str = Query(...),
     table: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     conn = await _get_conn_or_404(connection_id, db)
     db_type = (conn.database_type or "snowflake").lower()
@@ -1023,6 +1025,7 @@ async def browse_tables(
     database: str = Query(...),
     schema: str = Query(...),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     conn = await _get_conn_or_404(connection_id, db)
     db_type = (conn.database_type or "snowflake").lower()
@@ -1100,6 +1103,7 @@ async def preview_data(
     table: str = Query(...),
     limit: int = Query(25, ge=1, le=1000),
     db: AsyncSession = Depends(get_db),
+    user: dict = Depends(get_current_user),
 ):
     """Preview the first N rows of a table — powers the Live Data Browser."""
     conn = await _get_conn_or_404(connection_id, db)
