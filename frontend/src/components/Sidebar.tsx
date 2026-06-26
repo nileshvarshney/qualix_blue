@@ -86,7 +86,7 @@ function TopBarConnectionSelector() {
     if (!active) return
     setRefreshing(true)
     try {
-      await fetch('/api/connections/test', {
+      await apiFetch('/api/connections/test', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(active),
       })

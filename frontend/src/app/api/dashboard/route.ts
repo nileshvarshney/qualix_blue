@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -12,9 +13,9 @@ export async function GET(req: NextRequest) {
       ? `${BACKEND}/dashboard/dimensions?connection_id=${connectionId}`
       : `${BACKEND}/dashboard/dimensions`
     const [globalRes, dimRes, alertsRes] = await Promise.all([
-      fetch(globalUrl, { cache: 'no-store' }),
-      fetch(dimUrl, { cache: 'no-store' }),
-      fetch(`${BACKEND}/alerts/enriched?status=open&limit=10`, { cache: 'no-store' }),
+      serverFetch(req, globalUrl, { cache: 'no-store' }),
+      serverFetch(req, dimUrl, { cache: 'no-store' }),
+      serverFetch(req, `${BACKEND}/alerts/enriched?status=open&limit=10`, { cache: 'no-store' }),
     ])
 
     if (!globalRes.ok) {

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import DomainHealthTrends from '@/components/domains/DomainHealthTrends'
+import { apiFetch } from '@/lib/apiFetch'
 
 const ICONS  = ['💰','📣','🚚','📦','⚙️','🌐','📊','🏥','🎓','🛒','🏗️','💡','🔬','📱','🎯']
 const COLORS = ['#2563eb','#ec4899','#f59e0b','#8b5cf6','#14b8a6','#ef4444','#16a34a','#0ea5e9','#f97316','#6366f1']
@@ -47,8 +48,8 @@ export default function DomainsPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/domains-list').then(r => r.json()).catch(() => []),
-      fetch('/api/dashboard/domains').then(r => r.json()).catch(() => []),
+      apiFetch('/api/domains-list').then(r => r.json()).catch(() => []),
+      apiFetch('/api/dashboard/domains').then(r => r.json()).catch(() => []),
     ]).then(([listData, statsData]) => {
       const items: Record<string, unknown>[] = Array.isArray(listData) ? listData : []
       const stats: Record<string, Record<string, unknown>> = {}

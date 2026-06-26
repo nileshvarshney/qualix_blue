@@ -1,11 +1,12 @@
 import type { Rule, Report, Connection } from './types'
+import { apiFetch } from './apiFetch'
 
 /** Always fetch from the backend API — no localStorage cache */
 
 export async function loadConnections(): Promise<Connection[]> {
   if (typeof window === 'undefined') return []
   try {
-    const res = await fetch('/api/connections', { cache: 'no-store' })
+    const res = await apiFetch('/api/connections', { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return Array.isArray(data) ? data : (data.connections ?? [])
@@ -15,7 +16,7 @@ export async function loadConnections(): Promise<Connection[]> {
 export async function loadRules(): Promise<Rule[]> {
   if (typeof window === 'undefined') return []
   try {
-    const res = await fetch('/api/rules', { cache: 'no-store' })
+    const res = await apiFetch('/api/rules', { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return Array.isArray(data) ? data : (data.rules ?? [])
@@ -25,7 +26,7 @@ export async function loadRules(): Promise<Rule[]> {
 export async function loadReports(): Promise<Report[]> {
   if (typeof window === 'undefined') return []
   try {
-    const res = await fetch('/api/reports', { cache: 'no-store' })
+    const res = await apiFetch('/api/reports', { cache: 'no-store' })
     if (!res.ok) return []
     const data = await res.json()
     return Array.isArray(data) ? data : (data.reports ?? [])

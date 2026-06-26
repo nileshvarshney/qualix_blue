@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface DashStats { overall_score: number; open_issues: number; sla_adherence: number; datasets_monitored: number }
 interface Incident { id: string; title: string; severity: string; status: string; asset: string; created_at: string }
@@ -47,7 +48,7 @@ export default function ExecutivePage() {
       }
     }
 
-    fetch('/api/dashboard')
+    apiFetch('/api/dashboard')
       .then(r => r.json())
       .then((d: Record<string, unknown>) => {
         loadedStats = {

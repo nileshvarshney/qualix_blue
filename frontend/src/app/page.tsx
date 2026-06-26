@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Dashboard from '@/components/dashboard/Dashboard'
 import { useInterval } from '@/hooks/useInterval'
 import type { DashboardStats } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const EMPTY: DashboardStats = {
   overallScore:      null,
@@ -52,7 +53,7 @@ export default function HomePage() {
     const url = activeConnectionId
       ? `/api/dashboard?connection_id=${activeConnectionId}`
       : '/api/dashboard'
-    fetch(url, { cache: 'no-store' })
+    apiFetch(url, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then((data: Partial<DashboardStats>) => setStats({ ...EMPTY, ...data }))
       .catch(() => {})

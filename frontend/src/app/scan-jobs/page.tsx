@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useInterval } from '@/hooks/useInterval'
+import { apiFetch } from '@/lib/apiFetch'
 
 type JobStatus = 'active' | 'inactive'
 type LastRunStatus = 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'running' | 'queued' | 'cancelled' | null
@@ -179,7 +180,7 @@ export default function ScanJobsPage() {
   useInterval(() => loadJobs(), hasActiveJobs ? 5000 : null)
 
   useEffect(() => {
-    fetch('/api/connections')
+    apiFetch('/api/connections')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setConnOptions((Array.isArray(data) ? data : []).map(c => ({

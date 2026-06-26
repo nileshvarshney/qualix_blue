@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { Schedule, RUN_STYLE, STATUS_STYLE, mapSchedule } from '@/lib/schedules'
 import ScheduleJobTree from '@/components/shared/ScheduleJobTree'
+import { apiFetch } from '@/lib/apiFetch'
 
 type FilterType = 'all' | 'active' | 'paused' | 'failed'
 
@@ -68,7 +69,7 @@ export default function SchedulesPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/connections')
+    apiFetch('/api/connections')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setConnOptions((Array.isArray(data) ? data : []).map(c => ({

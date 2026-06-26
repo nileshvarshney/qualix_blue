@@ -4,6 +4,7 @@ import { Connection, ConnectionType } from '@/lib/types'
 import { formatDateTime, connectionIcons } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
 import ConnectionExclusionsPanel from './ConnectionExclusionsPanel'
+import { apiFetch } from '@/lib/apiFetch'
 
 /* ─── localStorage persistence for edge deployments ─── */
 const LS_KEY = 'qualix_connections'
@@ -399,7 +400,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
   // On mount: reconcile localStorage against backend — drop connections
   // deleted from the backend and add any created outside this browser.
   useEffect(() => {
-    fetch('/api/connections', { cache: 'no-store' })
+    apiFetch('/api/connections', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then((data: unknown) => {
         if (!data) return
@@ -466,7 +467,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     try {
       if (editingId) {
         // UPDATE existing connection
-        const res = await fetch('/api/connections', {
+        const res = await apiFetch('/api/connections', {
           method: 'PUT', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: editingId, ...payload })
         })
@@ -480,7 +481,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
         setConnections(prev => prev.map(c => c.id === editingId ? updated : c))
       } else {
         // CREATE new connection
-        const res = await fetch('/api/connections', {
+        const res = await apiFetch('/api/connections', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         })
@@ -514,7 +515,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     try {
       // Send full connection data so the test endpoint doesn't depend on server-side store
       const conn = connections.find(c => c.id === id)
-      const res = await fetch('/api/connections/test', {
+      const res = await apiFetch('/api/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId: id, connectionData: conn })
@@ -548,7 +549,7 @@ export default function ConnectionsClient({ initialConnections }: Props) {
     if (!form.name || !form.type) return
     setTestingModal(true)
     try {
-      const res = await fetch('/api/connections/test', {
+      const res = await apiFetch('/api/connections/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connectionId: editingId || '__preview__', connectionData: { ...form, id: editingId || '__preview__', status: 'inactive', createdAt: new Date().toISOString() } })

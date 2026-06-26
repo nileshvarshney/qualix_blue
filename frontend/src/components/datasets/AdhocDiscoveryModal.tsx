@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { Connection } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const LS_KEY = 'qualix_connections'
 
@@ -36,7 +37,7 @@ export default function AdhocDiscoveryModal({ onClose, onComplete }: { onClose: 
   const connRef = useRef<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/connections')
+    apiFetch('/api/connections')
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {

@@ -6,6 +6,7 @@ import { Database, Layers, Table2, Eye } from 'lucide-react'
 import AssetDetailDrawer, { Asset as BaseAsset } from '@/components/asset-registry/AssetDetailDrawer'
 import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
 import { connectionIcons } from '@/lib/utils'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Asset = BaseAsset & {
   quality_score?: number | null
@@ -170,7 +171,12 @@ function CatalogInner() {
   const [popup, setPopup] = useState<Asset | null>(null)
   const [connTypeMap, setConnTypeMap] = useState<Record<string, string>>({})
   const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
-  const [activeConnectionId, setActiveConnectionId] = useState('')
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkPatch, setBulkPatch] = useState<{
     criticality?: string
@@ -258,7 +264,7 @@ function CatalogInner() {
   }
 
   useEffect(() => {
-    fetch('/api/connections')
+    apiFetch('/api/connections')
       .then(r => r.json())
       .then((conns: { id: string; name: string; type: string }[]) => {
         if (Array.isArray(conns)) {
@@ -269,6 +275,15 @@ function CatalogInner() {
         }
       })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      const id = (e as CustomEvent<string | null>).detail
+      setActiveConnectionId((id && id !== '__all__') ? id : '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
 
   useEffect(() => {

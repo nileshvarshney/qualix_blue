@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback, useMemo, Suspense, type Mouse
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 
 /* ─── Types ─── */
 interface LineageNode {
@@ -265,7 +266,14 @@ function LineageInner() {
   const [nodePositions, setNodePositions] = useState<Map<string, { x: number; y: number }>>(new Map())
   const [connections, setConnections] = useState<{ id: string; name: string }[]>([])
   const [containerWidth, setContainerWidth] = useState(0)
-  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => searchParams.get('connection_id') ?? '')
+  const [activeConnectionId, setActiveConnectionId] = useState<string>(() => {
+    const fromUrl = searchParams.get('connection_id')
+    if (fromUrl) return fromUrl
+    try {
+      const v = typeof window !== 'undefined' ? localStorage.getItem('qualix-active-conn') : null
+      return (v && v !== '__all__') ? v : ''
+    } catch { return '' }
+  })
   const prevConnectionIdRef = useRef(activeConnectionId)
   const inputRef = useRef<HTMLInputElement>(null)
   const hasLoadedRef = useRef(false)
@@ -280,12 +288,21 @@ function LineageInner() {
 
   // Fetch connections for the selector — all types, lineage now supports Postgres too
   useEffect(() => {
-    fetch('/api/connections')
+    apiFetch('/api/connections')
       .then(r => r.json())
       .then((conns: { id: string; name: string; type: string }[]) => {
         setConnections(conns.map(c => ({ id: c.id, name: c.name })))
       })
       .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function onConnChanged(e: Event) {
+      const id = (e as CustomEvent<string | null>).detail
+      setActiveConnectionId((id && id !== '__all__') ? id : '')
+    }
+    window.addEventListener('qualix-active-conn-changed', onConnChanged)
+    return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
 
   // Reset graph state when the connection actually changes (not on initial mount —
