@@ -162,10 +162,11 @@ function ConnTypeBadge({ type }: { type: string }) {
   )
 }
 
-function ConnectionCard({ conn, stats, loading, onSelect }: {
+function ConnectionCard({ conn, stats, loading, isActive: isSelected, onSelect }: {
   conn: Connection
   stats: Partial<DashboardStats> | undefined
   loading: boolean
+  isActive: boolean
   onSelect: () => void
 }) {
   const score = stats?.overallScore ?? null
@@ -180,12 +181,16 @@ function ConnectionCard({ conn, stats, loading, onSelect }: {
     <div
       onClick={onSelect}
       style={{
-        background: 'var(--surface-muted)', borderRadius: '12px', border: '1px solid var(--border)',
-        padding: '14px 16px', cursor: 'pointer', transition: 'all 0.15s',
+        background: isSelected ? 'var(--accent-bg)' : 'var(--surface-muted)',
+        borderRadius: '12px',
+        border: `${isSelected ? '2px' : '1px'} solid ${isSelected ? 'var(--accent)' : 'var(--border)'}`,
+        padding: isSelected ? '13px 15px' : '14px 16px',
+        cursor: 'pointer', transition: 'all 0.15s',
         display: 'flex', flexDirection: 'column', gap: '12px',
+        boxShadow: isSelected ? '0 0 0 3px var(--accent-bg)' : 'none',
       }}
-      onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' }}
-      onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+      onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--accent-bg)'; e.currentTarget.style.borderColor = 'var(--accent)' } }}
+      onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.background = 'var(--surface-muted)'; e.currentTarget.style.borderColor = 'var(--border)' } }}
     >
       {/* Header row */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
@@ -354,13 +359,8 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
       .catch(() => {})
   }, [])
 
-  // Load per-connection stats when All Connections is selected
+  // Load per-connection stats (always — shown as a persistent breakdown bar)
   useEffect(() => {
-    if (activeConnectionId) {
-      setConnections([])
-      setConnStats({})
-      return
-    }
     apiFetch('/api/connections')
       .then(r => r.json())
       .then((data: Connection[]) => {
@@ -381,7 +381,8 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
         }).finally(() => setConnStatsLoading(false))
       })
       .catch(() => {})
-  }, [activeConnectionId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     setTrendLoading(true)
@@ -684,21 +685,22 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
         </Link>
       )}
 
-      {/* Connection Breakdown — only when All Connections is selected */}
-      {!activeConnectionId && connections.length > 0 && (
+      {/* Connection Breakdown — always visible, highlights active connection */}
+      {connections.length > 0 && (
         <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
           <SectionHeader
             icon={<Layers size={13} strokeWidth={2.4} />}
             title="Connection Breakdown"
             action={<Link href="/connections" style={{ fontSize: 'var(--text-xs)', color: 'var(--accent)', textDecoration: 'none', fontWeight: 500 }}>Manage →</Link>}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(connections.length, 6)}, 1fr)`, gap: '12px' }}>
             {connections.map(conn => (
               <ConnectionCard
                 key={conn.id}
                 conn={conn}
                 stats={connStats[conn.id]}
                 loading={connStatsLoading && !connStats[conn.id]}
+                isActive={activeConnectionId === conn.id}
                 onSelect={() => switchToConnection(conn.id)}
               />
             ))}
