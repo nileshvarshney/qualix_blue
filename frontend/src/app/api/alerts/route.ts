@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const qs = searchParams.toString()
     const url = qs ? `${BACKEND}/alerts/enriched?${qs}&limit=100` : `${BACKEND}/alerts/enriched?limit=100`
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
@@ -20,7 +21,7 @@ export async function PUT(req: NextRequest) {
     const body = await req.json()
     const { id, action } = body
     const endpoint = action === 'resolve' ? 'resolve' : action === 'ignore' ? 'ignore' : 'acknowledge'
-    const res = await fetch(`${BACKEND}/alerts/${id}/${endpoint}`, {
+    const res = await serverFetch(req, `${BACKEND}/alerts/${id}/${endpoint}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })

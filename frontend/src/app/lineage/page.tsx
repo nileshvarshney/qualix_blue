@@ -325,7 +325,7 @@ function LineageInner() {
       const url = activeConnectionId
         ? `/api/snowflake/lineage?connection_id=${activeConnectionId}`
         : '/api/snowflake/lineage'
-      const res = await fetch(url)
+      const res = await apiFetch(url)
       if (res.ok) {
         const json = await res.json()
         if (json.nodes && json.nodes.length > 0) {
@@ -433,7 +433,7 @@ function LineageInner() {
     if (!node) { setColumnData(null); return }
     setColumnData(null)  // clear stale count immediately
     setColumnsLoading(true); setColumnSearch('')
-    fetch(`/api/snowflake/columns?${columnsQuery(node)}`)
+    apiFetch(`/api/snowflake/columns?${columnsQuery(node)}`)
       .then(r => r.json())
       .then(d => setColumnData(d.columns ?? []))
       .catch(() => { setColumnData([]) })
@@ -474,7 +474,7 @@ function LineageInner() {
     const url = activeConnectionId
       ? `/api/snowflake/column-lineage?connection_id=${activeConnectionId}`
       : '/api/snowflake/column-lineage'
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(d => setColumnEdges(Array.isArray(d.edges) ? d.edges : []))
       .catch(() => setColumnEdges([]))

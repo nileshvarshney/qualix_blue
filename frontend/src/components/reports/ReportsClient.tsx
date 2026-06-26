@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { Report, CheckResult } from '@/lib/types'
 import { formatDateTime, formatNumber, categoryColors } from '@/lib/utils'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/apiFetch'
 
 const statusConfig = {
   passed:  { bg: 'var(--status-ok-bg)',   color: 'var(--status-ok-text)',   label: '✓ Passed',  dot: 'var(--status-ok-text)'   },
@@ -121,7 +122,7 @@ export default function ReportsClient({ initialReports }: { initialReports: Repo
     if (!form.name.trim()) return
     setRunning(true); setShowModal(false)
     try {
-      const res    = await fetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, type: form.type, domain: form.domain, dataset: form.dataset, dateRange: form.dateRange }) })
+      const res    = await apiFetch('/api/reports', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: form.name, type: form.type, domain: form.domain, dataset: form.dataset, dateRange: form.dateRange }) })
       const report = await res.json()
       const enriched = { ...report, name: form.name || REPORT_TYPES.find(t => t.id === form.type)?.label }
       setReports(prev => [enriched, ...prev])

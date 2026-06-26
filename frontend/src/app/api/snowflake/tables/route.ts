@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,10 +9,10 @@ export async function GET(req: NextRequest) {
   const connectionId = new URL(req.url).searchParams.get('connection_id')
   try {
     // Get the primary target connection if no specific connection requested
-    const connId = connectionId ?? await getPrimaryConnectionId()
+    const connId = connectionId ?? await getPrimaryConnectionId(req)
     if (!connId) return NextResponse.json({ tables: [] })
 
-    const res = await fetch(`${BACKEND}/connections/${connId}/tables`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections/${connId}/tables`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ tables: [] })
 
     const data = await res.json()
@@ -30,9 +31,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-async function getPrimaryConnectionId(): Promise<string | null> {
+async function getPrimaryConnectionId(req: NextRequest): Promise<string | null> {
   try {
-    const res = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections`, { cache: 'no-store' })
     if (!res.ok) return null
     const conns: Record<string, unknown>[] = await res.json()
     if (!Array.isArray(conns) || conns.length === 0) return null

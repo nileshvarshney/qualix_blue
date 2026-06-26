@@ -1,4 +1,5 @@
 'use client'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface FailedRecordsTableProps {
   records: Record<string, unknown>[]

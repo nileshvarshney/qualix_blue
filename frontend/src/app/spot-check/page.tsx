@@ -1,5 +1,6 @@
 'use client'
 import { useState, useMemo, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface ColumnDef {
   name: string; type: string; nullable: boolean; isPK?: boolean; isFK?: boolean; sampleValues?: string[]
@@ -57,7 +58,7 @@ export default function SpotCheckPage() {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const url = `/api/snowflake/tables${activeConnectionId ? `?${params}` : ''}`
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(data => {
         const tables = Array.isArray(data) ? data : (data.tables ?? [])

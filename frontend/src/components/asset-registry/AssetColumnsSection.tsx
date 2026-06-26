@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -138,7 +139,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
   // ── Load classifications whenever assetId changes ─────────────────────────
   const loadClassifications = useCallback(async () => {
     try {
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications`, { cache: 'no-store' })
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications`, { cache: 'no-store' })
       if (!res.ok) return
       const list: Classification[] = await res.json()
       const map: Record<string, Classification> = {}
@@ -154,7 +155,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
     setDescSaveError(null)
     try {
       for (const [colName, desc] of Object.entries(descDrafts)) {
-        const res = await fetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
+        const res = await apiFetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ description: desc }),
@@ -185,7 +186,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
       setColError(null)
       try {
         const [colRes] = await Promise.all([
-          fetch(`/api/asset-registry/${assetId}/columns`),
+          apiFetch(`/api/asset-registry/${assetId}/columns`),
           loadClassifications(),
         ])
         if (!colRes.ok) throw new Error(`HTTP ${colRes.status}`)
@@ -204,7 +205,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
   async function applyTag(colName: string, cls: string, justification?: string) {
     setApplyingTag(true)
     try {
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications`, {
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ column_name: colName, classification: cls, justification: justification || null }),
@@ -224,7 +225,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
   async function removeTag(colName: string) {
     const existing = classifications[colName]
     if (!existing) return
-    await fetch(`/api/classifications/assets/${assetId}/classifications/${existing.classification_id}`, {
+    await apiFetch(`/api/classifications/assets/${assetId}/classifications/${existing.classification_id}`, {
       method: 'DELETE',
     })
     setClassifications(prev => {
@@ -242,7 +243,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
     setAccepted(new Set())
     setApplyResult(null)
     try {
-      const res = await fetch(`/api/ai/discover-pii/${assetId}`, { method: 'POST' })
+      const res = await apiFetch(`/api/ai/discover-pii/${assetId}`, { method: 'POST' })
       const data = await res.json()
       if (data.message) setScanMsg(data.message)
       const f: PiiFinding[] = (data.findings ?? []).filter((f: PiiFinding) =>
@@ -281,7 +282,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
           classification: f.suggested_classification,
           justification: `AI scan: ${f.pii_type} (${Math.round(f.confidence * 100)}% confidence)`,
         }))
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications/bulk`, {
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ classifications: toApply }),
@@ -312,7 +313,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
     setClassifyResult(null)
     setAppliedClassify(new Set())
     try {
-      const res = await fetch(`/api/ai/classify-table`, {
+      const res = await apiFetch(`/api/ai/classify-table`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -334,7 +335,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
 
   async function applyColumnDescription(colName: string, description: string) {
     setAppliedClassify(prev => new Set([...prev, colName]))
-    await fetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
+    await apiFetch(`/api/asset-registry/${assetId}/column-meta/${encodeURIComponent(colName)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description }),
@@ -362,7 +363,7 @@ export default function AssetColumnsSection({ assetId, connectionId, sourceMeta,
         table: sourceMeta!.sf_table_name!,
         limit: '10',
       })
-      const res = await fetch(`/api/snowflake/preview?${qs}`)
+      const res = await apiFetch(`/api/snowflake/preview?${qs}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setSampleCols(data.columns ?? [])

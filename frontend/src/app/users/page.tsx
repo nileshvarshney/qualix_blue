@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type UserRole   = 'admin' | 'data_steward' | 'data_engineer' | 'analyst' | 'viewer' | string
 type FilterType = 'all' | 'admin' | 'active' | 'inactive'
@@ -75,7 +76,7 @@ export default function UsersPage() {
   const [reactivating, setReactivating] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/users')
+    apiFetch('/api/users')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const items: AppUser[] = (Array.isArray(data) ? data : []).map((u, i) => ({
@@ -112,7 +113,7 @@ export default function UsersPage() {
   function deactivate(user: AppUser) {
     if (!confirm(`Deactivate ${user.email}?`)) return
     setDeactivating(user.user_id)
-    fetch(`/api/users/${user.user_id}`, { method: 'DELETE' })
+    apiFetch(`/api/users/${user.user_id}`, { method: 'DELETE' })
       .then(() => setUsers(prev => prev.map(u => u.user_id === user.user_id ? { ...u, is_active: false } : u)))
       .catch(() => {})
       .finally(() => setDeactivating(null))
@@ -126,14 +127,14 @@ export default function UsersPage() {
     }
     setInviteSaving(true)
     try {
-      const res = await fetch('/api/users', {
+      const res = await apiFetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: inviteForm.email, full_name: inviteForm.full_name, role: inviteForm.role, is_active: true }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Failed to invite user')
-      const refreshed = await fetch('/api/users')
+      const refreshed = await apiFetch('/api/users')
       const list = await refreshed.json()
       const items: AppUser[] = (Array.isArray(list) ? list : []).map((u: Record<string, unknown>, i: number) => ({
         user_id:    String(u.user_id ?? u.id ?? i),
@@ -159,7 +160,7 @@ export default function UsersPage() {
     if (!editUser) return
     setEditSaving(true)
     try {
-      const res = await fetch(`/api/users/${editUser.user_id}`, {
+      const res = await apiFetch(`/api/users/${editUser.user_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: editForm.full_name, role: editForm.role }),
@@ -176,7 +177,7 @@ export default function UsersPage() {
 
   function reactivate(user: AppUser) {
     setReactivating(user.user_id)
-    fetch(`/api/users/${user.user_id}`, {
+    apiFetch(`/api/users/${user.user_id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ is_active: true }),

@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { apiFetch } from '@/lib/apiFetch'
 
 export interface PageTab {
   href: string

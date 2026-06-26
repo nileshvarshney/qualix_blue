@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect, useId } from 'react'
 import { AgentMessage } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 function QualixMark({ size }: { size: number }) {
   const id = useId()
@@ -203,7 +204,7 @@ export default function AgentChat() {
 
     try {
       const history = [...messages, userMsg].map(m => ({ role: m.role, content: m.content }))
-      const res = await fetch('/api/agent', {
+      const res = await apiFetch('/api/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: history })

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 
 type AnomalyStatus = 'open' | 'resolved'
 type Severity = 'critical' | 'high' | 'medium' | 'low'
@@ -92,8 +93,8 @@ function AnomalyContextPanel({ assetId, currentId }: { assetId: string; currentI
   useEffect(() => {
     if (!assetId || assetId === '') { setLoaded(true); return }
     Promise.allSettled([
-      fetch(`/api/anomalies?asset_id=${assetId}&limit=6`).then(r => r.json()),
-      fetch(`/api/monitoring/sla-predictions?asset_id=${assetId}&limit=4`).then(r => r.json()),
+      apiFetch(`/api/anomalies?asset_id=${assetId}&limit=6`).then(r => r.json()),
+      apiFetch(`/api/monitoring/sla-predictions?asset_id=${assetId}&limit=4`).then(r => r.json()),
     ]).then(([anomaliesRes, slasRes]) => {
       const anomalies = anomaliesRes.status === 'fulfilled'
         ? (Array.isArray(anomaliesRes.value) ? anomaliesRes.value : (anomaliesRes.value?.items ?? [])) as Record<string, unknown>[]
@@ -166,7 +167,7 @@ function AnomalyAiExplanation({ anomalyId }: { anomalyId: string }) {
   const load = useCallback(() => {
     setLoading(true)
     setErr(null)
-    fetch('/api/ai/explain-anomaly', {
+    apiFetch('/api/ai/explain-anomaly', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ detection_id: anomalyId }),
@@ -283,8 +284,8 @@ function AnomaliesInner() {
       if (activeConnectionId) params.set('connection_id', activeConnectionId)
       const qs = params.toString()
       const [raw, catalog] = await Promise.all([
-        fetch(qs ? `/api/anomalies?${qs}` : '/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
-        fetch(qs ? `/api/catalog?${qs}` : '/api/catalog',     { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+        apiFetch(qs ? `/api/anomalies?${qs}` : '/api/anomalies', { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
+        apiFetch(qs ? `/api/catalog?${qs}` : '/api/catalog',     { cache: 'no-store' }).then(r => r.ok ? r.json() : []),
       ])
       const items  = (Array.isArray(raw) ? raw : ((raw as Record<string, unknown>).items ?? [])) as Record<string, unknown>[]
       const assets = (Array.isArray(catalog) ? catalog : ((catalog as Record<string, unknown>).items ?? [])) as AssetInfo[]

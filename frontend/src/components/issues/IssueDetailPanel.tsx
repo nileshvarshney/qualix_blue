@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { Issue, IssueAuditEntry, IssueStatus, IssueSeverity, ISSUE_TRANSITIONS } from '@/lib/types'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 
 const SEV_CFG: Record<IssueSeverity, { bg: string; color: string; label: string }> = {
   critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',   label: 'Critical' },
@@ -79,7 +80,7 @@ function AiRcaSection({ runId }: { runId: string }) {
   function load() {
     setLoading(true)
     setErr(null)
-    fetch(`/api/ai/rca/${runId}`, { cache: 'no-store' })
+    apiFetch(`/api/ai/rca/${runId}`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setData(d as AiRcaResult))
       .catch(e => setErr(e instanceof Error ? e.message : 'AI analysis unavailable'))
@@ -177,7 +178,7 @@ function ProposedRemediationSection({ issueId }: { issueId: string }) {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/issues/${issueId}/remediation-proposal`, { cache: 'no-store' })
+    apiFetch(`/api/issues/${issueId}/remediation-proposal`, { cache: 'no-store' })
       .then(r => r.json())
       .then(d => setProposal(d as RemediationProposal | null))
       .catch(() => setProposal(null))
@@ -189,7 +190,7 @@ function ProposedRemediationSection({ issueId }: { issueId: string }) {
     setBusy(true)
     setErr(null)
     try {
-      const res = await fetch(`/api/issues/${issueId}/remediation-proposal/${proposal.proposal_id}/${action}`, { method: 'POST' })
+      const res = await apiFetch(`/api/issues/${issueId}/remediation-proposal/${proposal.proposal_id}/${action}`, { method: 'POST' })
       if (!res.ok) throw new Error(`Failed to ${action} (${res.status})`)
       const updated = await res.json()
       setProposal(updated as RemediationProposal)
@@ -296,7 +297,7 @@ function CostImpactSection({ issue }: { issue: Issue }) {
     if (data) return
     setLoading(true)
     setError(null)
-    fetch('/api/ai/cost-estimate', {
+    apiFetch('/api/ai/cost-estimate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -387,7 +388,7 @@ export default function IssueDetailPanel({
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setAuditLoading(true)
-    fetch(`/api/issues/${issue.issue_id}/audit`)
+    apiFetch(`/api/issues/${issue.issue_id}/audit`)
       .then(r => r.json())
       .then(d => setAudit(Array.isArray(d.items) ? d.items : []))
       .catch(() => setAudit([]))
@@ -398,7 +399,7 @@ export default function IssueDetailPanel({
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/issues/${issue.issue_id}/transition`, {
+      const res = await apiFetch(`/api/issues/${issue.issue_id}/transition`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, ...(note ? { resolution_note: note } : {}) }),
@@ -419,7 +420,7 @@ export default function IssueDetailPanel({
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/issues/${issue.issue_id}/reopen`, {
+      const res = await apiFetch(`/api/issues/${issue.issue_id}/reopen`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(note ? { resolution_note: note } : {}),
@@ -440,7 +441,7 @@ export default function IssueDetailPanel({
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch('/api/issues', {
+      const res = await apiFetch('/api/issues', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: issue.issue_id, ...editForm }),

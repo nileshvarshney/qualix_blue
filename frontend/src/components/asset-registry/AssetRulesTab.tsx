@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Rule } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface RuleRun {
   run_id: string
@@ -31,7 +32,7 @@ export default function AssetRulesTab({ assetId }: { assetId: string }) {
   const [lastRuns, setLastRuns] = useState<Record<string, RuleRun>>({})
 
   useEffect(() => {
-    fetch(`/api/rules?asset_id=${encodeURIComponent(assetId)}`)
+    apiFetch(`/api/rules?asset_id=${encodeURIComponent(assetId)}`)
       .then(r => r.json())
       .then((data: unknown) => {
         setRules(Array.isArray(data) ? data as Rule[] : [])
@@ -44,7 +45,7 @@ export default function AssetRulesTab({ assetId }: { assetId: string }) {
     if (rule.status !== 'active') return
     setRunning(rule.id)
     try {
-      const res = await fetch(`/api/rules/${rule.id}/run`, { method: 'POST' })
+      const res = await apiFetch(`/api/rules/${rule.id}/run`, { method: 'POST' })
       if (res.ok) {
         const run = await res.json() as Record<string, unknown>
         setLastRuns(prev => ({

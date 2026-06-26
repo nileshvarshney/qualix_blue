@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Comment {
   comment_id: string
@@ -125,13 +126,13 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
-    fetch('/api/me').then(r => r.json()).then(d => {
+    apiFetch('/api/me').then(r => r.json()).then(d => {
       setCurrentEmail(d.email ?? null)
     }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    fetch('/api/users').then(r => r.ok ? r.json() : []).then((data: unknown) => {
+    apiFetch('/api/users').then(r => r.ok ? r.json() : []).then((data: unknown) => {
       const items = Array.isArray(data) ? data : ((data as Record<string, unknown>)?.items ?? [])
       setMentionUsers((items as Record<string, unknown>[]).map(u => ({
         email: String(u.email ?? ''),
@@ -186,7 +187,7 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
 
   useEffect(() => {
     if (open && !loaded) {
-      fetch(`/api/comments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`)
+      apiFetch(`/api/comments?entity_type=${encodeURIComponent(entityType)}&entity_id=${encodeURIComponent(entityId)}`)
         .then(r => r.json())
         .then(d => { setComments(Array.isArray(d) ? d : []); setLoaded(true) })
         .catch(() => setLoaded(true))
@@ -221,7 +222,7 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
     setBody('')
     setReplyTo(null)
     try {
-      const res = await fetch('/api/comments', {
+      const res = await apiFetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -240,7 +241,7 @@ export default function EntityComments({ entityType, entityId }: { entityType: s
   async function resolve(id: string) {
     setResolveError(null)
     try {
-      const res = await fetch(`/api/comments/${id}/resolve`, { method: 'POST' })
+      const res = await apiFetch(`/api/comments/${id}/resolve`, { method: 'POST' })
       if (res.ok) {
         setComments(prev => prev.map(c => c.comment_id === id ? { ...c, is_resolved: true } : c))
       } else {

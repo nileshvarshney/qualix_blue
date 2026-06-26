@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import AssetTreePanel, { AssetTreePanelHandle } from '@/components/asset-registry/AssetTreePanel'
 import AssetDetailPanel from '@/components/asset-registry/AssetDetailPanel'
 import AdhocDiscoveryModal from '@/components/datasets/AdhocDiscoveryModal'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Asset {
   asset_id: string
@@ -40,7 +41,7 @@ function AssetRegistryInner() {
   const handleSelect = useCallback(async (assetId: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}`)
+      const res = await apiFetch(`/api/asset-registry/${assetId}`)
       if (res.ok) setSelected(await res.json())
     } finally {
       setLoading(false)

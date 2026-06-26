@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/incidents?limit=100`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/incidents?limit=100`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
@@ -15,7 +16,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/incidents`, {
+    const res = await serverFetch(req, `${BACKEND}/incidents`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
@@ -29,14 +30,14 @@ export async function PUT(req: NextRequest) {
     const body = await req.json()
     const { id, action, ...rest } = body
     if (action === 'investigate' || action === 'resolve') {
-      const res = await fetch(`${BACKEND}/incidents/${id}/${action}`, {
+      const res = await serverFetch(req, `${BACKEND}/incidents/${id}/${action}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
       })
       const data = await res.json()
       return NextResponse.json(data, { status: res.status })
     }
-    const res = await fetch(`${BACKEND}/incidents/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/incidents/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rest),
     })

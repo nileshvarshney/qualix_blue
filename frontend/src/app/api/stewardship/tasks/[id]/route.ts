@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export async function PATCH(
   const { id } = await params
   try {
     const body = await req.text()
-    const r = await fetch(`${B}/stewardship/tasks/${id}`, {
+    const r = await serverFetch(req, `${B}/stewardship/tasks/${id}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

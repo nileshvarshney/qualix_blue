@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(
-  _req: Request,
+  req: NextRequest,
   { params }: { params: Promise<{ jobId: string; runId: string }> },
 ) {
   const { jobId, runId } = await params
   try {
-    const res = await fetch(
+    const res = await serverFetch(
+      req,
       `${BACKEND}/scan-jobs/${jobId}/runs/${runId}`,
       { cache: 'no-store' },
     )
@@ -19,14 +21,15 @@ export async function GET(
 }
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ jobId: string; runId: string }> },
 ) {
   const { jobId, runId } = await params
   try {
-    const res = await fetch(
+    const res = await serverFetch(
+      req,
       `${BACKEND}/scan-jobs/${jobId}/runs/${runId}/cancel`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' },
+      { method: 'POST', body: '{}' },
     )
     const data = await res.json().catch(() => ({}))
     return NextResponse.json(data, { status: res.status })

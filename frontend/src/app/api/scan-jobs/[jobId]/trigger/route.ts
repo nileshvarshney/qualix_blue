@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -10,8 +11,8 @@ export async function POST(
   const { jobId } = await params
   try {
     const body = await req.json().catch(() => ({}))
-    const res = await fetch(`${BACKEND}/scan-jobs/${jobId}/trigger`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const res = await serverFetch(req, `${BACKEND}/scan-jobs/${jobId}/trigger`, {
+      method: 'POST',
       body: JSON.stringify(body),
     })
     const data = await res.json()

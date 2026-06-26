@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -6,7 +7,7 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('Authorization')
   try {
-    const res = await fetch(`${BACKEND}/security/settings`, {
+    const res = await serverFetch(req, `${BACKEND}/security/settings`, {
       cache: 'no-store',
       headers: auth ? { Authorization: auth } : {},
     })
@@ -21,7 +22,7 @@ export async function PUT(req: NextRequest) {
   const auth = req.headers.get('Authorization')
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/security/settings`, {
+    const res = await serverFetch(req, `${BACKEND}/security/settings`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',

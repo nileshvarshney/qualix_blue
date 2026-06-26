@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 import AssetDescriptionField from './AssetDescriptionField'
 import AssetColumnsSection from './AssetColumnsSection'
 import AssetProfilingTab from './AssetProfilingTab'
@@ -83,7 +84,7 @@ export default function AssetDetailPanel({
     if (!asset) { setQualityScore(null); return }
     const leaf = asset.asset_type === 'table' || asset.asset_type === 'view'
     if (!leaf) { setQualityScore(null); return }
-    fetch(`/api/quality-scores/assets/${asset.asset_id}`)
+    apiFetch(`/api/quality-scores/assets/${asset.asset_id}`)
       .then(r => r.json())
       .then((d: AssetQualityScore) => setQualityScore(d.overall_score))
       .catch(() => setQualityScore(null))
@@ -94,7 +95,7 @@ export default function AssetDetailPanel({
     if (!asset) { setOpenIssueCount(null); return }
     const leaf = asset.asset_type === 'table' || asset.asset_type === 'view'
     if (!leaf) { setOpenIssueCount(null); return }
-    fetch(`/api/issues?asset_id=${asset.asset_id}&limit=50`)
+    apiFetch(`/api/issues?asset_id=${asset.asset_id}&limit=50`)
       .then(r => r.json())
       .then((items: { status: string }[]) => {
         const open = Array.isArray(items) ? items.filter(i => i.status !== 'resolved' && i.status !== 'closed').length : 0
@@ -269,7 +270,7 @@ function AssetAlertsTab({ assetId }: { assetId: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/alerts?asset_id=${assetId}&limit=50`)
+    apiFetch(`/api/alerts?asset_id=${assetId}&limit=50`)
       .then(r => r.json())
       .then(data => { setItems(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))

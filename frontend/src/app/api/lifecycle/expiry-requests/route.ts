@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -14,7 +15,7 @@ const MOCK = {
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') || ''
   try {
-    const res = await fetch(`${BACKEND}/lifecycle/expiry-requests`, { cache: 'no-store', headers: auth ? { authorization: auth } : {} })
+    const res = await serverFetch(req, `${BACKEND}/lifecycle/expiry-requests`, { cache: 'no-store', headers: auth ? { authorization: auth } : {} })
     if (!res.ok) return NextResponse.json(MOCK)
     return NextResponse.json(await res.json())
   } catch { return NextResponse.json(MOCK) }

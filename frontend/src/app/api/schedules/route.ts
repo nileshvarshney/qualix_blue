@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     const connectionId = req.nextUrl.searchParams.get('connection_id')
     let url = `${BACKEND}/schedules/enriched?limit=200`
     if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
@@ -19,7 +20,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
     const { id, action } = body
-    const res = await fetch(`${BACKEND}/schedules/${id}/${action}`, {
+    const res = await serverFetch(req, `${BACKEND}/schedules/${id}/${action}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     if (body.create) {
       const { create: _, ...payload } = body
-      const res = await fetch(`${BACKEND}/schedules`, {
+      const res = await serverFetch(req, `${BACKEND}/schedules`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
     // existing run-now path
     const { id } = body
-    const res = await fetch(`${BACKEND}/schedules/${id}/run-now`, {
+    const res = await serverFetch(req, `${BACKEND}/schedules/${id}/run-now`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
     })

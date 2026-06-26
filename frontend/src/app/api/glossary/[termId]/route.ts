@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -14,7 +15,7 @@ export async function GET(
 ) {
   try {
     const { termId } = await params
-    const res = await fetch(`${BACKEND}/glossary/terms/${termId}`, {
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms/${termId}`, {
       headers: { ...authHeader(req) },
     })
     const data = await res.json()
@@ -34,7 +35,7 @@ export async function POST(
 
     if (action === 'link-asset') {
       const body = await req.json()
-      const res = await fetch(`${BACKEND}/glossary/terms/${termId}/link-asset`, {
+      const res = await serverFetch(req, `${BACKEND}/glossary/terms/${termId}/link-asset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader(req) },
         body: JSON.stringify(body),
@@ -48,7 +49,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 })
     }
     const body = action === 'reject' ? await req.json() : {}
-    const res = await fetch(`${BACKEND}/glossary/terms/${termId}/${action}`, {
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms/${termId}/${action}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(req) },
       body: JSON.stringify(body),
@@ -70,7 +71,7 @@ export async function DELETE(
     if (!linkId) {
       return NextResponse.json({ error: 'link_id is required' }, { status: 400 })
     }
-    const res = await fetch(`${BACKEND}/glossary/terms/${termId}/link-asset/${linkId}`, {
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms/${termId}/link-asset/${linkId}`, {
       method: 'DELETE',
       headers: { ...authHeader(req) },
     })

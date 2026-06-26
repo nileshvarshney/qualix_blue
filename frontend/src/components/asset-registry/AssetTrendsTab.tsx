@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { TrendChart } from '@/components/shared/charts'
 import TrendDrilldownPanel from '@/components/shared/TrendDrilldownPanel'
 import { TrendPoint } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const DAY_OPTIONS = [30, 60, 90]
 
@@ -14,7 +15,7 @@ export default function AssetTrendsTab({ assetId }: { assetId: string }) {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/dashboard/history/table/${assetId}?days=${days}`)
+    apiFetch(`/api/dashboard/history/table/${assetId}?days=${days}`)
       .then(r => r.json())
       .then((data: { history?: TrendPoint[] }) => setTrend(data.history ?? []))
       .catch(() => setTrend([]))

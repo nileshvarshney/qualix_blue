@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react'
 import IssueDetailPanel from '@/components/issues/IssueDetailPanel'
 import CreateIssueModal from '@/components/issues/CreateIssueModal'
 import { Issue, IssueStatus, IssueSeverity } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const SEV_CFG: Record<IssueSeverity, { bg: string; color: string; label: string }> = {
   critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)',   label: 'Critical' },
@@ -86,7 +87,7 @@ export default function IssuesPage() {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString()
-    fetch(`/api/issues${qs ? '?' + qs : ''}`)
+    apiFetch(`/api/issues${qs ? '?' + qs : ''}`)
       .then(r => r.json())
       .then(data => setIssues(Array.isArray(data) ? data : []))
       .catch(() => setError('Failed to load issues'))

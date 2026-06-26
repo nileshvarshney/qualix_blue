@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Connection } from '@/lib/types'
 import ConnectionExclusionsPanel from '@/components/connections/ConnectionExclusionsPanel'
+import { apiFetch } from '@/lib/apiFetch'
 
 const LS_KEY = 'qualix_connections'
 
@@ -99,7 +100,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
     setDbsLoading(true)
     setDbsError(null)
 
-    fetch(`/api/connections/${selectedConn.id}/databases`)
+    apiFetch(`/api/connections/${selectedConn.id}/databases`)
       .then(r => r.json())
       .then(d => {
         if (connRef.current !== myConnId) return
@@ -118,7 +119,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
     if (!jobId) return
     const interval = setInterval(async () => {
       try {
-        const r = await fetch(`/api/datasets/import/jobs/${jobId}`)
+        const r = await apiFetch(`/api/datasets/import/jobs/${jobId}`)
         const d = await r.json()
         setJobStatus(d.status ?? '')
         setJobResults(d.results ?? [])
@@ -160,7 +161,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
       const myConnId = selectedConn.id
       setTree(prev => ({ ...prev, [dbName]: { ...prev[dbName], expanded: true, loading: true, error: undefined } }))
 
-      fetch(`/api/connections/${selectedConn.id}/schemas?database=${encodeURIComponent(dbName)}`)
+      apiFetch(`/api/connections/${selectedConn.id}/schemas?database=${encodeURIComponent(dbName)}`)
         .then(r => r.json())
         .then(d => {
           if (connRef.current !== myConnId) return
@@ -224,7 +225,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
         },
       }))
 
-      fetch(`/api/connections/${selectedConn.id}/tables?database=${encodeURIComponent(dbName)}&schema=${encodeURIComponent(schemaName)}`)
+      apiFetch(`/api/connections/${selectedConn.id}/tables?database=${encodeURIComponent(dbName)}&schema=${encodeURIComponent(schemaName)}`)
         .then(r => r.json())
         .then(d => {
           if (connRef.current !== myConnId) return
@@ -296,7 +297,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   // ── Import ────────────────────────────────────────────────────────────────────
 
   async function resolveBackendConnectionId(): Promise<string> {
-    const res = await fetch('/api/datasets/sync-connection', {
+    const res = await apiFetch('/api/datasets/sync-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ connection: selectedConn }),
@@ -307,7 +308,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
   }
 
   async function fetchSchemasNow(dbName: string): Promise<string[]> {
-    const r = await fetch(`/api/connections/${selectedConn!.id}/schemas?database=${encodeURIComponent(dbName)}`)
+    const r = await apiFetch(`/api/connections/${selectedConn!.id}/schemas?database=${encodeURIComponent(dbName)}`)
     const d = await r.json()
     if (d.error) throw new Error(d.error)
     return (d.schemas ?? []).map((x: { name: string }) => x.name)
@@ -350,7 +351,7 @@ export default function ImportDatasetsModal({ onClose, onComplete }: { onClose: 
       if (selections.length === 0) { setImportPhase('idle'); return }
 
       const connectionId = await resolveBackendConnectionId()
-      const res = await fetch('/api/datasets/import', {
+      const res = await apiFetch('/api/datasets/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ connection_id: connectionId, selections }),

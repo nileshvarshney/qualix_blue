@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Framework {
   id: string; name: string; version: string; description: string
@@ -41,7 +42,7 @@ export default function CompliancePage() {
   const [autoMapStatus, setAutoMapStatus] = useState<'idle' | 'running' | 'done' | 'error'>('idle')
 
   useEffect(() => {
-    fetch('/api/compliance')
+    apiFetch('/api/compliance')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -63,7 +64,7 @@ export default function CompliancePage() {
   useEffect(() => {
     if (!selectedFw) { setControls([]); return }
     setControlsLoading(true)
-    fetch(`/api/compliance/${selectedFw}/controls`)
+    apiFetch(`/api/compliance/${selectedFw}/controls`)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -85,12 +86,12 @@ export default function CompliancePage() {
         if (items.length === 0 && selectedFw && autoMapFiredRef.current !== selectedFw) {
           autoMapFiredRef.current = selectedFw
           setAutoMapStatus('running')
-          fetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
+          apiFetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
             .then(r => r.json())
             .then(() => {
               setAutoMapStatus('done')
               // Re-fetch controls after auto-map completes
-              return fetch(`/api/compliance/${selectedFw}/controls`)
+              return apiFetch(`/api/compliance/${selectedFw}/controls`)
                 .then(r2 => r2.json())
                 .then(d2 => {
                   const mapped = Array.isArray(d2) ? d2 : []
@@ -117,8 +118,8 @@ export default function CompliancePage() {
   async function handleSeed() {
     setSeeding(true)
     try {
-      await fetch('/api/compliance/seed', { method: 'POST' })
-      const r = await fetch('/api/compliance')
+      await apiFetch('/api/compliance/seed', { method: 'POST' })
+      const r = await apiFetch('/api/compliance')
       const data = await r.json()
       const items = Array.isArray(data) ? data : []
       setFrameworks(items.map((f: Record<string, unknown>, i: number) => ({
@@ -137,8 +138,8 @@ export default function CompliancePage() {
   async function handleAssessAll(fwId: string) {
     setAssessing(fwId)
     try {
-      await fetch(`/api/compliance/${fwId}/assess-all`, { method: 'POST' })
-      const r = await fetch('/api/compliance')
+      await apiFetch(`/api/compliance/${fwId}/assess-all`, { method: 'POST' })
+      const r = await apiFetch('/api/compliance')
       const data = await r.json()
       const items = Array.isArray(data) ? data : []
       setFrameworks(items.map((f: Record<string, unknown>, i: number) => ({
@@ -152,7 +153,7 @@ export default function CompliancePage() {
         status: (f.status as 'compliant' | 'partial' | 'non-compliant') ?? 'partial',
       })))
       if (fwId === selectedFw) {
-        const cr = await fetch(`/api/compliance/${fwId}/controls`)
+        const cr = await apiFetch(`/api/compliance/${fwId}/controls`)
         const cd = await cr.json()
         setControls((Array.isArray(cd) ? cd : []).map((c: Record<string, unknown>) => ({
           id: String(c.req_id ?? ''),
@@ -174,8 +175,8 @@ export default function CompliancePage() {
     if (!selectedFw) return
     setAutoMapping(true)
     try {
-      await fetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
-      const cr = await fetch(`/api/compliance/${selectedFw}/controls`)
+      await apiFetch(`/api/compliance/${selectedFw}/auto-map`, { method: 'POST' })
+      const cr = await apiFetch(`/api/compliance/${selectedFw}/controls`)
       const cd = await cr.json()
       setControls((Array.isArray(cd) ? cd : []).map((c: Record<string, unknown>) => ({
         id: String(c.req_id ?? ''),
@@ -197,7 +198,7 @@ export default function CompliancePage() {
     setAiGapsLoading(true)
     setAiGapsError(null)
     const fw = frameworks.find(f => f.id === selectedFw)
-    fetch('/api/ai/compliance-gaps', {
+    apiFetch('/api/ai/compliance-gaps', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -218,7 +219,7 @@ export default function CompliancePage() {
   async function handleExportEvidence() {
     setExportingEvidence(true)
     try {
-      const r = await fetch(`/api/audit/evidence-report?days=${evidenceDays}`)
+      const r = await apiFetch(`/api/audit/evidence-report?days=${evidenceDays}`)
       const data = await r.json()
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
       const a = document.createElement('a')

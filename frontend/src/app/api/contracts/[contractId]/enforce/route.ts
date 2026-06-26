@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,7 +12,7 @@ export async function POST(
   const { contractId } = await params
   try {
     const body = await req.text()
-    const r = await fetch(`${B}/contracts/${contractId}/enforce`, {
+    const r = await serverFetch(req, `${B}/contracts/${contractId}/enforce`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: req.headers.get('Authorization') ?? '' },
       body,

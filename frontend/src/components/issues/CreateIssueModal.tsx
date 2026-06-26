@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { Issue, IssueSeverity, IssueType } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const inputStyle: CSSProperties = {
   width: '100%', padding: '7px 10px', fontSize: '13px',
@@ -59,7 +60,7 @@ export default function CreateIssueModal({
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch('/api/issues', {
+      const res = await apiFetch('/api/issues', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

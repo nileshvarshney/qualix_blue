@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
     const { connection } = await req.json()
 
     // Check if a backend connection with the same name already exists
-    const listRes = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
+    const listRes = await serverFetch(req, `${BACKEND}/connections`, { cache: 'no-store' })
     if (listRes.ok) {
       const existing: Record<string, unknown>[] = await listRes.json()
       const match = existing.find(
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       is_active:        true,
     }
 
-    const createRes = await fetch(`${BACKEND}/connections`, {
+    const createRes = await serverFetch(req, `${BACKEND}/connections`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

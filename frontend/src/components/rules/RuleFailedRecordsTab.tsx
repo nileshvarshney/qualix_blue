@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import FailedRecordsTable from '@/components/shared/FailedRecordsTable'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface FailedRecordsResponse {
   run_id: string | null
@@ -18,7 +19,7 @@ export default function RuleFailedRecordsTab({ ruleId }: { ruleId: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/rules/${ruleId}/failed-records`)
+    apiFetch(`/api/rules/${ruleId}/failed-records`)
       .then(r => r.json())
       .then((d: FailedRecordsResponse) => setData(d))
       .catch(() => setData(null))

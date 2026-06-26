@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
     const connectionId = req.nextUrl.searchParams.get('connection_id')
     let url = `${BACKEND}/executions?limit=50`
     if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     return NextResponse.json(await res.json())
   } catch {
@@ -17,9 +18,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const rulesRes = await fetch(`${BACKEND}/rules?is_active=true&limit=1000`, { cache: 'no-store' })
+    const rulesRes = await serverFetch(req, `${BACKEND}/rules?is_active=true&limit=1000`, { cache: 'no-store' })
     if (!rulesRes.ok) {
       return NextResponse.json({ error: 'Failed to load active rules' }, { status: 502 })
     }
@@ -29,7 +30,7 @@ export async function POST() {
       return NextResponse.json({ message: 'No active rules to run', total: 0 })
     }
 
-    const execRes = await fetch(`${BACKEND}/rules/bulk/execute`, {
+    const execRes = await serverFetch(req, `${BACKEND}/rules/bulk/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rule_ids: ruleIds }),

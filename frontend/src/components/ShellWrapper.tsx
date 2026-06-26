@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext'
 import Sidebar from '@/components/Sidebar'
 import AgentChat from '@/components/agent/AgentChat'
 import SectionTabBar from '@/components/ui/SectionTabBar'
+import { apiFetch } from '@/lib/apiFetch'
 
 // Must match src/app/* auth route segments — update when adding /register, /reset-password, etc.
 const AUTH_ROUTES = ['/login']

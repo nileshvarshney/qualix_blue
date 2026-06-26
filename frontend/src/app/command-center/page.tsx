@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Incident {
   incident_id: string
@@ -99,10 +100,10 @@ export default function CommandCenter() {
   useEffect(() => {
     setLoading(true)
     Promise.allSettled([
-      fetch('/api/incidents').then(r => r.json()),
-      fetch('/api/alerts').then(r => r.json()),
-      fetch('/api/slas').then(r => r.json()),
-      fetch('/api/scan-jobs').then(r => r.json()),
+      apiFetch('/api/incidents').then(r => r.json()),
+      apiFetch('/api/alerts').then(r => r.json()),
+      apiFetch('/api/slas').then(r => r.json()),
+      apiFetch('/api/scan-jobs').then(r => r.json()),
     ]).then(([inc, alr, sla, scn]) => {
       if (inc.status === 'fulfilled') {
         const items = Array.isArray(inc.value) ? inc.value : (inc.value?.items ?? [])

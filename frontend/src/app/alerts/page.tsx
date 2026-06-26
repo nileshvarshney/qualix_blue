@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import CreateIssueModal from '@/components/issues/CreateIssueModal'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Severity = 'critical' | 'high' | 'medium' | 'info'
 type AlertFilter = 'all' | 'unacked' | 'critical' | 'high'
@@ -107,7 +108,7 @@ function CreateAlertDefinitionModal({ onClose, onCreated }: CreateModalProps) {
         cooldown_minutes: parseInt(cooldown) || 240,
         notification_channels: channels.length ? channels : null,
       }
-      const res = await fetch('/api/alert-definitions', {
+      const res = await apiFetch('/api/alert-definitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -269,7 +270,7 @@ function AlertsPageInner() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/alerts${activeConnectionId ? `?${params}` : ''}`)
+    apiFetch(`/api/alerts${activeConnectionId ? `?${params}` : ''}`)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -306,7 +307,7 @@ function AlertsPageInner() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/alert-definitions${activeConnectionId ? `?${params}` : ''}`)
+    apiFetch(`/api/alert-definitions${activeConnectionId ? `?${params}` : ''}`)
       .then(r => r.json())
       .then(data => {
         setRules(Array.isArray(data) ? data : [])
@@ -317,9 +318,9 @@ function AlertsPageInner() {
 
   useEffect(() => {
     Promise.allSettled([
-      fetch('/api/alert-routing/rules').then(r => r.json()),
-      fetch('/api/alert-routing/maintenance-windows').then(r => r.json()),
-      fetch('/api/alert-routing/flap-detection').then(r => r.json()),
+      apiFetch('/api/alert-routing/rules').then(r => r.json()),
+      apiFetch('/api/alert-routing/maintenance-windows').then(r => r.json()),
+      apiFetch('/api/alert-routing/flap-detection').then(r => r.json()),
     ]).then(([rules, windows, flap]) => {
       if (rules.status === 'fulfilled') setRoutingRules(Array.isArray(rules.value) ? rules.value : [])
       if (windows.status === 'fulfilled') setMaintenanceWindows(Array.isArray(windows.value) ? windows.value : [])
@@ -333,7 +334,7 @@ function AlertsPageInner() {
   function ack(id: string, e: React.MouseEvent) {
     e.stopPropagation()
     setAlerts(prev => prev.map(a => a.id === id ? { ...a, ack: true } : a))
-    fetch('/api/alerts', {
+    apiFetch('/api/alerts', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action: 'acknowledge' }),
     }).catch(() => {})
@@ -342,7 +343,7 @@ function AlertsPageInner() {
   function ackAll() {
     setAlerts(prev => prev.map(a => ({ ...a, ack: true })))
     alerts.filter(a => !a.ack).forEach(a => {
-      fetch('/api/alerts', {
+      apiFetch('/api/alerts', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: a.id, action: 'acknowledge' }),
       }).catch(() => {})
@@ -356,7 +357,7 @@ function AlertsPageInner() {
     const next = !current.is_active
     setRules(prev => prev.map(r => r.definition_id === id ? { ...r, is_active: next } : r))
     setPopupRule(prev => prev?.definition_id === id ? { ...prev, is_active: next } : prev)
-    fetch('/api/alert-definitions', {
+    apiFetch('/api/alert-definitions', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ definition_id: id, is_active: next }),
     }).catch(() => {})
@@ -367,7 +368,7 @@ function AlertsPageInner() {
     if (!confirm('Delete this alert definition?')) return
     setRules(prev => prev.filter(r => r.definition_id !== id))
     setPopupRule(null)
-    fetch(`/api/alert-definitions?id=${id}`, { method: 'DELETE' }).catch(() => {})
+    apiFetch(`/api/alert-definitions?id=${id}`, { method: 'DELETE' }).catch(() => {})
   }
 
   const lowerSearch = search.toLowerCase()
@@ -389,7 +390,7 @@ function AlertsPageInner() {
 
   async function createIncidentFromAlert(alert: RecentAlert) {
     try {
-      const res = await fetch('/api/incidents', {
+      const res = await apiFetch('/api/incidents', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: `Alert: ${alert.rule}`,

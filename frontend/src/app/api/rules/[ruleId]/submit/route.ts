@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ ruleId: string }> }
 ) {
   const { ruleId } = await params
   try {
-    const res = await fetch(`${BACKEND}/rules/${ruleId}/submit`, {
+    const res = await serverFetch(req, `${BACKEND}/rules/${ruleId}/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: '{}',

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { id } = await params
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/governance/policies/${id}/versions`, {
+    const res = await serverFetch(req, `${BACKEND}/governance/policies/${id}/versions`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })

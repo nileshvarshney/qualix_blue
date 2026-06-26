@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -11,7 +12,7 @@ export async function POST(
   try {
     const body = await req.json()
     const auth = req.headers.get('Authorization')
-    const res = await fetch(`${BACKEND}/issues/${id}/transition`, {
+    const res = await serverFetch(req, `${BACKEND}/issues/${id}/transition`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

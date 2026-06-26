@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useInterval } from '@/hooks/useInterval'
+import { apiFetch } from '@/lib/apiFetch'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -234,7 +235,7 @@ export default function ObservabilityPage() {
   const loadFreshness = useCallback(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/observability/freshness-board${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
+    apiFetch(`/api/observability/freshness-board${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: FreshnessEntry[]) => {
         setFreshness(d)
@@ -247,7 +248,7 @@ export default function ObservabilityPage() {
   }, [activeConnectionId])
 
   const loadPredictions = useCallback(() => {
-    fetch(`/api/monitoring/sla-predictions?is_at_risk=true${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
+    apiFetch(`/api/monitoring/sla-predictions?is_at_risk=true${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: SLAPrediction[]) => {
         setPredictions(d)
@@ -262,7 +263,7 @@ export default function ObservabilityPage() {
   const loadHeatmap = useCallback(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/observability/quality-heatmap${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
+    apiFetch(`/api/observability/quality-heatmap${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : { domains: [], dates: [], matrix: [] }))
       .then((d: HeatmapData) => {
         setHeatmap(d)
@@ -277,7 +278,7 @@ export default function ObservabilityPage() {
   const loadIncidents = useCallback(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/monitoring/correlated-incidents${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
+    apiFetch(`/api/monitoring/correlated-incidents${activeConnectionId ? `?${params}` : ''}`, { cache: 'no-store' })
       .then(r => (r.ok ? r.json() : []))
       .then((d: CorrelatedIncident[]) => {
         setIncidents(d)
@@ -290,7 +291,7 @@ export default function ObservabilityPage() {
   }, [activeConnectionId])
 
   const loadForecast = useCallback(() => {
-    fetch(`/api/quality/forecast${activeConnectionId ? '?connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
+    apiFetch(`/api/quality/forecast${activeConnectionId ? '?connection_id=' + activeConnectionId : ''}`, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : null)
       .then((d: QualityForecast | null) => { if (d) setForecast(d) })
       .catch(() => {})
@@ -300,7 +301,7 @@ export default function ObservabilityPage() {
   async function saveRemConfig() {
     setRemSaving(true)
     try {
-      const res = await fetch('/api/rules/auto-remediate-config', {
+      const res = await apiFetch('/api/rules/auto-remediate-config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(remConfig),
@@ -315,7 +316,7 @@ export default function ObservabilityPage() {
     if (!contDraft.connection_id) return
     setContSaving(true)
     try {
-      const res = await fetch('/api/observability/continuous-config', {
+      const res = await apiFetch('/api/observability/continuous-config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(contDraft),
       })
       if (res.ok) { const d = await res.json(); setContConfigs(d.connections ?? []) }
@@ -330,8 +331,8 @@ export default function ObservabilityPage() {
     loadHeatmap()
     loadIncidents()
     loadForecast()
-    fetch('/api/rules/auto-remediate-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setRemConfig(d) }).catch(() => {})
-    fetch('/api/observability/continuous-config', { cache: 'no-store' })
+    apiFetch('/api/rules/auto-remediate-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setRemConfig(d) }).catch(() => {})
+    apiFetch('/api/observability/continuous-config', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : { connections: [] })
       .then(d => setContConfigs(d.connections ?? []))
       .catch(() => {})
@@ -348,7 +349,7 @@ export default function ObservabilityPage() {
   async function resolveIncident(id: string) {
     setResolvingId(id)
     try {
-      await fetch(`/api/monitoring/correlated-incidents/${id}/resolve`, {
+      await apiFetch(`/api/monitoring/correlated-incidents/${id}/resolve`, {
         method: 'POST',
       })
       loadIncidents()

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 const MASKED = '***MASKED***'
 
@@ -77,7 +78,7 @@ export default function LLMSettingsTab() {
   const skipBlurRef = useRef(false)
 
   useEffect(() => {
-    fetch('/api/config?category=llm')
+    apiFetch('/api/config?category=llm')
       .then(r => r.ok ? r.json() : Promise.reject(r.statusText))
       .then(data => {
         const rows: { key: string; value: string }[] = data.config?.llm ?? []
@@ -123,7 +124,7 @@ export default function LLMSettingsTab() {
       if (mv && mv !== MASKED) updates[p.modelField] = mv
     }
     try {
-      const res = await fetch('/api/config/bulk-update', {
+      const res = await apiFetch('/api/config/bulk-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ updates }),
@@ -131,7 +132,7 @@ export default function LLMSettingsTab() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       setDirty(false); setEditValues({})
       try {
-        const data = await fetch('/api/config?category=llm').then(r => r.json())
+        const data = await apiFetch('/api/config?category=llm').then(r => r.json())
         const rows: { key: string; value: string }[] = data.config?.llm ?? []
         const map: Record<string, string> = {}
         for (const row of rows) map[row.key] = row.value ?? ''
@@ -151,7 +152,7 @@ export default function LLMSettingsTab() {
   async function testConnection() {
     setTestLoading(true); setTestStatus(null)
     try {
-      const res = await fetch('/api/config/test', { method: 'POST' })
+      const res = await apiFetch('/api/config/test', { method: 'POST' })
       const data = await res.json()
       setTestStatus({ status: data.status, message: data.message })
     } catch (e) {

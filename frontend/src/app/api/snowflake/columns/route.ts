@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,11 +16,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'table, database and schema params required' }, { status: 400 })
 
   try {
-    const connId = connectionId ?? await getPrimaryConnectionId()
+    const connId = connectionId ?? await getPrimaryConnectionId(req)
     if (!connId) return NextResponse.json({ columns: [], error: 'No connection found' })
 
     const qs = new URLSearchParams({ database, schema, table })
-    const res = await fetch(`${BACKEND}/connections/${connId}/columns?${qs}`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections/${connId}/columns?${qs}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ columns: [], error: `Backend ${res.status}` })
 
     const data = await res.json()
@@ -41,9 +42,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-async function getPrimaryConnectionId(): Promise<string | null> {
+async function getPrimaryConnectionId(req: NextRequest): Promise<string | null> {
   try {
-    const res = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections`, { cache: 'no-store' })
     if (!res.ok) return null
     const conns: Record<string, unknown>[] = await res.json()
     if (!Array.isArray(conns) || conns.length === 0) return null

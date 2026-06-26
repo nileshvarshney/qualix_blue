@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import ShellWrapper from '@/components/ShellWrapper'
 import { AuthProvider } from '@/context/AuthContext'
+import { apiFetch } from '@/lib/apiFetch'
 
 export const metadata: Metadata = {
   title: 'Qualix — AI Data Quality & Governance',

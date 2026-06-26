@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
 import { AssetQualityScore, AssetQualityHistory, QualityDimension, ForecastResponse } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const DIMENSIONS: QualityDimension[] = [
   'completeness', 'validity', 'uniqueness', 'timeliness', 'consistency', 'integrity',
@@ -27,8 +28,8 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
   useEffect(() => {
     setLoading(true)
     Promise.all([
-      fetch(`/api/quality-scores/assets/${assetId}`).then(r => r.json()),
-      fetch(`/api/quality-scores/assets/${assetId}/history?days=30`).then(r => r.json()),
+      apiFetch(`/api/quality-scores/assets/${assetId}`).then(r => r.json()),
+      apiFetch(`/api/quality-scores/assets/${assetId}/history?days=30`).then(r => r.json()),
     ])
       .then(([s, h]: [AssetQualityScore, AssetQualityHistory]) => {
         setScore(s)
@@ -39,7 +40,7 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
   }, [assetId])
 
   useEffect(() => {
-    fetch(`/api/quality-scores/assets/${assetId}/forecast?days=30&horizon=7`)
+    apiFetch(`/api/quality-scores/assets/${assetId}/forecast?days=30&horizon=7`)
       .then(r => r.json())
       .then((f: ForecastResponse) => setForecast(f))
       .catch(() => {/* forecast is optional — silently ignore errors */})

@@ -2,6 +2,7 @@
 import React from 'react'
 import { useState, useEffect, useCallback } from 'react'
 import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Tab = 'masking' | 'dsr' | 'consent' | 'residency'
 
@@ -80,8 +81,8 @@ function MaskingTab({ activeConnectionId }: { activeConnectionId: string }) {
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString() ? `?${params}` : ''
     const [p, e] = await Promise.all([
-      fetch(`/api/privacy/masking-policies${qs}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/privacy/pii-exposure${qs}`).then(r => r.json()).catch(() => ({ unprotected_pii_tables: 0, assets: [] })),
+      apiFetch(`/api/privacy/masking-policies${qs}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/privacy/pii-exposure${qs}`).then(r => r.json()).catch(() => ({ unprotected_pii_tables: 0, assets: [] })),
     ])
     setPolicies(Array.isArray(p) ? p : [])
     setExposure(e)
@@ -92,7 +93,7 @@ function MaskingTab({ activeConnectionId }: { activeConnectionId: string }) {
   async function handleAdd() {
     setSaving(true)
     try {
-      const r = await fetch('/api/privacy/masking-policies', {
+      const r = await apiFetch('/api/privacy/masking-policies', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, unmasked_roles: form.unmasked_roles || null }),
       })
@@ -104,7 +105,7 @@ function MaskingTab({ activeConnectionId }: { activeConnectionId: string }) {
   }
 
   async function handleDelete(id: string) {
-    const r = await fetch(`/api/privacy/masking-policies/${id}`, { method: 'DELETE' })
+    const r = await apiFetch(`/api/privacy/masking-policies/${id}`, { method: 'DELETE' })
     if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
@@ -182,7 +183,7 @@ function DSRTab({ activeConnectionId }: { activeConnectionId: string }) {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString() ? `?${params}` : ''
-    const data = await fetch(`/api/privacy/dsr${qs}`).then(r => r.json()).catch(() => [])
+    const data = await apiFetch(`/api/privacy/dsr${qs}`).then(r => r.json()).catch(() => [])
     setDSRs(Array.isArray(data) ? data : [])
   }, [activeConnectionId])
 
@@ -193,7 +194,7 @@ function DSRTab({ activeConnectionId }: { activeConnectionId: string }) {
   const completed = dsrs.filter(d => d.status === 'completed').length
 
   async function handleAction(id: string, status: string) {
-    const r = await fetch(`/api/privacy/dsr/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
+    const r = await apiFetch(`/api/privacy/dsr/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     if (!r.ok) { alert('Action failed. Please try again.'); return }
     load()
   }
@@ -201,7 +202,7 @@ function DSRTab({ activeConnectionId }: { activeConnectionId: string }) {
   async function handleAdd() {
     setSaving(true)
     try {
-      const r = await fetch('/api/privacy/dsr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await apiFetch('/api/privacy/dsr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ subject_email: '', request_type: 'erasure', description: '' })
@@ -283,7 +284,7 @@ function ConsentTab({ activeConnectionId }: { activeConnectionId: string }) {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString() ? `?${params}` : ''
-    const data = await fetch(`/api/privacy/consent${qs}`).then(r => r.json()).catch(() => [])
+    const data = await apiFetch(`/api/privacy/consent${qs}`).then(r => r.json()).catch(() => [])
     setRecords(Array.isArray(data) ? data : [])
   }, [activeConnectionId])
 
@@ -294,7 +295,7 @@ function ConsentTab({ activeConnectionId }: { activeConnectionId: string }) {
   async function handleAdd() {
     setSaving(true)
     try {
-      const r = await fetch('/api/privacy/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await apiFetch('/api/privacy/consent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ asset_id: '', purpose: '', legal_basis: 'consent', data_subject_type: '', requires_explicit_consent: false, opt_in: true })
@@ -303,7 +304,7 @@ function ConsentTab({ activeConnectionId }: { activeConnectionId: string }) {
   }
 
   async function handleDelete(id: string) {
-    const r = await fetch(`/api/privacy/consent/${id}`, { method: 'DELETE' })
+    const r = await apiFetch(`/api/privacy/consent/${id}`, { method: 'DELETE' })
     if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
@@ -385,7 +386,7 @@ function ResidencyTab({ activeConnectionId }: { activeConnectionId: string }) {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString() ? `?${params}` : ''
-    const data = await fetch(`/api/privacy/residency${qs}`).then(r => r.json()).catch(() => [])
+    const data = await apiFetch(`/api/privacy/residency${qs}`).then(r => r.json()).catch(() => [])
     setPolicies(Array.isArray(data) ? data : [])
   }, [activeConnectionId])
 
@@ -401,7 +402,7 @@ function ResidencyTab({ activeConnectionId }: { activeConnectionId: string }) {
   async function handleAdd() {
     setSaving(true)
     try {
-      const r = await fetch('/api/privacy/residency', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const r = await apiFetch('/api/privacy/residency', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!r.ok) { alert('Save failed. Please try again.'); return }
       setShowAdd(false)
       setForm({ asset_id: '', domain_id: '', allowed_regions: [], prohibited_regions: [], data_sovereignty_country: '', notes: '' })
@@ -410,7 +411,7 @@ function ResidencyTab({ activeConnectionId }: { activeConnectionId: string }) {
   }
 
   async function handleDelete(id: string) {
-    const r = await fetch(`/api/privacy/residency/${id}`, { method: 'DELETE' })
+    const r = await apiFetch(`/api/privacy/residency/${id}`, { method: 'DELETE' })
     if (!r.ok) { alert('Delete failed. Please try again.'); return }
     load()
   }
@@ -496,7 +497,7 @@ export default function PrivacyPage() {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const qs = params.toString() ? `?${params}` : ''
-    fetch(`/api/classifications/summary${qs}`)
+    apiFetch(`/api/classifications/summary${qs}`)
       .then(r => r.json())
       .then(data => {
         if (data && Array.isArray(data.domains)) setDomainSummary(data.domains as DomainSummary[])

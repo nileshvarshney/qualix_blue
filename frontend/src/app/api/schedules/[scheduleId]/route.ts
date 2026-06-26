@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -10,7 +11,7 @@ export async function PUT(
   const { scheduleId } = await params
   try {
     const body = await req.text()
-    const res = await fetch(`${BACKEND}/schedules/${scheduleId}`, {
+    const res = await serverFetch(req, `${BACKEND}/schedules/${scheduleId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body,

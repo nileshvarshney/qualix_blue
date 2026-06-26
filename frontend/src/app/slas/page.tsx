@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type SLAStatus = 'healthy' | 'at-risk' | 'breached'
 type FilterType = 'all' | 'healthy' | 'at-risk' | 'breached'
@@ -77,7 +78,7 @@ export default function SLAsPage() {
   useEffect(() => {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
-    fetch(`/api/slas?${params}`)
+    apiFetch(`/api/slas?${params}`)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -123,7 +124,7 @@ export default function SLAsPage() {
       asset_id: sForm.dataset || null,
     }
     try {
-      const res = await fetch('/api/slas', {
+      const res = await apiFetch('/api/slas', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -161,7 +162,7 @@ export default function SLAsPage() {
     if (!editSla || !editForm.name) return
     setEditSaving(true)
     try {
-      const res = await fetch('/api/slas', {
+      const res = await apiFetch('/api/slas', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: editSla.id, contract_name: editForm.name, sla_description: editForm.target, producer_team: editForm.owner || null }),
       })
@@ -181,7 +182,7 @@ export default function SLAsPage() {
     if (!confirm(`Delete SLA "${sla.name}"?`)) return
     setDeletingId(sla.id)
     try {
-      const res = await fetch(`/api/slas?id=${sla.id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/slas?id=${sla.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
       setAllSlas(prev => prev.filter(s => s.id !== sla.id))
       if (selected?.id === sla.id) setSelected(null)

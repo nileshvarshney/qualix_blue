@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Owner = { owner_id: string; name: string; email?: string | null; owner_type: string }
 
@@ -21,7 +22,7 @@ export default function AssetOwnersSection({ assetId, ownerType, label, editing 
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/asset-registry/${assetId}/owners?owner_type=${ownerType}`)
+    apiFetch(`/api/asset-registry/${assetId}/owners?owner_type=${ownerType}`)
       .then(res => (res.ok ? res.json() : []))
       .then(setOwners)
       .catch(() => setError('Failed to load owners'))
@@ -32,7 +33,7 @@ export default function AssetOwnersSection({ assetId, ownerType, label, editing 
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/owners`, {
+      const res = await apiFetch(`/api/asset-registry/${assetId}/owners`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner_type: ownerType, name: name.trim(), email: email.trim() || null }),
@@ -51,7 +52,7 @@ export default function AssetOwnersSection({ assetId, ownerType, label, editing 
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/owners/${ownerId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/asset-registry/${assetId}/owners/${ownerId}`, { method: 'DELETE' })
       if (!res.ok) { setError('Failed to remove owner'); return }
       setOwners(o => o.filter(x => x.owner_id !== ownerId))
     } finally {

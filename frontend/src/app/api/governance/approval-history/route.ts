@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   const limit = searchParams.get('limit') ?? '50'
   const auth = req.headers.get('authorization') || ''
   try {
-    const res = await fetch(`${BACKEND}/governance/approval-history?limit=${limit}`, {
+    const res = await serverFetch(req, `${BACKEND}/governance/approval-history?limit=${limit}`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })

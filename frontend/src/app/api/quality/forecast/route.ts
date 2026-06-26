@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   const connectionId = searchParams.get('connection_id') ?? 'default'
   const auth = req.headers.get('authorization') || ''
   try {
-    const res = await fetch(`${BACKEND}/quality/forecast?connection_id=${connectionId}`, {
+    const res = await serverFetch(req, `${BACKEND}/quality/forecast?connection_id=${connectionId}`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })

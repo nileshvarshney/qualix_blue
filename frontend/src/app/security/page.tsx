@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ export default function SecurityPage() {
 
   // Load from backend on mount
   useEffect(() => {
-    fetch('/api/security', { cache: 'no-store' })
+    apiFetch('/api/security', { cache: 'no-store' })
       .then(r => r.json())
       .then((data: Record<string, string>) => {
         if (!data || Object.keys(data).length === 0) return
@@ -151,7 +152,7 @@ export default function SecurityPage() {
 
   useEffect(() => {
     const load = () =>
-      fetch('/api/security/session-anomalies', { cache: 'no-store' })
+      apiFetch('/api/security/session-anomalies', { cache: 'no-store' })
         .then(r => r.ok ? r.json() : { anomalies: [] })
         .then(d => setAnomalies(d.anomalies ?? []))
         .catch(() => {})
@@ -163,7 +164,7 @@ export default function SecurityPage() {
   async function resolveAnomaly(id: string) {
     setResolvingId(id)
     try {
-      await fetch(`/api/security/session-anomalies/${id}/resolve`, { method: 'PATCH' })
+      await apiFetch(`/api/security/session-anomalies/${id}/resolve`, { method: 'PATCH' })
       setAnomalies(prev => prev.map(a => a.id === id ? { ...a, status: 'resolved' } : a))
     } finally { setResolvingId(null) }
   }
@@ -198,7 +199,7 @@ export default function SecurityPage() {
         column_access_pii_min_role: security.columnAccessPiiMinRole,
         column_access_confidential_min_role: security.columnAccessConfidentialMinRole,
       }
-      const res = await fetch('/api/security', {
+      const res = await apiFetch('/api/security', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

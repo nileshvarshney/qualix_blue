@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { DashboardStats, DimensionScores, TrendPoint } from '@/lib/types'
 import { formatNumber } from '@/lib/utils'
+import { apiFetch } from '@/lib/apiFetch'
 import { ScorePill, TrendChart } from '@/components/shared/charts'
 import TrendDrilldownPanel from '@/components/shared/TrendDrilldownPanel'
 
@@ -244,7 +245,7 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
       if (activeConnectionId) params.set('connection_id', activeConnectionId)
       url = `/api/dashboard/trend?${params.toString()}`
     }
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then((data: { trend?: TrendPoint[]; history?: TrendPoint[] }) => setTrend(data.trend ?? data.history ?? []))
       .catch(() => setTrend([]))

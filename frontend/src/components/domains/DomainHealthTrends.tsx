@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { TrendChart } from '@/components/shared/charts'
 import TrendDrilldownPanel from '@/components/shared/TrendDrilldownPanel'
 import { TrendPoint } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 export default function DomainHealthTrends({ domainId }: { domainId: string }) {
   const [trend, setTrend] = useState<TrendPoint[]>([])
@@ -11,7 +12,7 @@ export default function DomainHealthTrends({ domainId }: { domainId: string }) {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/dashboard/history/domain/${domainId}?days=30`)
+    apiFetch(`/api/dashboard/history/domain/${domainId}?days=30`)
       .then(r => r.json())
       .then((data: { history?: TrendPoint[] }) => setTrend(data.history ?? []))
       .catch(() => setTrend([]))

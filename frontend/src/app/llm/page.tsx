@@ -1,5 +1,6 @@
 'use client'
 import LLMSettingsTab from '@/components/settings/LLMSettingsTab'
+import { apiFetch } from '@/lib/apiFetch'
 
 export default function LLMPage() {
   return (

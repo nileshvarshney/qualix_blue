@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Props {
   assetId: string
@@ -16,7 +17,7 @@ export default function AssetDescriptionField({ assetId, description, inheritedF
   async function generate() {
     setGenerating(true)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/generate-description`, { method: 'POST' })
+      const res = await apiFetch(`/api/asset-registry/${assetId}/generate-description`, { method: 'POST' })
       if (res.ok) {
         const data = await res.json()
         setValue(data.description ?? '')
@@ -28,7 +29,7 @@ export default function AssetDescriptionField({ assetId, description, inheritedF
   }
 
   async function save() {
-    await fetch(`/api/asset-registry/${assetId}`, {
+    await apiFetch(`/api/asset-registry/${assetId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ description: value }),

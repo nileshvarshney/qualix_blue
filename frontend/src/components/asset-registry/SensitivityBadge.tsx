@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch'
 const SENS_STYLE: Record<string, { bg: string; color: string }> = {
   PHI:          { bg: '#fef2f2', color: '#dc2626' },
   PII:          { bg: '#fff7ed', color: '#c2410c' },

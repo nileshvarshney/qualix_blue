@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -8,7 +9,7 @@ export async function POST(req: NextRequest) {
     const { asset_id, certification_status } = await req.json()
     if (!asset_id) return NextResponse.json({ error: 'asset_id required' }, { status: 400 })
 
-    const res = await fetch(`${BACKEND}/asset-registry/${asset_id}/certify`, {
+    const res = await serverFetch(req, `${BACKEND}/asset-registry/${asset_id}/certify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ certification_status: certification_status ?? 'certified' }),

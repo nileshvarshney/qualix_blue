@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface SlackBotState {
   enabled: boolean
@@ -29,7 +30,7 @@ function SlackBotConfig() {
   async function save() {
     setSaving(true)
     try {
-      await fetch('/api/integrations/slack/configure', {
+      await apiFetch('/api/integrations/slack/configure', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -46,7 +47,7 @@ function SlackBotConfig() {
     setTestLoading(true)
     setTestResult(null)
     try {
-      const res = await fetch('/api/integrations/slack/test', {
+      const res = await apiFetch('/api/integrations/slack/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ webhook_url: config.webhookUrl, channel: config.channel }),
@@ -159,12 +160,12 @@ function DataLifecycleConfig() {
   const [actingId, setActingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/settings/retention')
+    apiFetch('/api/settings/retention')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setConfig({ ...config, ...data }) })
       .catch(() => {})
-    fetch('/api/settings/lifecycle-tiers').then(r => r.ok ? r.json() : null).then(d => { if (d) { setTiers(d.tiers ?? []); setNotifRecipients(d.notification_recipients ?? { emails: '', slack_webhook: '' }) } }).catch(() => {})
-    fetch('/api/lifecycle/expiry-requests').then(r => r.ok ? r.json() : null).then(d => { if (d) setExpiryRequests(d.requests ?? []) }).catch(() => {})
+    apiFetch('/api/settings/lifecycle-tiers').then(r => r.ok ? r.json() : null).then(d => { if (d) { setTiers(d.tiers ?? []); setNotifRecipients(d.notification_recipients ?? { emails: '', slack_webhook: '' }) } }).catch(() => {})
+    apiFetch('/api/lifecycle/expiry-requests').then(r => r.ok ? r.json() : null).then(d => { if (d) setExpiryRequests(d.requests ?? []) }).catch(() => {})
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -172,7 +173,7 @@ function DataLifecycleConfig() {
     setSaving(true)
     setSaveResult(null)
     try {
-      const res = await fetch('/api/settings/retention', {
+      const res = await apiFetch('/api/settings/retention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
@@ -189,7 +190,7 @@ function DataLifecycleConfig() {
   async function saveTiers() {
     setTierSaving(true)
     try {
-      const res = await fetch('/api/settings/lifecycle-tiers', {
+      const res = await apiFetch('/api/settings/lifecycle-tiers', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tiers, notification_recipients: notifRecipients }),
       })
@@ -201,7 +202,7 @@ function DataLifecycleConfig() {
   async function actOnExpiry(id: string, action: 'approve' | 'extend' | 'exempt', extendDays?: number) {
     setActingId(id)
     try {
-      const res = await fetch(`/api/lifecycle/expiry-requests/${id}/decision`, {
+      const res = await apiFetch(`/api/lifecycle/expiry-requests/${id}/decision`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, extend_days: extendDays }),
       })

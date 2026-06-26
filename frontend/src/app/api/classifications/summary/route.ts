@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -6,7 +7,7 @@ const B = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
   try {
-    const r = await fetch(`${B}/classifications/summary`, {
+    const r = await serverFetch(req, `${B}/classifications/summary`, {
       headers: { Authorization: req.headers.get('Authorization') ?? '' },
       cache: 'no-store',
     })
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
 
   // Fallback: build summary from per-asset sensitivity if backend lacks endpoint
   try {
-    const assetsRes = await fetch(`${B}/catalog`, {
+    const assetsRes = await serverFetch(req, `${B}/catalog`, {
       headers: { Authorization: req.headers.get('Authorization') ?? '' },
       cache: 'no-store',
     })

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface DomainScore {
   domain_id: string
@@ -144,11 +145,11 @@ export default function StewardshipPage() {
     setLoading(true)
     const connParam = activeConnectionId ? `?connection_id=${activeConnectionId}` : ''
     Promise.allSettled([
-      fetch(`/api/governance/scorecards${connParam}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/governance/approvals?status=pending${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/rules${connParam}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/comments?limit=30${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
-      fetch(`/api/stewardship/tasks${connParam}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/governance/scorecards${connParam}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/governance/approvals?status=pending${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/rules${connParam}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/comments?limit=30${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`).then(r => r.json()).catch(() => []),
+      apiFetch(`/api/stewardship/tasks${connParam}`).then(r => r.json()).catch(() => []),
     ]).then(([scoreRes, approvalRes, rulesRes, commentRes, customTasksRes]) => {
       // Ownership scores
       const rawScores = scoreRes.status === 'fulfilled' ? (Array.isArray(scoreRes.value) ? scoreRes.value : []) : []
@@ -221,7 +222,7 @@ export default function StewardshipPage() {
       const url = task.actionType === 'rule'
         ? `/api/rules/${task.actionId}/${action}`
         : `/api/governance/approvals/${task.actionId}/${action}`
-      await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      await apiFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
       setTasks(prev => prev.filter(t => t.key !== task.key))
     } catch { /* silently ignore */ }
     finally { setActioning(null) }
@@ -231,7 +232,7 @@ export default function StewardshipPage() {
     setCreating(true)
     setCreateResult(null)
     try {
-      const res = await fetch('/api/stewardship/tasks', {
+      const res = await apiFetch('/api/stewardship/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newTask),
@@ -253,7 +254,7 @@ export default function StewardshipPage() {
   async function markTaskDone(taskId: string) {
     setMarkingDone(taskId)
     try {
-      const res = await fetch(`/api/stewardship/tasks/${taskId}`, {
+      const res = await apiFetch(`/api/stewardship/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'completed' }),

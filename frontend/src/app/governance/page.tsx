@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface DomainScore {
   id: string; name: string; icon: string
@@ -160,7 +161,7 @@ function GovernancePolicyQA({ policies }: GovernancePolicyQAProps) {
       description: p.description,
     }))
     try {
-      const res = await fetch('/api/ai/governance-qa', {
+      const res = await apiFetch('/api/ai/governance-qa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question, policies: policyContext }),
@@ -267,8 +268,8 @@ export default function GovernancePage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     const [policiesRes, scorecardsRes] = await Promise.allSettled([
-      fetch('/api/governance').then(r => r.json()).catch(() => []),
-      fetch('/api/governance/scorecards').then(r => r.json()).catch(() => []),
+      apiFetch('/api/governance').then(r => r.json()).catch(() => []),
+      apiFetch('/api/governance/scorecards').then(r => r.json()).catch(() => []),
     ])
     const rawPolicies = policiesRes.status === 'fulfilled' ? (Array.isArray(policiesRes.value) ? policiesRes.value : []) : []
     const rawScores = scorecardsRes.status === 'fulfilled' ? (Array.isArray(scorecardsRes.value) ? scorecardsRes.value : []) : []
@@ -314,7 +315,7 @@ export default function GovernancePage() {
     } else if (approvalFilter === 'pending') {
       params.set('status', 'pending')
     }
-    const data = await fetch(`/api/governance/approvals?${params}`).then(r => r.json()).catch(() => [])
+    const data = await apiFetch(`/api/governance/approvals?${params}`).then(r => r.json()).catch(() => [])
     setApprovals(Array.isArray(data) ? data : [])
     setApprovalsLoaded(true)
   }, [approvalFilter])
@@ -322,7 +323,7 @@ export default function GovernancePage() {
 
   const loadApprovalHistory = useCallback(() => {
     setHistoryLoading(true)
-    fetch('/api/governance/approval-history?limit=30', { cache: 'no-store' })
+    apiFetch('/api/governance/approval-history?limit=30', { cache: 'no-store' })
       .then(r => r.ok ? r.json() : { items: [] })
       .then(d => setApprovalHistory(d.items ?? []))
       .catch(() => {})
@@ -332,7 +333,7 @@ export default function GovernancePage() {
   async function saveNotifConfig() {
     setNotifSaving(true)
     try {
-      const res = await fetch('/api/governance/notification-config', {
+      const res = await apiFetch('/api/governance/notification-config', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(notifConfig),
       })
       if (res.ok) { const d = await res.json(); setNotifConfig(d) }
@@ -343,7 +344,7 @@ export default function GovernancePage() {
   const loadViolations = useCallback(async () => {
     setLoadingViolations(true)
     try {
-      const res = await fetch('/api/governance/violations?limit=500')
+      const res = await apiFetch('/api/governance/violations?limit=500')
       const data = await res.json()
       const arr = Array.isArray(data) ? data : []
       setViolations(arr.map((v: Record<string, unknown>) => ({
@@ -375,7 +376,7 @@ export default function GovernancePage() {
   useEffect(() => {
     if (tab !== 'approvals') return
     // load notification config and history once on tab entry
-    fetch('/api/governance/notification-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setNotifConfig(d) }).catch(() => {})
+    apiFetch('/api/governance/notification-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setNotifConfig(d) }).catch(() => {})
     loadApprovalHistory()
   }, [tab, loadApprovalHistory])
   useEffect(() => {
@@ -384,7 +385,7 @@ export default function GovernancePage() {
   }, [approvalFilter, tab, loadApprovals])
   useEffect(() => {
     if (tab === 'approvals' && approvalFilter === 'rule' && !pendingRulesLoaded) {
-      fetch('/api/rules')
+      apiFetch('/api/rules')
         .then(r => r.json())
         .then(data => {
           const arr = Array.isArray(data) ? data : []
@@ -400,7 +401,7 @@ export default function GovernancePage() {
     }
   }, [tab, approvalFilter, pendingRulesLoaded])
   useEffect(() => {
-    fetch('/api/me')
+    apiFetch('/api/me')
       .then(r => r.json())
       .then(data => setCurrentUser({ role: data.role ?? 'viewer', domain_id: data.domain_id ?? null }))
       .catch(() => setCurrentUser({ role: 'viewer', domain_id: null }))
@@ -408,7 +409,7 @@ export default function GovernancePage() {
   useEffect(() => {
     if (policyPanelTab === 'history' && selectedPolicy) {
       setVersionsLoading(true)
-      fetch(`/api/governance/policies/${selectedPolicy.id}/versions`)
+      apiFetch(`/api/governance/policies/${selectedPolicy.id}/versions`)
         .then(r => r.json())
         .then(data => setPolicyVersions(Array.isArray(data) ? data : []))
         .catch(() => setPolicyVersions([]))
@@ -420,7 +421,7 @@ export default function GovernancePage() {
   const runEvaluation = async () => {
     setEvaluating(true); setEvalResult(null)
     try {
-      const res = await fetch('/api/governance/evaluate', { method: 'POST' })
+      const res = await apiFetch('/api/governance/evaluate', { method: 'POST' })
       if (res.ok) {
         setEvalResult(await res.json())
         setViolationsLoaded(false)
@@ -432,7 +433,7 @@ export default function GovernancePage() {
   const resolveViolation = async (id: string) => {
     setResolvingId(id)
     try {
-      const res = await fetch(`/api/governance/violations/${id}/resolve`, { method: 'POST' })
+      const res = await apiFetch(`/api/governance/violations/${id}/resolve`, { method: 'POST' })
       if (res.ok) {
         setViolations(prev => prev.map(v => v.id === id ? { ...v, status: 'resolved', resolvedAt: new Date().toISOString() } : v))
       }
@@ -451,10 +452,10 @@ export default function GovernancePage() {
     if (!policyForm.name) return
     try {
       if (editingPolicy) {
-        const res = await fetch('/api/governance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingPolicy.id, policy_name: policyForm.name, description: policyForm.description, severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
+        const res = await apiFetch('/api/governance', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingPolicy.id, policy_name: policyForm.name, description: policyForm.description, severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
         if (res.ok) await loadData()
       } else {
-        const res = await fetch('/api/governance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ policy_name: policyForm.name, description: policyForm.description, policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory', severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
+        const res = await apiFetch('/api/governance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ policy_name: policyForm.name, description: policyForm.description, policy_type: policyForm.enforcement === 'enforced' ? 'data_quality' : 'advisory', severity: policyForm.enforcement === 'enforced' ? 'high' : 'medium', is_active: policyForm.status === 'active' }) })
         if (res.ok) await loadData()
         else setPolicies(prev => [...prev, { id: `p${Date.now()}`, name: policyForm.name, description: policyForm.description, domain: policyForm.domain, status: policyForm.status, enforcement: policyForm.enforcement, rulesCount: 0, lastEval: 'Never', rules: [] }])
       }
@@ -465,7 +466,7 @@ export default function GovernancePage() {
   }
 
   const deactivatePolicy = async (id: string) => {
-    const res = await fetch(`/api/governance?id=${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/governance?id=${id}`, { method: 'DELETE' })
     if (res.ok) { setSelectedPolicy(null); setConfirmDeactivate(false); await loadData() }
   }
 
@@ -754,7 +755,7 @@ export default function GovernancePage() {
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.reviewed_by ?? '—'}</span>
                     {item.status === 'pending' && currentUser?.role && ['admin', 'domain_owner'].includes(currentUser.role) && (
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <button disabled={approvalActionLoading === item.approval_id} onClick={async () => { setApprovalActionLoading(item.approval_id); setApprovalActionError(null); try { const res = await fetch(`/api/governance/approvals/${item.approval_id}?action=approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!res.ok) throw new Error('Approve failed'); setApprovalsLoaded(false); loadApprovals() } catch { setApprovalActionError('Approve failed') } finally { setApprovalActionLoading(null) } }} style={{ padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontWeight: 600 }}>Approve</button>
+                        <button disabled={approvalActionLoading === item.approval_id} onClick={async () => { setApprovalActionLoading(item.approval_id); setApprovalActionError(null); try { const res = await apiFetch(`/api/governance/approvals/${item.approval_id}?action=approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!res.ok) throw new Error('Approve failed'); setApprovalsLoaded(false); loadApprovals() } catch { setApprovalActionError('Approve failed') } finally { setApprovalActionLoading(null) } }} style={{ padding: '4px 10px', borderRadius: 4, border: 'none', cursor: 'pointer', fontSize: 12, background: 'var(--status-ok-bg)', color: 'var(--status-ok-text)', fontWeight: 600 }}>Approve</button>
                         <button disabled={approvalActionLoading === item.approval_id} onClick={() => { setRejectTarget(item); setRejectNote('') }} style={{ padding: '4px 10px', borderRadius: 4, border: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, background: 'transparent', color: 'var(--text-muted)' }}>Reject</button>
                       </div>
                     )}
@@ -822,7 +823,7 @@ export default function GovernancePage() {
                       setApprovalActionLoading(rejectTarget.approval_id)
                       setApprovalActionError(null)
                       try {
-                        const res = await fetch(`/api/governance/approvals/${rejectTarget.approval_id}?action=reject`, {
+                        const res = await apiFetch(`/api/governance/approvals/${rejectTarget.approval_id}?action=reject`, {
                           method: 'POST', headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ feedback: rejectNote }),
                         })

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 
 type ContractStatus = 'active' | 'breached' | 'warning'
 type FilterType = 'all' | 'active' | 'breached'
@@ -85,7 +86,7 @@ export default function ContractsPage() {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const url = `/api/contracts${activeConnectionId ? `?${params}` : ''}`
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -127,7 +128,7 @@ export default function ContractsPage() {
       asset_id: cForm.connection,
     }
     try {
-      const res = await fetch('/api/contracts', {
+      const res = await apiFetch('/api/contracts', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
@@ -313,7 +314,7 @@ export default function ContractsPage() {
                       setEnforcementLoading(true)
                       const newState = !selected.enforcement_active
                       try {
-                        await fetch(`/api/contracts/${selected.id}/enforce`, {
+                        await apiFetch(`/api/contracts/${selected.id}/enforce`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({ active: newState }),

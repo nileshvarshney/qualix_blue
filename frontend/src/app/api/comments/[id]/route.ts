@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -8,7 +9,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const { id } = await params
     const body = await req.json()
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/comments/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/comments/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', ...(auth ? { authorization: auth } : {}) },
       body: JSON.stringify(body),
@@ -22,7 +23,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   try {
     const { id } = await params
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/comments/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/comments/${id}`, {
       method: 'DELETE',
       headers: auth ? { authorization: auth } : {},
     })

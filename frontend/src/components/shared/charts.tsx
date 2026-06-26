@@ -1,6 +1,7 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
 import { TrendPoint, ForecastPoint } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 export function ScorePill({ score }: { score: number }) {
   const color = score >= 90 ? '#16a34a' : score >= 80 ? '#ea8b3a' : '#dc2626'

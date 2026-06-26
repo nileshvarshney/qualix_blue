@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -8,7 +9,7 @@ export async function GET(req: NextRequest) {
     const connectionId = req.nextUrl.searchParams.get('connection_id')
     let url = `${BACKEND}/contracts?limit=100`
     if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/contracts`, {
+    const res = await serverFetch(req, `${BACKEND}/contracts`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
@@ -31,7 +32,7 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
     const { id, ...rest } = body
-    const res = await fetch(`${BACKEND}/contracts/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/contracts/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(rest),
     })
@@ -45,7 +46,7 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
-    const res = await fetch(`${BACKEND}/contracts/${id}`, { method: 'DELETE' })
+    const res = await serverFetch(req, `${BACKEND}/contracts/${id}`, { method: 'DELETE' })
     return NextResponse.json({ success: res.ok }, { status: res.status })
   } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }) }
 }

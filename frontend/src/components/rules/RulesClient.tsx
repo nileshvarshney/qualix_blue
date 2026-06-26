@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { useSearchParams } from 'next/navigation'
 import { useRulesGrouping } from './useRulesGrouping'
 import RuleFailedRecordsTab from './RuleFailedRecordsTab'
+import { apiFetch } from '@/lib/apiFetch'
 
 function getGroupIcon(icon: string) {
   const s = { flexShrink: 0 as const, color: 'var(--text-secondary)' }
@@ -163,7 +164,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   useEffect(() => {
     async function loadAssetNames() {
       try {
-        const res = await fetch('/api/asset-registry/tree', { cache: 'no-store' })
+        const res = await apiFetch('/api/asset-registry/tree', { cache: 'no-store' })
         if (!res.ok) return
         const tree: AssetTreeNode[] = await res.json()
         const map: Record<string, string> = {}
@@ -208,7 +209,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   const fetchTables = useCallback(async () => {
     setTablesLoading(true)
     try {
-      const res = await fetch('/api/snowflake/tables', { cache: 'no-store' })
+      const res = await apiFetch('/api/snowflake/tables', { cache: 'no-store' })
       const data = await res.json()
       const tables = (data.tables || []).map((t: { name?: string; TABLE_NAME?: string }) => t.name || t.TABLE_NAME || '').filter(Boolean)
       setAvailableTables(tables.sort())
@@ -220,7 +221,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     if (!table || table === 'ALL_TABLES') { setAvailableColumns([]); return }
     setColumnsLoading(true)
     try {
-      const res = await fetch(`/api/snowflake/columns?table=${encodeURIComponent(table)}`, { cache: 'no-store' })
+      const res = await apiFetch(`/api/snowflake/columns?table=${encodeURIComponent(table)}`, { cache: 'no-store' })
       const data = await res.json()
       const cols = (data.columns || []).map((c: { name?: string; COLUMN_NAME?: string }) => c.name || c.COLUMN_NAME || '').filter(Boolean)
       setAvailableColumns(cols.sort())
@@ -286,7 +287,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   /* ── Actions ──────────────────────────────────────────────────── */
 
   async function updateRuleStatus(id: string, newStatus: RuleStatus) {
-    await fetch(`/api/rules/${id}/status`, {
+    await apiFetch(`/api/rules/${id}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
@@ -299,7 +300,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   // Data stewards approval workflow
   async function approveRule(id: string) {
-    const res = await fetch(`/api/rules/${id}/approve`, {
+    const res = await apiFetch(`/api/rules/${id}/approve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({}),
@@ -312,7 +313,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   async function rejectRule(id: string) {
     const reason = prompt('Reason for rejecting this rule?')
     if (reason === null) return
-    const res = await fetch(`/api/rules/${id}/reject`, {
+    const res = await apiFetch(`/api/rules/${id}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rejection_reason: reason }),
@@ -324,7 +325,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
 
   async function deleteRule(id: string) {
     if (!confirm('Delete this rule?')) return
-    await fetch(`/api/rules?id=${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/rules?id=${id}`, { method: 'DELETE' })
     setRules(prev => prev.filter(r => r.id !== id))
     setSelectedIds(prev => { const s = new Set(prev); s.delete(id); return s })
     router.refresh()
@@ -333,7 +334,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
   async function testRule(id: string) {
     setTesting(id)
     try {
-      const res = await fetch(`/api/rules/${id}/run`, { method: 'POST' })
+      const res = await apiFetch(`/api/rules/${id}/run`, { method: 'POST' })
       if (res.ok) {
         const run = await res.json() as Record<string, unknown>
         const passed = run.status === 'passed'
@@ -360,7 +361,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
       for (const id of ids) await testRule(id)
     } else if (action === 'delete') {
       for (const id of ids) {
-        await fetch(`/api/rules?id=${id}`, { method: 'DELETE' })
+        await apiFetch(`/api/rules?id=${id}`, { method: 'DELETE' })
       }
       setRules(prev => prev.filter(r => !selectedIds.has(r.id)))
     } else {
@@ -395,7 +396,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     setAiGenerating(true)
     setAiGenError(null)
     try {
-      const res = await fetch('/api/ai/generate-rules', {
+      const res = await apiFetch('/api/ai/generate-rules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: aiPrompt, connection_id: form.connectionId }),
@@ -447,7 +448,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     const tableName = form.tableName || (isGeneric ? 'ALL_TABLES' : '')
 
     try {
-      const res = await fetch('/api/rules', {
+      const res = await apiFetch('/api/rules', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: form.name, description: form.description, category: form.category, type: form.type, connectionId: form.connectionId, tableName, columnName: form.columnName || undefined, severity: form.severity, status: form.status, scope: form.scope, parameters: params })
       })
@@ -487,7 +488,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
     if (editForm.type === 'llm_semantic_check') { params.sample_size = parseInt(editForm.paramSampleSize || '100'); params.validation_prompt = editForm.paramValidationPrompt }
     if (['custom_sql', 'custom_sql_check'].includes(editForm.type)) params.sql = editForm.customSql
 
-    await fetch('/api/rules', {
+    await apiFetch('/api/rules', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         id: editDrawer.id, name: editForm.name, description: editForm.description,
@@ -684,7 +685,7 @@ export default function RulesClient({ initialRules, connections }: Props) {
                 disabled={schemaValidSaving}
                 onClick={async () => {
                   setSchemaValidSaving(true)
-                  await fetch('/api/rules/schema-validation-config', {
+                  await apiFetch('/api/rules/schema-validation-config', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(schemaValidConfig),
                   }).catch(() => {})

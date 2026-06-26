@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -15,7 +16,7 @@ const MOCK = {
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') || ''
   try {
-    const res = await fetch(`${BACKEND}/security/session-anomalies`, {
+    const res = await serverFetch(req, `${BACKEND}/security/session-anomalies`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface TeamMember {
   user_id: string
@@ -73,7 +74,7 @@ export default function TeamsPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/teams')
+    apiFetch('/api/teams')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setTeams((Array.isArray(data) ? data : []).map((t, i) => mapTeam(t, i)))
@@ -88,7 +89,7 @@ export default function TeamsPage() {
     if (team.membersLoaded) return
 
     setLoadingMembers(team.team_id)
-    fetch(`/api/teams/${team.team_id}`)
+    apiFetch(`/api/teams/${team.team_id}`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         const members = mapMembers(data)
@@ -103,13 +104,13 @@ export default function TeamsPage() {
     if (!createForm.team_name) return
     setCreateSaving(true)
     try {
-      const res = await fetch('/api/teams', {
+      const res = await apiFetch('/api/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team_name: createForm.team_name, description: createForm.description || null }),
       })
       if (!res.ok) throw new Error(`Failed to create team: ${res.status}`)
-      const listRes = await fetch('/api/teams')
+      const listRes = await apiFetch('/api/teams')
       if (!listRes.ok) throw new Error('Failed to reload teams')
       const data: Record<string, unknown>[] = await listRes.json()
       setTeams((Array.isArray(data) ? data : []).map((t, i) => mapTeam(t, i)))
@@ -126,7 +127,7 @@ export default function TeamsPage() {
     if (!editTeamData || !editForm.team_name) return
     setEditSaving(true)
     try {
-      const res = await fetch(`/api/teams/${editTeamData.team_id}`, {
+      const res = await apiFetch(`/api/teams/${editTeamData.team_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ team_name: editForm.team_name, description: editForm.description || null }),
@@ -146,13 +147,13 @@ export default function TeamsPage() {
     if (!addMemberTeam || !memberEmail) return
     setAddMemberSaving(true)
     try {
-      const res = await fetch(`/api/teams/${addMemberTeam.team_id}`, {
+      const res = await apiFetch(`/api/teams/${addMemberTeam.team_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ add_member: { email: memberEmail, role: memberRole } }),
       })
       if (!res.ok) throw new Error(`Failed to add member: ${res.status}`)
-      const memberRes = await fetch(`/api/teams/${addMemberTeam.team_id}`)
+      const memberRes = await apiFetch(`/api/teams/${addMemberTeam.team_id}`)
       if (!memberRes.ok) throw new Error('Failed to reload members')
       const data: Record<string, unknown> = await memberRes.json()
       const members = mapMembers(data)
@@ -172,7 +173,7 @@ export default function TeamsPage() {
     if (!confirm(`Delete team "${team.team_name}"? This cannot be undone.`)) return
     setDeletingId(team.team_id)
     try {
-      const res = await fetch(`/api/teams/${team.team_id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/teams/${team.team_id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`Failed to delete team: ${res.status}`)
       setTeams(prev => prev.filter(t => t.team_id !== team.team_id))
       if (expandedId === team.team_id) setExpandedId(null)

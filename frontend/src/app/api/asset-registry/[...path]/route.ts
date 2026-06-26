@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 import { maskSensitiveColumns, extractUserRole } from '@/lib/masking'
 
 export const dynamic = 'force-dynamic'
@@ -8,11 +9,11 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 const sensCache = new Map<string, { data: Record<string, string>; expires: number }>()
 const SENS_TTL = 5 * 60 * 1000 // 5 minutes
 
-async function getSensitivityMap(assetId: string, auth: string): Promise<Record<string, string>> {
+async function getSensitivityMap(req: NextRequest, assetId: string, auth: string): Promise<Record<string, string>> {
   const cached = sensCache.get(assetId)
   if (cached && Date.now() < cached.expires) return cached.data
   try {
-    const r = await fetch(
+    const r = await serverFetch(req,
       `${BACKEND}/classifications/assets/${assetId}/classifications`,
       { headers: { Authorization: auth }, cache: 'no-store' },
     )
@@ -40,19 +41,19 @@ export async function GET(
     const { path } = await params
     const pathStr = path.join('/')
     const auth = req.headers.get('Authorization') ?? ''
-    const res = await fetch(`${BACKEND}/asset-registry/${pathStr}${req.nextUrl.search}`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}${req.nextUrl.search}`, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
 
     if (pathStr.includes('profiling') || pathStr.includes('preview') || pathStr.includes('sample')) {
       try {
-        const secRes = await fetch(`${BACKEND}/security/settings`, {
+        const secRes = await serverFetch(req, `${BACKEND}/security/settings`, {
           headers: auth ? { Authorization: auth } : {},
           cache: 'no-store',
         }).catch(() => null)
         const secSettings = secRes?.ok ? await secRes.json().catch(() => ({})) as Record<string, unknown> : {}
         if (secSettings.column_level_access_control === true) {
           const assetId = path[0] ?? ''
-          const sensitivityMap = await getSensitivityMap(assetId, auth)
+          const sensitivityMap = await getSensitivityMap(req, assetId, auth)
           const role = extractUserRole(auth)
           try {
             return NextResponse.json(maskSensitiveColumns(data, role, sensitivityMap), { status: res.status })
@@ -79,7 +80,7 @@ export async function POST(
     const { path } = await params
     const pathStr = path.join('/')
     const body = await req.text()
-    const res = await fetch(`${BACKEND}/asset-registry/${pathStr}`, {
+    const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -99,7 +100,7 @@ export async function PUT(
     const { path } = await params
     const pathStr = path.join('/')
     const body = await req.text()
-    const res = await fetch(`${BACKEND}/asset-registry/${pathStr}`, {
+    const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body,
@@ -118,7 +119,7 @@ export async function DELETE(
   try {
     const { path } = await params
     const pathStr = path.join('/')
-    const res = await fetch(`${BACKEND}/asset-registry/${pathStr}`, { method: 'DELETE' })
+    const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}`, { method: 'DELETE' })
     const data = await res.json().catch(() => ({}))
     return NextResponse.json(data, { status: res.status })
   } catch (e) {

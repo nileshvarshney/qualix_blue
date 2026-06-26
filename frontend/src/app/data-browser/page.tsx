@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Row = Record<string, unknown>
 
@@ -52,7 +53,7 @@ export default function DataBrowserPage() {
   const load = useCallback(async () => {
     setLoading(true); setError(null)
     try {
-      const res = await fetch('/api/snowflake/overview')
+      const res = await apiFetch('/api/snowflake/overview')
       const d   = await res.json()
       if (!res.ok) throw new Error(d.error ?? 'Failed')
       setData(d)
@@ -356,7 +357,7 @@ function ColumnLoader({ tableName }: { tableName: string }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/snowflake/columns?table=${encodeURIComponent(tableName)}`)
+    apiFetch(`/api/snowflake/columns?table=${encodeURIComponent(tableName)}`)
       .then(r => r.json())
       .then(d => { setCols(d.columns); setLoading(false) })
       .catch(() => setLoading(false))

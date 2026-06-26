@@ -193,7 +193,7 @@ function NotificationBell() {
 
   const load = async () => {
     try {
-      const data = await fetch('/api/notifications').then(r => r.json()).catch(() => [])
+      const data = await apiFetch('/api/notifications').then(r => r.json()).catch(() => [])
       setNotifications(Array.isArray(data) ? data.slice(0, 20) : [])
     } catch {}
   }
@@ -213,12 +213,12 @@ function NotificationBell() {
   }, [])
 
   const markAllRead = async () => {
-    await fetch('/api/notifications?action=read-all', { method: 'POST' }).catch(() => {})
+    await apiFetch('/api/notifications?action=read-all', { method: 'POST' }).catch(() => {})
     setNotifications(ns => ns.map(n => ({ ...n, is_read: true })))
   }
 
   const markOne = async (id: string) => {
-    await fetch(`/api/notifications?id=${id}`, { method: 'POST' }).catch(() => {})
+    await apiFetch(`/api/notifications?id=${id}`, { method: 'POST' }).catch(() => {})
     setNotifications(ns => ns.map(n => n.notification_id === id ? { ...n, is_read: true } : n))
   }
 
@@ -407,11 +407,11 @@ function GlobalSearch() {
     setLoading(true)
     try {
       const sources = await Promise.allSettled([
-        fetch(`/api/catalog?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
-        fetch(`/api/issues?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
-        fetch(`/api/anomalies?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
-        fetch(`/api/glossary?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
-        fetch(`/api/contracts?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        apiFetch(`/api/catalog?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        apiFetch(`/api/issues?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        apiFetch(`/api/anomalies?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        apiFetch(`/api/glossary?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
+        apiFetch(`/api/contracts?search=${encodeURIComponent(q)}&limit=5`).then(r => r.json()),
       ])
       const mapped: SearchResult[] = []
       const [catalog, issues, anomalies, glossary, contracts] = sources

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface CostOverview {
   total_cost_impact: number
@@ -59,9 +60,9 @@ export default function CostPage() {
     setLoading(true)
     const connSuffix = activeConnectionId ? `&connection_id=${activeConnectionId}` : ''
     Promise.allSettled([
-      fetch(`/api/cost?endpoint=overview${connSuffix}`).then(r => r.json()),
-      fetch(`/api/cost?endpoint=by-domain${connSuffix}`).then(r => r.json()),
-      fetch(`/api/cost?endpoint=top-tables${connSuffix}`).then(r => r.json()),
+      apiFetch(`/api/cost?endpoint=overview${connSuffix}`).then(r => r.json()),
+      apiFetch(`/api/cost?endpoint=by-domain${connSuffix}`).then(r => r.json()),
+      apiFetch(`/api/cost?endpoint=top-tables${connSuffix}`).then(r => r.json()),
     ]).then(([ov, dom, top]) => {
       if (ov.status === 'fulfilled' && ov.value) setOverview(ov.value)
       if (dom.status === 'fulfilled') {

@@ -245,7 +245,7 @@ function CatalogInner() {
     setBulkApplying(true)
     setBulkError(null)
     try {
-      const res = await fetch('/api/asset-registry/bulk-update', {
+      const res = await apiFetch('/api/asset-registry/bulk-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ asset_ids: Array.from(selected), patch }),
@@ -287,7 +287,7 @@ function CatalogInner() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/domains')
+    apiFetch('/api/domains')
       .then(r => r.json())
       .then(data => {
         const list = Array.isArray(data) ? data : []
@@ -298,7 +298,7 @@ function CatalogInner() {
 
   useEffect(() => {
     const url = activeConnectionId ? `/api/catalog?connection_id=${activeConnectionId}` : '/api/catalog'
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(data => {
         const list: Asset[] = (Array.isArray(data) ? data : []).filter((a: Asset) => !!a.connection_name)
@@ -316,7 +316,7 @@ function CatalogInner() {
         if (!sensLoaded.current && list.length > 0) {
           sensLoaded.current = true
           const ids = list.map((a: Asset) => a.asset_id)
-          fetch('/api/catalog/sensitivity', {
+          apiFetch('/api/catalog/sensitivity', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ asset_ids: ids }),
@@ -329,7 +329,7 @@ function CatalogInner() {
         if (!termLinksLoaded.current && list.length > 0) {
           termLinksLoaded.current = true
           const ids = list.map((a: Asset) => a.asset_id).join(',')
-          fetch(`/api/glossary/bulk-asset-links?asset_ids=${ids}`)
+          apiFetch(`/api/glossary/bulk-asset-links?asset_ids=${ids}`)
             .then(r => r.json())
             .then(data => {
               if (data && typeof data === 'object') {

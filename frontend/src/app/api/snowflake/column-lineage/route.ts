@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
     ? `${BACKEND}/lineage/columns?connection_id=${connectionId}`
     : `${BACKEND}/lineage/columns`
   try {
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ edges: [] })
     return NextResponse.json(await res.json())
   } catch {

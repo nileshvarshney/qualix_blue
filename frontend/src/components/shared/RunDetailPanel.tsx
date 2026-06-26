@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
 type LogLevel  = 'DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL'
@@ -79,7 +80,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
     setRun(null)
     setLogs([])
 
-    fetch(`/api/scan-jobs/${jobId}/runs/${runId}`)
+    apiFetch(`/api/scan-jobs/${jobId}/runs/${runId}`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (cancelled) return
@@ -105,7 +106,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
       })
       .catch(() => { if (!cancelled) setLoadingRun(false) })
 
-    fetch(`/api/scan-jobs/${jobId}/runs/${runId}/logs`)
+    apiFetch(`/api/scan-jobs/${jobId}/runs/${runId}/logs`)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         if (cancelled) return
@@ -126,7 +127,7 @@ export default function RunDetailPanel({ jobId, runId, onClose }: { jobId: strin
 
   function cancelRun() {
     setCancelling(true)
-    fetch(`/api/scan-jobs/${jobId}/runs/${runId}`, { method: 'POST' })
+    apiFetch(`/api/scan-jobs/${jobId}/runs/${runId}`, { method: 'POST' })
       .then(res => { if (res.ok) setRun(r => r ? { ...r, status: 'cancelled' } : r) })
       .catch(() => {})
       .finally(() => setCancelling(false))

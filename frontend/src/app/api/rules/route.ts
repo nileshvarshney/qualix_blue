@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Rule } from '@/lib/types'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -38,12 +39,12 @@ export async function GET(req: NextRequest) {
     if (domainId) url += `&domain_id=${encodeURIComponent(domainId)}`
     if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
 
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req,url, { cache: 'no-store' })
     if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json()
     const items: Record<string, unknown>[] = data.items ?? []
 
-    const connRes = await fetch(`${BACKEND}/connections`, { cache: 'no-store' })
+    const connRes = await serverFetch(req,`${BACKEND}/connections`, { cache: 'no-store' })
     const connData = connRes.ok ? await connRes.json() : []
     const connections: Record<string, unknown>[] = Array.isArray(connData) ? connData : (connData?.items ?? [])
     const defaultConnId = connections[0]?.connection_id as string ?? ''
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
     const { name, description, category, type, connectionId, tableName, columnName, severity, parameters } = body
 
     // Resolve asset_id + domain_id + subdomain_id from connectionId + tableName
-    const assetRes = await fetch(
+    const assetRes = await serverFetch(req,
       `${BACKEND}/assets?connection_id=${encodeURIComponent(connectionId ?? '')}&sf_table_name=${encodeURIComponent(tableName ?? '')}&limit=1`,
       { cache: 'no-store' }
     )
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
       status: 'draft',
     }
 
-    const res = await fetch(`${BACKEND}/rules`, {
+    const res = await serverFetch(req,`${BACKEND}/rules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(createBody),
@@ -161,7 +162,7 @@ export async function PUT(req: NextRequest) {
       is_active: status === 'active',
     }
 
-    const res = await fetch(`${BACKEND}/rules/${id}`, {
+    const res = await serverFetch(req,`${BACKEND}/rules/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updateBody),
@@ -182,7 +183,7 @@ export async function DELETE(req: NextRequest) {
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
 
-    const res = await fetch(`${BACKEND}/rules/${id}`, { method: 'DELETE', cache: 'no-store' })
+    const res = await serverFetch(req,`${BACKEND}/rules/${id}`, { method: 'DELETE', cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ error: 'Delete failed' }, { status: res.status })
     return NextResponse.json({ success: true })
   } catch (e) {

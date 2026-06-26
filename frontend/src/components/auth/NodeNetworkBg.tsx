@@ -1,3 +1,4 @@
+import { apiFetch } from '@/lib/apiFetch'
 export default function NodeNetworkBg() {
   return (
     <div style={{ position: 'fixed', inset: 0, overflow: 'hidden', zIndex: 0 }}>

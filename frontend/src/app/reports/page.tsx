@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import ReportsClient from '@/components/reports/ReportsClient'
 import type { Report } from '@/lib/types'
 import { loadReports } from '@/lib/seedData'
+import { apiFetch } from '@/lib/apiFetch'
 
 export default function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])

@@ -1,4 +1,5 @@
 'use client'
+import { apiFetch } from '@/lib/apiFetch'
 
 /* Blinking star field — DQ keywords in orange, AI keywords in blue.
    Stars are SVG groups animated with CSS keyframes at staggered delays. */

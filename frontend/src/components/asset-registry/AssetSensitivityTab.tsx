@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
   const loadClassifications = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications`, { cache: 'no-store' })
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications`, { cache: 'no-store' })
       if (!res.ok) { setClassifications([]); return }
       const list: Classification[] = await res.json()
       setClassifications(Array.isArray(list) ? list : [])
@@ -97,7 +98,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
   useEffect(() => {
     loadClassifications()
     // Load security settings for policy display
-    fetch('/api/security').then(r => r.ok ? r.json() : null).then(d => {
+    apiFetch('/api/security').then(r => r.ok ? r.json() : null).then(d => {
       if (d) {
         setPiiMinRole(d.column_access_pii_min_role || 'data_steward')
         setConfMinRole(d.column_access_confidential_min_role || 'analyst')
@@ -118,7 +119,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
   async function removeTag(c: Classification) {
     setRemoving(c.classification_id)
     try {
-      await fetch(`/api/classifications/assets/${assetId}/classifications/${c.classification_id}`, { method: 'DELETE' })
+      await apiFetch(`/api/classifications/assets/${assetId}/classifications/${c.classification_id}`, { method: 'DELETE' })
       setClassifications(prev => prev.filter(x => x.classification_id !== c.classification_id))
     } finally { setRemoving(null) }
   }
@@ -127,7 +128,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
   async function saveEdit(c: Classification) {
     setSaving(true)
     try {
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications`, {
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ column_name: c.column_name, classification: editCls, justification: editJust }),
@@ -147,7 +148,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
     setAccepted(new Set())
     setApplyResult(null)
     try {
-      const res = await fetch(`/api/ai/discover-pii/${assetId}`, { method: 'POST' })
+      const res = await apiFetch(`/api/ai/discover-pii/${assetId}`, { method: 'POST' })
       const data = await res.json()
       if (data.message) setScanMsg(data.message)
       const f: PiiFinding[] = (data.findings ?? []).filter((f: PiiFinding) => f.suggested_classification !== 'PUBLIC')
@@ -169,7 +170,7 @@ export default function AssetSensitivityTab({ assetId }: { assetId: string }) {
           classification: f.suggested_classification,
           justification: `AI scan: ${f.pii_type} (${confidencePct(f.confidence)}% confidence)`,
         }))
-      const res = await fetch(`/api/classifications/assets/${assetId}/classifications/bulk`, {
+      const res = await apiFetch(`/api/classifications/assets/${assetId}/classifications/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ classifications: toApply }),

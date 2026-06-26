@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type AppliedTag = { id: string; tag_id: string; tag_name: string | null; color: string | null }
 type CatalogTag = { tag_id: string; tag_name: string; color: string }
@@ -34,7 +35,7 @@ export default function AssetTagsSection({ assetId, editing }: Props) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/asset-registry/${assetId}/tags`)
+    apiFetch(`/api/asset-registry/${assetId}/tags`)
       .then(res => (res.ok ? res.json() : []))
       .then(setTags)
       .catch(() => setError('Failed to load tags'))
@@ -42,7 +43,7 @@ export default function AssetTagsSection({ assetId, editing }: Props) {
 
   useEffect(() => {
     if (!editing || catalogLoaded) return
-    fetch('/api/tags')
+    apiFetch('/api/tags')
       .then(res => (res.ok ? res.json() : []))
       .then(data => { setCatalog(data); setCatalogLoaded(true) })
       .catch(() => setError('Failed to load tag catalog'))
@@ -53,7 +54,7 @@ export default function AssetTagsSection({ assetId, editing }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/tags`, {
+      const res = await apiFetch(`/api/asset-registry/${assetId}/tags`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tag_ids: [selected] }),
@@ -71,7 +72,7 @@ export default function AssetTagsSection({ assetId, editing }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/tags/${tagId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/asset-registry/${assetId}/tags/${tagId}`, { method: 'DELETE' })
       if (!res.ok) { setError('Failed to remove tag'); return }
       setTags(t => t.filter(x => x.tag_id !== tagId))
     } finally {

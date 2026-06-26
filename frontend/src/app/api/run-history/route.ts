@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server'
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     if (endDate) url += `&end_date=${encodeURIComponent(endDate)}`
     if (connectionId) url += `&connection_id=${encodeURIComponent(connectionId)}`
 
-    const res = await fetch(url, { cache: 'no-store' })
+    const res = await serverFetch(req, url, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
 

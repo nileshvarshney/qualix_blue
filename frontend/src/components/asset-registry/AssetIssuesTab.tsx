@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import CreateIssueModal from '@/components/issues/CreateIssueModal'
 import IssueDetailPanel from '@/components/issues/IssueDetailPanel'
 import { Issue, IssueSeverity, IssueStatus } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const SEV_CFG: Record<IssueSeverity, { bg: string; color: string }> = {
   critical: { bg: 'var(--status-error-bg)',   color: 'var(--status-error-text)' },
@@ -30,7 +31,7 @@ export default function AssetIssuesTab({ assetId, domainId }: { assetId: string;
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
-    fetch(`/api/issues?asset_id=${assetId}&limit=50`)
+    apiFetch(`/api/issues?asset_id=${assetId}&limit=50`)
       .then(r => r.json())
       .then(data => setItems(Array.isArray(data) ? data : []))
       .catch(() => setItems([]))

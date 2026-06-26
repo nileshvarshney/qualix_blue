@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
   const table = searchParams.get('table')
   if (!connectionId || !table) return NextResponse.json({ rows: [], columns: [] })
   try {
-    const res = await fetch(
+    const res = await serverFetch(req, 
       `${BACKEND}/connections/${connectionId}/preview?table_name=${encodeURIComponent(table)}&limit=100`,
       { cache: 'no-store' }
     )

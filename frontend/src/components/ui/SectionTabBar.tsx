@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { NotificationBadge } from '@/components/nav/NotificationBadge'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Tab = { href: string; label: string }
 type Section = { key: string; tabs: Tab[] }

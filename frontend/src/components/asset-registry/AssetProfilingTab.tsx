@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface ProfileSummary {
   asset_id: string
@@ -98,7 +99,7 @@ export default function AssetProfilingTab({
       const url = runId
         ? `/api/profile-results/assets/${assetId}/summary?run_id=${runId}`
         : `/api/profile-results/assets/${assetId}/summary`
-      const res = await fetch(url)
+      const res = await apiFetch(url)
       setSummary(res.ok ? await res.json() : null)
     } finally {
       setLoading(false)
@@ -111,7 +112,7 @@ export default function AssetProfilingTab({
       const url = runId
         ? `/api/profile-results/assets/${assetId}/columns?run_id=${runId}`
         : `/api/profile-results/assets/${assetId}/columns`
-      const res = await fetch(url)
+      const res = await apiFetch(url)
       setColumns(res.ok ? await res.json() : [])
     } finally {
       setColumnsLoading(false)
@@ -119,7 +120,7 @@ export default function AssetProfilingTab({
   }, [assetId])
 
   const loadHistory = useCallback(async () => {
-    const res = await fetch(`/api/profile-results/assets/${assetId}/history`)
+    const res = await apiFetch(`/api/profile-results/assets/${assetId}/history`)
     setHistory(res.ok ? await res.json() : [])
   }, [assetId])
 
@@ -137,7 +138,7 @@ export default function AssetProfilingTab({
     setTriggering(true)
     setTriggerMsg(null)
     try {
-      const createRes = await fetch('/api/scan-jobs', {
+      const createRes = await apiFetch('/api/scan-jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +153,7 @@ export default function AssetProfilingTab({
         setTriggerMsg('Failed to create profile scan job')
         return
       }
-      await fetch(`/api/scan-jobs/${job.job_id}/trigger`, {
+      await apiFetch(`/api/scan-jobs/${job.job_id}/trigger`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: '{}',

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -11,7 +12,7 @@ export async function GET(req: NextRequest) {
     if (searchParams.get('entity_id')) params.set('entity_id', searchParams.get('entity_id')!)
     if (searchParams.get('limit')) params.set('limit', searchParams.get('limit')!)
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/comments?${params}`, {
+    const res = await serverFetch(req, `${BACKEND}/comments?${params}`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/comments`, {
+    const res = await serverFetch(req, `${BACKEND}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(auth ? { authorization: auth } : {}) },
       body: JSON.stringify(body),

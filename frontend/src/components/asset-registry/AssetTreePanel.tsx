@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useImperativeHandle, forwardRef, useRef } from 'react'
 import { Database, Layers, Table2, Eye, Server, FileText, List } from 'lucide-react'
 import { SensitivityBadge } from '@/components/asset-registry/SensitivityBadge'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface TreeNode {
   asset_id: string
@@ -140,7 +141,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
     const url = connId
       ? `/api/asset-registry/tree?depth=2&source_id=${encodeURIComponent(connId)}`
       : '/api/asset-registry/tree?depth=2'
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then(data => { setRoots(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -173,7 +174,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
     const ids = collectLeafIds(roots)
     if (ids.length === 0) return
     sensLoaded.current = true
-    fetch('/api/catalog/sensitivity', {
+    apiFetch('/api/catalog/sensitivity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ asset_ids: ids }),
@@ -192,7 +193,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
       const node = findNode(prev, assetId)
       if (!node) return prev
       if (!node._loaded && !node._expanded) {
-        fetch(`/api/asset-registry/${assetId}/children`)
+        apiFetch(`/api/asset-registry/${assetId}/children`)
           .then(r => r.json())
           .then(children => {
             // Leaf nodes (e.g. columns) come back from the API without a `children`
@@ -214,7 +215,7 @@ const AssetTreePanel = forwardRef<AssetTreePanelHandle, {
     if (!q.trim()) { setSearchResults(null); return }
     setSearching(true)
     try {
-      const res = await fetch(`/api/asset-registry/search?q=${encodeURIComponent(q)}&limit=30`)
+      const res = await apiFetch(`/api/asset-registry/search?q=${encodeURIComponent(q)}&limit=30`)
       const data = await res.json()
       const results: TreeNode[] = Array.isArray(data) ? data : []
       setSearchResults(results)

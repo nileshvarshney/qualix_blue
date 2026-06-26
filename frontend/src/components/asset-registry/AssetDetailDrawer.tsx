@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { apiFetch } from '@/lib/apiFetch'
 import AssetTagsSection from './AssetTagsSection'
 import AssetDocumentsSection from './AssetDocumentsSection'
 import AssetColumnsSection from './AssetColumnsSection'
@@ -119,7 +120,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
   async function loadSubdomains(domainId: string) {
     if (!domainId) { setSubdomains([]); return }
     try {
-      const res = await fetch(`/api/subdomains?domain_id=${encodeURIComponent(domainId)}`)
+      const res = await apiFetch(`/api/subdomains?domain_id=${encodeURIComponent(domainId)}`)
       if (res.ok) setSubdomains(await res.json())
       else setError('Failed to load subdomains')
     } catch {
@@ -136,7 +137,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
     setEditing(true)
     if (!domainsLoaded) {
       try {
-        const res = await fetch('/api/domains-list')
+        const res = await apiFetch('/api/domains-list')
         if (res.ok) {
           setDomains(await res.json())
           setDomainsLoaded(true)
@@ -187,7 +188,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
         return
       }
 
-      const res = await fetch(`/api/asset-registry/${asset.asset_id}`, {
+      const res = await apiFetch(`/api/asset-registry/${asset.asset_id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -229,7 +230,7 @@ export default function AssetDetailDrawer({ asset, onClose, onUpdated }: Props) 
       setHistoryLoading(true)
       setHistoryError(null)
       try {
-        const res = await fetch(`/api/asset-registry/${asset.asset_id}/history`)
+        const res = await apiFetch(`/api/asset-registry/${asset.asset_id}/history`)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         setHistory(await res.json())
       } catch (e: unknown) {
@@ -484,7 +485,7 @@ function LinkedGlossaryTerms({ assetId }: { assetId: string }) {
     setOpen(o => {
       if (!o && terms === null) {
         setLoading(true)
-        fetch(`/api/glossary?asset_id=${encodeURIComponent(assetId)}`)
+        apiFetch(`/api/glossary?asset_id=${encodeURIComponent(assetId)}`)
           .then(r => r.json())
           .then(data => {
             const list = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : [])

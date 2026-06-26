@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -7,7 +8,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const auth = req.headers.get('Authorization')
 
-    const res = await fetch(`${BACKEND}/ai/agent`, {
+    const res = await serverFetch(req, `${BACKEND}/ai/agent`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

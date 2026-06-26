@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -12,9 +13,9 @@ export async function GET(
 
   try {
     const [runRes, samplesRes] = await Promise.all([
-      fetch(`${BACKEND}/runs/${runId}`, { cache: 'no-store' }),
+      serverFetch(req, `${BACKEND}/runs/${runId}`, { cache: 'no-store' }),
       includeSamples
-        ? fetch(`${BACKEND}/runs/${runId}/samples?limit=20`, { cache: 'no-store' })
+        ? serverFetch(req, `${BACKEND}/runs/${runId}/samples?limit=20`, { cache: 'no-store' })
         : Promise.resolve(null),
     ])
 

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { Connection } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 type CheckState = 'none' | 'partial' | 'all'
 type FilterMode = 'include' | 'exclude'
@@ -61,7 +62,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
         : (connection.excludedDatabases ?? [])
     )
 
-    fetch(`/api/connections/${connection.id}/databases`)
+    apiFetch(`/api/connections/${connection.id}/databases`)
       .then(r => r.json())
       .then(data => {
         if (data.error) {
@@ -157,7 +158,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
 
     setDbs(prev => prev.map(d => d.name === dbName ? { ...d, expanded: true, loading: true } : d))
     try {
-      const res = await fetch(`/api/connections/${connection.id}/schemas?database=${encodeURIComponent(dbName)}`)
+      const res = await apiFetch(`/api/connections/${connection.id}/schemas?database=${encodeURIComponent(dbName)}`)
       const data = await res.json()
       const schemaNames: string[] = (data.schemas ?? []).map((x: { name: string }) => x.name)
 
@@ -236,7 +237,7 @@ export default function ConnectionExclusionsPanel({ connection, onClose, onSaved
     }
 
     try {
-      const res = await fetch(`/api/connections/${connection.id}`, {
+      const res = await apiFetch(`/api/connections/${connection.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

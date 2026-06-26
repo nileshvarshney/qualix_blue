@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -6,7 +7,7 @@ const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(req: NextRequest) {
   try {
     const auth = req.headers.get('Authorization')
-    const res = await fetch(`${BACKEND}/auth/me`, {
+    const res = await serverFetch(req, `${BACKEND}/auth/me`, {
       cache: 'no-store',
       headers: { ...(auth ? { Authorization: auth } : {}) },
     })
@@ -22,7 +23,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json()
     const auth = req.headers.get('Authorization')
-    const res = await fetch(`${BACKEND}/auth/me`, {
+    const res = await serverFetch(req, `${BACKEND}/auth/me`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',

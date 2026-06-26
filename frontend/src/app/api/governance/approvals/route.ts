@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -10,7 +11,7 @@ export async function GET(req: NextRequest) {
     if (searchParams.get('entity_type')) params.set('entity_type', searchParams.get('entity_type')!)
     if (searchParams.get('status')) params.set('status', searchParams.get('status')!)
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/governance/approvals?${params}`, {
+    const res = await serverFetch(req, `${BACKEND}/governance/approvals?${params}`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const auth = req.headers.get('authorization') || ''
-    const res = await fetch(`${BACKEND}/governance/approvals`, {
+    const res = await serverFetch(req, `${BACKEND}/governance/approvals`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(auth ? { authorization: auth } : {}) },
       body: JSON.stringify(body),

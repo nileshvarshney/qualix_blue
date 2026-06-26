@@ -1,5 +1,6 @@
 import LoginCard from '@/components/auth/LoginCard'
 import StarFieldBg from '@/components/auth/StarFieldBg'
+import { apiFetch } from '@/lib/apiFetch'
 
 export default async function LoginPage({
   searchParams,

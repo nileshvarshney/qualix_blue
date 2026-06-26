@@ -1,14 +1,15 @@
 // src/components/nav/NotificationBadge.tsx
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 const POLL_MS = 60_000
 
 async function fetchPendingCount(): Promise<number> {
   try {
     const [tasks, approvals] = await Promise.allSettled([
-      fetch('/api/stewardship/tasks').then(r => r.json()),
-      fetch('/api/governance/approvals?status=pending').then(r => r.json()),
+      apiFetch('/api/stewardship/tasks').then(r => r.json()),
+      apiFetch('/api/governance/approvals?status=pending').then(r => r.json()),
     ])
 
     let count = 0

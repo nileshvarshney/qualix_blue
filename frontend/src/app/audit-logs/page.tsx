@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type FilterType = 'all' | 'failed' | 'system' | 'user'
 
@@ -80,7 +81,7 @@ export default function AuditLogsPage() {
   const [alertTestLoading, setAlertTestLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/api/audit')
+    apiFetch('/api/audit')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -123,15 +124,15 @@ export default function AuditLogsPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/audit/anomalies')
+    apiFetch('/api/audit/anomalies')
       .then(r => r.json())
       .then(data => setAnomalies(Array.isArray(data) ? data : []))
       .catch(() => {})
-    fetch('/api/audit/alert-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setAlertConfig(d) }).catch(() => {})
+    apiFetch('/api/audit/alert-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setAlertConfig(d) }).catch(() => {})
   }, [])
 
   useEffect(() => {
-    fetch('/api/audit/coverage')
+    apiFetch('/api/audit/coverage')
       .then(r => r.json())
       .then(data => data && typeof data.coverage_pct === 'number' ? setCoverage(data) : null)
       .catch(() => {})
@@ -170,7 +171,7 @@ export default function AuditLogsPage() {
     setVerifyLoading(true)
     setShowVerifyModal(true)
     try {
-      const r = await fetch('/api/audit/verify')
+      const r = await apiFetch('/api/audit/verify')
       if (!r.ok) { setVerifyResult(null); return; }
       const data = await r.json()
       setVerifyResult(data)
@@ -181,7 +182,7 @@ export default function AuditLogsPage() {
   async function saveAlertConfig() {
     setAlertSaving(true)
     try {
-      const res = await fetch('/api/audit/alert-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(alertConfig) })
+      const res = await apiFetch('/api/audit/alert-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(alertConfig) })
       if (res.ok) setAlertConfig(await res.json())
       setAlertSaved(true); setTimeout(() => setAlertSaved(false), 2500)
     } finally { setAlertSaving(false) }
@@ -190,7 +191,7 @@ export default function AuditLogsPage() {
   async function testAlertConfig() {
     setAlertTestLoading(true); setAlertTestResult(null)
     try {
-      const res = await fetch('/api/audit/alert-config/test', { method: 'POST' })
+      const res = await apiFetch('/api/audit/alert-config/test', { method: 'POST' })
       const d = await res.json()
       setAlertTestResult(d.message ?? (d.ok ? 'Test sent' : 'Failed'))
     } catch { setAlertTestResult('Could not reach backend') }

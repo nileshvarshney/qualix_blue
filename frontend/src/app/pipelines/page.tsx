@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 const STEP_TYPE_LABELS: Record<string, string> = {
   scan_job: 'Scan Job', dbt_run: 'dbt Run', fivetran_sync: 'Fivetran Sync',
@@ -157,7 +158,7 @@ export default function PipelinesPage() {
     try {
       const params = new URLSearchParams()
       if (activeConnectionId) params.set('connection_id', activeConnectionId)
-      const res = await fetch(`/api/pipelines?${params}`)
+      const res = await apiFetch(`/api/pipelines?${params}`)
       const data = await res.json()
       setPipelines(Array.isArray(data) ? data : [])
     } finally { setLoading(false) }
@@ -167,8 +168,8 @@ export default function PipelinesPage() {
 
   const selectPipeline = useCallback(async (p: Pipeline) => {
     const [det, runsRes] = await Promise.all([
-      fetch(`/api/pipelines/${p.pipeline_id}`).then(r => r.json()),
-      fetch(`/api/pipelines/${p.pipeline_id}/runs`).then(r => r.json()),
+      apiFetch(`/api/pipelines/${p.pipeline_id}`).then(r => r.json()),
+      apiFetch(`/api/pipelines/${p.pipeline_id}/runs`).then(r => r.json()),
     ])
     setSelected(det)
     setRuns(Array.isArray(runsRes) ? runsRes : [])
@@ -180,7 +181,7 @@ export default function PipelinesPage() {
     setTriggering(true)
     setError(null)
     try {
-      const res = await fetch(`/api/pipelines/${selected.pipeline_id}/trigger`, { method: 'POST' })
+      const res = await apiFetch(`/api/pipelines/${selected.pipeline_id}/trigger`, { method: 'POST' })
       if (!res.ok) { const d = await res.json(); setError(d.detail ?? 'Trigger failed'); return }
       const run = await res.json()
       setRuns(prev => [run, ...prev])
@@ -191,7 +192,7 @@ export default function PipelinesPage() {
     if (!form.name.trim()) { setError('Name is required'); return }
     setSaving(true); setError(null)
     try {
-      const res = await fetch('/api/pipelines', {
+      const res = await apiFetch('/api/pipelines', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, timeout_seconds: Number(form.timeout_seconds) }),
       })
@@ -207,12 +208,12 @@ export default function PipelinesPage() {
     if (!selected || !stepForm.name.trim()) { setError('Step name is required'); return }
     setSaving(true); setError(null)
     try {
-      const res = await fetch(`/api/pipelines/${selected.pipeline_id}/steps`, {
+      const res = await apiFetch(`/api/pipelines/${selected.pipeline_id}/steps`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...stepForm, timeout_seconds: Number(stepForm.timeout_seconds) }),
       })
       if (!res.ok) { const d = await res.json(); setError(d.detail ?? 'Add step failed'); return }
-      const det = await fetch(`/api/pipelines/${selected.pipeline_id}`).then(r => r.json())
+      const det = await apiFetch(`/api/pipelines/${selected.pipeline_id}`).then(r => r.json())
       setSelected(det)
       setPipelines(prev => prev.map(p => p.pipeline_id === det.pipeline_id ? det : p))
       setShowAddStep(false); setStepForm(BLANK_STEP)
@@ -221,7 +222,7 @@ export default function PipelinesPage() {
 
   const deletePipeline = useCallback(async (id: string) => {
     if (!confirm('Delete this pipeline and all its runs?')) return
-    await fetch(`/api/pipelines/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/pipelines/${id}`, { method: 'DELETE' })
     setPipelines(prev => prev.filter(p => p.pipeline_id !== id))
     if (selected?.pipeline_id === id) setSelected(null)
   }, [selected])

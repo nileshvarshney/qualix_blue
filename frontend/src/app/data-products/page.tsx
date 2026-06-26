@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface DataProduct {
   id: string; name: string; description: string; domain: string; owner: string
@@ -50,7 +51,7 @@ export default function DataProductsPage() {
   const [editPSaving, setEditPSaving] = useState(false)
 
   useEffect(() => {
-    fetch('/api/domains')
+    apiFetch('/api/domains')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const names = (Array.isArray(data) ? data : [])
@@ -63,7 +64,7 @@ export default function DataProductsPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/data-products')
+    apiFetch('/api/data-products')
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const items: DataProduct[] = (Array.isArray(data) ? data : []).map((p, i) => ({
@@ -91,7 +92,7 @@ export default function DataProductsPage() {
     if (!editProduct || !editPForm.name) return
     setEditPSaving(true)
     try {
-      const res = await fetch('/api/data-products', {
+      const res = await apiFetch('/api/data-products', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editProduct.id,
@@ -132,7 +133,7 @@ export default function DataProductsPage() {
     if (!form.name.trim()) return
     const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
     try {
-      const res = await fetch('/api/data-products', {
+      const res = await apiFetch('/api/data-products', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_name: form.name, description: form.description,

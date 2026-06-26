@@ -2,6 +2,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import EntityComments from '@/components/EntityComments'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface GlossaryTerm {
   id: string; name: string; definition: string; domain: string
@@ -87,7 +88,7 @@ function GlossaryInner() {
   const [linkError, setLinkError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/glossary')
+    apiFetch('/api/glossary')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -123,7 +124,7 @@ function GlossaryInner() {
   }, [autoTermId, loading, terms]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    fetch('/api/me')
+    apiFetch('/api/me')
       .then(r => r.json())
       .then(data => setCurrentUser({ role: data.role ?? 'viewer', domain_id: data.domain_id ?? null }))
       .catch(() => setCurrentUser({ role: 'viewer', domain_id: null }))
@@ -132,7 +133,7 @@ function GlossaryInner() {
   const addTerm = async () => {
     if (!termForm.name) return
     try {
-      const res = await fetch('/api/glossary', {
+      const res = await apiFetch('/api/glossary', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           term_name: termForm.name, definition: termForm.definition,
@@ -167,7 +168,7 @@ function GlossaryInner() {
     if (!editTerm || !editForm.name) return
     setEditSaving(true)
     try {
-      const res = await fetch('/api/glossary', {
+      const res = await apiFetch('/api/glossary', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: editTerm.id,
@@ -194,7 +195,7 @@ function GlossaryInner() {
     setActionLoading(termId)
     setActionError(null)
     try {
-      const res = await fetch(`/api/glossary/${termId}?action=${action}`, {
+      const res = await apiFetch(`/api/glossary/${termId}?action=${action}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -219,7 +220,7 @@ function GlossaryInner() {
     if (!confirm(`Delete term "${term.name}"?`)) return
     setDeletingId(term.id)
     try {
-      const res = await fetch(`/api/glossary?id=${term.id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/glossary?id=${term.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
       setTerms(prev => prev.filter(t => t.id !== term.id))
       if (popup?.id === term.id) setPopup(null)
@@ -236,7 +237,7 @@ function GlossaryInner() {
     setPopupLinkedAssets([])
     setPopupLinkedLoading(true)
     try {
-      const res = await fetch(`/api/glossary/${term.id}`)
+      const res = await apiFetch(`/api/glossary/${term.id}`)
       if (res.ok) {
         const data = await res.json()
         setPopupLinkedAssets(data.linked_assets ?? [])
@@ -251,7 +252,7 @@ function GlossaryInner() {
   async function unlinkAsset(termId: string, linkId: string) {
     setUnlinkingId(linkId)
     try {
-      const res = await fetch(`/api/glossary/${termId}?link_id=${linkId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/glossary/${termId}?link_id=${linkId}`, { method: 'DELETE' })
       if (res.ok) {
         setPopupLinkedAssets(prev => prev.filter(a => a.link_id !== linkId))
         setTerms(prev => prev.map(t =>
@@ -272,7 +273,7 @@ function GlossaryInner() {
     setLinkSearch('')
     if (catalogAssets.length === 0) {
       try {
-        const res = await fetch('/api/catalog')
+        const res = await apiFetch('/api/catalog')
         if (res.ok) {
           const data = await res.json()
           setCatalogAssets(Array.isArray(data) ? data : [])
@@ -287,7 +288,7 @@ function GlossaryInner() {
     if (!linkAssetId) return
     setLinking(true)
     try {
-      const res = await fetch(`/api/glossary/${termId}?action=link-asset`, {
+      const res = await apiFetch(`/api/glossary/${termId}?action=link-asset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ asset_id: linkAssetId, column_name: linkColumnName || null }),

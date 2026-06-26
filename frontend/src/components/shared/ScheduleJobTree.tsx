@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 import {
   Schedule, BundledRule, SEV_CFG, RUN_STYLE, RULE_SEV_CFG,
   formatDuration, formatTimestamp,
@@ -84,7 +85,7 @@ export default function ScheduleJobTree({
     if (jobHistory[ruleId] && jobHistory[ruleId] !== 'error') return
     setJobHistory(prev => ({ ...prev, [ruleId]: 'loading' }))
     try {
-      const res = await fetch(`/api/rules/${ruleId}/runs?limit=10`)
+      const res = await apiFetch(`/api/rules/${ruleId}/runs?limit=10`)
       const data = await res.json()
       setJobHistory(prev => ({ ...prev, [ruleId]: Array.isArray(data.runs) ? data.runs.map(mapJobRun) : [] }))
     } catch {

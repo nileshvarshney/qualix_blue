@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 type Doc = { doc_id: string; title: string; url: string }
 
@@ -19,7 +20,7 @@ export default function AssetDocumentsSection({ assetId, editing }: Props) {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/asset-registry/${assetId}/documents`)
+    apiFetch(`/api/asset-registry/${assetId}/documents`)
       .then(res => (res.ok ? res.json() : []))
       .then(setDocs)
       .catch(() => setError('Failed to load documentation links'))
@@ -30,7 +31,7 @@ export default function AssetDocumentsSection({ assetId, editing }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/documents`, {
+      const res = await apiFetch(`/api/asset-registry/${assetId}/documents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.trim(), url: url.trim() }),
@@ -49,7 +50,7 @@ export default function AssetDocumentsSection({ assetId, editing }: Props) {
     setBusy(true)
     setError(null)
     try {
-      const res = await fetch(`/api/asset-registry/${assetId}/documents/${docId}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/asset-registry/${assetId}/documents/${docId}`, { method: 'DELETE' })
       if (!res.ok) { setError('Failed to remove link'); return }
       setDocs(d => d.filter(x => x.doc_id !== docId))
     } finally {

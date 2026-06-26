@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { apiFetch } from '@/lib/apiFetch'
 
 interface Incident {
   id: string; title: string; asset: string; severity: 'critical' | 'high' | 'medium' | 'low'
@@ -40,14 +41,14 @@ export default function IncidentsPage() {
   useEffect(() => {
     if (tab === 'escalation' && policies.length === 0 && !policiesLoading) {
       setPoliciesLoading(true)
-      fetch('/api/escalation-policies').then(r => r.json()).then(data => {
+      apiFetch('/api/escalation-policies').then(r => r.json()).then(data => {
         setPolicies(Array.isArray(data) ? data : [])
       }).catch(() => {}).finally(() => setPoliciesLoading(false))
     }
   }, [tab, policies.length, policiesLoading])
 
   useEffect(() => {
-    fetch('/api/incidents')
+    apiFetch('/api/incidents')
       .then(r => r.json())
       .then(data => {
         const items = Array.isArray(data) ? data : []
@@ -76,7 +77,7 @@ export default function IncidentsPage() {
     if (!incForm.title) return
     setIncSaving(true)
     try {
-      const res = await fetch('/api/incidents', {
+      const res = await apiFetch('/api/incidents', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: incForm.title,
@@ -87,7 +88,7 @@ export default function IncidentsPage() {
         }),
       })
       if (!res.ok) throw new Error(`Failed to create incident: ${res.status}`)
-      const listRes = await fetch('/api/incidents')
+      const listRes = await apiFetch('/api/incidents')
       if (!listRes.ok) throw new Error('Failed to reload incidents')
       const data2: Record<string, unknown>[] = await listRes.json()
       const items = Array.isArray(data2) ? data2 : []
@@ -118,7 +119,7 @@ export default function IncidentsPage() {
 
   async function updateIncidentStatus(id: string, action: 'investigate' | 'resolve') {
     try {
-      await fetch('/api/incidents', {
+      await apiFetch('/api/incidents', {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, action }),
       })

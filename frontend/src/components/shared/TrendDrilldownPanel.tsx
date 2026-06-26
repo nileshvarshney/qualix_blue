@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { TrendScope, DayDetail } from '@/lib/types'
+import { apiFetch } from '@/lib/apiFetch'
 
 const rowLink: React.CSSProperties = {
   display: 'block', padding: '6px 10px', fontSize: '12px', color: 'var(--foreground)',
@@ -47,7 +48,7 @@ export default function TrendDrilldownPanel({ date, scope, onClose }: {
     if (scope.assetId) params.set('asset_id', scope.assetId)
     else if (scope.subdomainId) params.set('subdomain_id', scope.subdomainId)
     else if (scope.domainId) params.set('domain_id', scope.domainId)
-    fetch(`/api/dashboard/day-detail?${params.toString()}`)
+    apiFetch(`/api/dashboard/day-detail?${params.toString()}`)
       .then(r => r.json())
       .then((d: DayDetail) => setDetail(
         Array.isArray(d?.failed_runs) && Array.isArray(d?.alerts) && Array.isArray(d?.anomalies) ? d : null

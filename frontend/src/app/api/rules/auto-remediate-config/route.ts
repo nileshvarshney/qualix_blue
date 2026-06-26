@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -13,7 +14,7 @@ const MOCK_CONFIG = {
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization') || ''
   try {
-    const res = await fetch(`${BACKEND}/rules/auto-remediate-config`, {
+    const res = await serverFetch(req, `${BACKEND}/rules/auto-remediate-config`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const auth = req.headers.get('authorization') || ''
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/rules/auto-remediate-config`, {
+    const res = await serverFetch(req, `${BACKEND}/rules/auto-remediate-config`, {
       method: 'POST',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json', ...(auth ? { authorization: auth } : {}) },

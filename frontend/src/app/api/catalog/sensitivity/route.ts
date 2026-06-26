@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
     const results = await Promise.allSettled(
       asset_ids.map(async (id: string) => {
         try {
-          const r = await fetch(`${B}/classifications/assets/${id}/classifications`, {
+          const r = await serverFetch(req, `${B}/classifications/assets/${id}/classifications`, {
             headers: { Authorization: req.headers.get('Authorization') ?? '' },
           })
           const data = await r.json().catch(() => [])

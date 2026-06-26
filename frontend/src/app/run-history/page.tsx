@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import RunDetailPanel from '@/components/shared/RunDetailPanel'
+import { apiFetch } from '@/lib/apiFetch'
 
 type RunStatus = 'queued' | 'running' | 'succeeded' | 'partial_success' | 'failed' | 'timed_out' | 'cancelled'
 type FilterType = 'all' | 'running' | 'succeeded' | 'failed'
@@ -100,7 +101,7 @@ function RunHistoryInner() {
     } else {
       url = `/api/run-history?start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(end)}${activeConnectionId ? '&connection_id=' + activeConnectionId : ''}`
     }
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         const items: Run[] = (Array.isArray(data) ? data : []).map((r, i) => ({

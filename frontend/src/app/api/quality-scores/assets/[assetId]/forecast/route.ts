@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -11,7 +12,8 @@ export async function GET(
   try {
     const days = req.nextUrl.searchParams.get('days') ?? '30'
     const horizon = req.nextUrl.searchParams.get('horizon') ?? '7'
-    const res = await fetch(
+    const res = await serverFetch(
+      req,
       `${BACKEND}/quality-scores/assets/${assetId}/forecast?days=${days}&horizon=${horizon}`,
       { cache: 'no-store' }
     )

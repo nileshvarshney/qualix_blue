@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   // Try bulk endpoint first; fall back to parallel individual calls
   try {
-    const bulk = await fetch(
+    const bulk = await serverFetch(req, 
       `${B}/glossary/assets/bulk?asset_ids=${ids.join(',')}`,
       { headers: { Authorization: auth }, cache: 'no-store' },
     )
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
   // Fallback: one call per asset_id in parallel
   const settled = await Promise.allSettled(
     ids.map(async id => {
-      const r = await fetch(`${B}/glossary?asset_id=${id}`, {
+      const r = await serverFetch(req, `${B}/glossary?asset_id=${id}`, {
         headers: { Authorization: auth }, cache: 'no-store',
       })
       const data = await r.json().catch(() => []) as Record<string, unknown>[]

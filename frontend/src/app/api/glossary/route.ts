@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -17,9 +18,9 @@ function sanitizeTermBody(body: Record<string, unknown>): Record<string, unknown
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const res = await fetch(`${BACKEND}/glossary/terms?limit=100`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms?limit=100`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json([])
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? data.terms ?? []))
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     const raw = await req.json()
     const body = sanitizeTermBody(raw)
     if (!body.term_name) return NextResponse.json({ error: 'term_name is required' }, { status: 400 })
-    const res = await fetch(`${BACKEND}/glossary/terms`, {
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
@@ -45,7 +46,7 @@ export async function PUT(req: NextRequest) {
     const raw = await req.json()
     const { id, ...rest } = raw
     const sanitized = sanitizeTermBody(rest)
-    const res = await fetch(`${BACKEND}/glossary/terms/${id}`, {
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms/${id}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(sanitized),
     })
@@ -59,7 +60,7 @@ export async function DELETE(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'ID required' }, { status: 400 })
-    const res = await fetch(`${BACKEND}/glossary/terms/${id}`, { method: 'DELETE' })
+    const res = await serverFetch(req, `${BACKEND}/glossary/terms/${id}`, { method: 'DELETE' })
     return NextResponse.json({ success: res.ok }, { status: res.status })
   } catch (e) { return NextResponse.json({ error: String(e) }, { status: 500 }) }
 }

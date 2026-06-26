@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest) {
     const forwardParams = new URLSearchParams(searchParams)
     forwardParams.delete('endpoint')
     const qs = forwardParams.toString() ? `?${forwardParams.toString()}` : ''
-    const res = await fetch(`${BACKEND}/cost/${endpoint}${qs}`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/cost/${endpoint}${qs}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json(null)
     return NextResponse.json(await res.json())
   } catch { return NextResponse.json(null) }

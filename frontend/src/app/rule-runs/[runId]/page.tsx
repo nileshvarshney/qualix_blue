@@ -2,6 +2,7 @@
 import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import FailedRecordsTable from '@/components/shared/FailedRecordsTable'
+import { apiFetch } from '@/lib/apiFetch'
 
 type RunStatus = 'passed' | 'failed' | 'error' | 'skipped' | 'running'
 
@@ -60,7 +61,7 @@ export default function RuleRunDetailPage({ params }: { params: Promise<{ runId:
   const [showSql, setShowSql] = useState(false)
 
   useEffect(() => {
-    fetch(`/api/rule-runs/${runId}?samples=true`)
+    apiFetch(`/api/rule-runs/${runId}?samples=true`)
       .then(r => r.json())
       .then((data: Record<string, unknown>) => {
         if (!data || data.error) { setLoading(false); return }

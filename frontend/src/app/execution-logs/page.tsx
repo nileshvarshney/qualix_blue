@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useRouter } from 'next/navigation'
 import { ExecLog, GroupedExecLog, RunStatus, StatFilter, mapExecLog, groupExecLogs } from '@/lib/executionLogs'
+import { apiFetch } from '@/lib/apiFetch'
 
 const STAT: Record<RunStatus, { background: string; color: string; border: string }> = {
   passed:  { background: 'var(--status-ok-bg)',    color: 'var(--status-ok-text)',    border: '#bbf7d0' },
@@ -57,7 +58,7 @@ function ExecutionLogsInner() {
     const params = new URLSearchParams()
     if (activeConnectionId) params.set('connection_id', activeConnectionId)
     const url = `/api/execution-logs${activeConnectionId ? `?${params}` : ''}`
-    fetch(url)
+    apiFetch(url)
       .then(r => r.json())
       .then((data: Record<string, unknown>[]) => {
         setLogs((Array.isArray(data) ? data : []).map(mapExecLog))
