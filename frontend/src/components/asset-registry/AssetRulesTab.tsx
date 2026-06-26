@@ -35,7 +35,29 @@ export default function AssetRulesTab({ assetId }: { assetId: string }) {
     apiFetch(`/api/rules?asset_id=${encodeURIComponent(assetId)}`)
       .then(r => r.json())
       .then((data: unknown) => {
-        setRules(Array.isArray(data) ? data as Rule[] : [])
+        const raw: Record<string, unknown>[] = Array.isArray(data)
+          ? (data as Record<string, unknown>[])
+          : ((data as { items?: Record<string, unknown>[] })?.items ?? [])
+        // API returns snake_case; map to the Rule interface camelCase fields
+        const mapped: Rule[] = raw.map(r => ({
+          id:          String(r.rule_id ?? r.id ?? ''),
+          name:        String(r.rule_name ?? r.name ?? ''),
+          description: String(r.rule_description ?? r.description ?? ''),
+          type:        String(r.rule_type ?? r.type ?? '') as Rule['type'],
+          columnName:  r.target_column ? String(r.target_column) : undefined,
+          severity:    String(r.severity ?? 'medium') as Rule['severity'],
+          status:      String(r.status ?? 'draft') as Rule['status'],
+          category:    String(r.rule_category ?? r.category ?? 'completeness') as Rule['category'],
+          connectionId: String(r.connection_id ?? ''),
+          tableName:   String(r.sf_table_name ?? r.tableName ?? ''),
+          parameters:  (r.rule_config ?? r.parameters ?? {}) as Rule['parameters'],
+          enabled:     Boolean(r.is_active ?? r.enabled ?? true),
+          scope:       'object-specific' as Rule['scope'],
+          assetId:     String(r.asset_id ?? ''),
+          createdAt:   String(r.created_at ?? ''),
+          createdBy:   r.created_by ? String(r.created_by) : undefined,
+        }))
+        setRules(mapped)
         setLoading(false)
       })
       .catch(() => setLoading(false))

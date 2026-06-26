@@ -33,7 +33,7 @@ export default function AssetIssuesTab({ assetId, domainId }: { assetId: string;
     setLoading(true)
     apiFetch(`/api/issues?asset_id=${assetId}&limit=50`)
       .then(r => r.json())
-      .then(data => setItems(Array.isArray(data) ? data : []))
+      .then(data => setItems(Array.isArray(data) ? data : (data?.items ?? [])))
       .catch(() => setItems([]))
       .finally(() => setLoading(false))
   }, [assetId])

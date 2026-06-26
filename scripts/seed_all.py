@@ -27,6 +27,7 @@ from app.db.models import (
     GlossaryTerm, GlossaryTermAsset, GovernancePolicy,
     Issue, MaskingPolicy, Notification,
     OncallSchedule, Pipeline, PipelineRun, PipelineStep, PipelineStepRun,
+    ProfilingResultPlaceholder,
     QualityIncident, RuleTemplate, ScanJob, ScanJobRun,
     SchemaBaseline, SLAConfig, SnowflakeConnection,
     Subdomain, Tag, Team, TeamMembership, User, VolumeBaseline,
@@ -685,6 +686,135 @@ async def seed_columns(db, asset_map):
     print(f"  Column metadata: {len(rows)} new", flush=True)
 
 
+# ── step 3b: profiling results ─────────────────────────────────────────────────
+
+_NUMERIC_TYPES = ("INT","BIGINT","NUMERIC","FLOAT","DECIMAL","NUMBER","MONEY","DOUBLE")
+_DATE_TYPES    = ("DATE","TIME","TIMESTAMP","DATETIME")
+_BOOL_TYPES    = ("BOOL","BOOLEAN")
+
+def _top_vals(col_name: str, row_count: int) -> dict:
+    key = col_name.upper()
+    if any(k in key for k in ("STATUS","SEGMENT","TYPE","CHANNEL","CURRENCY","COUNTRY","TIER")):
+        opts = ["ACTIVE","PENDING","CLOSED","COMPLETE","PREMIUM","STANDARD"][:4]
+        return {v: _rng.randint(row_count//10, row_count//4) for v in opts}
+    return {}
+
+
+async def seed_profiling_results(db, asset_map, conn_map):
+    existing = (await db.execute(
+        select(ProfilingResultPlaceholder).limit(1)
+    )).scalar_one_or_none()
+    if existing:
+        print("  Profiling: already seeded", flush=True)
+        return
+
+    # One recent successful ScanJobRun per connection to anchor results to
+    run_map: dict[str, str] = {}  # connection_id → run_id
+    for conn in conn_map.values():
+        res = await db.execute(
+            select(ScanJobRun)
+            .join(ScanJob, ScanJobRun.job_id == ScanJob.job_id)
+            .where(ScanJob.connection_id == conn.connection_id, ScanJobRun.status == "success")
+            .order_by(ScanJobRun.started_at.desc())
+            .limit(1)
+        )
+        run = res.scalar_one_or_none()
+        if run:
+            run_map[conn.connection_id] = run.run_id
+
+    count = 0
+    for table_name, asset in asset_map.items():
+        if not asset.connection_id or asset.connection_id not in run_map:
+            continue
+        run_id = run_map[asset.connection_id]
+
+        col_res = await db.execute(
+            select(ColumnMetadata).where(ColumnMetadata.asset_id == asset.asset_id)
+        )
+        cols = col_res.scalars().all()
+        if not cols:
+            continue
+
+        row_count = _rng.randint(12_000, 4_000_000)
+        null_ratios = []
+
+        for col in cols:
+            dt = (col.data_type or "").upper()
+            is_pk = bool(col.is_primary_key)
+            is_nullable = bool(col.is_nullable)
+
+            null_ratio = 0.0 if is_pk else (
+                _rng.uniform(0.0, 0.05) if not is_nullable else _rng.uniform(0.01, 0.12)
+            )
+            null_ratios.append(null_ratio)
+            null_count = int(null_ratio * row_count)
+
+            if any(t in dt for t in _NUMERIC_TYPES):
+                min_val   = str(_rng.randint(0, 10))
+                max_val   = str(_rng.randint(50_000, 10_000_000))
+                avg_val   = _rng.uniform(500, 100_000)
+                std_dev   = avg_val * _rng.uniform(0.15, 0.45)
+                dist_cnt  = _rng.randint(200, min(row_count, 500_000))
+                top_vals  = {}
+            elif any(t in dt for t in _DATE_TYPES):
+                min_val   = "2021-01-01"
+                max_val   = "2026-06-25"
+                avg_val   = None
+                std_dev   = None
+                dist_cnt  = _rng.randint(365, 1800)
+                top_vals  = {}
+            elif any(t in dt for t in _BOOL_TYPES):
+                min_val   = "False"
+                max_val   = "True"
+                avg_val   = None
+                std_dev   = None
+                dist_cnt  = 2
+                top_vals  = {"True": int(row_count * 0.83), "False": int(row_count * 0.17)}
+            else:
+                min_val   = None
+                max_val   = None
+                avg_val   = None
+                std_dev   = None
+                dist_cnt  = _rng.randint(5, min(row_count // 5, 80_000))
+                top_vals  = _top_vals(col.column_name, row_count)
+
+            dist_ratio = round(min(1.0, dist_cnt / max(row_count, 1)), 4)
+
+            await af(db, ProfilingResultPlaceholder(
+                run_id=run_id,
+                asset_id=asset.asset_id,
+                column_name=col.column_name,
+                null_count=null_count,
+                null_ratio=round(null_ratio, 4),
+                distinct_count=dist_cnt,
+                distinct_ratio=dist_ratio,
+                min_value=min_val,
+                max_value=max_val,
+                avg_value=round(avg_val, 2) if avg_val is not None else None,
+                std_dev=round(std_dev, 2) if std_dev is not None else None,
+                top_values=top_vals,
+                pattern_frequency={},
+                data_type=col.data_type,
+                row_count=row_count,
+                is_placeholder=False,
+                profiled_at=utcnow() - timedelta(hours=_rng.randint(1, 48)),
+            ))
+            count += 1
+
+        # Update asset-level profile score
+        avg_null = sum(null_ratios) / len(null_ratios) if null_ratios else 0.0
+        profile_score = round(1.0 - avg_null, 4)
+        asset.latest_profile_score = profile_score
+        asset.latest_quality_status = (
+            "good" if profile_score >= 0.9 else
+            "warning" if profile_score >= 0.7 else "poor"
+        )
+        db.add(asset)
+
+    await db.flush()
+    print(f"  Profiling: {count} column results seeded", flush=True)
+
+
 # ── step 4: DQ rules ───────────────────────────────────────────────────────────
 
 async def seed_rules(db, asset_map, domain_map, subdomain_map):
@@ -785,13 +915,14 @@ async def seed_scores(db, asset_map, domain_map, subdomain_map):
                     asset_id=asset.asset_id, total_rules=n, passed_rules=n-failed,
                     failed_rules=failed, quality_score=score, created_at=utcnow(),
                 ))
-            for dim in DIMENSIONS:
+            for dim in DIMENSIONS + ["overall"]:
+                dim_score = score if dim == "overall" else jitter(score, 5.0)
                 if (score_date, "table", asset.asset_id, dim) not in existing_d:
                     rows_d.append(DQDimensionScore(
                         score_id=uid(), score_date=score_date, score_level="table",
                         domain_id=domain.domain_id, subdomain_id=sub.subdomain_id,
                         asset_id=asset.asset_id, dimension=dim,
-                        score=jitter(score, 5.0), source="rules",
+                        score=dim_score, source="rules",
                         total_rules=1, passed_rules=1, failed_rules=0, created_at=utcnow(),
                     ))
 
@@ -1650,6 +1781,8 @@ async def main():
         await seed_views_and_lineage(db, conn_map, domain_map, subdomain_map)
         print("\n── Step 3:  Column metadata ─────────────────────────────────────", flush=True)
         await seed_columns(db, asset_map)
+        print("\n── Step 3b: Profiling results ───────────────────────────────────", flush=True)
+        await seed_profiling_results(db, asset_map, conn_map)
         print("\n── Step 4:  DQ Rules ────────────────────────────────────────────", flush=True)
         rules_by_table = await seed_rules(db, asset_map, domain_map, subdomain_map)
         print("\n── Step 5:  Rule runs (14 days) ─────────────────────────────────", flush=True)

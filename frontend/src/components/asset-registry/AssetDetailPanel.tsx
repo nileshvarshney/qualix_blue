@@ -97,8 +97,9 @@ export default function AssetDetailPanel({
     if (!leaf) { setOpenIssueCount(null); return }
     apiFetch(`/api/issues?asset_id=${asset.asset_id}&limit=50`)
       .then(r => r.json())
-      .then((items: { status: string }[]) => {
-        const open = Array.isArray(items) ? items.filter(i => i.status !== 'resolved' && i.status !== 'closed').length : 0
+      .then((data: { items?: { status: string }[] } | { status: string }[]) => {
+        const items: { status: string }[] = Array.isArray(data) ? data : (data as { items?: { status: string }[] })?.items ?? []
+        const open = items.filter(i => i.status !== 'resolved' && i.status !== 'closed').length
         setOpenIssueCount(open)
       })
       .catch(() => setOpenIssueCount(null))
