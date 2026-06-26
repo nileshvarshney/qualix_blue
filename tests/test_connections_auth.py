@@ -4,6 +4,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import AsyncMock, MagicMock
 
 from app.api.connections import router
+from app.core.security import get_current_user
 from app.db.database import get_db
 
 
@@ -72,8 +73,6 @@ def test_post_test_credentials_requires_auth():
 
 
 # ── SQL injection tests ────────────────────────────────────────────────────────
-
-from app.core.security import get_current_user
 
 
 def _make_authenticated_client_with_pg_conn():
