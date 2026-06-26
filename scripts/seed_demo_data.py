@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import AsyncSessionLocal, create_tables
 from app.db.models import (
-    DataAsset, Domain, DQRule, SnowflakeConnection, Subdomain,
+    Asset, AssetSourceMeta, Domain, DQRule, SnowflakeConnection, Subdomain,
 )
 from app.db.seed import seed as base_seed
 
@@ -111,12 +111,13 @@ async def seed_assets(
     connection: SnowflakeConnection,
     domain_map: dict[str, Domain],
     subdomain_map: dict[tuple[str, str], Subdomain],
-) -> dict[str, DataAsset]:
-    asset_map: dict[str, DataAsset] = {}
+) -> dict[str, Asset]:
+    asset_map: dict[str, Asset] = {}
 
     for table_name, (domain_name, sub_name) in TABLE_DOMAIN_MAP.items():
         existing = (await db.execute(
-            select(DataAsset).where(DataAsset.sf_table_name == table_name)
+            select(Asset).join(AssetSourceMeta, Asset.asset_id == AssetSourceMeta.asset_id)
+            .where(AssetSourceMeta.sf_table_name == table_name)
         )).scalar_one_or_none()
         if existing:
             asset_map[table_name] = existing
@@ -124,28 +125,43 @@ async def seed_assets(
 
         domain = domain_map[domain_name]
         subdomain = subdomain_map[(domain_name, sub_name)]
+        asset_id = str(uuid.uuid4())
 
-        asset = DataAsset(
-            asset_id=str(uuid.uuid4()),
+        asset = Asset(
+            asset_id=asset_id,
             domain_id=domain.domain_id,
             subdomain_id=subdomain.subdomain_id,
             connection_id=connection.connection_id,
-            snowflake_account=connection.account,
-            sf_database_name="SUPPLYCHAIN_DB",
-            sf_schema_name="SUPPLYCHAIN",
-            sf_table_name=table_name,
-            table_type="TABLE",
-            table_description=TABLE_DESCRIPTION.get(table_name, ""),
+            description=TABLE_DESCRIPTION.get(table_name, ""),
             criticality=TABLE_CRITICALITY.get(table_name, "medium"),
             certification_status="certified",
             certified_by="data.owner@example.com",
             owner_name=f"{domain_name} Team",
             owner_email=f"{domain_name.lower()}@example.com",
+            asset_type="table",
+            physical_name=table_name,
+            display_name=table_name.replace("_", " ").title(),
+            qualified_name=f"SUPPLYCHAIN_DB.SUPPLYCHAIN.{table_name}",
+            status="active",
             is_active=True,
             created_at=now(),
             updated_at=now(),
         )
         db.add(asset)
+        await db.flush()
+
+        source_meta = AssetSourceMeta(
+            asset_id=asset_id,
+            provider="snowflake",
+            sf_account=connection.account,
+            sf_database_name="SUPPLYCHAIN_DB",
+            sf_schema_name="SUPPLYCHAIN",
+            sf_table_name=table_name,
+            sf_table_type="TABLE",
+            created_at=now(),
+            updated_at=now(),
+        )
+        db.add(source_meta)
         asset_map[table_name] = asset
 
     await db.flush()
@@ -155,7 +171,7 @@ async def seed_assets(
 
 async def seed_rules(
     db: AsyncSession,
-    asset_map: dict[str, DataAsset],
+    asset_map: dict[str, Asset],
     domain_map: dict[str, Domain],
     subdomain_map: dict[tuple[str, str], Subdomain],
 ) -> int:

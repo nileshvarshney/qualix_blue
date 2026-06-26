@@ -21,9 +21,18 @@ class SnowflakeImpl(DefaultImpl):
     `KeyError: 'snowflake'` when configuring the migration context.
     Snowflake auto-commits DDL per statement, matching the base
     `transactional_ddl = False` default.
+
+    Snowflake does not support secondary indexes on regular (non-hybrid) tables,
+    so create_index / drop_index are silently skipped.
     """
 
     __dialect__ = "snowflake"
+
+    def create_index(self, index, **kw):
+        pass  # Snowflake doesn't support secondary indexes on non-hybrid tables
+
+    def drop_index(self, index, **kw):
+        pass
 
 config = context.config
 if config.config_file_name is not None:
