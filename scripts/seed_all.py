@@ -202,6 +202,336 @@ TAG_ASSET_MAP = {
     "AI Ready":["user_events","conversions","attribution_models"],
 }
 
+# ── multi-level lineage views ─────────────────────────────────────────────────
+# Each entry is (name, conn, db, schema, provider, domain, subdomain, criticality, desc, cols, sql)
+# cols: list of (col_name, data_type, is_pk, is_nullable)
+# sql:  SELECT body — sqlglot parses it to extract upstream table refs → lineage edges
+
+VIEW_CATALOGUE = [
+    # ════ Supply Chain DB (Snowflake) — 4-hop lineage depth ══════════════════
+    # Level 1: two base-table joins
+    (
+        "VW_CUSTOMER_ORDERS","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Revenue","Sales","high",
+        "Level-1 view: customers joined with their sales orders",
+        [("CUSTOMER_ID","VARCHAR",False,False),("EMAIL","VARCHAR",False,False),
+         ("FULL_NAME","VARCHAR",False,False),("SEGMENT","VARCHAR",False,False),
+         ("COUNTRY","VARCHAR",False,False),("ORDER_ID","VARCHAR",False,False),
+         ("ORDER_DATE","DATE",False,False),("ORDER_STATUS","VARCHAR",False,False),
+         ("TOTAL_AMOUNT","FLOAT",False,False),("CURRENCY","VARCHAR",False,False)],
+        ("SELECT c.CUSTOMER_ID, c.EMAIL, c.FULL_NAME, c.SEGMENT, c.COUNTRY,\n"
+         "  o.ORDER_ID, o.ORDER_DATE, o.STATUS AS ORDER_STATUS,\n"
+         "  o.TOTAL_AMOUNT, o.CURRENCY\n"
+         "FROM CUSTOMERS c\n"
+         "INNER JOIN SALES_ORDERS o ON c.CUSTOMER_ID = o.CUSTOMER_ID"),
+    ),
+    (
+        "VW_SUPPLIER_PROCUREMENT","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Operations","Supply Chain","medium",
+        "Level-1 view: suppliers with purchase orders and line items",
+        [("SUPPLIER_ID","VARCHAR",False,False),("SUPPLIER_NAME","VARCHAR",False,False),
+         ("PO_ID","VARCHAR",False,False),("PO_DATE","DATE",False,False),
+         ("PO_STATUS","VARCHAR",False,False),("TOTAL_VALUE","FLOAT",False,False),
+         ("LINE_QUANTITY","INTEGER",False,False),("UNIT_PRICE","FLOAT",False,False)],
+        ("SELECT s.SUPPLIER_ID, s.SUPPLIER_NAME, p.PO_ID, p.PO_DATE,\n"
+         "  p.STATUS AS PO_STATUS, p.TOTAL_VALUE,\n"
+         "  pi.QUANTITY AS LINE_QUANTITY, pi.UNIT_PRICE\n"
+         "FROM SUPPLIERS s\n"
+         "INNER JOIN PURCHASE_ORDERS p ON s.SUPPLIER_ID = p.SUPPLIER_ID\n"
+         "INNER JOIN PURCHASE_ORDER_ITEMS pi ON p.PO_ID = pi.PO_ID"),
+    ),
+    # Level 2: views that reference Level-1 views
+    (
+        "VW_FINANCIAL_RECONCILIATION","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Finance","General Ledger","critical",
+        "Level-2 view: order revenue reconciled against GL transactions and returns",
+        [("CUSTOMER_ID","VARCHAR",False,False),("FULL_NAME","VARCHAR",False,False),
+         ("SEGMENT","VARCHAR",False,False),("ORDER_ID","VARCHAR",False,False),
+         ("ORDER_DATE","DATE",False,False),("ORDER_AMOUNT","FLOAT",False,False),
+         ("GL_AMOUNT","FLOAT",False,True),("LEDGER_TYPE","VARCHAR",False,True),
+         ("RETURN_AMOUNT","FLOAT",False,True),("RETURN_DATE","DATE",False,True)],
+        ("SELECT co.CUSTOMER_ID, co.FULL_NAME, co.SEGMENT, co.ORDER_ID, co.ORDER_DATE,\n"
+         "  co.TOTAL_AMOUNT AS ORDER_AMOUNT,\n"
+         "  ft.AMOUNT AS GL_AMOUNT, ft.LEDGER_TYPE,\n"
+         "  r.AMOUNT AS RETURN_AMOUNT, r.RETURN_DATE\n"
+         "FROM VW_CUSTOMER_ORDERS co\n"
+         "LEFT JOIN FINANCE_TRANSACTIONS ft ON co.CUSTOMER_ID = ft.ACCOUNT_CODE\n"
+         "LEFT JOIN RETURNS r ON co.ORDER_ID = r.ORDER_ID"),
+    ),
+    (
+        "VW_SUPPLY_CHAIN_OPS","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Operations","Supply Chain","high",
+        "Level-2 view: procurement enriched with live inventory and warehouse positions",
+        [("SUPPLIER_ID","VARCHAR",False,False),("SUPPLIER_NAME","VARCHAR",False,False),
+         ("PO_ID","VARCHAR",False,False),("PO_DATE","DATE",False,False),
+         ("PO_VALUE","FLOAT",False,False),("LINE_QUANTITY","INTEGER",False,False),
+         ("SKU","VARCHAR",False,False),("STOCK_QTY","INTEGER",False,False),
+         ("REORDER_POINT","INTEGER",False,False),("WAREHOUSE_ID","VARCHAR",False,False)],
+        ("SELECT sp.SUPPLIER_ID, sp.SUPPLIER_NAME, sp.PO_ID, sp.PO_DATE,\n"
+         "  sp.TOTAL_VALUE AS PO_VALUE, sp.LINE_QUANTITY,\n"
+         "  i.SKU, i.QUANTITY AS STOCK_QTY, i.REORDER_POINT, w.WAREHOUSE_ID\n"
+         "FROM VW_SUPPLIER_PROCUREMENT sp\n"
+         "LEFT JOIN INVENTORY i ON sp.SUPPLIER_ID = i.WAREHOUSE_ID\n"
+         "LEFT JOIN WAREHOUSES w ON i.WAREHOUSE_ID = w.WAREHOUSE_ID"),
+    ),
+    # Level 3: aggregation view referencing a Level-2 view
+    (
+        "VW_REVENUE_ANALYTICS","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Finance","General Ledger","critical",
+        "Level-3 view: revenue aggregated by segment and date with GL verification",
+        [("SEGMENT","VARCHAR",False,False),("ORDER_DATE","DATE",False,False),
+         ("ORDER_COUNT","INTEGER",False,False),("GROSS_REVENUE","FLOAT",False,False),
+         ("TOTAL_RETURNS","FLOAT",False,False),("NET_REVENUE","FLOAT",False,False),
+         ("GL_VERIFIED_REVENUE","FLOAT",False,False)],
+        ("SELECT fr.SEGMENT, fr.ORDER_DATE,\n"
+         "  COUNT(fr.ORDER_ID) AS ORDER_COUNT,\n"
+         "  SUM(fr.ORDER_AMOUNT) AS GROSS_REVENUE,\n"
+         "  SUM(COALESCE(fr.RETURN_AMOUNT, 0)) AS TOTAL_RETURNS,\n"
+         "  SUM(fr.ORDER_AMOUNT) - SUM(COALESCE(fr.RETURN_AMOUNT, 0)) AS NET_REVENUE,\n"
+         "  SUM(COALESCE(fr.GL_AMOUNT, 0)) AS GL_VERIFIED_REVENUE\n"
+         "FROM VW_FINANCIAL_RECONCILIATION fr\n"
+         "GROUP BY fr.SEGMENT, fr.ORDER_DATE"),
+    ),
+    # Level 4: final executive view joining two Level-3/2 views
+    (
+        "VW_EXECUTIVE_KPI","Supply Chain DB",
+        "SUPPLYCHAIN_DB","SUPPLYCHAIN","snowflake",
+        "Finance","General Ledger","critical",
+        "Level-4 view: executive KPI combining revenue analytics with supply chain ops",
+        [("REPORT_DATE","DATE",False,False),("SEGMENT","VARCHAR",False,False),
+         ("NET_REVENUE","FLOAT",False,False),("ORDER_COUNT","INTEGER",False,False),
+         ("GL_VERIFIED_REVENUE","FLOAT",False,False),("PO_ID","VARCHAR",False,True),
+         ("PO_VALUE","FLOAT",False,True),("STOCK_QTY","INTEGER",False,True)],
+        ("SELECT ra.SEGMENT, ra.ORDER_DATE AS REPORT_DATE,\n"
+         "  ra.NET_REVENUE, ra.ORDER_COUNT, ra.GL_VERIFIED_REVENUE,\n"
+         "  sc.PO_ID, sc.PO_VALUE, sc.STOCK_QTY\n"
+         "FROM VW_REVENUE_ANALYTICS ra\n"
+         "LEFT JOIN VW_SUPPLY_CHAIN_OPS sc ON ra.ORDER_DATE = sc.PO_DATE"),
+    ),
+    # ════ Marketing Analytics (BigQuery) — 3-hop lineage depth ════════════════
+    (
+        "vw_campaign_metrics","Marketing Analytics (BigQuery)",
+        "analytics-prod-12345","marketing_analytics","bigquery",
+        "Marketing","Campaign Management","high",
+        "Level-1 view: campaign definitions with ad spend and conversion totals",
+        [("campaign_id","STRING",False,False),("campaign_name","STRING",False,False),
+         ("channel","STRING",False,False),("budget","FLOAT64",False,False),
+         ("spend_amount","FLOAT64",False,True),("conversion_count","INTEGER",False,False),
+         ("total_value","FLOAT64",False,True)],
+        ("SELECT c.campaign_id, c.campaign_name, c.channel, c.budget, c.status,\n"
+         "  s.spend_amount, s.spend_date,\n"
+         "  COUNT(cv.conversion_id) AS conversion_count,\n"
+         "  SUM(cv.value) AS total_value\n"
+         "FROM campaigns c\n"
+         "LEFT JOIN ad_spend s ON c.campaign_id = s.campaign_id\n"
+         "LEFT JOIN conversions cv ON c.campaign_id = cv.campaign_id\n"
+         "GROUP BY c.campaign_id, c.campaign_name, c.channel, c.budget,\n"
+         "         c.status, s.spend_amount, s.spend_date"),
+    ),
+    (
+        "vw_attribution_report","Marketing Analytics (BigQuery)",
+        "analytics-prod-12345","marketing_analytics","bigquery",
+        "Marketing","Digital Analytics","high",
+        "Level-2 view: multi-touch attribution joining campaign metrics with user events",
+        [("campaign_id","STRING",False,False),("channel","STRING",False,False),
+         ("user_id","STRING",False,True),("event_name","STRING",False,False),
+         ("attribution_value","FLOAT64",False,True),("roi","FLOAT64",False,True)],
+        ("SELECT cm.campaign_id, cm.campaign_name, cm.channel,\n"
+         "  ue.user_id, ue.event_name, ue.occurred_at,\n"
+         "  am.attribution_value,\n"
+         "  cm.total_value / NULLIF(cm.spend_amount, 0) AS roi\n"
+         "FROM vw_campaign_metrics cm\n"
+         "LEFT JOIN user_events ue ON cm.campaign_id = ue.session_id\n"
+         "LEFT JOIN attribution_models am ON cm.campaign_id = am.campaign_id"),
+    ),
+    (
+        "vw_marketing_executive","Marketing Analytics (BigQuery)",
+        "analytics-prod-12345","marketing_analytics","bigquery",
+        "Marketing","Campaign Management","high",
+        "Level-3 view: executive marketing summary across channels and audience segments",
+        [("channel","STRING",False,False),("segment_name","STRING",False,False),
+         ("total_spend","FLOAT64",False,False),("total_conversions","INTEGER",False,False),
+         ("avg_roi","FLOAT64",False,True)],
+        ("SELECT ar.channel, seg.segment_name,\n"
+         "  SUM(ar.spend_amount) AS total_spend,\n"
+         "  COUNT(ar.user_id) AS total_conversions,\n"
+         "  AVG(ar.roi) AS avg_roi\n"
+         "FROM vw_attribution_report ar\n"
+         "LEFT JOIN audience_segments seg ON ar.campaign_id = seg.campaign_id\n"
+         "GROUP BY ar.channel, seg.segment_name"),
+    ),
+    # ════ Customer 360 (PostgreSQL) — 3-hop lineage depth ════════════════════
+    (
+        "vw_customer_revenue","Customer 360 (PostgreSQL)",
+        "customer_360","public","postgresql",
+        "Revenue","Sales","high",
+        "Level-1 view: customer profiles enriched with subscription and payment history",
+        [("customer_id","INTEGER",False,False),("email","VARCHAR",False,False),
+         ("plan","VARCHAR",False,True),("sub_status","VARCHAR",False,True),
+         ("mrr","NUMERIC",False,True),("total_paid","NUMERIC",False,True),
+         ("is_active","BOOLEAN",False,False)],
+        ("SELECT c.customer_id, c.email, c.first_name, c.last_name,\n"
+         "  s.plan, s.status AS sub_status, s.mrr,\n"
+         "  SUM(p.amount) AS total_paid, c.is_active\n"
+         "FROM customers c\n"
+         "LEFT JOIN subscriptions s ON c.customer_id = s.customer_id\n"
+         "LEFT JOIN payments p ON c.customer_id = p.customer_id\n"
+         "GROUP BY c.customer_id, c.email, c.first_name, c.last_name,\n"
+         "         s.plan, s.status, s.mrr, c.is_active"),
+    ),
+    (
+        "vw_customer_health","Customer 360 (PostgreSQL)",
+        "customer_360","public","postgresql",
+        "Revenue","Sales","high",
+        "Level-2 view: customer health score combining revenue, support load and NPS",
+        [("customer_id","INTEGER",False,False),("email","VARCHAR",False,False),
+         ("mrr","NUMERIC",False,True),("open_tickets","INTEGER",False,False),
+         ("avg_nps","FLOAT",False,True),("health_tier","VARCHAR",False,False)],
+        ("SELECT cr.customer_id, cr.email, cr.plan, cr.mrr,\n"
+         "  COUNT(st.ticket_id) AS open_tickets,\n"
+         "  AVG(ns.score) AS avg_nps,\n"
+         "  CASE WHEN cr.mrr > 500 AND COUNT(st.ticket_id) < 2 THEN 'healthy'\n"
+         "       WHEN cr.mrr > 0 THEN 'at_risk'\n"
+         "       ELSE 'churned' END AS health_tier\n"
+         "FROM vw_customer_revenue cr\n"
+         "LEFT JOIN support_tickets st ON cr.customer_id = st.customer_id\n"
+         "LEFT JOIN nps_scores ns ON cr.customer_id = ns.customer_id\n"
+         "GROUP BY cr.customer_id, cr.email, cr.plan, cr.mrr"),
+    ),
+    (
+        "vw_retention_analysis","Customer 360 (PostgreSQL)",
+        "customer_360","public","postgresql",
+        "Revenue","Sales","medium",
+        "Level-3 view: retention cohort analysis summarized by health tier",
+        [("health_tier","VARCHAR",False,False),("customer_count","INTEGER",False,False),
+         ("total_mrr","NUMERIC",False,False),("avg_nps","FLOAT",False,True),
+         ("avg_open_tickets","FLOAT",False,True)],
+        ("SELECT ch.health_tier,\n"
+         "  COUNT(ch.customer_id) AS customer_count,\n"
+         "  SUM(ch.mrr) AS total_mrr,\n"
+         "  AVG(ch.avg_nps) AS avg_nps,\n"
+         "  AVG(ch.open_tickets) AS avg_open_tickets\n"
+         "FROM vw_customer_health ch\n"
+         "GROUP BY ch.health_tier"),
+    ),
+    # ════ Enterprise DW (Redshift) — 3-hop lineage depth ══════════════════════
+    (
+        "vw_dw_sales_detail","Enterprise DW (Redshift)",
+        "data_warehouse","public","redshift",
+        "Revenue","Sales","high",
+        "Level-1 view: granular sales data joining fact table with customer and product dimensions",
+        [("sale_id","BIGINT",False,False),("email","VARCHAR",False,False),
+         ("segment","VARCHAR",False,True),("product_name","VARCHAR",False,False),
+         ("quantity","INTEGER",False,False),("unit_price","DECIMAL",False,False),
+         ("net_revenue","DECIMAL",False,False)],
+        ("SELECT fs.sale_id, dc.email, dc.segment, dp.product_name,\n"
+         "  fs.quantity, fs.unit_price, fs.net_revenue\n"
+         "FROM fact_sales fs\n"
+         "INNER JOIN dim_customer dc ON fs.customer_key = dc.customer_key\n"
+         "INNER JOIN dim_product dp ON fs.product_key = dp.product_key"),
+    ),
+    (
+        "vw_dw_revenue_report","Enterprise DW (Redshift)",
+        "data_warehouse","public","redshift",
+        "Finance","General Ledger","critical",
+        "Level-2 view: revenue reconciliation across detail and pre-aggregated sources",
+        [("report_date","DATE",False,False),("segment","VARCHAR",False,False),
+         ("channel","VARCHAR",False,True),("detail_revenue","DECIMAL",False,False),
+         ("agg_net_revenue","DECIMAL",False,True),("variance","DECIMAL",False,True)],
+        ("SELECT dt.full_date AS report_date, sd.segment, ar.channel,\n"
+         "  SUM(sd.net_revenue) AS detail_revenue,\n"
+         "  ar.net_revenue AS agg_net_revenue,\n"
+         "  SUM(sd.net_revenue) - ar.net_revenue AS variance\n"
+         "FROM vw_dw_sales_detail sd\n"
+         "INNER JOIN dim_time dt ON sd.sale_id = dt.time_key\n"
+         "LEFT JOIN agg_revenue ar ON dt.full_date = ar.agg_date AND sd.segment = ar.segment\n"
+         "GROUP BY dt.full_date, sd.segment, ar.channel, ar.net_revenue"),
+    ),
+    (
+        "vw_dw_executive_summary","Enterprise DW (Redshift)",
+        "data_warehouse","public","redshift",
+        "Finance","General Ledger","critical",
+        "Level-3 view: executive C-suite revenue summary derived from the revenue report",
+        [("report_date","DATE",False,False),("segment","VARCHAR",False,False),
+         ("total_revenue","DECIMAL",False,False),("revenue_variance_pct","FLOAT",False,True),
+         ("reconciled","INTEGER",False,False)],
+        ("SELECT report_date, segment,\n"
+         "  SUM(detail_revenue) AS total_revenue,\n"
+         "  AVG(CASE WHEN agg_net_revenue > 0\n"
+         "           THEN (detail_revenue - agg_net_revenue) / agg_net_revenue * 100\n"
+         "           ELSE NULL END) AS revenue_variance_pct,\n"
+         "  MIN(CASE WHEN ABS(variance) < 100 THEN 1 ELSE 0 END) AS reconciled\n"
+         "FROM vw_dw_revenue_report\n"
+         "GROUP BY report_date, segment"),
+    ),
+]
+
+
+# ── step 2c: views with lineage SQL ────────────────────────────────────────────
+
+async def seed_views_and_lineage(db, conn_map, domain_map, subdomain_map):
+    existing = {r.sf_table_name.lower()
+                for r in (await db.execute(
+                    select(AssetSourceMeta).where(AssetSourceMeta.sf_table_type == "VIEW")
+                )).scalars().all()}
+
+    count = 0
+    col_rows = []
+    for (name, conn_name, db_name, schema_name, provider,
+         dname, sname, crit, desc, cols, sql) in VIEW_CATALOGUE:
+        if name.lower() in existing:
+            continue
+        conn = conn_map.get(conn_name)
+        sub = await ensure_subdomain(db, domain_map, subdomain_map, dname, sname)
+        domain = domain_map.get(dname)
+        asset_id = uid()
+
+        a = Asset(
+            asset_id=asset_id,
+            domain_id=domain.domain_id if domain else None,
+            subdomain_id=sub.subdomain_id if sub else None,
+            connection_id=conn.connection_id if conn else None,
+            asset_type="view",
+            physical_name=name,
+            display_name=name.replace("_", " ").title(),
+            qualified_name=f"{db_name}.{schema_name}.{name}",
+            description=desc, criticality=crit,
+            certification_status="certified", certified_by="admin@example.com",
+            owner_name=f"{dname} Team",
+            owner_email=f"{dname.lower().replace(' ','')}@example.com",
+            status="active", is_active=True,
+            created_at=days_ago(60), updated_at=utcnow(),
+        )
+        await af(db, a)  # flush before meta to satisfy FK
+
+        await af(db, AssetSourceMeta(  # partition_info VARIANT — one at a time
+            asset_id=asset_id, provider=provider,
+            sf_account=conn.account if conn else None,
+            sf_database_name=db_name, sf_schema_name=schema_name,
+            sf_table_name=name, sf_table_type="VIEW",
+            generic_database_name=db_name, generic_schema_name=schema_name,
+            generic_object_name=name, generic_object_type="view",
+            view_definition=sql,
+            created_at=utcnow(), updated_at=utcnow(),
+        ))
+
+        for pos, (cn, ct, pk, nullable) in enumerate(cols, 1):
+            col_rows.append(ColumnMetadata(
+                col_id=uid(), asset_id=asset_id, column_name=cn, data_type=ct,
+                is_primary_key=pk, is_nullable=nullable, ordinal_position=pos,
+                updated_at=utcnow(),
+            ))
+        count += 1
+
+    await batch(db, col_rows)  # no JSON
+    print(f"  Views: {count} new ({len(col_rows)} columns)", flush=True)
+
+
 # ── helpers ────────────────────────────────────────────────────────────────────
 
 async def load_domains(db):
@@ -1316,6 +1646,8 @@ async def main():
         await seed_source_assets(db, conn_map)
         print("\n── Step 2:  Assets ──────────────────────────────────────────────", flush=True)
         asset_map = await seed_assets(db, conn_map, domain_map, subdomain_map)
+        print("\n── Step 2c: Views with multi-level lineage SQL ───────────────────", flush=True)
+        await seed_views_and_lineage(db, conn_map, domain_map, subdomain_map)
         print("\n── Step 3:  Column metadata ─────────────────────────────────────", flush=True)
         await seed_columns(db, asset_map)
         print("\n── Step 4:  DQ Rules ────────────────────────────────────────────", flush=True)
