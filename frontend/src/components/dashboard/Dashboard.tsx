@@ -721,8 +721,8 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
         </Link>
       )}
 
-      {/* Connection Breakdown — always visible, highlights active connection */}
-      {connections.length > 0 && (
+      {/* Connection Breakdown — only when All Connections is selected */}
+      {!activeConnectionId && connections.length > 0 && (
         <div style={{ ...card, padding: '16px 18px', marginBottom: '12px' }}>
           <SectionHeader
             icon={<Layers size={13} strokeWidth={2.4} />}
