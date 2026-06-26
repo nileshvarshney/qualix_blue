@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     if (!connId) return NextResponse.json({ rows: [], error: 'No connection found' })
 
     const qs = new URLSearchParams({ database, schema, table, limit })
-    const res = await fetch(`${BACKEND}/connections/${connId}/preview?${qs}`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections/${connId}/preview?${qs}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ rows: [], error: `Backend ${res.status}` })
 
     const body = await res.json()

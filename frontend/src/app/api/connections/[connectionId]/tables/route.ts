@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +14,8 @@ export async function GET(
   const database = sp.get('database') ?? ''
   const schema   = sp.get('schema') ?? ''
   try {
-    const res = await fetch(
+    const res = await serverFetch(
+      req,
       `${BACKEND}/connections/${connectionId}/tables?database=${encodeURIComponent(database)}&schema=${encodeURIComponent(schema)}`,
       { cache: 'no-store' }
     )

@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ connectionId: string }> }
 ) {
   const { connectionId } = await params
   try {
-    const res = await fetch(`${BACKEND}/connections/${connectionId}`, { cache: 'no-store' })
+    const res = await serverFetch(req, `${BACKEND}/connections/${connectionId}`, { cache: 'no-store' })
     if (!res.ok) return NextResponse.json({ error: 'Not found' }, { status: res.status })
     const data = await res.json()
     return NextResponse.json(data)
@@ -26,9 +27,8 @@ export async function PUT(
   const { connectionId } = await params
   try {
     const body = await req.json()
-    const res = await fetch(`${BACKEND}/connections/${connectionId}`, {
+    const res = await serverFetch(req, `${BACKEND}/connections/${connectionId}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       cache: 'no-store',
     })

@@ -224,13 +224,12 @@ async function testSnowflake(conn: Record<string, unknown>): Promise<TestResult>
 }
 
 // ── PostgreSQL live connection test — proxied to backend (pg runs server-side) ─
-async function testPostgreSQL(conn: Record<string, unknown>): Promise<TestResult> {
+async function testPostgreSQL(conn: Record<string, unknown>, req: NextRequest): Promise<TestResult> {
   // Cloudflare Workers can't use native TCP drivers, so forward to the backend
   // which has psycopg2 installed and can do a real live test.
   try {
-    const res = await fetch(`${BACKEND}/connections/test-credentials`, {
+    const res = await serverFetch(req, `${BACKEND}/connections/test-credentials`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         database_type: 'postgresql',
         host:             conn.host,
@@ -658,7 +657,7 @@ export async function POST(req: NextRequest) {
   if (connection.type === 'snowflake') {
     result = await testSnowflake(conn)
   } else if (connection.type === 'postgresql') {
-    result = await testPostgreSQL(conn)
+    result = await testPostgreSQL(conn, req)
   } else if (NEW_CONNECTOR_TYPES.has(connection.type)) {
     result = await testNewConnector(conn, connection.type)
   } else {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,12 +37,12 @@ export async function POST(
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ connectionId: string }> }
 ) {
   const { connectionId } = await params
   try {
-    const res = await fetch(`${BACKEND}/connections/${connectionId}/databases`, {
+    const res = await serverFetch(req, `${BACKEND}/connections/${connectionId}/databases`, {
       cache: 'no-store',
     })
     const data = await res.json()

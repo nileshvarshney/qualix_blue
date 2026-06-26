@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { serverFetch } from '@/lib/serverFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +47,8 @@ export async function GET(
   const { connectionId } = await params
   const database = new URL(req.url).searchParams.get('database') ?? ''
   try {
-    const res = await fetch(
+    const res = await serverFetch(
+      req,
       `${BACKEND}/connections/${connectionId}/schemas?database=${encodeURIComponent(database)}`,
       { cache: 'no-store' }
     )

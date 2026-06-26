@@ -1110,6 +1110,7 @@ async def preview_data(
     db_type = (conn.database_type or "snowflake").lower()
 
     if db_type == "postgresql":
+        database_safe = _safe_ident(database, "database")
         schema_safe = _safe_ident(schema, "schema")
         table_safe = _safe_ident(table, "table")
         try:
@@ -1120,7 +1121,7 @@ async def preview_data(
                 pgconn = psycopg2.connect(
                     host=conn.host,
                     port=int(conn.port) if conn.port else 5432,
-                    dbname=database,
+                    dbname=database_safe,
                     user=conn.username,
                     password=plain_pw,
                 )
