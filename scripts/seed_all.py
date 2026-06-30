@@ -83,6 +83,18 @@ CONNECTIONS = [
          default_database="data_warehouse", default_schema="public",
          description="Amazon Redshift enterprise data warehouse — star schema",
          is_primary_target=False, last_test_status="success", environment="production"),
+    dict(name="Oracle Financials (ERP)", database_type="oracle",
+         account="erp-prod.corp.internal", sf_user="fin_dg_user",
+         host="erp-prod.corp.internal", port=1521,
+         default_database="FINDB", default_schema="FINANCE",
+         description="Oracle ERP Financial modules — GL, AP, AR, and budgeting",
+         is_primary_target=False, last_test_status="success", environment="production"),
+    dict(name="Oracle Manufacturing (ERP)", database_type="oracle",
+         account="mfg-prod.corp.internal", sf_user="mfg_dg_user",
+         host="mfg-prod.corp.internal", port=1521,
+         default_database="MFGDB", default_schema="MFG",
+         description="Oracle ERP Manufacturing modules — work orders, BOMs, production, and quality",
+         is_primary_target=False, last_test_status="success", environment="production"),
 ]
 
 # (conn, table, domain, subdomain, criticality, desc, provider, db_name, schema_name)
@@ -115,6 +127,20 @@ ASSETS = [
     ("Enterprise DW (Redshift)","dim_product","Others","Product","high","Product dimension with hierarchy","redshift","data_warehouse","public"),
     ("Enterprise DW (Redshift)","dim_time","Others","Product","low","Calendar dimension","redshift","data_warehouse","public"),
     ("Enterprise DW (Redshift)","agg_revenue","Finance","General Ledger","critical","Pre-aggregated daily revenue","redshift","data_warehouse","public"),
+    # Oracle Financials (ERP) — 6 tables
+    ("Oracle Financials (ERP)","GL_ACCOUNTS","Finance","General Ledger","critical","Chart of accounts — all active GL account codes and types","oracle","FINDB","FINANCE"),
+    ("Oracle Financials (ERP)","JOURNAL_ENTRIES","Finance","General Ledger","critical","General ledger journal entries for SOX-controlled periods","oracle","FINDB","FINANCE"),
+    ("Oracle Financials (ERP)","AP_INVOICES","Finance","Accounts Payable","high","Vendor invoices received and pending payment","oracle","FINDB","FINANCE"),
+    ("Oracle Financials (ERP)","AR_INVOICES","Finance","Accounts Receivable","high","Customer invoices issued and outstanding","oracle","FINDB","FINANCE"),
+    ("Oracle Financials (ERP)","COST_CENTERS","Finance","Expenses","medium","Cost center master data for expense allocation","oracle","FINDB","FINANCE"),
+    ("Oracle Financials (ERP)","BUDGET_LINES","Finance","Forecasting","high","Annual budget allocations and actuals by cost center and period","oracle","FINDB","FINANCE"),
+    # Oracle Manufacturing (ERP) — 6 tables
+    ("Oracle Manufacturing (ERP)","WORK_ORDERS","Operations","Supply Chain","high","Production work orders linking items to plant and schedule","oracle","MFGDB","MFG"),
+    ("Oracle Manufacturing (ERP)","BOM_HEADERS","Operations","Supply Chain","medium","Bill of materials headers with revision and effectivity","oracle","MFGDB","MFG"),
+    ("Oracle Manufacturing (ERP)","BOM_COMPONENTS","Operations","Supply Chain","medium","BOM component lines with quantities and units of measure","oracle","MFGDB","MFG"),
+    ("Oracle Manufacturing (ERP)","PRODUCTION_RUNS","Operations","Fulfillment","high","Actual production execution records with output and defect counts","oracle","MFGDB","MFG"),
+    ("Oracle Manufacturing (ERP)","QUALITY_INSPECTIONS","Operations","Fulfillment","high","QC inspection results per work order","oracle","MFGDB","MFG"),
+    ("Oracle Manufacturing (ERP)","MACHINE_DOWNTIME","Operations","Logistics","medium","Equipment downtime events with reason codes and duration","oracle","MFGDB","MFG"),
 ]
 
 COLUMNS = {
