@@ -1,7 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
 import { maskSensitiveColumns, extractUserRole } from '@/lib/masking'
-import { DEMO_ASSET_BY_ID } from '@/lib/demoData'
+import { DEMO_ASSET_BY_ID, DEMO_ENRICHED_ASSETS } from '@/lib/demoData'
+
+function buildDemoTree(sourceId: string | null) {
+  const assets = sourceId
+    ? DEMO_ENRICHED_ASSETS.filter(a => a.connection_id === sourceId)
+    : DEMO_ENRICHED_ASSETS
+
+  // Group: connection → database → schema → tables
+  const byConn: Record<string, typeof DEMO_ENRICHED_ASSETS> = {}
+  for (const a of assets) {
+    const key = a.connection_id
+    if (!byConn[key]) byConn[key] = []
+    byConn[key].push(a)
+  }
+
+  return Object.entries(byConn).map(([connId, connAssets]) => {
+    const firstAsset = connAssets[0]
+    const byDb: Record<string, typeof DEMO_ENRICHED_ASSETS> = {}
+    for (const a of connAssets) {
+      const db = a.sf_database_name ?? '(no database)'
+      if (!byDb[db]) byDb[db] = []
+      byDb[db].push(a)
+    }
+
+    const dbChildren = Object.entries(byDb).map(([db, dbAssets]) => {
+      const bySchema: Record<string, typeof DEMO_ENRICHED_ASSETS> = {}
+      for (const a of dbAssets) {
+        const sc = a.sf_schema_name ?? '(no schema)'
+        if (!bySchema[sc]) bySchema[sc] = []
+        bySchema[sc].push(a)
+      }
+
+      const schemaChildren = Object.entries(bySchema).map(([schema, schemaAssets]) => ({
+        asset_id: `demo-schema-${connId}-${db}-${schema}`,
+        asset_type: 'schema',
+        physical_name: schema,
+        display_name: schema,
+        qualified_name: `${db}.${schema}`,
+        path: null, status: 'active', parent_asset_id: `demo-db-${connId}-${db}`,
+        connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
+        domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
+        criticality: null, description: null,
+        children: schemaAssets.map(a => ({
+          asset_id: a.asset_id,
+          asset_type: a.table_type ?? a.asset_type ?? 'table',
+          physical_name: a.sf_table_name,
+          display_name: a.sf_table_name,
+          qualified_name: `${a.sf_database_name}.${a.sf_schema_name}.${a.sf_table_name}`,
+          path: null, status: a.status ?? 'active',
+          parent_asset_id: `demo-schema-${connId}-${db}-${schema}`,
+          connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
+          domain: a.domain_name ?? null, sensitivity: null,
+          discovered_at: a.discovered_at ?? null, last_seen_at: a.last_seen_at ?? null,
+          criticality: a.criticality ?? null, description: a.description ?? null,
+          children: [],
+        })),
+      }))
+
+      return {
+        asset_id: `demo-db-${connId}-${db}`,
+        asset_type: 'database',
+        physical_name: db,
+        display_name: db,
+        qualified_name: db,
+        path: null, status: 'active', parent_asset_id: `demo-source-${connId}`,
+        connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
+        domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
+        criticality: null, description: null,
+        children: schemaChildren,
+      }
+    })
+
+    return {
+      asset_id: `demo-source-${connId}`,
+      asset_type: 'source',
+      physical_name: firstAsset.connection_name,
+      display_name: firstAsset.connection_name,
+      qualified_name: null,
+      path: null, status: 'active', parent_asset_id: null,
+      connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
+      domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
+      criticality: null, description: null,
+      children: dbChildren,
+    }
+  })
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -69,8 +154,15 @@ export async function GET(
 
     return NextResponse.json(data, { status: res.status })
   } catch {
-    // Return demo asset for individual asset lookups (path like "asset-001" or "asset-001/...sub")
     const rootId = path[0] ?? ''
+
+    // Handle tree request
+    if (rootId === 'tree') {
+      const sourceId = req.nextUrl.searchParams.get('source_id')
+      return NextResponse.json(buildDemoTree(sourceId))
+    }
+
+    // Return demo asset for individual asset lookups (path like "asset-001" or "asset-001/...sub")
     if (rootId in DEMO_ASSET_BY_ID) {
       const asset = DEMO_ASSET_BY_ID[rootId]
       if (path.length > 1) {

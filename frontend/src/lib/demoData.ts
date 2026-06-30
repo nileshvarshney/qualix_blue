@@ -798,30 +798,125 @@ export const DEMO_QUALITY_HISTORY_MAP: Record<string, { asset_id: string; histor
 
 // ─────────────────────────── lineage ─────────────────────────────────────────
 
+// Lineage — field names must match LineageNode/LineageEdge interfaces in lineage/page.tsx
 export const DEMO_LINEAGE = {
   nodes: [
-    { id: 'asset-001', label: 'SALES_ORDERS',        type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
-    { id: 'asset-002', label: 'CUSTOMERS',            type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
-    { id: 'asset-004', label: 'PRODUCTS',             type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
-    { id: 'asset-010', label: 'campaigns',            type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
-    { id: 'asset-011', label: 'conversions',          type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
-    { id: 'asset-013', label: 'ad_spend',             type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
-    { id: 'asset-023', label: 'customers',            type: 'table', connection_name: 'Customer 360 (PostgreSQL)',  database: 'customer_360',         schema: 'public' },
-    { id: 'asset-029', label: 'fact_sales',           type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
-    { id: 'asset-030', label: 'dim_customer',         type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
-    { id: 'asset-031', label: 'dim_product',          type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
-    { id: 'asset-028', label: 'revenue_summary',      type: 'view',  connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'reporting' },
+    { id: 'asset-001', label: 'SALES_ORDERS',    sub: 'SUPPLYCHAIN · SUPPLYCHAIN_DB',               type: 'source',    icon: '📦', schema: 'SUPPLYCHAIN',          database: 'SUPPLYCHAIN_DB',         tableType: 'table', rowCount: 2410832,  columnCount: 18, lastAltered: '2026-06-28', comment: 'All customer sales orders',         ownerName: 'Priya Sharma' },
+    { id: 'asset-002', label: 'CUSTOMERS',        sub: 'SUPPLYCHAIN · SUPPLYCHAIN_DB',               type: 'source',    icon: '👤', schema: 'SUPPLYCHAIN',          database: 'SUPPLYCHAIN_DB',         tableType: 'table', rowCount: 485200,   columnCount: 22, lastAltered: '2026-06-28', comment: 'Master customer records',           ownerName: 'Priya Sharma' },
+    { id: 'asset-004', label: 'PRODUCTS',         sub: 'SUPPLYCHAIN · SUPPLYCHAIN_DB',               type: 'source',    icon: '🏷️', schema: 'SUPPLYCHAIN',          database: 'SUPPLYCHAIN_DB',         tableType: 'table', rowCount: 12650,    columnCount: 16, lastAltered: '2026-06-28', comment: 'Product catalogue with SKUs',       ownerName: 'Priya Sharma' },
+    { id: 'asset-010', label: 'campaigns',        sub: 'marketing_analytics · analytics-prod-12345', type: 'source',    icon: '📢', schema: 'marketing_analytics',  database: 'analytics-prod-12345',   tableType: 'table', rowCount: 8430,     columnCount: 19, lastAltered: '2026-06-29', comment: 'All marketing campaigns',           ownerName: 'Sofia Delgado' },
+    { id: 'asset-013', label: 'ad_spend',         sub: 'marketing_analytics · analytics-prod-12345', type: 'raw',       icon: '💰', schema: 'marketing_analytics',  database: 'analytics-prod-12345',   tableType: 'table', rowCount: 92800,    columnCount: 9,  lastAltered: '2026-06-29', comment: 'Daily ad spend by channel',         ownerName: 'Sofia Delgado' },
+    { id: 'asset-023', label: 'customers',        sub: 'public · customer_360',                      type: 'source',    icon: '👤', schema: 'public',               database: 'customer_360',           tableType: 'table', rowCount: 1840220,  columnCount: 24, lastAltered: '2026-06-29', comment: 'Unified customer profile',          ownerName: 'Arun Patel' },
+    { id: 'asset-029', label: 'fact_sales',       sub: 'public · data_warehouse',                    type: 'transform', icon: '📊', schema: 'public',               database: 'data_warehouse',         tableType: 'table', rowCount: 18200000, columnCount: 26, lastAltered: '2026-06-29', comment: 'Central sales fact table',          ownerName: 'David Park' },
+    { id: 'asset-030', label: 'dim_customer',     sub: 'public · data_warehouse',                    type: 'warehouse', icon: '🏛️', schema: 'public',               database: 'data_warehouse',         tableType: 'table', rowCount: 492000,   columnCount: 18, lastAltered: '2026-06-29', comment: 'Customer dimension SCD Type 2',     ownerName: 'David Park' },
+    { id: 'asset-031', label: 'dim_product',      sub: 'public · data_warehouse',                    type: 'warehouse', icon: '🏛️', schema: 'public',               database: 'data_warehouse',         tableType: 'table', rowCount: 14200,    columnCount: 15, lastAltered: '2026-06-29', comment: 'Product dimension',                 ownerName: 'David Park' },
+    { id: 'asset-028', label: 'revenue_summary',  sub: 'reporting · data_warehouse',                 type: 'output',    icon: '📈', schema: 'reporting',            database: 'data_warehouse',         tableType: 'view',  rowCount: 84000,    columnCount: 12, lastAltered: '2026-06-29', comment: 'Pre-aggregated executive summary',  ownerName: 'David Park' },
+    { id: 'asset-011', label: 'conversions',      sub: 'marketing_analytics · analytics-prod-12345', type: 'output',    icon: '🎯', schema: 'marketing_analytics',  database: 'analytics-prod-12345',   tableType: 'table', rowCount: 624180,   columnCount: 11, lastAltered: '2026-06-29', comment: 'Conversions attributed to campaigns',ownerName: 'Sofia Delgado' },
   ],
   edges: [
-    { source: 'asset-001', target: 'asset-029', label: 'ETL daily' },
-    { source: 'asset-002', target: 'asset-030', label: 'ETL daily' },
-    { source: 'asset-023', target: 'asset-030', label: 'merge' },
-    { source: 'asset-004', target: 'asset-031', label: 'ETL daily' },
-    { source: 'asset-029', target: 'asset-028', label: 'aggregated' },
-    { source: 'asset-030', target: 'asset-028', label: 'dimension join' },
-    { source: 'asset-010', target: 'asset-011', label: 'attribution model' },
-    { source: 'asset-013', target: 'asset-011', label: 'cost attribution' },
+    { from: 'asset-001', to: 'asset-029', relationship: 'ETL daily' },
+    { from: 'asset-002', to: 'asset-030', relationship: 'ETL daily' },
+    { from: 'asset-023', to: 'asset-030', relationship: 'merge' },
+    { from: 'asset-004', to: 'asset-031', relationship: 'ETL daily' },
+    { from: 'asset-029', to: 'asset-028', relationship: 'aggregated' },
+    { from: 'asset-030', to: 'asset-028', relationship: 'dimension join' },
+    { from: 'asset-010', to: 'asset-011', relationship: 'attribution model' },
+    { from: 'asset-013', to: 'asset-011', relationship: 'cost attribution' },
   ],
+  connection: { name: 'All Connections', database: 'Multiple', schema: 'Multiple', warehouse: 'COMPUTE_WH', status: 'active' },
+  meta: { edgeMethods: { fk: 2, ddl: 4, heuristic: 2 }, totalTables: 11, totalEdges: 8 },
+}
+
+// ─────────────────────────── per-connection dashboard data ───────────────────
+
+function connTrend(base: number, volatility: number, tag: string) {
+  const days = [29,28,27,26,25,24,23,22,21,20,19,18,17,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0]
+  let s = base - 4
+  return days.map(d => {
+    s = Math.min(100, Math.max(50, s + (d % 3 === 0 ? volatility : -volatility + 1)))
+    return trendDay(d, s, Math.max(0, Math.round((100 - s) * 0.12) + (tag === 'finance' ? 2 : 0)))
+  })
+}
+
+export const DEMO_DASHBOARD_BY_CONN: Record<string, typeof DEMO_DASHBOARD> = {
+  'demo-conn-001': {
+    overallScore: 88, totalAssets: 6, totalRules: 28, openAlerts: 2, criticalAlerts: 1, mediumAlerts: 1,
+    passed: 26, failed: 2,
+    trend: connTrend(88, 1, 'supply'),
+    dimensions: { completeness: 92, accuracy: 87, uniqueness: 97, validity: 89, timeliness: 74, consistency: 91 },
+    failingRules: [
+      { rule_name: 'Freshness: INVENTORY',    asset_name: 'SUPPLYCHAIN.INVENTORY',    detail: 'Last updated 26 h ago (threshold: 12 h)', severity: 'critical' },
+      { rule_name: 'Volume: SALES_ORDERS',    asset_name: 'SUPPLYCHAIN.SALES_ORDERS', detail: '0 new rows in last 24 h (min: 10)',        severity: 'high' },
+    ],
+    atRiskTables: [
+      { asset_name: 'SUPPLYCHAIN.INVENTORY',    domain_name: 'Operations', score: 68, score_delta: -5 },
+      { asset_name: 'SUPPLYCHAIN.SALES_ORDERS', domain_name: 'Revenue',    score: 88, score_delta: -2 },
+    ],
+  },
+  'demo-conn-002': {
+    overallScore: 83, totalAssets: 5, totalRules: 18, openAlerts: 2, criticalAlerts: 0, mediumAlerts: 2,
+    passed: 16, failed: 2,
+    trend: connTrend(83, 2, 'marketing'),
+    dimensions: { completeness: 90, accuracy: 86, uniqueness: 96, validity: 82, timeliness: 70, consistency: 80 },
+    failingRules: [
+      { rule_name: 'Range: ad_spend.cost_per_click', asset_name: 'marketing_analytics.ad_spend', detail: '24 rows with CPC > $50 (max $487.32)', severity: 'high' },
+      { rule_name: 'Freshness: ad_spend',            asset_name: 'marketing_analytics.ad_spend', detail: 'Last updated 14 h ago (threshold: 8 h)',  severity: 'medium' },
+    ],
+    atRiskTables: [
+      { asset_name: 'marketing_analytics.ad_spend',   domain_name: 'Marketing', score: 74, score_delta: -4 },
+      { asset_name: 'marketing_analytics.attribution',domain_name: 'Marketing', score: 77, score_delta: -3 },
+    ],
+  },
+  'demo-conn-003': {
+    overallScore: 82, totalAssets: 5, totalRules: 22, openAlerts: 1, criticalAlerts: 0, mediumAlerts: 1,
+    passed: 21, failed: 1,
+    trend: connTrend(82, 1, 'customer'),
+    dimensions: { completeness: 87, accuracy: 83, uniqueness: 94, validity: 85, timeliness: 78, consistency: 80 },
+    failingRules: [
+      { rule_name: 'Email Format: customers.email', asset_name: 'public.customers', detail: '312 emails fail RFC 5322 validation', severity: 'high' },
+    ],
+    atRiskTables: [
+      { asset_name: 'public.customers',    domain_name: 'Customer', score: 85, score_delta: -2 },
+      { asset_name: 'public.interactions', domain_name: 'Customer', score: 79, score_delta: -1 },
+    ],
+  },
+  'demo-conn-004': {
+    overallScore: 91, totalAssets: 5, totalRules: 24, openAlerts: 0, criticalAlerts: 0, mediumAlerts: 0,
+    passed: 24, failed: 0,
+    trend: connTrend(91, 1, 'dw'),
+    dimensions: { completeness: 95, accuracy: 92, uniqueness: 99, validity: 93, timeliness: 86, consistency: 92 },
+    failingRules: [],
+    atRiskTables: [],
+  },
+  'demo-conn-005': {
+    overallScore: 74, totalAssets: 7, totalRules: 32, openAlerts: 3, criticalAlerts: 2, mediumAlerts: 1,
+    passed: 28, failed: 4,
+    trend: connTrend(74, 3, 'finance'),
+    dimensions: { completeness: 80, accuracy: 75, uniqueness: 93, validity: 78, timeliness: 52, consistency: 76 },
+    failingRules: [
+      { rule_name: 'Freshness: FINANCE_TRANSACTIONS',asset_name: 'FINANCE.FINANCE_TRANSACTIONS', detail: 'Last updated 28 h ago (threshold: 24 h)', severity: 'critical' },
+      { rule_name: 'Freshness: AP_INVOICES',         asset_name: 'FINANCE.AP_INVOICES',          detail: 'Last updated 26 h ago (threshold: 24 h)', severity: 'critical' },
+      { rule_name: 'Null: FINANCE_TRANSACTIONS.amount', asset_name: 'FINANCE.FINANCE_TRANSACTIONS', detail: '841 rows with null amount',             severity: 'high' },
+    ],
+    atRiskTables: [
+      { asset_name: 'FINANCE.FINANCE_TRANSACTIONS', domain_name: 'Finance', score: 61, score_delta: -8 },
+      { asset_name: 'FINANCE.AP_INVOICES',          domain_name: 'Finance', score: 78, score_delta: -4 },
+    ],
+  },
+  'demo-conn-006': {
+    overallScore: 80, totalAssets: 6, totalRules: 20, openAlerts: 2, criticalAlerts: 0, mediumAlerts: 2,
+    passed: 18, failed: 2,
+    trend: connTrend(80, 2, 'mfg'),
+    dimensions: { completeness: 83, accuracy: 81, uniqueness: 92, validity: 82, timeliness: 68, consistency: 78 },
+    failingRules: [
+      { rule_name: 'Null: WORK_ORDERS.completion_date', asset_name: 'MFG.WORK_ORDERS',           detail: '18% null completion_date (threshold: 5%)', severity: 'high' },
+      { rule_name: 'Defect Rate: QUALITY_INSPECTIONS',  asset_name: 'MFG.QUALITY_INSPECTIONS',   detail: 'Defect rate 8.4% exceeds 5% threshold',    severity: 'medium' },
+    ],
+    atRiskTables: [
+      { asset_name: 'MFG.WORK_ORDERS',          domain_name: 'Manufacturing', score: 71, score_delta: -4 },
+      { asset_name: 'MFG.SHOP_FLOOR_EVENTS',    domain_name: 'Manufacturing', score: 74, score_delta: -2 },
+    ],
+  },
 }
 
 // ─────────────────────────── audit logs ──────────────────────────────────────

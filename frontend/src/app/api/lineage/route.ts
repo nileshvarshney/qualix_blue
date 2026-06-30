@@ -18,19 +18,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(await res.json())
   } catch {
     if (!assetId) return NextResponse.json(DEMO_LINEAGE)
-    // Return lineage subgraph relevant to the requested asset
     const connectedIds = new Set<string>([assetId])
     for (const e of DEMO_LINEAGE.edges) {
-      if (e.source === assetId) connectedIds.add(e.target)
-      if (e.target === assetId) connectedIds.add(e.source)
+      if (e.from === assetId) connectedIds.add(e.to)
+      if (e.to === assetId) connectedIds.add(e.from)
     }
     const nodes = DEMO_LINEAGE.nodes.filter(n => connectedIds.has(n.id))
-    // Supplement with any asset not already in DEMO_LINEAGE.nodes
     if (assetId in DEMO_ASSET_BY_ID && !nodes.find(n => n.id === assetId)) {
       const a = DEMO_ASSET_BY_ID[assetId]
-      nodes.push({ id: assetId, label: a.sf_table_name, type: a.asset_type, connection_name: a.connection_name, database: a.sf_database_name, schema: a.sf_schema_name })
+      nodes.push({ id: assetId, label: a.sf_table_name, sub: a.connection_name, type: 'source' as const, icon: '📋', database: a.sf_database_name, schema: a.sf_schema_name, tableType: a.table_type ?? 'table', rowCount: a.row_count ?? null, columnCount: a.column_count ?? 0, lastAltered: a.last_seen_at ?? '', comment: a.description ?? '', ownerName: a.owner_name ?? '' })
     }
-    const edges = DEMO_LINEAGE.edges.filter(e => connectedIds.has(e.source) && connectedIds.has(e.target))
-    return NextResponse.json({ nodes, edges })
+    const edges = DEMO_LINEAGE.edges.filter(e => connectedIds.has(e.from) && connectedIds.has(e.to))
+    return NextResponse.json({ nodes, edges, connection: DEMO_LINEAGE.connection })
   }
 }

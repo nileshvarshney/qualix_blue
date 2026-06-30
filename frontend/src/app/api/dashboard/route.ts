@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_DASHBOARD, DEMO_DASHBOARD_BY_CONN } from '@/lib/demoData'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -20,12 +21,7 @@ export async function GET(req: NextRequest) {
 
     if (!globalRes.ok) {
       console.error(`Dashboard: /dashboard/global returned ${globalRes.status}`)
-      return NextResponse.json({
-        overallScore: null, totalAssets: 0, totalRules: 0, openAlerts: 0,
-        criticalAlerts: 0, mediumAlerts: 0, passed: 0, failed: 0,
-        trend: [], dimensions: { completeness: null, accuracy: null, uniqueness: null, validity: null, timeliness: null, consistency: null },
-        failingRules: [], atRiskTables: [],
-      })
+      return NextResponse.json(connectionId && DEMO_DASHBOARD_BY_CONN[connectionId] ? DEMO_DASHBOARD_BY_CONN[connectionId] : DEMO_DASHBOARD)
     }
 
     const global = await globalRes.json()
@@ -78,7 +74,7 @@ export async function GET(req: NextRequest) {
       failingRules,
       atRiskTables,
     })
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+  } catch {
+    return NextResponse.json(connectionId && DEMO_DASHBOARD_BY_CONN[connectionId] ? DEMO_DASHBOARD_BY_CONN[connectionId] : DEMO_DASHBOARD)
   }
 }
