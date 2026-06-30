@@ -160,6 +160,20 @@ COLUMNS = {
     "fact_sales":[("sale_id","BIGINT",True,False),("customer_key","INTEGER",False,False),("product_key","INTEGER",False,False),("time_key","INTEGER",False,False),("quantity","INTEGER",False,False),("unit_price","DECIMAL",False,False),("net_revenue","DECIMAL",False,False)],
     "dim_customer":[("customer_key","INTEGER",True,False),("customer_id","VARCHAR",False,False),("email","VARCHAR",False,False),("segment","VARCHAR",False,True),("valid_from","DATE",False,False),("valid_to","DATE",False,True),("is_current","BOOLEAN",False,False)],
     "agg_revenue":[("agg_date","DATE",True,False),("segment","VARCHAR",True,False),("channel","VARCHAR",True,False),("gross_revenue","DECIMAL",False,False),("net_revenue","DECIMAL",False,False),("refunds","DECIMAL",False,True),("updated_at","TIMESTAMP",False,False)],
+    # Oracle Financials
+    "GL_ACCOUNTS":[("ACCOUNT_ID","VARCHAR",True,False),("ACCOUNT_CODE","VARCHAR",False,False),("ACCOUNT_NAME","VARCHAR",False,False),("ACCOUNT_TYPE","VARCHAR",False,False),("PARENT_ACCOUNT_ID","VARCHAR",False,True),("IS_ACTIVE","VARCHAR",False,False)],
+    "JOURNAL_ENTRIES":[("JOURNAL_ID","VARCHAR",True,False),("ACCOUNT_ID","VARCHAR",False,False),("ENTRY_DATE","DATE",False,False),("DEBIT_AMOUNT","NUMBER",False,False),("CREDIT_AMOUNT","NUMBER",False,False),("PERIOD","VARCHAR",False,False),("POSTED_BY","VARCHAR",False,True)],
+    "AP_INVOICES":[("INVOICE_ID","VARCHAR",True,False),("VENDOR_ID","VARCHAR",False,False),("INVOICE_DATE","DATE",False,False),("DUE_DATE","DATE",False,True),("AMOUNT","NUMBER",False,False),("STATUS","VARCHAR",False,False),("CURRENCY","VARCHAR",False,False)],
+    "AR_INVOICES":[("INVOICE_ID","VARCHAR",True,False),("CUSTOMER_ID","VARCHAR",False,False),("INVOICE_DATE","DATE",False,False),("DUE_DATE","DATE",False,True),("AMOUNT","NUMBER",False,False),("STATUS","VARCHAR",False,False),("CURRENCY","VARCHAR",False,False)],
+    "COST_CENTERS":[("CC_ID","VARCHAR",True,False),("CC_CODE","VARCHAR",False,False),("CC_NAME","VARCHAR",False,False),("DEPARTMENT","VARCHAR",False,True),("OWNER_EMAIL","VARCHAR",False,True)],
+    "BUDGET_LINES":[("BUDGET_ID","VARCHAR",True,False),("COST_CENTER_ID","VARCHAR",False,False),("FISCAL_YEAR","INTEGER",False,False),("PERIOD","VARCHAR",False,False),("BUDGET_AMOUNT","NUMBER",False,False),("ACTUAL_AMOUNT","NUMBER",False,True)],
+    # Oracle Manufacturing
+    "WORK_ORDERS":[("WO_ID","VARCHAR",True,False),("ITEM_ID","VARCHAR",False,False),("QUANTITY","NUMBER",False,False),("START_DATE","DATE",False,False),("END_DATE","DATE",False,True),("STATUS","VARCHAR",False,False),("PLANT_CODE","VARCHAR",False,False)],
+    "BOM_HEADERS":[("BOM_ID","VARCHAR",True,False),("ITEM_ID","VARCHAR",False,False),("EFFECTIVE_DATE","DATE",False,False),("REVISION","VARCHAR",False,False),("IS_ACTIVE","VARCHAR",False,False)],
+    "BOM_COMPONENTS":[("COMPONENT_ID","VARCHAR",True,False),("BOM_ID","VARCHAR",False,False),("ITEM_ID","VARCHAR",False,False),("QUANTITY","NUMBER",False,False),("UNIT_OF_MEASURE","VARCHAR",False,False)],
+    "PRODUCTION_RUNS":[("RUN_ID","VARCHAR",True,False),("WO_ID","VARCHAR",False,False),("START_TIME","TIMESTAMP",False,False),("END_TIME","TIMESTAMP",False,True),("OUTPUT_QUANTITY","NUMBER",False,False),("DEFECT_COUNT","NUMBER",False,True),("MACHINE_ID","VARCHAR",False,False)],
+    "QUALITY_INSPECTIONS":[("INSPECTION_ID","VARCHAR",True,False),("WO_ID","VARCHAR",False,False),("INSPECTION_DATE","DATE",False,False),("RESULT","VARCHAR",False,False),("INSPECTOR_ID","VARCHAR",False,True),("DEFECT_CODE","VARCHAR",False,True)],
+    "MACHINE_DOWNTIME":[("DOWNTIME_ID","VARCHAR",True,False),("MACHINE_ID","VARCHAR",False,False),("START_TIME","TIMESTAMP",False,False),("END_TIME","TIMESTAMP",False,True),("REASON_CODE","VARCHAR",False,False),("DURATION_MINS","NUMBER",False,True)],
 }
 
 # (rule_name, rule_type, column, severity, dimension)
@@ -192,6 +206,20 @@ RULES = {
     "dim_product":[("Product Name Not Null","null_check","product_name","high","completeness"),("Price Positive","range_check","price","medium","validity")],
     "dim_time":[("Date Not Null","null_check","full_date","low","completeness")],
     "agg_revenue":[("Revenue Not Negative","range_check","net_revenue","critical","validity"),("Agg Freshness","freshness_check","agg_date","critical","timeliness"),("No Duplicate Agg Keys","uniqueness_check","agg_date","high","uniqueness")],
+    # Oracle Financials
+    "GL_ACCOUNTS":[("Account Code Unique","uniqueness_check","ACCOUNT_CODE","critical","uniqueness"),("Account Name Not Null","null_check","ACCOUNT_NAME","high","completeness"),("Account Type Valid","accepted_values_check","ACCOUNT_TYPE","high","validity")],
+    "JOURNAL_ENTRIES":[("No Duplicate Journal IDs","uniqueness_check","JOURNAL_ID","critical","uniqueness"),("Debit Credit Balance","business_rule_check","DEBIT_AMOUNT","critical","accuracy"),("Amount Not Zero","range_check","DEBIT_AMOUNT","high","validity"),("Journal Date Freshness","freshness_check","ENTRY_DATE","high","timeliness")],
+    "AP_INVOICES":[("Invoice Amount Positive","range_check","AMOUNT","critical","validity"),("AP Status Valid","accepted_values_check","STATUS","high","validity"),("Currency Valid","regex_check","CURRENCY","high","validity"),("Invoice Date Freshness","freshness_check","INVOICE_DATE","high","timeliness")],
+    "AR_INVOICES":[("AR Amount Positive","range_check","AMOUNT","critical","validity"),("AR Status Valid","accepted_values_check","STATUS","high","validity"),("Customer Ref Valid","referential_integrity_check","CUSTOMER_ID","critical","consistency"),("AR Freshness","freshness_check","INVOICE_DATE","medium","timeliness")],
+    "COST_CENTERS":[("CC Code Unique","uniqueness_check","CC_CODE","high","uniqueness"),("CC Name Not Null","null_check","CC_NAME","medium","completeness")],
+    "BUDGET_LINES":[("Budget Amount Not Negative","range_check","BUDGET_AMOUNT","high","validity"),("Fiscal Year Valid","range_check","FISCAL_YEAR","medium","validity"),("Cost Center Ref Valid","referential_integrity_check","COST_CENTER_ID","high","consistency")],
+    # Oracle Manufacturing
+    "WORK_ORDERS":[("WO Status Valid","accepted_values_check","STATUS","high","validity"),("WO Quantity Positive","range_check","QUANTITY","high","validity"),("WO Date Freshness","freshness_check","START_DATE","medium","timeliness")],
+    "BOM_HEADERS":[("BOM Item Not Null","null_check","ITEM_ID","high","completeness"),("BOM Revision Not Null","null_check","REVISION","medium","completeness")],
+    "BOM_COMPONENTS":[("Component Quantity Positive","range_check","QUANTITY","high","validity"),("BOM Ref Valid","referential_integrity_check","BOM_ID","high","consistency"),("UOM Not Null","null_check","UNIT_OF_MEASURE","medium","completeness")],
+    "PRODUCTION_RUNS":[("Output Quantity Positive","range_check","OUTPUT_QUANTITY","high","validity"),("WO Ref Valid","referential_integrity_check","WO_ID","high","consistency"),("Production Freshness","freshness_check","START_TIME","medium","timeliness")],
+    "QUALITY_INSPECTIONS":[("Inspection Result Valid","accepted_values_check","RESULT","critical","validity"),("No Duplicate Inspections","uniqueness_check","INSPECTION_ID","high","uniqueness"),("Inspection Freshness","freshness_check","INSPECTION_DATE","medium","timeliness")],
+    "MACHINE_DOWNTIME":[("Reason Code Not Null","null_check","REASON_CODE","high","completeness"),("Duration Not Negative","range_check","DURATION_MINS","medium","validity"),("Downtime Freshness","freshness_check","START_TIME","medium","timeliness")],
 }
 
 BASE_SCORES = {
@@ -202,6 +230,10 @@ BASE_SCORES = {
     "attribution_models":88.5,"audience_segments":93.0,
     "customers":98.0,"subscriptions":95.5,"payments":99.0,"support_tickets":87.0,"nps_scores":92.0,
     "fact_sales":97.5,"dim_customer":96.0,"dim_product":98.0,"dim_time":100.0,"agg_revenue":95.0,
+    "GL_ACCOUNTS":98.0,"JOURNAL_ENTRIES":96.5,"AP_INVOICES":94.0,"AR_INVOICES":93.5,
+    "COST_CENTERS":99.0,"BUDGET_LINES":91.0,
+    "WORK_ORDERS":92.5,"BOM_HEADERS":97.0,"BOM_COMPONENTS":95.5,
+    "PRODUCTION_RUNS":89.0,"QUALITY_INSPECTIONS":94.5,"MACHINE_DOWNTIME":96.0,
 }
 
 TAGS_CATALOGUE = [
