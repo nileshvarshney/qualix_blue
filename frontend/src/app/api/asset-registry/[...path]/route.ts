@@ -4,8 +4,9 @@ import { maskSensitiveColumns, extractUserRole } from '@/lib/masking'
 import { DEMO_ASSET_BY_ID, DEMO_ENRICHED_ASSETS } from '@/lib/demoData'
 
 function buildDemoTree(sourceId: string | null) {
-  const assets = sourceId
-    ? DEMO_ENRICHED_ASSETS.filter(a => a.connection_id === sourceId)
+  const effectiveId = sourceId === '__all__' ? null : sourceId
+  const assets = effectiveId
+    ? DEMO_ENRICHED_ASSETS.filter(a => a.connection_id === effectiveId)
     : DEMO_ENRICHED_ASSETS
 
   // Group: connection → database → schema → tables
@@ -173,10 +174,33 @@ export async function GET(
       if (path.length > 1) {
         const sub = path[1]
         if (sub === 'children' || sub === 'ancestors') return NextResponse.json([])
+        if (sub === 'owners' || sub === 'tags' || sub === 'documents' || sub === 'history') return NextResponse.json([])
         if (sub === 'profiling' || sub === 'preview' || sub === 'sample') return NextResponse.json({ columns: [], rows: [] })
       }
       return NextResponse.json(asset)
     }
+
+    // Handle demo source/database/schema node lookups by searching the built tree
+    if (rootId.startsWith('demo-source-') || rootId.startsWith('demo-db-') || rootId.startsWith('demo-schema-')) {
+      function findNode(nodes: ReturnType<typeof buildDemoTree>, id: string): ReturnType<typeof buildDemoTree>[0] | null {
+        for (const n of nodes) {
+          if (n.asset_id === id) return n
+          const found = findNode(n.children as unknown as ReturnType<typeof buildDemoTree>, id)
+          if (found) return found
+        }
+        return null
+      }
+      const node = findNode(buildDemoTree(null), rootId)
+      if (node) {
+        if (path.length > 1) {
+          const sub = path[1]
+          if (sub === 'children') return NextResponse.json(node.children ?? [])
+          if (sub === 'ancestors') return NextResponse.json([])
+        }
+        return NextResponse.json(node)
+      }
+    }
+
     return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 }

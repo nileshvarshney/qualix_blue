@@ -1,7 +1,7 @@
 services:
   # ── FastAPI backend ───────────────────────────────────────────────────────
   - type: web
-    name: qualix-backend
+    name: qualix-app-backend
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: starter
@@ -15,7 +15,7 @@ services:
       - key: AUTH_REQUIRED
         value: "false"
       - key: ALLOWED_ORIGINS
-        value: https://qualix.nileshv.workers.dev,https://qualix-backend-7ly5.onrender.com,http://localhost:3000,http://localhost:3002
+        value: https://qualix-app.nileshv.workers.dev,http://localhost:3000,http://localhost:3002
       - key: LLM_PROVIDER
         value: gemini
       - key: GEMINI_MODEL
