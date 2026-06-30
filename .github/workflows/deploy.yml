@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-frontend:
+    name: Frontend → Cloudflare Workers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build for Cloudflare (OpenNext)
+        working-directory: frontend
+        run: npm run cf:build
+        env:
+          NODE_ENV: production
+
+      - name: Deploy to Cloudflare Workers
+        working-directory: frontend
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "01da8b0b75c1b837318ce5caa03f2a1d"
+          WRANGLER_SEND_METRICS: "false"
+
+  deploy-backend:
+    name: Backend → Render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "RENDER_DEPLOY_HOOK_URL not set — Render will auto-deploy via GitHub integration"
+            exit 0
+          fi
+          curl -s -X POST "$RENDER_DEPLOY_HOOK_URL" | \
+          python3 -c "import sys,json; r=json.load(sys.stdin); print('Deploy triggered:', r.get('id','unknown'))"

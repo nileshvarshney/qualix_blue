@@ -1,0 +1,38 @@
+{
+  "name": "dataguard-frontend",
+  "version": "3.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "cf:build": "BACKEND_URL=https://qualix-backend-7ly5.onrender.com npx @opennextjs/cloudflare build",
+    "cf:dev": "npx wrangler dev",
+    "cf:preview": "npm run cf:build && npx wrangler dev",
+    "cf:deploy": "npm run cf:build && npx wrangler deploy"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.94.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.14.0",
+    "next": "16.2.4",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "recharts": "^3.8.1",
+    "snowflake-sdk": "^2.4.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.4",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "wrangler": "^4.95.0"
+  }
+}

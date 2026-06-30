@@ -1,0 +1,53 @@
+services:
+  # ── FastAPI backend ───────────────────────────────────────────────────────
+  - type: web
+    name: qualix-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: AUTH_REQUIRED
+        value: "false"
+      - key: ALLOWED_ORIGINS
+        value: https://qualix.nileshv.workers.dev,https://qualix-backend-7ly5.onrender.com,http://localhost:3000,http://localhost:3002
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: AUTO_RULES_ENABLED
+        value: "true"
+      - key: AUTO_RULES_MAX_PER_TABLE
+        value: "10"
+
+      - key: SF_PLATFORM_ROLE
+        value: SYSADMIN
+      - key: SF_PLATFORM_WAREHOUSE
+        value: COMPUTE_WH
+
+      # ── Set these in the Render dashboard (secrets) ──
+      - key: SF_PLATFORM_ACCOUNT
+        sync: false
+      - key: SF_PLATFORM_USER
+        sync: false
+      - key: SF_PLATFORM_PASSWORD
+        sync: false
+      - key: SNOWFLAKE_APP_DATABASE
+        sync: false
+      - key: SNOWFLAKE_APP_SCHEMA
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false

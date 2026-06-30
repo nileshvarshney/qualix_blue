@@ -1,0 +1,21 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "qualix",
+	"main": ".open-next/worker.js",
+	"account_id": "01da8b0b75c1b837318ce5caa03f2a1d",
+	"compatibility_date": "2024-09-23",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
+	"vars": {
+		"BACKEND_URL": "https://qualix-backend-7ly5.onrender.com"
+	},
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "qualix"
+		}
+	]
+}

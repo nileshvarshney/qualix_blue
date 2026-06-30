@@ -1,0 +1,36 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.7.0
+sqlalchemy==2.0.36
+alembic==1.14.0
+python-dotenv==1.0.1
+greenlet>=3.0.0
+httpx>=0.28.1
+apscheduler==3.10.4
+snowflake-connector-python==3.12.4
+snowflake-sqlalchemy==1.7.3
+psycopg2-binary==2.9.9
+# Optional connector drivers (install as needed):
+# pymysql==1.1.1
+# google-cloud-bigquery==3.26.0
+# boto3==1.35.0
+openai==1.57.2
+anthropic==0.40.0
+google-genai>=1.0.0
+ollama>=0.4.0
+pyyaml==6.0.2
+python-multipart==0.0.20
+python-jose[cryptography]==3.3.0
+cryptography>=42.0.0
+slowapi==0.1.9
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.2
+tenacity==9.0.0
+structlog==24.4.0
+rich==13.9.4
+aiosmtplib==3.0.1
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+sqlglot>=25.0.0,<26.0
