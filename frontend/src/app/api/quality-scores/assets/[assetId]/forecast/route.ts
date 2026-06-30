@@ -19,7 +19,7 @@ export async function GET(
     )
     const data = await res.json().catch(() => ({}))
     return NextResponse.json(data, { status: res.status })
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+  } catch {
+    return NextResponse.json({ asset_id: assetId, history: [], forecast: [], upper_band: [], lower_band: [], insufficient_history: true })
   }
 }

@@ -555,13 +555,13 @@ export const DEMO_ASSET_BY_ID: Record<string, (typeof DEMO_ENRICHED_ASSETS)[numb
 
 function qscore(
   assetId: string, overall: number,
-  completeness: number, accuracy: number, uniqueness: number, validity: number, timeliness: number, consistency: number,
+  completeness: number, integrity: number, uniqueness: number, validity: number, timeliness: number, consistency: number,
 ) {
   return {
     asset_id: assetId, score_date: new Date('2026-06-29').toISOString().slice(0, 10), overall_score: overall,
     dimensions: {
       completeness: { score: completeness, source: 'rules', total_rules: 4, passed_rules: Math.round(4*completeness/100), failed_rules: Math.round(4*(1-completeness/100)) },
-      accuracy:     { score: accuracy,     source: 'rules', total_rules: 5, passed_rules: Math.round(5*accuracy/100),     failed_rules: Math.round(5*(1-accuracy/100)) },
+      integrity:    { score: integrity,    source: 'rules', total_rules: 5, passed_rules: Math.round(5*integrity/100),    failed_rules: Math.round(5*(1-integrity/100)) },
       uniqueness:   { score: uniqueness,   source: 'rules', total_rules: 3, passed_rules: Math.round(3*uniqueness/100),   failed_rules: Math.round(3*(1-uniqueness/100)) },
       validity:     { score: validity,     source: 'rules', total_rules: 4, passed_rules: Math.round(4*validity/100),     failed_rules: Math.round(4*(1-validity/100)) },
       timeliness:   { score: timeliness,   source: 'rules', total_rules: 2, passed_rules: Math.round(2*timeliness/100),   failed_rules: Math.round(2*(1-timeliness/100)) },
@@ -774,12 +774,12 @@ function qhistory(assetId: string, baseline: number, days = 30) {
     const d = new Date(base); d.setDate(d.getDate() - i)
     // Random walk ±2, clamped to [50, 100]
     score = Math.min(100, Math.max(50, score + (Math.random() > 0.5 ? 1 : -1) * Math.round(Math.random() * 2)))
-    entries.push({ score_date: d.toISOString().slice(0, 10), overall_score: score })
+    entries.push({ date: d.toISOString().slice(0, 10), overall_score: score })
   }
   return { asset_id: assetId, history: entries }
 }
 
-export const DEMO_QUALITY_HISTORY_MAP: Record<string, { asset_id: string; history: { score_date: string; overall_score: number }[] }> = {
+export const DEMO_QUALITY_HISTORY_MAP: Record<string, { asset_id: string; history: { date: string; overall_score: number }[] }> = {
   'asset-001': qhistory('asset-001', 88),
   'asset-002': qhistory('asset-002', 91),
   'asset-003': qhistory('asset-003', 82),

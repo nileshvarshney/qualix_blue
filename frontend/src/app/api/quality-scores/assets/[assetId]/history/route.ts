@@ -22,6 +22,6 @@ export async function GET(
     const hist = DEMO_QUALITY_HISTORY_MAP[assetId]
     if (hist) return NextResponse.json(hist)
     const score = DEMO_QUALITY_SCORE_MAP[assetId]?.overall_score ?? 80
-    return NextResponse.json({ asset_id: assetId, history: [{ score_date: '2026-06-29', overall_score: score }] })
+    return NextResponse.json({ asset_id: assetId, history: [{ date: '2026-06-29', overall_score: score }] })
   }
 }
