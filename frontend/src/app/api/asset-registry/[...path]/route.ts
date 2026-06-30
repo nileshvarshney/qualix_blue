@@ -128,6 +128,7 @@ export async function GET(
   try {
     const auth = req.headers.get('Authorization') ?? ''
     const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}${req.nextUrl.search}`, { cache: 'no-store' })
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json().catch(() => ({}))
 
     if (pathStr.includes('profiling') || pathStr.includes('preview') || pathStr.includes('sample')) {
