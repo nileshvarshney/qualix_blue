@@ -9,9 +9,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const qs = searchParams.toString() ? `?${searchParams.toString()}` : ''
     const res = await serverFetch(req, `${BACKEND}/alert-routing/rules${qs}`, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
     return NextResponse.json(await res.json())
-  } catch { return NextResponse.json([]) }
+  } catch {
+    const { DEMO_ALERT_ROUTING_RULES } = await import('@/lib/demoData')
+    return NextResponse.json(DEMO_ALERT_ROUTING_RULES)
+  }
 }
 
 export async function POST(req: NextRequest) {

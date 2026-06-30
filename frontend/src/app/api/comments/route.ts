@@ -1,25 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_COMMENTS } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
 export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const entityType = searchParams.get('entity_type')
+  const entityId = searchParams.get('entity_id')
   try {
-    const { searchParams } = new URL(req.url)
     const params = new URLSearchParams()
-    if (searchParams.get('entity_type')) params.set('entity_type', searchParams.get('entity_type')!)
-    if (searchParams.get('entity_id')) params.set('entity_id', searchParams.get('entity_id')!)
+    if (entityType) params.set('entity_type', entityType)
+    if (entityId) params.set('entity_id', entityId)
     if (searchParams.get('limit')) params.set('limit', searchParams.get('limit')!)
     const auth = req.headers.get('authorization') || ''
     const res = await serverFetch(req, `${BACKEND}/comments?${params}`, {
       cache: 'no-store',
       headers: auth ? { authorization: auth } : {},
     })
-    if (!res.ok) return NextResponse.json({ error: 'Backend error' }, { status: res.status })
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : [])
-  } catch { return NextResponse.json([]) }
+  } catch {
+    let items = DEMO_COMMENTS
+    if (entityType) items = items.filter(c => c.entity_type === entityType)
+    if (entityId) items = items.filter(c => c.entity_id === entityId)
+    return NextResponse.json(items)
+  }
 }
 
 export async function POST(req: NextRequest) {

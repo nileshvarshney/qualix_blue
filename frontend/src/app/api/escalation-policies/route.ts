@@ -9,9 +9,12 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const qs = searchParams.toString() ? `?${searchParams.toString()}` : ''
     const res = await serverFetch(req, `${BACKEND}/escalation-policies${qs}`, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
     return NextResponse.json(await res.json())
-  } catch { return NextResponse.json([]) }
+  } catch {
+    const { DEMO_ESCALATION_POLICIES } = await import('@/lib/demoData')
+    return NextResponse.json(DEMO_ESCALATION_POLICIES)
+  }
 }
 
 export async function POST(req: NextRequest) {

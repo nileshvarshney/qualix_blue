@@ -501,3 +501,402 @@ export const DEMO_PRIVACY_CONSENT = [
   { consent_id: 'cns-005', subject_email: 'bob.martin@example.com',  asset_id: 'asset-023', consent_type: 'marketing',    granted: true,  granted_at: ago(60),  withdrawn_at: null,   lawful_basis: 'consent' },
   { consent_id: 'cns-006', subject_email: 'carol.lee@example.com',   asset_id: 'asset-023', consent_type: 'analytics',    granted: true,  granted_at: ago(45),  withdrawn_at: null,   lawful_basis: 'consent' },
 ]
+
+// ─────────────────────────── enriched assets (catalog + asset-registry) ─────
+
+export const DEMO_ENRICHED_ASSETS = [
+  // ── Snowflake Supply Chain ──────────────────────────────────────────────
+  { asset_id: 'asset-001', sf_table_name: 'SALES_ORDERS',          sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'SALES_ORDERS',          physical_name: 'SALES_ORDERS',          status: 'active',  domain_id: 'dom-001', domain_name: 'Revenue',       subdomain_id: 'sub-001', subdomain_name: 'Order Management',   owner_name: 'Priya Sharma',   certification_status: 'certified',   criticality: 'high',     quality_score: 88,  is_active: true,  row_count: 2_410_832, column_count: 18, table_type: 'table', tag_names: ['Critical', 'Operational'], description: 'All customer sales orders including status, amounts, and fulfilment dates',      discovered_at: ago(180), last_seen_at: ago(0, 6) },
+  { asset_id: 'asset-002', sf_table_name: 'CUSTOMERS',              sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'CUSTOMERS',             physical_name: 'CUSTOMERS',             status: 'active',  domain_id: 'dom-001', domain_name: 'Revenue',       subdomain_id: 'sub-002', subdomain_name: 'Customer Master',    owner_name: 'Priya Sharma',   certification_status: 'certified',   criticality: 'high',     quality_score: 91,  is_active: true,  row_count: 485_200,   column_count: 22, table_type: 'table', tag_names: ['PII', 'Critical'],         description: 'Master customer records including contact, account tier, and lifecycle status',  discovered_at: ago(180), last_seen_at: ago(0, 6) },
+  { asset_id: 'asset-003', sf_table_name: 'SUPPLIERS',              sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'SUPPLIERS',             physical_name: 'SUPPLIERS',             status: 'active',  domain_id: 'dom-003', domain_name: 'Operations',    subdomain_id: 'sub-008', subdomain_name: 'Supplier Management',owner_name: 'James Okonkwo',  certification_status: 'uncertified', criticality: 'medium',   quality_score: 82,  is_active: true,  row_count: 3_740,     column_count: 14, table_type: 'table', tag_names: ['Operational'],             description: 'Supplier master data including contract terms, lead times, and performance ratings', discovered_at: ago(180), last_seen_at: ago(0, 6) },
+  { asset_id: 'asset-004', sf_table_name: 'PRODUCTS',               sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'PRODUCTS',              physical_name: 'PRODUCTS',              status: 'active',  domain_id: 'dom-001', domain_name: 'Revenue',       subdomain_id: 'sub-003', subdomain_name: 'Product Catalog',    owner_name: 'Priya Sharma',   certification_status: 'certified',   criticality: 'medium',   quality_score: 94,  is_active: true,  row_count: 12_650,    column_count: 16, table_type: 'table', tag_names: ['Certified'],               description: 'Product catalogue with SKUs, categories, unit prices, and supplier linkage',    discovered_at: ago(180), last_seen_at: ago(0, 6) },
+  { asset_id: 'asset-005', sf_table_name: 'INVENTORY',              sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'INVENTORY',             physical_name: 'INVENTORY',             status: 'active',  domain_id: 'dom-003', domain_name: 'Operations',    subdomain_id: 'sub-007', subdomain_name: 'Inventory Control',  owner_name: 'James Okonkwo',  certification_status: 'uncertified', criticality: 'critical', quality_score: 68,  is_active: true,  row_count: 69_400,    column_count: 12, table_type: 'table', tag_names: ['Critical', 'Operational'], description: 'Real-time inventory levels by warehouse location, SKU, and lot number',          discovered_at: ago(180), last_seen_at: ago(1, 2) },
+  { asset_id: 'asset-006', sf_table_name: 'SHIPMENTS',              sf_schema_name: 'SUPPLYCHAIN', sf_database_name: 'SUPPLYCHAIN_DB', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',            asset_type: 'table', display_name: 'SHIPMENTS',             physical_name: 'SHIPMENTS',             status: 'active',  domain_id: 'dom-003', domain_name: 'Operations',    subdomain_id: 'sub-009', subdomain_name: 'Logistics',          owner_name: 'James Okonkwo',  certification_status: 'uncertified', criticality: 'medium',   quality_score: 85,  is_active: true,  row_count: 1_208_440, column_count: 15, table_type: 'table', tag_names: ['Operational'],             description: 'Outbound shipment records with carrier, tracking, and delivery confirmation',   discovered_at: ago(180), last_seen_at: ago(0, 6) },
+  // ── BigQuery Marketing Analytics ────────────────────────────────────────
+  { asset_id: 'asset-010', sf_table_name: 'campaigns',              sf_schema_name: 'marketing_analytics', sf_database_name: 'analytics-prod-12345', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_type: 'table', display_name: 'campaigns',          physical_name: 'campaigns',             status: 'active',  domain_id: 'dom-004', domain_name: 'Marketing',     subdomain_id: 'sub-010', subdomain_name: 'Campaign Analytics', owner_name: 'Sofia Delgado',  certification_status: 'certified',   criticality: 'high',     quality_score: 91,  is_active: true,  row_count: 8_430,     column_count: 19, table_type: 'table', tag_names: ['Marketing', 'Certified'],  description: 'All marketing campaigns across Google Ads, Facebook, and email channels',       discovered_at: ago(120), last_seen_at: ago(0, 8) },
+  { asset_id: 'asset-011', sf_table_name: 'conversions',            sf_schema_name: 'marketing_analytics', sf_database_name: 'analytics-prod-12345', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_type: 'table', display_name: 'conversions',        physical_name: 'conversions',           status: 'active',  domain_id: 'dom-004', domain_name: 'Marketing',     subdomain_id: 'sub-012', subdomain_name: 'Attribution',        owner_name: 'Sofia Delgado',  certification_status: 'uncertified', criticality: 'high',     quality_score: 88,  is_active: true,  row_count: 624_180,   column_count: 11, table_type: 'table', tag_names: ['Marketing'],               description: 'Conversion events attributed to marketing campaigns with revenue value',         discovered_at: ago(120), last_seen_at: ago(0, 8) },
+  { asset_id: 'asset-012', sf_table_name: 'leads',                  sf_schema_name: 'marketing_analytics', sf_database_name: 'analytics-prod-12345', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_type: 'table', display_name: 'leads',              physical_name: 'leads',                 status: 'active',  domain_id: 'dom-004', domain_name: 'Marketing',     subdomain_id: 'sub-011', subdomain_name: 'Lead Generation',    owner_name: 'Sofia Delgado',  certification_status: 'uncertified', criticality: 'medium',   quality_score: 85,  is_active: true,  row_count: 187_300,   column_count: 15, table_type: 'table', tag_names: ['PII', 'Marketing'],        description: 'Lead capture records from all inbound marketing channels',                       discovered_at: ago(120), last_seen_at: ago(0, 8) },
+  { asset_id: 'asset-013', sf_table_name: 'ad_spend',               sf_schema_name: 'marketing_analytics', sf_database_name: 'analytics-prod-12345', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_type: 'table', display_name: 'ad_spend',           physical_name: 'ad_spend',              status: 'active',  domain_id: 'dom-004', domain_name: 'Marketing',     subdomain_id: 'sub-010', subdomain_name: 'Campaign Analytics', owner_name: 'Sofia Delgado',  certification_status: 'uncertified', criticality: 'high',     quality_score: 74,  is_active: true,  row_count: 92_800,    column_count: 9,  table_type: 'table', tag_names: ['Marketing', 'Finance'],    description: 'Daily ad spend breakdown by campaign, channel, and creative',                    discovered_at: ago(120), last_seen_at: ago(0, 8) },
+  { asset_id: 'asset-014', sf_table_name: 'attribution',            sf_schema_name: 'marketing_analytics', sf_database_name: 'analytics-prod-12345', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_type: 'view',  display_name: 'attribution',        physical_name: 'attribution',           status: 'active',  domain_id: 'dom-004', domain_name: 'Marketing',     subdomain_id: 'sub-012', subdomain_name: 'Attribution',        owner_name: 'Sofia Delgado',  certification_status: 'deprecated',  criticality: 'medium',   quality_score: 77,  is_active: true,  row_count: 412_900,   column_count: 13, table_type: 'view',  tag_names: ['Marketing', 'Deprecated'], description: 'Multi-touch attribution view (deprecated — use conversions table instead)',      discovered_at: ago(120), last_seen_at: ago(0, 8) },
+  // ── PostgreSQL Customer 360 ──────────────────────────────────────────────
+  { asset_id: 'asset-023', sf_table_name: 'customers',              sf_schema_name: 'public',      sf_database_name: 'customer_360',         connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',      asset_type: 'table', display_name: 'customers',          physical_name: 'customers',             status: 'active',  domain_id: 'dom-005', domain_name: 'Customer',      subdomain_id: 'sub-013', subdomain_name: 'Customer Profile',   owner_name: 'Arun Patel',     certification_status: 'certified',   criticality: 'critical', quality_score: 85,  is_active: true,  row_count: 1_840_220, column_count: 24, table_type: 'table', tag_names: ['PII', 'GDPR', 'Critical'], description: 'Unified customer profile with demographics, preferences, and lifecycle stage',  discovered_at: ago(120), last_seen_at: ago(0, 1) },
+  { asset_id: 'asset-024', sf_table_name: 'orders',                 sf_schema_name: 'public',      sf_database_name: 'customer_360',         connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',      asset_type: 'table', display_name: 'orders',             physical_name: 'orders',                status: 'active',  domain_id: 'dom-001', domain_name: 'Revenue',       subdomain_id: 'sub-001', subdomain_name: 'Order Management',   owner_name: 'Priya Sharma',   certification_status: 'certified',   criticality: 'high',     quality_score: 89,  is_active: true,  row_count: 3_621_400, column_count: 16, table_type: 'table', tag_names: ['Critical', 'Operational'], description: 'Customer order transactions linked to customer profiles',                        discovered_at: ago(120), last_seen_at: ago(0, 1) },
+  { asset_id: 'asset-025', sf_table_name: 'interactions',           sf_schema_name: 'public',      sf_database_name: 'customer_360',         connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',      asset_type: 'table', display_name: 'interactions',       physical_name: 'interactions',          status: 'active',  domain_id: 'dom-005', domain_name: 'Customer',      subdomain_id: 'sub-014', subdomain_name: 'Customer Events',    owner_name: 'Arun Patel',     certification_status: 'uncertified', criticality: 'medium',   quality_score: 79,  is_active: true,  row_count: 8_920_000, column_count: 10, table_type: 'table', tag_names: ['PII'],                     description: 'Customer interaction events (calls, emails, chat) from CRM and support systems', discovered_at: ago(120), last_seen_at: ago(0, 1) },
+  { asset_id: 'asset-026', sf_table_name: 'subscriptions',          sf_schema_name: 'public',      sf_database_name: 'customer_360',         connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',      asset_type: 'table', display_name: 'subscriptions',      physical_name: 'subscriptions',         status: 'active',  domain_id: 'dom-005', domain_name: 'Customer',      subdomain_id: 'sub-013', subdomain_name: 'Customer Profile',   owner_name: 'Arun Patel',     certification_status: 'uncertified', criticality: 'high',     quality_score: 83,  is_active: true,  row_count: 924_000,   column_count: 14, table_type: 'table', tag_names: ['PII', 'GDPR'],             description: 'Active and historical subscription records with plan, billing cycle, and status', discovered_at: ago(120), last_seen_at: ago(0, 1) },
+  { asset_id: 'asset-027', sf_table_name: 'events',                 sf_schema_name: 'events',      sf_database_name: 'customer_360',         connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',      asset_type: 'table', display_name: 'events',             physical_name: 'events',                status: 'active',  domain_id: 'dom-005', domain_name: 'Customer',      subdomain_id: 'sub-014', subdomain_name: 'Customer Events',    owner_name: 'Arun Patel',     certification_status: 'uncertified', criticality: 'low',      quality_score: 76,  is_active: true,  row_count: 42_100_000,column_count: 8,  table_type: 'table', tag_names: [],                          description: 'Raw behavioural event stream from web and mobile applications',                 discovered_at: ago(120), last_seen_at: ago(0, 1) },
+  // ── Redshift Enterprise DW ───────────────────────────────────────────────
+  { asset_id: 'asset-029', sf_table_name: 'fact_sales',             sf_schema_name: 'public',      sf_database_name: 'data_warehouse',       connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',       asset_type: 'table', display_name: 'fact_sales',         physical_name: 'fact_sales',            status: 'active',  domain_id: 'dom-007', domain_name: 'Data Warehouse', subdomain_id: 'sub-017', subdomain_name: 'Sales Analytics',    owner_name: 'David Park',     certification_status: 'certified',   criticality: 'critical', quality_score: 90,  is_active: true,  row_count: 18_200_000,column_count: 26, table_type: 'table', tag_names: ['Certified', 'Critical'],   description: 'Central sales fact table — grain is one row per order line item per day',       discovered_at: ago(150), last_seen_at: ago(0, 5) },
+  { asset_id: 'asset-030', sf_table_name: 'dim_customer',           sf_schema_name: 'public',      sf_database_name: 'data_warehouse',       connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',       asset_type: 'table', display_name: 'dim_customer',       physical_name: 'dim_customer',          status: 'active',  domain_id: 'dom-007', domain_name: 'Data Warehouse', subdomain_id: 'sub-017', subdomain_name: 'Sales Analytics',    owner_name: 'David Park',     certification_status: 'certified',   criticality: 'high',     quality_score: 87,  is_active: true,  row_count: 492_000,   column_count: 18, table_type: 'table', tag_names: ['Certified'],               description: 'Customer dimension with SCD Type 2 history and customer segmentation attributes', discovered_at: ago(150), last_seen_at: ago(0, 5) },
+  { asset_id: 'asset-031', sf_table_name: 'dim_product',            sf_schema_name: 'public',      sf_database_name: 'data_warehouse',       connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',       asset_type: 'table', display_name: 'dim_product',        physical_name: 'dim_product',           status: 'active',  domain_id: 'dom-007', domain_name: 'Data Warehouse', subdomain_id: 'sub-017', subdomain_name: 'Sales Analytics',    owner_name: 'David Park',     certification_status: 'certified',   criticality: 'medium',   quality_score: 92,  is_active: true,  row_count: 14_200,    column_count: 15, table_type: 'table', tag_names: ['Certified'],               description: 'Product dimension including hierarchy, category, and list price attributes',    discovered_at: ago(150), last_seen_at: ago(0, 5) },
+  { asset_id: 'asset-032', sf_table_name: 'dim_time',               sf_schema_name: 'public',      sf_database_name: 'data_warehouse',       connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',       asset_type: 'table', display_name: 'dim_time',           physical_name: 'dim_time',              status: 'active',  domain_id: 'dom-007', domain_name: 'Data Warehouse', subdomain_id: 'sub-017', subdomain_name: 'Sales Analytics',    owner_name: 'David Park',     certification_status: 'certified',   criticality: 'low',      quality_score: 99,  is_active: true,  row_count: 10_957,    column_count: 20, table_type: 'table', tag_names: ['Certified'],               description: 'Date dimension covering 30 years with fiscal calendar, holidays, and week attributes', discovered_at: ago(150), last_seen_at: ago(0, 5) },
+  { asset_id: 'asset-028', sf_table_name: 'revenue_summary',        sf_schema_name: 'reporting',   sf_database_name: 'data_warehouse',       connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',       asset_type: 'view',  display_name: 'revenue_summary',    physical_name: 'revenue_summary',       status: 'active',  domain_id: 'dom-007', domain_name: 'Data Warehouse', subdomain_id: 'sub-017', subdomain_name: 'Sales Analytics',    owner_name: 'David Park',     certification_status: 'certified',   criticality: 'high',     quality_score: 88,  is_active: true,  row_count: 84_000,    column_count: 12, table_type: 'view',  tag_names: ['Certified'],               description: 'Pre-aggregated revenue summary by month, region, and channel for executive reporting', discovered_at: ago(150), last_seen_at: ago(0, 5) },
+  // ── Oracle Financials ────────────────────────────────────────────────────
+  { asset_id: 'asset-017', sf_table_name: 'GL_ACCOUNTS',            sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'GL_ACCOUNTS',        physical_name: 'GL_ACCOUNTS',           status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-004', subdomain_name: 'General Ledger',     owner_name: 'Michael Chen',   certification_status: 'certified',   criticality: 'critical', quality_score: 84,  is_active: true,  row_count: 24_800,    column_count: 12, table_type: 'table', tag_names: ['Finance', 'Critical'],     description: 'Chart of accounts — all GL account codes, types, and active status',            discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-018', sf_table_name: 'FINANCE_TRANSACTIONS',   sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'FINANCE_TRANSACTIONS', physical_name: 'FINANCE_TRANSACTIONS',  status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-004', subdomain_name: 'General Ledger',     owner_name: 'Michael Chen',   certification_status: 'certified',   criticality: 'critical', quality_score: 61,  is_active: true,  row_count: 8_420_000, column_count: 20, table_type: 'table', tag_names: ['Finance', 'Critical', 'SOX'], description: 'Journal entries and GL postings — source of record for all financial transactions', discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-019', sf_table_name: 'AP_INVOICES',            sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'AP_INVOICES',        physical_name: 'AP_INVOICES',           status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-005', subdomain_name: 'Accounts Payable',   owner_name: 'Michael Chen',   certification_status: 'certified',   criticality: 'high',     quality_score: 78,  is_active: true,  row_count: 1_240_000, column_count: 16, table_type: 'table', tag_names: ['Finance', 'SOX'],          description: 'Accounts payable invoices from all approved vendors',                            discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-020', sf_table_name: 'AR_TRANSACTIONS',        sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'AR_TRANSACTIONS',    physical_name: 'AR_TRANSACTIONS',       status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-006', subdomain_name: 'Accounts Receivable',owner_name: 'Michael Chen',   certification_status: 'certified',   criticality: 'high',     quality_score: 82,  is_active: true,  row_count: 680_000,   column_count: 14, table_type: 'table', tag_names: ['Finance', 'SOX'],          description: 'Accounts receivable transactions — customer invoices, payments, and credits',   discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-021', sf_table_name: 'COST_CENTERS',           sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'COST_CENTERS',       physical_name: 'COST_CENTERS',          status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-004', subdomain_name: 'General Ledger',     owner_name: 'Michael Chen',   certification_status: 'uncertified', criticality: 'medium',   quality_score: 88,  is_active: true,  row_count: 842,       column_count: 10, table_type: 'table', tag_names: ['Finance'],                 description: 'Cost centre hierarchy and budget allocation by department',                      discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-022', sf_table_name: 'BUDGET_LINES',           sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'BUDGET_LINES',       physical_name: 'BUDGET_LINES',          status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-004', subdomain_name: 'General Ledger',     owner_name: 'Michael Chen',   certification_status: 'uncertified', criticality: 'medium',   quality_score: 86,  is_active: true,  row_count: 18_200,    column_count: 11, table_type: 'table', tag_names: ['Finance'],                 description: 'Annual budget line items by cost centre and expense category',                   discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  { asset_id: 'asset-015', sf_table_name: 'FX_RATES',               sf_schema_name: 'FINANCE',     sf_database_name: 'FINDB',                connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',        asset_type: 'table', display_name: 'FX_RATES',           physical_name: 'FX_RATES',              status: 'active',  domain_id: 'dom-002', domain_name: 'Finance',       subdomain_id: 'sub-004', subdomain_name: 'General Ledger',     owner_name: 'Michael Chen',   certification_status: 'uncertified', criticality: 'high',     quality_score: 91,  is_active: true,  row_count: 12_400,    column_count: 6,  table_type: 'table', tag_names: ['Finance'],                 description: 'Daily FX rates from Reuters for multi-currency consolidation',                   discovered_at: ago(90),  last_seen_at: ago(1, 4) },
+  // ── Oracle Manufacturing ─────────────────────────────────────────────────
+  { asset_id: 'asset-033', sf_table_name: 'WORK_ORDERS',            sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'WORK_ORDERS',        physical_name: 'WORK_ORDERS',           status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-015', subdomain_name: 'Production Planning',owner_name: 'Elena Kowalski', certification_status: 'uncertified', criticality: 'high',     quality_score: 71,  is_active: true,  row_count: 384_200,   column_count: 18, table_type: 'table', tag_names: ['Operational'],             description: 'Manufacturing work orders with BOM, routing, and completion tracking',           discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+  { asset_id: 'asset-034', sf_table_name: 'BOM',                    sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'BOM',                physical_name: 'BOM',                   status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-015', subdomain_name: 'Production Planning',owner_name: 'Elena Kowalski', certification_status: 'certified',   criticality: 'medium',   quality_score: 88,  is_active: true,  row_count: 42_600,    column_count: 14, table_type: 'table', tag_names: ['Certified', 'Operational'], description: 'Bill of materials — components and quantities for each manufactured product',     discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+  { asset_id: 'asset-035', sf_table_name: 'QUALITY_INSPECTIONS',    sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'QUALITY_INSPECTIONS',physical_name: 'QUALITY_INSPECTIONS',   status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-016', subdomain_name: 'Quality Control',    owner_name: 'Elena Kowalski', certification_status: 'uncertified', criticality: 'high',     quality_score: 80,  is_active: true,  row_count: 128_400,   column_count: 13, table_type: 'table', tag_names: ['Operational'],             description: 'Quality inspection results per lot with defect codes and disposition',           discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+  { asset_id: 'asset-036', sf_table_name: 'PRODUCTION_SCHEDULES',   sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'PRODUCTION_SCHEDULES', physical_name: 'PRODUCTION_SCHEDULES',  status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-015', subdomain_name: 'Production Planning',owner_name: 'Elena Kowalski', certification_status: 'certified',   criticality: 'high',     quality_score: 86,  is_active: true,  row_count: 22_100,    column_count: 10, table_type: 'table', tag_names: ['Certified', 'Operational'], description: 'Daily and weekly production schedules by line and shift',                        discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+  { asset_id: 'asset-037', sf_table_name: 'EQUIPMENT_MAINTENANCE',  sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'EQUIPMENT_MAINTENANCE',physical_name: 'EQUIPMENT_MAINTENANCE', status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-015', subdomain_name: 'Production Planning',owner_name: 'Elena Kowalski', certification_status: 'uncertified', criticality: 'medium',   quality_score: 79,  is_active: true,  row_count: 84_600,    column_count: 12, table_type: 'table', tag_names: [],                          description: 'Preventive and corrective maintenance records for manufacturing equipment',      discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+  { asset_id: 'asset-038', sf_table_name: 'SHOP_FLOOR_EVENTS',      sf_schema_name: 'MFG',         sf_database_name: 'MFGDB',                connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)',     asset_type: 'table', display_name: 'SHOP_FLOOR_EVENTS',  physical_name: 'SHOP_FLOOR_EVENTS',     status: 'active',  domain_id: 'dom-006', domain_name: 'Manufacturing', subdomain_id: 'sub-015', subdomain_name: 'Production Planning',owner_name: 'Elena Kowalski', certification_status: 'uncertified', criticality: 'low',      quality_score: 74,  is_active: true,  row_count: 6_840_000, column_count: 8,  table_type: 'table', tag_names: [],                          description: 'Raw shop floor machine events from IoT sensors and SCADA systems',              discovered_at: ago(80),  last_seen_at: ago(0, 9) },
+]
+
+export const DEMO_ASSET_BY_ID: Record<string, (typeof DEMO_ENRICHED_ASSETS)[number]> =
+  Object.fromEntries(DEMO_ENRICHED_ASSETS.map(a => [a.asset_id, a]))
+
+// ─────────────────────────── quality scores per asset ───────────────────────
+
+function qscore(
+  assetId: string, overall: number,
+  completeness: number, accuracy: number, uniqueness: number, validity: number, timeliness: number, consistency: number,
+) {
+  return {
+    asset_id: assetId, score_date: new Date('2026-06-29').toISOString().slice(0, 10), overall_score: overall,
+    dimensions: {
+      completeness: { score: completeness, source: 'rules', total_rules: 4, passed_rules: Math.round(4*completeness/100), failed_rules: Math.round(4*(1-completeness/100)) },
+      accuracy:     { score: accuracy,     source: 'rules', total_rules: 5, passed_rules: Math.round(5*accuracy/100),     failed_rules: Math.round(5*(1-accuracy/100)) },
+      uniqueness:   { score: uniqueness,   source: 'rules', total_rules: 3, passed_rules: Math.round(3*uniqueness/100),   failed_rules: Math.round(3*(1-uniqueness/100)) },
+      validity:     { score: validity,     source: 'rules', total_rules: 4, passed_rules: Math.round(4*validity/100),     failed_rules: Math.round(4*(1-validity/100)) },
+      timeliness:   { score: timeliness,   source: 'rules', total_rules: 2, passed_rules: Math.round(2*timeliness/100),   failed_rules: Math.round(2*(1-timeliness/100)) },
+      consistency:  { score: consistency,  source: 'rules', total_rules: 3, passed_rules: Math.round(3*consistency/100),  failed_rules: Math.round(3*(1-consistency/100)) },
+    },
+  }
+}
+
+export const DEMO_QUALITY_SCORE_MAP: Record<string, ReturnType<typeof qscore>> = {
+  'asset-001': qscore('asset-001', 88, 93, 86, 97, 88, 72, 92),
+  'asset-002': qscore('asset-002', 91, 96, 89, 99, 94, 80, 88),
+  'asset-003': qscore('asset-003', 82, 88, 80, 91, 83, 78, 72),
+  'asset-004': qscore('asset-004', 94, 98, 93, 99, 96, 88, 94),
+  'asset-005': qscore('asset-005', 68, 71, 65, 82, 70, 42, 78),
+  'asset-006': qscore('asset-006', 85, 90, 83, 94, 87, 76, 80),
+  'asset-010': qscore('asset-010', 91, 94, 90, 98, 95, 84, 88),
+  'asset-011': qscore('asset-011', 88, 92, 87, 96, 91, 79, 83),
+  'asset-012': qscore('asset-012', 85, 91, 83, 94, 86, 77, 80),
+  'asset-013': qscore('asset-013', 74, 78, 72, 88, 76, 58, 72),
+  'asset-014': qscore('asset-014', 77, 80, 75, 90, 79, 64, 74),
+  'asset-015': qscore('asset-015', 91, 97, 90, 99, 93, 82, 85),
+  'asset-017': qscore('asset-017', 84, 90, 83, 96, 85, 70, 80),
+  'asset-018': qscore('asset-018', 61, 65, 58, 72, 63, 42, 66),
+  'asset-019': qscore('asset-019', 78, 83, 76, 90, 80, 65, 74),
+  'asset-020': qscore('asset-020', 82, 87, 80, 93, 84, 70, 78),
+  'asset-021': qscore('asset-021', 88, 92, 87, 97, 90, 79, 83),
+  'asset-022': qscore('asset-022', 86, 90, 85, 96, 88, 76, 82),
+  'asset-023': qscore('asset-023', 85, 88, 83, 92, 88, 80, 79),
+  'asset-024': qscore('asset-024', 89, 93, 88, 97, 91, 82, 83),
+  'asset-025': qscore('asset-025', 79, 84, 77, 90, 81, 72, 72),
+  'asset-026': qscore('asset-026', 83, 88, 81, 93, 85, 74, 77),
+  'asset-027': qscore('asset-027', 76, 80, 74, 88, 78, 66, 70),
+  'asset-028': qscore('asset-028', 88, 92, 87, 96, 90, 80, 84),
+  'asset-029': qscore('asset-029', 90, 94, 89, 98, 93, 84, 90),
+  'asset-030': qscore('asset-030', 87, 92, 86, 97, 89, 78, 82),
+  'asset-031': qscore('asset-031', 92, 97, 91, 99, 94, 86, 88),
+  'asset-032': qscore('asset-032', 99, 100,99, 100,100,98, 98),
+  'asset-033': qscore('asset-033', 71, 75, 68, 84, 73, 55, 71),
+  'asset-034': qscore('asset-034', 88, 92, 87, 96, 90, 80, 83),
+  'asset-035': qscore('asset-035', 80, 85, 78, 91, 82, 70, 74),
+  'asset-036': qscore('asset-036', 86, 90, 85, 96, 88, 76, 81),
+  'asset-037': qscore('asset-037', 79, 83, 77, 90, 81, 70, 73),
+  'asset-038': qscore('asset-038', 74, 78, 72, 86, 76, 62, 70),
+}
+
+// ─────────────────────────── column profiles per asset ──────────────────────
+
+type ColProfile = { column_name: string; data_type: string; null_count: number; null_pct: number; distinct_count: number; distinct_pct: number; min_val?: string; max_val?: string; mean_val?: number; std_dev?: number; sample_values?: string[] }
+
+function cols(defs: ColProfile[]) { return defs }
+
+export const DEMO_COLUMN_PROFILES_MAP: Record<string, ColProfile[]> = {
+  'asset-001': cols([
+    { column_name: 'ORDER_ID',       data_type: 'VARCHAR(36)',  null_count: 0,     null_pct: 0,    distinct_count: 2410832, distinct_pct: 100,  min_val: 'ORD-0000001', max_val: 'ORD-9999999', sample_values: ['ORD-4821034','ORD-4821035','ORD-4821036'] },
+    { column_name: 'CUSTOMER_ID',    data_type: 'VARCHAR(20)',  null_count: 4,     null_pct: 0,    distinct_count: 482100,  distinct_pct: 20,   sample_values: ['CUST-00482','CUST-00891','CUST-01204'] },
+    { column_name: 'ORDER_DATE',     data_type: 'DATE',         null_count: 0,     null_pct: 0,    distinct_count: 2400,    distinct_pct: 0.1,  min_val: '2020-01-01',  max_val: '2026-06-29' },
+    { column_name: 'ORDER_AMOUNT',   data_type: 'DECIMAL(18,2)',null_count: 0,     null_pct: 0,    distinct_count: 1820000, distinct_pct: 75.5, min_val: '0.01',        max_val: '148250.00',  mean_val: 4100.23, std_dev: 3821.4 },
+    { column_name: 'STATUS',         data_type: 'VARCHAR(20)',  null_count: 0,     null_pct: 0,    distinct_count: 6,       distinct_pct: 0,    sample_values: ['PENDING','CONFIRMED','SHIPPED','DELIVERED','CANCELLED','RETURNED'] },
+    { column_name: 'PRODUCT_ID',     data_type: 'VARCHAR(20)',  null_count: 12,    null_pct: 0.0005, distinct_count: 12648, distinct_pct: 0.52, sample_values: ['PROD-0042','PROD-1824','PROD-0099'] },
+  ]),
+  'asset-023': cols([
+    { column_name: 'customer_id',    data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 1840220, distinct_pct: 100, min_val: '1',          max_val: '1840220' },
+    { column_name: 'email',          data_type: 'VARCHAR(255)', null_count: 0,     null_pct: 0,    distinct_count: 1840080, distinct_pct: 99.99, sample_values: ['alice@example.com','bob@corp.io','carol.smith@email.net'] },
+    { column_name: 'phone',          data_type: 'VARCHAR(20)',  null_count: 132000,null_pct: 7.17, distinct_count: 1680000, distinct_pct: 91.3, sample_values: ['+1-555-0182','+44-20-7946-0958','+61-2-8015-0000'] },
+    { column_name: 'first_name',     data_type: 'VARCHAR(100)', null_count: 0,     null_pct: 0,    distinct_count: 42800,   distinct_pct: 2.33, sample_values: ['Alice','Bob','Carol','David','Emma'] },
+    { column_name: 'last_name',      data_type: 'VARCHAR(100)', null_count: 0,     null_pct: 0,    distinct_count: 128400,  distinct_pct: 6.98 },
+    { column_name: 'account_status', data_type: 'VARCHAR(20)',  null_count: 0,     null_pct: 0,    distinct_count: 4,       distinct_pct: 0,    sample_values: ['active','inactive','suspended','pending'] },
+    { column_name: 'created_at',     data_type: 'TIMESTAMP',    null_count: 0,     null_pct: 0,    distinct_count: 1839800, distinct_pct: 99.98, min_val: '2018-03-01', max_val: '2026-06-29' },
+  ]),
+  'asset-029': cols([
+    { column_name: 'sales_key',      data_type: 'BIGINT',       null_count: 0,     null_pct: 0,    distinct_count: 18200000,distinct_pct: 100, min_val: '1',          max_val: '18200000' },
+    { column_name: 'date_key',       data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 2400,    distinct_pct: 0.01, min_val: '20200101',   max_val: '20260629' },
+    { column_name: 'customer_key',   data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 489000,  distinct_pct: 2.69 },
+    { column_name: 'product_key',    data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 14200,   distinct_pct: 0.08 },
+    { column_name: 'revenue',        data_type: 'DECIMAL(18,2)',null_count: 0,     null_pct: 0,    distinct_count: 8200000, distinct_pct: 45,  min_val: '0.00',       max_val: '48920.00', mean_val: 1842.50, std_dev: 1240.3 },
+    { column_name: 'discount_pct',   data_type: 'DECIMAL(5,2)', null_count: 840000,null_pct: 4.62, distinct_count: 201,     distinct_pct: 0,   min_val: '0.00',       max_val: '75.00',    mean_val: 12.4 },
+    { column_name: 'units_sold',     data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 8400,    distinct_pct: 0.05, min_val: '1',         max_val: '9999',     mean_val: 24.8 },
+  ]),
+  'asset-018': cols([
+    { column_name: 'TRANSACTION_ID', data_type: 'VARCHAR(40)',  null_count: 0,     null_pct: 0,    distinct_count: 8420000, distinct_pct: 100 },
+    { column_name: 'GL_ACCOUNT',     data_type: 'VARCHAR(20)',  null_count: 0,     null_pct: 0,    distinct_count: 24800,   distinct_pct: 0.29 },
+    { column_name: 'TRANSACTION_DATE',data_type: 'DATE',        null_count: 0,     null_pct: 0,    distinct_count: 2800,    distinct_pct: 0.03, min_val: '2019-01-01',max_val: '2026-06-28' },
+    { column_name: 'AMOUNT',         data_type: 'DECIMAL(20,4)',null_count: 0,     null_pct: 0,    distinct_count: 6200000, distinct_pct: 73.6, mean_val: 48420.28 },
+    { column_name: 'CURRENCY',       data_type: 'CHAR(3)',      null_count: 0,     null_pct: 0,    distinct_count: 18,      distinct_pct: 0,    sample_values: ['USD','EUR','GBP','JPY','AUD'] },
+    { column_name: 'POSTING_STATUS', data_type: 'VARCHAR(10)',  null_count: 0,     null_pct: 0,    distinct_count: 3,       distinct_pct: 0,    sample_values: ['POSTED','REVERSED','DRAFT'] },
+  ]),
+  'asset-033': cols([
+    { column_name: 'WORK_ORDER_ID',  data_type: 'VARCHAR(30)',  null_count: 0,     null_pct: 0,    distinct_count: 384200,  distinct_pct: 100 },
+    { column_name: 'BOM_ID',         data_type: 'VARCHAR(20)',  null_count: 840,   null_pct: 0.22, distinct_count: 4260,    distinct_pct: 1.11 },
+    { column_name: 'START_DATE',     data_type: 'DATE',         null_count: 0,     null_pct: 0,    distinct_count: 1800,    distinct_pct: 0.47, min_val: '2021-01-04', max_val: '2026-06-28' },
+    { column_name: 'COMPLETION_DATE',data_type: 'DATE',         null_count: 69200, null_pct: 18.01,distinct_count: 1820,    distinct_pct: 0.47, min_val: '2021-01-06', max_val: '2026-06-29' },
+    { column_name: 'STATUS',         data_type: 'VARCHAR(20)',  null_count: 0,     null_pct: 0,    distinct_count: 5,       distinct_pct: 0,    sample_values: ['RELEASED','IN_PROGRESS','COMPLETE','ON_HOLD','CANCELLED'] },
+    { column_name: 'QUANTITY',       data_type: 'INTEGER',      null_count: 0,     null_pct: 0,    distinct_count: 4800,    distinct_pct: 1.25, min_val: '1',         max_val: '50000',    mean_val: 842.4 },
+  ]),
+}
+
+// ─────────────────────────── quality heatmap ────────────────────────────────
+
+function heatDates(n: number) {
+  const d = new Date('2026-06-29')
+  return Array.from({ length: n }, (_, i) => {
+    const dd = new Date(d); dd.setDate(dd.getDate() - (n - 1 - i))
+    return dd.toISOString().slice(0, 10)
+  })
+}
+
+export const DEMO_QUALITY_HEATMAP = {
+  domains: ['Revenue', 'Finance', 'Operations', 'Marketing', 'Customer', 'Manufacturing', 'Data Warehouse'],
+  dates: heatDates(14),
+  matrix: [
+    // Revenue
+    [90, 89, 88, 88, 89, 87, 88, 89, 88, 88, 89, 87, 88, 88],
+    // Finance
+    [84, 83, 82, 81, 80, 79, 78, 77, 76, 73, 70, 67, 64, 61],
+    // Operations
+    [82, 81, 80, 79, 78, 77, 76, 75, 74, 73, 72, 71, 70, 68],
+    // Marketing
+    [88, 89, 90, 90, 91, 91, 91, 90, 89, 88, 88, 89, 91, 91],
+    // Customer
+    [85, 85, 84, 85, 86, 86, 85, 85, 85, 85, 84, 85, 85, 85],
+    // Manufacturing
+    [88, 87, 87, 86, 86, 85, 84, 84, 83, 82, 82, 80, 79, 78],
+    // Data Warehouse
+    [89, 90, 90, 91, 91, 90, 90, 90, 90, 90, 90, 90, 90, 90],
+  ],
+}
+
+// ─────────────────────────── governance scorecards / approvals ──────────────
+
+export const DEMO_GOVERNANCE_SCORECARDS = [
+  { scorecard_id: 'sc-001', name: 'Revenue Domain Health',   domain_id: 'dom-001', total_assets: 8,  compliant_assets: 7,  coverage_pct: 87.5, quality_score: 88, policy_violations: 0, last_assessed_at: ago(1) },
+  { scorecard_id: 'sc-002', name: 'Finance Domain Health',   domain_id: 'dom-002', total_assets: 7,  compliant_assets: 5,  coverage_pct: 71.4, quality_score: 79, policy_violations: 2, last_assessed_at: ago(1) },
+  { scorecard_id: 'sc-003', name: 'Operations Domain Health',domain_id: 'dom-003', total_assets: 6,  compliant_assets: 4,  coverage_pct: 66.7, quality_score: 77, policy_violations: 1, last_assessed_at: ago(1) },
+  { scorecard_id: 'sc-004', name: 'Marketing Domain Health', domain_id: 'dom-004', total_assets: 5,  compliant_assets: 5,  coverage_pct: 100,  quality_score: 91, policy_violations: 0, last_assessed_at: ago(1) },
+  { scorecard_id: 'sc-005', name: 'Customer Domain Health',  domain_id: 'dom-005', total_assets: 5,  compliant_assets: 4,  coverage_pct: 80,   quality_score: 85, policy_violations: 1, last_assessed_at: ago(1) },
+  { scorecard_id: 'sc-006', name: 'Manufacturing Health',    domain_id: 'dom-006', total_assets: 6,  compliant_assets: 4,  coverage_pct: 66.7, quality_score: 81, policy_violations: 1, last_assessed_at: ago(1) },
+]
+
+export const DEMO_GOVERNANCE_APPROVALS = [
+  { approval_id: 'apr-001', entity_type: 'rule',        entity_id: 'rule-030', entity_name: 'Null: BOM.component_code',         requester: 'elena.kowalski@corp.com', status: 'pending',  created_at: ago(2),  notes: 'New rule to catch BOM completeness gaps' },
+  { approval_id: 'apr-002', entity_type: 'policy',      entity_id: 'pol-005', entity_name: 'Cross-Border Data Transfer Policy', requester: 'admin@corp.com',          status: 'pending',  created_at: ago(3),  notes: 'Requires legal and DPO review before activation' },
+  { approval_id: 'apr-003', entity_type: 'data_product',entity_id: 'dp-005',  entity_name: 'Supply Chain Dashboard Data',       requester: 'james.okonkwo@corp.com',  status: 'pending',  created_at: ago(5),  notes: 'Requesting promotion from draft to published' },
+  { approval_id: 'apr-004', entity_type: 'rule',        entity_id: 'rule-003', entity_name: 'Freshness: INVENTORY',              requester: 'james.okonkwo@corp.com',  status: 'approved', created_at: ago(14), notes: 'Approved by Priya Sharma on 2026-06-15' },
+  { approval_id: 'apr-005', entity_type: 'access',      entity_id: 'asset-018',entity_name: 'FINANCE_TRANSACTIONS access request',requester: 'viewer@corp.com',         status: 'rejected', created_at: ago(10), notes: 'Denied — viewer role does not have finance data access' },
+]
+
+// ─────────────────────────── comments ───────────────────────────────────────
+
+export const DEMO_COMMENTS = [
+  { comment_id: 'cmt-001', entity_type: 'issue',   entity_id: 'iss-001', content: 'Root cause confirmed: nightly maintenance DELETE ran without WHERE clause. Restore from 06:00 snapshot in progress.', author: 'james.okonkwo@corp.com', created_at: ago(0, 10), resolved: false },
+  { comment_id: 'cmt-002', entity_type: 'issue',   entity_id: 'iss-001', content: 'Restore completed — 120,842 rows recovered. Running full validation now.', author: 'admin@corp.com', created_at: ago(0, 8), resolved: false },
+  { comment_id: 'cmt-003', entity_type: 'issue',   entity_id: 'iss-002', content: 'Emails with missing TLD confirmed — pattern .*@.*[^.]{3,} catches them. 312 total. Source was the March bulk import file.', author: 'arun.patel@corp.com', created_at: ago(1, 12), resolved: false },
+  { comment_id: 'cmt-004', entity_type: 'issue',   entity_id: 'iss-004', content: 'Oracle ETL job timed out due to long-running query in AR reconciliation view. DBA is adding covering index.', author: 'michael.chen@corp.com', created_at: ago(0, 20), resolved: false },
+  { comment_id: 'cmt-005', entity_type: 'contract',entity_id: 'con-002', content: 'Finance team notified — upstream ETL will retry at 14:00 UTC. Escalated to engineering on-call.', author: 'michael.chen@corp.com', created_at: ago(1, 2), resolved: false },
+  { comment_id: 'cmt-006', entity_type: 'asset',   entity_id: 'asset-030', content: 'Duplicate keys introduced in ETL migration PR #4412 — added unique constraint back and triggered full reload.', author: 'david.park@corp.com', created_at: ago(4, 6), resolved: true },
+  { comment_id: 'cmt-007', entity_type: 'rule',    entity_id: 'rule-027', content: 'Quality inspection defect_rate threshold was set too low for Q2 ramp-up period. Temporarily adjusted to 10% pending board approval.', author: 'elena.kowalski@corp.com', created_at: ago(3), resolved: false },
+  { comment_id: 'cmt-008', entity_type: 'issue',   entity_id: 'iss-005', content: 'Traced to Google Ads connector v2.3.1 — wrong currency on impression-level rows. Connector rolled back to v2.2.9.', author: 'sofia.delgado@corp.com', created_at: ago(2, 8), resolved: false },
+]
+
+// ─────────────────────────── stewardship tasks ──────────────────────────────
+
+export const DEMO_STEWARDSHIP_TASKS = [
+  { task_id: 'tsk-001', type: 'certification_review', title: 'Certify INVENTORY table for Operations domain', description: 'Verify data quality meets certification criteria after freshness incident', assignee: 'james.okonkwo@corp.com', status: 'open',        priority: 'high',   asset_id: 'asset-005', created_at: ago(2),  due_date: ago(-3) },
+  { task_id: 'tsk-002', type: 'data_quality_fix',     title: 'Fix 312 invalid email addresses in customers', description: 'Correct or null-out RFC 5322-invalid emails identified by quality rule', assignee: 'arun.patel@corp.com',    status: 'in_progress', priority: 'high',   asset_id: 'asset-023', created_at: ago(2),  due_date: ago(-2) },
+  { task_id: 'tsk-003', type: 'documentation',        title: 'Add business description to SHOP_FLOOR_EVENTS', description: 'Document field semantics and IoT sensor mapping for new team members', assignee: 'elena.kowalski@corp.com', status: 'open',        priority: 'low',    asset_id: 'asset-038', created_at: ago(7),  due_date: ago(-14) },
+  { task_id: 'tsk-004', type: 'owner_assignment',     title: 'Assign data owner to attribution view',        description: 'Attribution view is deprecated but still has active consumers — assign owner to manage lifecycle', assignee: 'sofia.delgado@corp.com', status: 'open', priority: 'medium', asset_id: 'asset-014', created_at: ago(5),  due_date: ago(-7) },
+  { task_id: 'tsk-005', type: 'compliance_review',    title: 'GDPR review: customers.phone data retention',  description: 'Verify phone data retention is within policy — 7-year window check required', assignee: 'admin@corp.com',          status: 'open',        priority: 'medium', asset_id: 'asset-023', created_at: ago(10), due_date: ago(-5) },
+  { task_id: 'tsk-006', type: 'rule_approval',        title: 'Review and approve BOM completeness rule',     description: 'New null check on BOM.component_code pending approval before activation', assignee: 'michael.chen@corp.com',  status: 'open',        priority: 'medium', asset_id: 'asset-034', created_at: ago(2),  due_date: ago(-1) },
+]
+
+// ─────────────────────────── execution logs ─────────────────────────────────
+
+export const DEMO_EXECUTION_LOGS = [
+  { run_id: 'run-001', job_id: 'job-001', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',           asset_name: 'INVENTORY',             rule_name: 'Freshness: INVENTORY',              status: 'failed',  started_at: ago(0, 6),  ended_at: ago(0, 6),  duration_ms: 1820, rows_evaluated: 69400, rows_failed: 69400, error_message: 'Table not updated in 26h (threshold: 12h)' },
+  { run_id: 'run-002', job_id: 'job-001', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',           asset_name: 'SALES_ORDERS',          rule_name: 'Volume: SALES_ORDERS (daily min)',  status: 'failed',  started_at: ago(0, 6),  ended_at: ago(0, 6),  duration_ms: 2140, rows_evaluated: 2410832, rows_failed: 1, error_message: '0 new rows in last 24h (min: 10)' },
+  { run_id: 'run-003', job_id: 'job-001', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',           asset_name: 'SALES_ORDERS',          rule_name: 'Uniqueness: SALES_ORDERS.ORDER_ID', status: 'passed',  started_at: ago(0, 6),  ended_at: ago(0, 6),  duration_ms: 4820, rows_evaluated: 2410832, rows_failed: 0 },
+  { run_id: 'run-004', job_id: 'job-001', connection_id: 'demo-conn-001', connection_name: 'Supply Chain DB',           asset_name: 'CUSTOMERS',             rule_name: 'Null: CUSTOMERS.CUSTOMER_NAME',     status: 'passed',  started_at: ago(0, 6),  ended_at: ago(0, 6),  duration_ms: 2910, rows_evaluated: 485200, rows_failed: 0 },
+  { run_id: 'run-005', job_id: 'job-002', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_name: 'ad_spend',       rule_name: 'Range: ad_spend.cost_per_click',    status: 'failed',  started_at: ago(0, 8),  ended_at: ago(0, 8),  duration_ms: 3140, rows_evaluated: 92800, rows_failed: 24, error_message: '24 rows with CPC > $50 (max $487.32)' },
+  { run_id: 'run-006', job_id: 'job-002', connection_id: 'demo-conn-002', connection_name: 'Marketing Analytics (BigQuery)', asset_name: 'campaigns',      rule_name: 'Uniqueness: campaigns.campaign_id', status: 'passed',  started_at: ago(0, 8),  ended_at: ago(0, 8),  duration_ms: 1240, rows_evaluated: 8430, rows_failed: 0 },
+  { run_id: 'run-007', job_id: 'job-003', connection_id: 'demo-conn-003', connection_name: 'Customer 360 (PostgreSQL)',  asset_name: 'customers',             rule_name: 'Email Format: customers.email',     status: 'failed',  started_at: ago(0, 1),  ended_at: ago(0, 1),  duration_ms: 8420, rows_evaluated: 1840220, rows_failed: 312, error_message: '312 emails fail RFC 5322 validation' },
+  { run_id: 'run-008', job_id: 'job-005', connection_id: 'demo-conn-005', connection_name: 'Oracle Financials (ERP)',    asset_name: 'FINANCE_TRANSACTIONS',  rule_name: 'Freshness: FINANCE_TRANSACTIONS',   status: 'error',   started_at: ago(1, 2),  ended_at: ago(1, 2),  duration_ms: 8000, rows_evaluated: 0, rows_failed: 0, error_message: 'ORA-12170: TNS:Connect timeout occurred' },
+  { run_id: 'run-009', job_id: 'job-006', connection_id: 'demo-conn-006', connection_name: 'Oracle Manufacturing (ERP)', asset_name: 'WORK_ORDERS',           rule_name: 'Null: WORK_ORDERS.completion_date', status: 'failed',  started_at: ago(0, 9),  ended_at: ago(0, 9),  duration_ms: 5820, rows_evaluated: 384200, rows_failed: 69200, error_message: '18% null completion_date (threshold: 5%)' },
+  { run_id: 'run-010', job_id: 'job-004', connection_id: 'demo-conn-004', connection_name: 'Enterprise DW (Redshift)',   asset_name: 'fact_sales',            rule_name: 'Null: fact_sales.revenue',          status: 'passed',  started_at: ago(0, 5),  ended_at: ago(0, 5),  duration_ms: 12840, rows_evaluated: 18200000, rows_failed: 0 },
+]
+
+// ─────────────────────────── monitoring — SLA predictions & correlated ───────
+
+export const DEMO_SLA_PREDICTIONS = [
+  { prediction_id: 'slap-001', asset_id: 'asset-018', asset_name: 'FINANCE_TRANSACTIONS', connection_id: 'demo-conn-005', predicted_breach: true,  confidence: 0.97, days_until_breach: 0,  current_freshness_hours: 28, sla_threshold_hours: 24, predicted_at: ago(0, 1) },
+  { prediction_id: 'slap-002', asset_id: 'asset-005', asset_name: 'INVENTORY',            connection_id: 'demo-conn-001', predicted_breach: true,  confidence: 0.93, days_until_breach: 0,  current_freshness_hours: 26, sla_threshold_hours: 12, predicted_at: ago(0, 1) },
+  { prediction_id: 'slap-003', asset_id: 'asset-001', asset_name: 'SALES_ORDERS',         connection_id: 'demo-conn-001', predicted_breach: true,  confidence: 0.78, days_until_breach: 1,  current_freshness_hours: 14, sla_threshold_hours: 12, predicted_at: ago(0, 1) },
+  { prediction_id: 'slap-004', asset_id: 'asset-019', asset_name: 'AP_INVOICES',          connection_id: 'demo-conn-005', predicted_breach: true,  confidence: 0.65, days_until_breach: 2,  current_freshness_hours: 28, sla_threshold_hours: 24, predicted_at: ago(0, 1) },
+  { prediction_id: 'slap-005', asset_id: 'asset-033', asset_name: 'WORK_ORDERS',          connection_id: 'demo-conn-006', predicted_breach: false, confidence: 0.71, days_until_breach: 4,  current_freshness_hours: 9,  sla_threshold_hours: 12, predicted_at: ago(0, 1) },
+]
+
+export const DEMO_CORRELATED_INCIDENTS = [
+  { correlation_id: 'corr-001', primary_incident_id: 'inc-001', related_incidents: ['inc-004'], correlation_score: 0.92, root_cause: 'Oracle Financials ETL pipeline failure caused both FINANCE_TRANSACTIONS stale data and AP_INVOICES processing gap', status: 'open',     detected_at: ago(1) },
+  { correlation_id: 'corr-002', primary_incident_id: 'inc-002', related_incidents: ['inc-007'], correlation_score: 0.78, root_cause: 'nightly maintenance script regression affected both INVENTORY volume and WORK_ORDERS completeness',               status: 'open',     detected_at: ago(1) },
+  { correlation_id: 'corr-003', primary_incident_id: 'inc-003', related_incidents: [],          correlation_score: 0.55, root_cause: 'Google Ads connector currency mismatch — isolated to ad_spend table, no cross-domain impact',                   status: 'open',     detected_at: ago(3) },
+  { correlation_id: 'corr-004', primary_incident_id: 'inc-004', related_incidents: ['inc-001'], correlation_score: 0.92, root_cause: 'Same Oracle ETL job failure as corr-001',                                                                       status: 'resolved', detected_at: ago(5) },
+]
+
+// ─────────────────────────── quality score history (per asset) ───────────────
+
+function qhistory(assetId: string, baseline: number, days = 30) {
+  const entries = []
+  let score = baseline
+  const base = new Date('2026-06-29')
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(base); d.setDate(d.getDate() - i)
+    // Random walk ±2, clamped to [50, 100]
+    score = Math.min(100, Math.max(50, score + (Math.random() > 0.5 ? 1 : -1) * Math.round(Math.random() * 2)))
+    entries.push({ score_date: d.toISOString().slice(0, 10), overall_score: score })
+  }
+  return { asset_id: assetId, history: entries }
+}
+
+export const DEMO_QUALITY_HISTORY_MAP: Record<string, { asset_id: string; history: { score_date: string; overall_score: number }[] }> = {
+  'asset-001': qhistory('asset-001', 88),
+  'asset-002': qhistory('asset-002', 91),
+  'asset-003': qhistory('asset-003', 82),
+  'asset-004': qhistory('asset-004', 94),
+  'asset-005': qhistory('asset-005', 68),
+  'asset-010': qhistory('asset-010', 91),
+  'asset-013': qhistory('asset-013', 74),
+  'asset-017': qhistory('asset-017', 84),
+  'asset-018': qhistory('asset-018', 61),
+  'asset-019': qhistory('asset-019', 78),
+  'asset-023': qhistory('asset-023', 85),
+  'asset-024': qhistory('asset-024', 89),
+  'asset-029': qhistory('asset-029', 90),
+  'asset-033': qhistory('asset-033', 71),
+  'asset-034': qhistory('asset-034', 88),
+}
+
+// ─────────────────────────── lineage ─────────────────────────────────────────
+
+export const DEMO_LINEAGE = {
+  nodes: [
+    { id: 'asset-001', label: 'SALES_ORDERS',        type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
+    { id: 'asset-002', label: 'CUSTOMERS',            type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
+    { id: 'asset-004', label: 'PRODUCTS',             type: 'table', connection_name: 'Supply Chain DB',            database: 'SUPPLYCHAIN_DB', schema: 'SUPPLYCHAIN' },
+    { id: 'asset-010', label: 'campaigns',            type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
+    { id: 'asset-011', label: 'conversions',          type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
+    { id: 'asset-013', label: 'ad_spend',             type: 'table', connection_name: 'Marketing Analytics (BigQuery)', database: 'analytics-prod-12345', schema: 'marketing_analytics' },
+    { id: 'asset-023', label: 'customers',            type: 'table', connection_name: 'Customer 360 (PostgreSQL)',  database: 'customer_360',         schema: 'public' },
+    { id: 'asset-029', label: 'fact_sales',           type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
+    { id: 'asset-030', label: 'dim_customer',         type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
+    { id: 'asset-031', label: 'dim_product',          type: 'table', connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'public' },
+    { id: 'asset-028', label: 'revenue_summary',      type: 'view',  connection_name: 'Enterprise DW (Redshift)',   database: 'data_warehouse',       schema: 'reporting' },
+  ],
+  edges: [
+    { source: 'asset-001', target: 'asset-029', label: 'ETL daily' },
+    { source: 'asset-002', target: 'asset-030', label: 'ETL daily' },
+    { source: 'asset-023', target: 'asset-030', label: 'merge' },
+    { source: 'asset-004', target: 'asset-031', label: 'ETL daily' },
+    { source: 'asset-029', target: 'asset-028', label: 'aggregated' },
+    { source: 'asset-030', target: 'asset-028', label: 'dimension join' },
+    { source: 'asset-010', target: 'asset-011', label: 'attribution model' },
+    { source: 'asset-013', target: 'asset-011', label: 'cost attribution' },
+  ],
+}
+
+// ─────────────────────────── audit logs ──────────────────────────────────────
+
+export const DEMO_AUDIT_LOGS = [
+  { log_id: 'aud-001', action: 'rule.created',         actor: 'priya.sharma@corp.com',      target_type: 'rule',        target_id: 'rule-030', target_name: 'Null: BOM.component_code',              connection_id: 'demo-conn-006', created_at: ago(2, 3),  ip_address: '10.0.1.42',  suspicious: false },
+  { log_id: 'aud-002', action: 'rule.status_changed',  actor: 'james.okonkwo@corp.com',     target_type: 'rule',        target_id: 'rule-003', target_name: 'Freshness: INVENTORY',                  connection_id: 'demo-conn-001', created_at: ago(1, 10), ip_address: '10.0.1.18',  suspicious: false },
+  { log_id: 'aud-003', action: 'asset.certified',      actor: 'priya.sharma@corp.com',      target_type: 'asset',       target_id: 'asset-004',target_name: 'PRODUCTS',                              connection_id: 'demo-conn-001', created_at: ago(3, 2),  ip_address: '10.0.1.42',  suspicious: false },
+  { log_id: 'aud-004', action: 'policy.updated',       actor: 'admin@corp.com',             target_type: 'policy',      target_id: 'pol-001',  target_name: 'PII Data Access Policy',                connection_id: null,            created_at: ago(4, 8),  ip_address: '10.0.0.10',  suspicious: false },
+  { log_id: 'aud-005', action: 'user.login',           actor: 'michael.chen@corp.com',      target_type: 'session',     target_id: 'sess-092', target_name: null,                                    connection_id: null,            created_at: ago(0, 18), ip_address: '192.168.2.11',suspicious: false },
+  { log_id: 'aud-006', action: 'data.exported',        actor: 'viewer@corp.com',            target_type: 'asset',       target_id: 'asset-023',target_name: 'customers',                             connection_id: 'demo-conn-003', created_at: ago(0, 7),  ip_address: '203.0.113.55',suspicious: true,  suspicious_reason: 'export from off-network IP at unusual hour' },
+  { log_id: 'aud-007', action: 'connection.test',      actor: 'david.park@corp.com',        target_type: 'connection',  target_id: 'demo-conn-004', target_name: 'Enterprise DW (Redshift)',          connection_id: 'demo-conn-004', created_at: ago(1, 6),  ip_address: '10.0.1.55',  suspicious: false },
+  { log_id: 'aud-008', action: 'approval.rejected',    actor: 'admin@corp.com',             target_type: 'approval',    target_id: 'apr-005',  target_name: 'FINANCE_TRANSACTIONS access request',   connection_id: null,            created_at: ago(0, 14), ip_address: '10.0.0.10',  suspicious: false },
+  { log_id: 'aud-009', action: 'issue.resolved',       actor: 'sofia.delgado@corp.com',     target_type: 'issue',       target_id: 'iss-003',  target_name: 'ad_spend CPC anomaly',                  connection_id: 'demo-conn-002', created_at: ago(1, 4),  ip_address: '10.0.1.20',  suspicious: false },
+  { log_id: 'aud-010', action: 'rule.bulk_executed',   actor: 'system',                     target_type: 'scan_job',    target_id: 'job-001',  target_name: 'Daily Quality Scan — Supply Chain',     connection_id: 'demo-conn-001', created_at: ago(0, 6),  ip_address: null,         suspicious: false },
+  { log_id: 'aud-011', action: 'user.password_reset',  actor: 'elena.kowalski@corp.com',    target_type: 'user',        target_id: 'usr-006',  target_name: 'Elena Kowalski',                        connection_id: null,            created_at: ago(5, 2),  ip_address: '10.0.1.60',  suspicious: false },
+  { log_id: 'aud-012', action: 'data.exported',        actor: 'viewer@corp.com',            target_type: 'asset',       target_id: 'asset-018',target_name: 'FINANCE_TRANSACTIONS',                  connection_id: 'demo-conn-005', created_at: ago(0, 8),  ip_address: '203.0.113.55',suspicious: true,  suspicious_reason: 'second export of sensitive financial data within 2h from same anomalous IP' },
+]
+
+export const DEMO_AUDIT_COVERAGE = {
+  coverage_pct: 78.4,
+  covered_types: 7,
+  total_governed_types: 9,
+  uncovered_types: ['data_product_access', 'schema_change'],
+  by_type: [
+    { type: 'rule_execution',  coverage_pct: 100, rule_count: 32 },
+    { type: 'asset_change',    coverage_pct: 95,  rule_count: 20 },
+    { type: 'user_access',     coverage_pct: 88,  rule_count: 15 },
+    { type: 'data_export',     coverage_pct: 72,  rule_count: 18 },
+    { type: 'policy_change',   coverage_pct: 100, rule_count: 8  },
+    { type: 'connection_test', coverage_pct: 100, rule_count: 6  },
+    { type: 'approval_action', coverage_pct: 100, rule_count: 5  },
+  ],
+}
+
+// ─────────────────────────── privacy ─────────────────────────────────────────
+
+export const DEMO_PII_EXPOSURE = {
+  unprotected_pii_tables: 3,
+  risk_score: 42,
+  assets: [
+    { asset_id: 'asset-023', asset_name: 'customers',    connection_name: 'Customer 360 (PostgreSQL)', pii_columns: ['email', 'phone', 'first_name', 'last_name', 'address'], unprotected_columns: 2, masking_policy_applied: false, classification: 'PII' },
+    { asset_id: 'asset-025', asset_name: 'interactions', connection_name: 'Customer 360 (PostgreSQL)', pii_columns: ['customer_email', 'agent_notes'], unprotected_columns: 2, masking_policy_applied: false, classification: 'PII' },
+    { asset_id: 'asset-012', asset_name: 'leads',        connection_name: 'Marketing Analytics (BigQuery)', pii_columns: ['email', 'phone', 'name'], unprotected_columns: 3, masking_policy_applied: false, classification: 'PII' },
+    { asset_id: 'asset-026', asset_name: 'subscriptions',connection_name: 'Customer 360 (PostgreSQL)', pii_columns: ['customer_email', 'payment_method_last4'], unprotected_columns: 1, masking_policy_applied: true, classification: 'PII' },
+    { asset_id: 'asset-002', asset_name: 'CUSTOMERS',    connection_name: 'Supply Chain DB',            pii_columns: ['CONTACT_EMAIL', 'PHONE_NUMBER', 'BILLING_ADDRESS'], unprotected_columns: 0, masking_policy_applied: true, classification: 'PII' },
+  ],
+}
+
+export const DEMO_MASKING_POLICIES = [
+  { policy_id: 'msk-001', name: 'Mask Customer Email',     asset_id: 'asset-002', column_name: 'CONTACT_EMAIL',    masking_type: 'partial', pattern: '***@***.***', created_by: 'admin@corp.com', created_at: ago(60), is_active: true },
+  { policy_id: 'msk-002', name: 'Mask Customer Phone',     asset_id: 'asset-002', column_name: 'PHONE_NUMBER',     masking_type: 'full',    pattern: 'XXXX-XXXX',   created_by: 'admin@corp.com', created_at: ago(60), is_active: true },
+  { policy_id: 'msk-003', name: 'Mask Subscription Email', asset_id: 'asset-026', column_name: 'customer_email',   masking_type: 'partial', pattern: '***@***.***', created_by: 'arun.patel@corp.com', created_at: ago(30), is_active: true },
+  { policy_id: 'msk-004', name: 'Mask Payment Last4',      asset_id: 'asset-026', column_name: 'payment_method_last4', masking_type: 'full', pattern: '****',       created_by: 'arun.patel@corp.com', created_at: ago(30), is_active: true },
+]
+
+export const DEMO_RESIDENCY = [
+  { residency_id: 'res-001', asset_id: 'asset-023', asset_name: 'customers',     connection_name: 'Customer 360 (PostgreSQL)', region: 'us-east-1', data_sovereignty: 'US', compliant: true,  regulation: 'CCPA',  last_verified_at: ago(7)  },
+  { residency_id: 'res-002', asset_id: 'asset-026', asset_name: 'subscriptions', connection_name: 'Customer 360 (PostgreSQL)', region: 'us-east-1', data_sovereignty: 'US', compliant: true,  regulation: 'CCPA',  last_verified_at: ago(7)  },
+  { residency_id: 'res-003', asset_id: 'asset-012', asset_name: 'leads',         connection_name: 'Marketing Analytics (BigQuery)', region: 'eu-west-1', data_sovereignty: 'EU', compliant: true, regulation: 'GDPR', last_verified_at: ago(14) },
+  { residency_id: 'res-004', asset_id: 'asset-023', asset_name: 'customers (EU)',connection_name: 'Customer 360 (PostgreSQL)', region: 'eu-west-1', data_sovereignty: 'EU', compliant: false, regulation: 'GDPR',  last_verified_at: ago(2),  violation: 'customer EU PII is replicated to us-east-1 without SCCs' },
+]
+
+// ─────────────────────────── alert routing rules & escalation policies ────────
+
+export const DEMO_ALERT_ROUTING_RULES = [
+  { rule_id: 'arr-001', name: 'Critical Finance Alerts → Michael Chen',   conditions: { domain: 'Finance', severity: 'critical' },  channels: ['email', 'pagerduty'], assignee: 'michael.chen@corp.com', is_active: true,  created_at: ago(60) },
+  { rule_id: 'arr-002', name: 'PII Alerts → Privacy Team',                conditions: { tag: 'PII' },                               channels: ['email', 'slack'],     assignee: 'admin@corp.com',        is_active: true,  created_at: ago(45) },
+  { rule_id: 'arr-003', name: 'Manufacturing Freshness → Elena',           conditions: { domain: 'Manufacturing', rule_type: 'freshness_check' }, channels: ['email'], assignee: 'elena.kowalski@corp.com', is_active: true, created_at: ago(30) },
+  { rule_id: 'arr-004', name: 'Marketing Anomalies → Sofia',               conditions: { domain: 'Marketing', rule_type: 'anomaly' },channels: ['slack'],              assignee: 'sofia.delgado@corp.com', is_active: false, created_at: ago(20) },
+  { rule_id: 'arr-005', name: 'SOX Assets → Compliance Team',              conditions: { tag: 'SOX' },                               channels: ['email'],              assignee: 'admin@corp.com',        is_active: true,  created_at: ago(90) },
+]
+
+export const DEMO_ESCALATION_POLICIES = [
+  { policy_id: 'esc-001', name: 'Critical Data Outage',   steps: [{ level: 1, wait_minutes: 15, notify: 'on-call-data-eng@corp.com' }, { level: 2, wait_minutes: 30, notify: 'vp-engineering@corp.com' }], is_active: true,  created_at: ago(120) },
+  { policy_id: 'esc-002', name: 'Finance Data SLA Breach',steps: [{ level: 1, wait_minutes: 10, notify: 'michael.chen@corp.com' }, { level: 2, wait_minutes: 30, notify: 'cfo-office@corp.com' }],          is_active: true,  created_at: ago(90)  },
+  { policy_id: 'esc-003', name: 'Privacy Incident',       steps: [{ level: 1, wait_minutes: 5,  notify: 'dpo@corp.com' }, { level: 2, wait_minutes: 15, notify: 'legal@corp.com' }, { level: 3, wait_minutes: 60, notify: 'ceo@corp.com' }], is_active: true, created_at: ago(60) },
+]

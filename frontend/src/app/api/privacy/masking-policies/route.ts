@@ -13,8 +13,13 @@ export async function GET(req: NextRequest) {
   const url = qs ? `${B}/privacy/masking-policies?${qs}` : `${B}/privacy/masking-policies`
   try {
     const r = await serverFetch(req, url, { headers: { Authorization: req.headers.get('Authorization') ?? '' }, cache: 'no-store' })
-    return NextResponse.json(await r.json(), { status: r.status })
-  } catch { return NextResponse.json([], { status: 200 }) }
+    if (!r.ok) throw new Error(`Backend ${r.status}`)
+    return NextResponse.json(await r.json())
+  } catch {
+    const { DEMO_MASKING_POLICIES } = await import('@/lib/demoData')
+    const filtered = assetId ? DEMO_MASKING_POLICIES.filter((p: { asset_id: string }) => p.asset_id === assetId) : DEMO_MASKING_POLICIES
+    return NextResponse.json(filtered)
+  }
 }
 
 export async function POST(req: NextRequest) {

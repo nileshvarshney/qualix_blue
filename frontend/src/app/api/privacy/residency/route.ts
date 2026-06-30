@@ -6,8 +6,12 @@ const B = process.env.BACKEND_URL || 'http://localhost:8000'
 export async function GET(req: NextRequest) {
   try {
     const r = await serverFetch(req, `${B}/privacy/residency`, { headers: { Authorization: req.headers.get('Authorization') ?? '' }, cache: 'no-store' })
-    return NextResponse.json(await r.json(), { status: r.status })
-  } catch { return NextResponse.json([]) }
+    if (!r.ok) throw new Error(`Backend ${r.status}`)
+    return NextResponse.json(await r.json())
+  } catch {
+    const { DEMO_RESIDENCY } = await import('@/lib/demoData')
+    return NextResponse.json(DEMO_RESIDENCY)
+  }
 }
 
 export async function POST(req: NextRequest) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
 import { maskSensitiveColumns, extractUserRole } from '@/lib/masking'
+import { DEMO_ASSET_BY_ID } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,9 +38,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> }
 ) {
+  const { path } = await params
+  const pathStr = path.join('/')
   try {
-    const { path } = await params
-    const pathStr = path.join('/')
     const auth = req.headers.get('Authorization') ?? ''
     const res = await serverFetch(req, `${BACKEND}/asset-registry/${pathStr}${req.nextUrl.search}`, { cache: 'no-store' })
     const data = await res.json().catch(() => ({}))
@@ -67,8 +68,19 @@ export async function GET(
     }
 
     return NextResponse.json(data, { status: res.status })
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+  } catch {
+    // Return demo asset for individual asset lookups (path like "asset-001" or "asset-001/...sub")
+    const rootId = path[0] ?? ''
+    if (rootId in DEMO_ASSET_BY_ID) {
+      const asset = DEMO_ASSET_BY_ID[rootId]
+      if (path.length > 1) {
+        const sub = path[1]
+        if (sub === 'children' || sub === 'ancestors') return NextResponse.json([])
+        if (sub === 'profiling' || sub === 'preview' || sub === 'sample') return NextResponse.json({ columns: [], rows: [] })
+      }
+      return NextResponse.json(asset)
+    }
+    return NextResponse.json({ error: 'not found' }, { status: 404 })
   }
 }
 
