@@ -1106,15 +1106,6 @@ export default function Sidebar() {
                 letterSpacing: '-0.01em',
                 fontStyle: 'italic',
               }}>ix</span>
-              <span style={{
-                fontSize: 9, fontWeight: 500,
-                color: 'var(--brand-primary)',
-                letterSpacing: '0.05em',
-                marginLeft: 4,
-                alignSelf: 'flex-start',
-                marginTop: 3,
-                opacity: 0.8,
-              }}>demo</span>
             </div>
             <div style={{
               fontSize: 9, color: 'var(--text-muted)',
