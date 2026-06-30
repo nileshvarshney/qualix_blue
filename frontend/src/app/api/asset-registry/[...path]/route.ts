@@ -43,6 +43,7 @@ function buildDemoTree(sourceId: string | null) {
         connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
         domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
         criticality: null, description: null,
+        _loaded: true, _expanded: false,
         children: schemaAssets.map(a => ({
           asset_id: a.asset_id,
           asset_type: a.table_type ?? a.asset_type ?? 'table',
@@ -55,6 +56,7 @@ function buildDemoTree(sourceId: string | null) {
           domain: a.domain_name ?? null, sensitivity: null,
           discovered_at: a.discovered_at ?? null, last_seen_at: a.last_seen_at ?? null,
           criticality: a.criticality ?? null, description: a.description ?? null,
+          _loaded: true, _expanded: false,
           children: [],
         })),
       }))
@@ -69,6 +71,7 @@ function buildDemoTree(sourceId: string | null) {
         connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
         domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
         criticality: null, description: null,
+        _loaded: true, _expanded: false,
         children: schemaChildren,
       }
     })
@@ -83,6 +86,7 @@ function buildDemoTree(sourceId: string | null) {
       connection_id: connId, owner_user_id: null, owner_team_id: null, steward_user_id: null,
       domain: null, sensitivity: null, discovered_at: null, last_seen_at: null,
       criticality: null, description: null,
+      _loaded: true, _expanded: false,
       children: dbChildren,
     }
   })
