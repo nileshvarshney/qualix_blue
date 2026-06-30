@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_GLOSSARY } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -21,10 +22,10 @@ function sanitizeTermBody(body: Record<string, unknown>): Record<string, unknown
 export async function GET(req: NextRequest) {
   try {
     const res = await serverFetch(req, `${BACKEND}/glossary/terms?limit=100`, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json(DEMO_GLOSSARY)
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? data.terms ?? []))
-  } catch { return NextResponse.json([]) }
+  } catch { return NextResponse.json(DEMO_GLOSSARY) }
 }
 
 export async function POST(req: NextRequest) {

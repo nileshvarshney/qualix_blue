@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Rule } from '@/lib/types'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_RULES } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -73,7 +74,14 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(rules)
   } catch {
-    return NextResponse.json([])
+    const connectionId = req.nextUrl.searchParams.get('connection_id')
+    const assetId = req.nextUrl.searchParams.get('asset_id')
+    const domainId = req.nextUrl.searchParams.get('domain_id')
+    let filtered = DEMO_RULES
+    if (connectionId) filtered = filtered.filter(r => r.connectionId === connectionId)
+    if (assetId) filtered = filtered.filter(r => r.assetId === assetId)
+    if (domainId) filtered = filtered.filter(r => r.domainId === domainId)
+    return NextResponse.json(filtered)
   }
 }
 

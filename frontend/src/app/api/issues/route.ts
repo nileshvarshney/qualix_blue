@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_ISSUES } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -13,11 +14,11 @@ export async function GET(req: NextRequest) {
       cache: 'no-store',
       headers: { ...(auth ? { Authorization: auth } : {}) },
     })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json(DEMO_ISSUES)
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : [])
   } catch {
-    return NextResponse.json([])
+    return NextResponse.json(DEMO_ISSUES)
   }
 }
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_ALERTS } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -10,10 +11,10 @@ export async function GET(req: NextRequest) {
     const qs = searchParams.toString()
     const url = qs ? `${BACKEND}/alerts/enriched?${qs}&limit=100` : `${BACKEND}/alerts/enriched?limit=100`
     const res = await serverFetch(req, url, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json(DEMO_ALERTS)
     const data = await res.json()
     return NextResponse.json(Array.isArray(data) ? data : (data.items ?? []))
-  } catch { return NextResponse.json([]) }
+  } catch { return NextResponse.json(DEMO_ALERTS) }
 }
 
 export async function PUT(req: NextRequest) {

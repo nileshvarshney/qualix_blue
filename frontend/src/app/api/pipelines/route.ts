@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_PIPELINES } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -9,9 +10,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const qs = searchParams.toString() ? `?${searchParams.toString()}` : ''
     const res = await serverFetch(req, `${BACKEND}/pipelines${qs}`, { cache: 'no-store' })
-    if (!res.ok) return NextResponse.json([])
+    if (!res.ok) return NextResponse.json(DEMO_PIPELINES)
     return NextResponse.json(await res.json())
-  } catch { return NextResponse.json([]) }
+  } catch { return NextResponse.json(DEMO_PIPELINES) }
 }
 
 export async function POST(req: NextRequest) {
