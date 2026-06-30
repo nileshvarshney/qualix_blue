@@ -305,8 +305,10 @@ function LineageInner() {
     return () => window.removeEventListener('qualix-active-conn-changed', onConnChanged)
   }, [])
 
-  // Reset graph state when the connection actually changes (not on initial mount —
-  // clearing `search` then would wipe a `q` param pre-filled from a catalog navigation).
+  // Reset graph state when the connection actually changes (not on initial mount).
+  // `search` is intentionally NOT cleared so a `q` param pre-filled from catalog
+  // navigation survives a sidebar-triggered connection change — the auto-select
+  // effect will re-run against the new connection's data and find the node.
   // Compares against the previous value rather than a one-shot flag so this stays
   // correct under React Strict Mode's double-invoked mount effects in dev.
   useEffect(() => {
@@ -314,7 +316,6 @@ function LineageInner() {
     prevConnectionIdRef.current = activeConnectionId
     hasLoadedRef.current = false
     setSelected(null)
-    setSearch('')
     setColumnEdges([])
     setColumnData(null)
   }, [activeConnectionId])

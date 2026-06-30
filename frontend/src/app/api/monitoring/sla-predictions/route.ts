@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(Array.isArray(data) ? data : [])
   } catch {
     const items = isAtRisk === 'true'
-      ? DEMO_SLA_PREDICTIONS.filter(p => p.predicted_breach)
+      ? DEMO_SLA_PREDICTIONS.filter(p => p.is_at_risk)
       : isAtRisk === 'false'
-      ? DEMO_SLA_PREDICTIONS.filter(p => !p.predicted_breach)
+      ? DEMO_SLA_PREDICTIONS.filter(p => !p.is_at_risk)
       : DEMO_SLA_PREDICTIONS
     return NextResponse.json(items)
   }
