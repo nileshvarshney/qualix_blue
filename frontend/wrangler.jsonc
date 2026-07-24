@@ -1,8 +1,8 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "qualix",
+	"name": "qualix-app",
 	"main": ".open-next/worker.js",
-	"account_id": "01da8b0b75c1b837318ce5caa03f2a1d",
+	"account_id": "7c3af6ff6eed45f52a82ec00a3efdfa2",
 	"compatibility_date": "2024-09-23",
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 	"assets": {
@@ -15,7 +15,7 @@
 	"services": [
 		{
 			"binding": "WORKER_SELF_REFERENCE",
-			"service": "qualix"
+			"service": "qualix-app"
 		}
 	]
 }

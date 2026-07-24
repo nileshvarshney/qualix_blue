@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '@/lib/apiFetch'
 
 interface ProfileSummary {
@@ -286,9 +286,8 @@ export default function AssetProfilingTab({
                 </thead>
                 <tbody>
                   {columns.map((col, i) => (
-                    <>
+                    <React.Fragment key={col.column_name}>
                       <tr
-                        key={col.column_name}
                         onClick={() => setExpandedCol(expandedCol === col.column_name ? null : col.column_name)}
                         style={{ borderBottom: '1px solid var(--border)', cursor: 'pointer', background: i % 2 === 0 ? 'transparent' : 'var(--surface-muted)', transition: 'background 0.1s' }}
                       >
@@ -321,7 +320,7 @@ export default function AssetProfilingTab({
                           </td>
                         </tr>
                       )}
-                    </>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>

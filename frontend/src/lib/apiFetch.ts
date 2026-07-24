@@ -20,7 +20,9 @@ export async function apiFetch(input: FetchInput, init?: FetchInit): Promise<Res
 
   const res = await fetch(input, { ...init, headers })
 
-  if (res.status === 401 || res.status === 403) {
+  // Don't log out for demo-mode sessions — backend doesn't know about demo tokens,
+  // so 401s from proxied backend calls are expected and shouldn't end the session.
+  if ((res.status === 401 || res.status === 403) && !token?.startsWith('demo.')) {
     triggerGlobalLogout()
   }
 

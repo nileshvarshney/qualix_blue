@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Connection } from '@/lib/types'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_CONNECTIONS } from '@/lib/demoData'
 
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
@@ -50,9 +51,12 @@ export async function GET(req: NextRequest) {
     if (!res.ok) throw new Error(`Backend ${res.status}`)
     const data = await res.json()
     const items: Record<string, unknown>[] = Array.isArray(data) ? data : (data.items ?? [])
-    return NextResponse.json(items.map(mapToConnection))
+    const mapped = items.map(mapToConnection)
+    if (mapped.length > 0) return NextResponse.json(mapped)
+    // Backend returned empty — fall back to demo data
+    return NextResponse.json(DEMO_CONNECTIONS)
   } catch {
-    return NextResponse.json([])
+    return NextResponse.json(DEMO_CONNECTIONS)
   }
 }
 
