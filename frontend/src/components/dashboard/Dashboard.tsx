@@ -644,7 +644,7 @@ export default function Dashboard({ stats, loading = false, activeConnectionId =
           <Link href="/observability" style={{ textDecoration: 'none' }}>
             <div style={kpiTile}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                <span style={kpiLabel}>SLA Health</span>
+                <span style={kpiLabel}>SLAs Managed</span>
                 <div style={{
                   ...kpiIconWrap,
                   background: slaLoading ? 'var(--surface-muted)' : slaBreached > 0 ? 'var(--status-error-bg)' : slaAtRisk > 0 ? 'var(--status-warn-bg)' : 'var(--status-ok-bg)',
