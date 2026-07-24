@@ -63,7 +63,7 @@ export default function AssetQualityTab({ assetId }: { assetId: string }) {
   }
 
   const trendData = (history?.history ?? []).map(h => ({ date: h.date, score: h.overall_score, failed: 0 }))
-  const hasForecast = forecast && !forecast.insufficient_history && forecast.forecast.length > 0
+  const hasForecast = forecast && !forecast.insufficient_history && Array.isArray(forecast.forecast) && forecast.forecast.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

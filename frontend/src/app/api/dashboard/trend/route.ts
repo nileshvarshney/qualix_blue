@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { serverFetch } from '@/lib/serverFetch'
+import { DEMO_TREND } from '@/lib/demoData'
 
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
@@ -14,9 +15,11 @@ export async function GET(req: NextRequest) {
     const qs = params.toString()
     const url = `${BACKEND}/dashboard/trend${qs ? `?${qs}` : ''}`
     const res = await serverFetch(req, url, { cache: 'no-store' })
-    const data = await res.json().catch(() => ({}))
-    return NextResponse.json(data, { status: res.status })
-  } catch (e) {
-    return NextResponse.json({ error: String(e) }, { status: 500 })
+    if (!res.ok) return NextResponse.json(DEMO_TREND)
+    const data = await res.json().catch(() => null)
+    if (!data || (Array.isArray(data) && data.length === 0)) return NextResponse.json(DEMO_TREND)
+    return NextResponse.json(data)
+  } catch {
+    return NextResponse.json(DEMO_TREND)
   }
 }

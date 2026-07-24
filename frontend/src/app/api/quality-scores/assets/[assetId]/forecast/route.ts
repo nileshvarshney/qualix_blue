@@ -17,8 +17,8 @@ export async function GET(
       `${BACKEND}/quality-scores/assets/${assetId}/forecast?days=${days}&horizon=${horizon}`,
       { cache: 'no-store' }
     )
-    const data = await res.json().catch(() => ({}))
-    return NextResponse.json(data, { status: res.status })
+    if (!res.ok) throw new Error(`Backend ${res.status}`)
+    return NextResponse.json(await res.json().catch(() => ({})))
   } catch {
     return NextResponse.json({ asset_id: assetId, history: [], forecast: [], upper_band: [], lower_band: [], insufficient_history: true })
   }

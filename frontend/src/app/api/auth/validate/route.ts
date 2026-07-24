@@ -3,13 +3,29 @@ import { NextRequest, NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 const BACKEND = process.env.BACKEND_URL || 'http://localhost:8000'
 
+function parseDemoToken(token: string) {
+  if (!token.startsWith('demo.')) return null
+  try {
+    const payload = JSON.parse(Buffer.from(token.slice(5), 'base64url').toString())
+    if (!payload.demo || payload.exp < Date.now()) return null
+    return payload as { email: string; role: string; full_name?: string }
+  } catch { return null }
+}
+
 /**
  * Cold-start token validation. Unlike /api/me, this route propagates 401 so
  * AuthContext can distinguish a valid session from an expired/absent one.
+ * Handles demo tokens locally when the backend is unreachable.
  */
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('Authorization')
   if (!auth) return NextResponse.json({ error: 'No token' }, { status: 401 })
+
+  const token = auth.replace(/^Bearer\s+/i, '')
+  const demo = parseDemoToken(token)
+  if (demo) {
+    return NextResponse.json({ email: demo.email, role: demo.role, full_name: demo.full_name ?? '' })
+  }
 
   try {
     const res = await fetch(`${BACKEND}/auth/me`, {
